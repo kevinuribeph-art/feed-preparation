@@ -6,7 +6,7 @@
 // Mesa cogida un momento (lote 4, más abajo).
 (function () {
   'use strict';
-  const VERSION = '1.3';   // 1.3: la hoja sigue al teclado (resize y scroll del visualViewport), el campo del ordenador en notas, «Detalles» y textos de una sesión (D-286) y las marcas de estado del Mac (D-287). 1.2: las listas se leen como en el Mac: viñeta y número en terracota y el separador «⸻» como una línea (D-283). 1.1: los ajustes tras probarla en el iPhone (D-271), editar tareas (D-272) y la sesión entera (D-275)
+  const VERSION = '1.4';   // 1.4: «Cancelar · Guardar» tapa las marcas dibujadas al deslizar la hoja (D-286, probado en el iPhone). 1.3: la hoja sigue al teclado (resize y scroll del visualViewport), el campo del ordenador en notas, «Detalles» y textos de una sesión (D-286) y las marcas de estado del Mac (D-287). 1.2: las listas se leen como en el Mac: viñeta y número en terracota y el separador «⸻» como una línea (D-283). 1.1: los ajustes tras probarla en el iPhone (D-271), editar tareas (D-272) y la sesión entera (D-275)
   const M = window.MESA, D = document, W = window;
   const fallo = t => { (W.MESA_CARGA = W.MESA_CARGA || {}).movil = 'fallo'; const p = D.getElementById('arranque'); if (p) p.textContent = t; };
   if (!M || !M._in || !M._in.movil || !M._in.movil.activo) { fallo('No se pudo cargar la Mesa. Cierra la app y vuelve a abrirla.'); return; }
@@ -706,7 +706,7 @@
 @media (orientation:landscape) and (max-height:500px){#movil .hoja{max-height:calc(var(--vvh,100dvh) - 8px)}#movil .hoja.mv-grande{height:calc(var(--vvh,100dvh) - 8px)}}
 #movil .velo{touch-action:none}
 /* escribir con el campo del ordenador (escritura.js; su hoja de estilo va bajo #mesa: lección 244) */
-#movil .mv-cedw{position:relative}
+#movil .mv-cedw{position:relative;isolation:isolate}#movil .hoja .pie{z-index:2}   /* las marcas dibujadas, dentro de su campo: al deslizar, «Cancelar · Guardar» las tapa (D-286, probado en el iPhone) */
 #movil .mv-ced{display:block;width:100%;min-height:52px;padding:13px 14px;border-radius:14px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);font:16px/1.5 var(--font);white-space:pre-wrap;overflow-wrap:anywhere;outline:none;caret-color:var(--acc);-webkit-user-select:text;user-select:text;cursor:text}
 #movil .mv-ced:focus{border-color:var(--acc);box-shadow:0 0 0 4px var(--ring)}
 #movil .mv-ced[data-ed="txt"]{min-height:160px}

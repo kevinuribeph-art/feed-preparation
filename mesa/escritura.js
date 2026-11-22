@@ -1,4 +1,4 @@
-// Escritura — Mesa de trabajo · v1.2 (D-202, D-203, D-283, D-286)
+// Escritura — Mesa de trabajo · v1.3 (D-202, D-203, D-283, D-286)
 // Quick writing in the personal page's free texts: a note, a task's «Detalles» and a session's texts (never a task's title,
 // a caption, a context, the editor's texts nor any other field). Marks at the start of a line (after its indent of 0, 2,
 // 4… spaces) and followed by a space: «- » a bullet, «1. » a numbered line (1 to 3 digits), «[] » or «[ ] » a checkbox and
@@ -13,7 +13,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.2';   // 1.2: in the iPhone the «/» menu goes in its face and stays over its keyboard, within what the visual viewport shows (D-286). 1.1: bullets and numbers in terracotta (the number in 600 when read), «/.» a list and «/-» a separator «⸻», Tab 4 spaces and a level against the line above, the numbers written again with Tab, ⇧Tab and Intro (D-283)
+  const VERSION = '1.3';   // 1.3: a mark measured from the start of its own line also when the text is in one node per line, as iOS leaves it (the bullets and the separator were drawn at the end of the line above, D-286). 1.2: in the iPhone the «/» menu goes in its face and stays over its keyboard, within what the visual viewport shows (D-286). 1.1: bullets and numbers in terracotta (the number in 600 when read), «/.» a list and «/-» a separator «⸻», Tab 4 spaces and a level against the line above, the numbers written again with Tab, ⇧Tab and Intro (D-283)
   if (M.escritura && M.escritura._off) { try { M.escritura._off(); } catch (e) { /* */ } }
 
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -155,13 +155,16 @@
     return { L: out, len: o };
   }
   const texto = el => el.textContent;
-  function punto(el, x, N) {                   // a text offset as a DOM position
+  // a text offset as a DOM position. Between two text nodes (iOS leaves one per line as it types) the start of a range goes to the
+  // start of the next one: from the end of the one above (after its «\n»), WebKit measures a box at the end of the line above, and
+  // the bullets and the separator were drawn there (D-286, tried in the iPhone)
+  function punto(el, x, N, alante) {
     const { L } = N || nodos(el);
     if (!L.length) return [el, 0];
-    for (const t of L) if (x <= t.o + t.n.data.length) return [t.n, Math.max(0, x - t.o)];
+    for (let i = 0; i < L.length; i++) { const t = L[i], fin = t.o + t.n.data.length; if (x < fin || (x === fin && !(alante && L[i + 1]))) return [t.n, Math.max(0, x - t.o)]; }
     const u = L[L.length - 1]; return [u.n, u.n.data.length];
   }
-  function rango(el, a, b, N) { const r = document.createRange(), p = punto(el, a, N), q = punto(el, b, N); r.setStart(p[0], p[1]); r.setEnd(q[0], q[1]); return r; }
+  function rango(el, a, b, N) { const r = document.createRange(), p = punto(el, a, N, true), q = punto(el, b, N, a === b); r.setStart(p[0], p[1]); r.setEnd(q[0], q[1]); return r; }
   const offDe = (el, node, off) => { const r = document.createRange(); r.setStart(el, 0); r.setEnd(node, off); return r.toString().length; };
   function caret(el) {
     const s = getSelection(); if (!s || !s.rangeCount) return null;

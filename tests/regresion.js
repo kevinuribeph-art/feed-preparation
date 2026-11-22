@@ -21442,6 +21442,20 @@
       } finally { await vdCerrarIg(); await vistaCliente(false); }
     });
   });
+  prueba('VD4', 'Las flechas del carrusel (D-296): 30 px, blancas al 72 %, la flecha de 16 px, y 44 px de toque, en la «Vista cliente»', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('vd4a.jpg', 1080, 1350), await foto('vd4b.jpg', 1080, 1350), await foto('vd4c.jpg', 1080, 1350)]);
+    await vistaCliente(true);
+    try {
+      q('.cell[data-slot="r1"]').click();
+      const n = await hasta(() => q('.detail[data-dlg="ig"] .igmedia .nav.next:not([hidden])'), 3000, 'la flecha siguiente');
+      const R = vdR(n); igual([Math.round(R.width), Math.round(R.height)], [30, 30], 'la flecha no mide 30 px');
+      const bg = W.getComputedStyle(n).backgroundColor.match(/[\d.]+/g).map(Number);
+      ok(bg[0] === 255 && bg[1] === 255 && bg[2] === 255 && Math.abs((bg[3] == null ? 1 : bg[3]) - 0.72) < 0.01, 'no es blanca al 72 %: ' + W.getComputedStyle(n).backgroundColor);
+      const sv = n.querySelector('svg'); igual(Math.round(vdR(sv).width), 16, 'la flecha de dentro no mide 16 px');
+      const t = W.document.elementFromPoint(R.right + 6, R.top + R.height / 2); ok(t === n || n.contains(t), 'no tiene 44 px de toque (a 6 px de su borde hay ' + (t && t.className) + ')');
+    } finally { await vdCerrarIg(); await vistaCliente(false); }
+  });
 
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;

@@ -2943,6 +2943,8 @@ ${TK_FUENTES}
 #mesa .igsl{align-self:flex-start;font-size:12px;color:var(--ink-2);background:var(--bg);border-radius:var(--r-pill);padding:3px 10px}
 #mesa .igvacio{margin:0;color:var(--mute);font-size:14px}
 #mesa .igpie{flex:none;margin:0;padding:12px 16px;border-top:1px solid var(--line2);font-size:13px;color:var(--mute)}
+#mesa .detail[data-dlg="ig"] .igmedia .nav{background:rgba(255,255,255,.72);box-shadow:0 1px 3px rgba(0,0,0,.25)}#mesa .detail[data-dlg="ig"] .igmedia .nav:hover{background:rgba(255,255,255,.92)}
+#mesa .detail[data-dlg="ig"] .igmedia .nav::before{content:'';position:absolute;inset:-7px;border-radius:50%}   /* 30 px, blancas al 72 %, 44 px de toque, como el portal (D-296) */
 #mesa .detail[data-dlg="ig"] .igcard.apilada{flex-direction:column}
 #mesa .detail[data-dlg="ig"] .igcard.apilada .igside{display:flex;flex-direction:column;width:auto;flex:1;min-height:0;border-left:0}
 @media (max-width:719px){#mesa .igcard{flex-direction:column}#mesa .igside{display:contents}#mesa .ighead{order:-1}#mesa .igacts{border-top:0}#mesa .igbody{order:1;flex:0 1 auto;min-height:0;max-height:32vh}#mesa .igdate{order:2}#mesa .igadd{display:none}#mesa .igcap{padding:6px 16px 0}#mesa .igcap .igav{display:none}#mesa .igct{padding-top:0}}

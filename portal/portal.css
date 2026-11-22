@@ -223,8 +223,12 @@ svg.i *{vector-effect:non-scaling-stroke}
 .car-l img{width:100%;height:100%;object-fit:cover;display:block}
 .car-l .ph{width:100%;aspect-ratio:4/5;display:grid;place-items:center;color:var(--mute);font-size:13px}
 .ig-n{position:absolute;top:10px;right:10px;padding:3px 9px;border-radius:var(--r-pill);background:rgba(22,17,14,.72);color:#fff;font-size:12px;font-weight:600}
-.car-b{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;border:0;background:rgba(255,255,255,.88);color:#16110E;display:grid;place-items:center;box-shadow:0 1px 3px rgba(0,0,0,.3)}
-.car-b.ant{left:8px}.car-b.sig{right:8px}.car-b svg{width:18px;height:18px;stroke-width:2}
+/* las flechas del carrusel, del tamaño de las de Instagram (D-296): 30 px, blancas al 72 %, la flecha de 16 px; un borde
+   invisible les da 44 px de toque */
+.car-b{position:absolute;top:50%;transform:translateY(-50%);width:30px;height:30px;padding:0;border-radius:50%;border:0;background:rgba(255,255,255,.72);color:#16110E;display:grid;place-items:center;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:background-color var(--d2)}
+.car-b::before{content:'';position:absolute;inset:-7px;border-radius:50%}
+.car-b:hover{background:rgba(255,255,255,.92)}
+.car-b.ant{left:12px}.car-b.sig{right:12px}.car-b svg{width:16px;height:16px;stroke-width:2}
 .car-b[hidden]{display:none}
 .ig-dots{position:absolute;left:0;right:0;bottom:12px;display:flex;justify-content:center;gap:5px;pointer-events:none}
 .ig-dots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.5)}.ig-dots i.on{background:#fff}

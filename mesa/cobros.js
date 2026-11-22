@@ -103,7 +103,7 @@
   function sesSinCobro(cli) {
     const p = P(); if (!p || !p.TK) return [];
     const usadas = new Set(C().vivos(cli).map(r => r.periodo));
-    return [...p.TK.values()].filter(k => k.tipo === 'sesion' && !k._b && (Array.isArray(k.clientes) ? k.clientes : [k.cliente]).includes(cli) && !usadas.has(k.id))
+    return [...p.TK.values()].filter(k => k.tipo === 'sesion' && !k._b && !(k.sesion && k.sesion.clase === 'reunion') && (Array.isArray(k.clientes) ? k.clientes : [k.cliente]).includes(cli) && !usadas.has(k.id))   // a meeting has no payment (D-291)
       .sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')));
   }
   // «+ Factura» of a monthly client: the next stretch without an invoice, from the month after the last one invoiced (D-288)
@@ -403,9 +403,10 @@
 #mesa .co svg,#mesa .co-pagos svg,#mesa .co-mf svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:var(--i-trazo);stroke-linecap:round;stroke-linejoin:round}
 #mesa .co svg *,#mesa .co-pagos svg *{vector-effect:non-scaling-stroke}
 #mesa .co-cuota{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 18px}
-#mesa .co-acu-t{display:flex;align-items:baseline;gap:10px;margin:0 0 10px}#mesa .co-acu-t h4{margin:0;font-size:15px;font-weight:700;color:var(--ink)}#mesa .co-acu-t span{font-size:12.5px;color:var(--mute)}
+#mesa .co-acu-t{display:flex;align-items:baseline;gap:10px;margin:0 0 10px}#mesa .co-acu-t h4{margin:0;font-size:15px;font-weight:800;letter-spacing:-.015em;color:var(--ink)}#mesa .co-acu-t span{font-size:12.5px;color:var(--mute)}
 #mesa .co-cuota.co-acu{grid-template-columns:repeat(4,minmax(0,1fr));margin:0 0 8px}
 #mesa .co-acu-n{margin:0 0 18px;font-size:12.5px;line-height:1.45;color:var(--ink-2)}
+#mesa .co-acu .mx-sel,#mesa .co-acu .mx-f{display:flex;width:100%;border-radius:var(--r-md)}#mesa .co-acu .mx-f .mx-in{flex:1;min-width:0}   /* the Mesa's dropdowns and date as wide as the fields beside them */
 #mesa .co-cuota label{display:block;margin:0 0 6px;font-size:12.5px;font-weight:600}
 #mesa .co-q{width:100%;box-sizing:border-box;height:32px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel-2);padding:0 12px;font:13px var(--font);color:var(--ink);transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}
 #mesa .co-q:hover{border-color:var(--line-strong)}#mesa .co-q:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--ring)}

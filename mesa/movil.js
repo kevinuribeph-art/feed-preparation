@@ -6,7 +6,7 @@
 // Mesa cogida un momento (lote 4, más abajo).
 (function () {
   'use strict';
-  const VERSION = '1.5';   // 1.5: «Acuerdos» en Hoy, el aviso de renegociar (D-288). 1.4: «Cancelar · Guardar» tapa las marcas dibujadas al deslizar la hoja (D-286, probado en el iPhone). 1.3: la hoja sigue al teclado (resize y scroll del visualViewport), el campo del ordenador en notas, «Detalles» y textos de una sesión (D-286) y las marcas de estado del Mac (D-287). 1.2: las listas se leen como en el Mac: viñeta y número en terracota y el separador «⸻» como una línea (D-283). 1.1: los ajustes tras probarla en el iPhone (D-271), editar tareas (D-272) y la sesión entera (D-275)
+  const VERSION = '1.5';   // 1.5: «Acuerdos» en Hoy, el aviso de renegociar (D-288); un cliente de solo contenido cuenta y lista sus entregas, y una pasada sale en Hoy (D-290). 1.4: «Cancelar · Guardar» tapa las marcas dibujadas al deslizar la hoja (D-286, probado en el iPhone). 1.3: la hoja sigue al teclado (resize y scroll del visualViewport), el campo del ordenador en notas, «Detalles» y textos de una sesión (D-286) y las marcas de estado del Mac (D-287). 1.2: las listas se leen como en el Mac: viñeta y número en terracota y el separador «⸻» como una línea (D-283). 1.1: los ajustes tras probarla en el iPhone (D-271), editar tareas (D-272) y la sesión entera (D-275)
   const M = window.MESA, D = document, W = window;
   const fallo = t => { (W.MESA_CARGA = W.MESA_CARGA || {}).movil = 'fallo'; const p = D.getElementById('arranque'); if (p) p.textContent = t; };
   if (!M || !M._in || !M._in.movil || !M._in.movil.activo) { fallo('No se pudo cargar la Mesa. Cierra la app y vuelve a abrirla.'); return; }
@@ -30,6 +30,7 @@
     casa: '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
     gente: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
     tareas: '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/>',
+    paquete: '<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><path d="m3.3 7 7.703 4.734a2 2 0 0 0 1.994 0L20.7 7"/><path d="m7.5 4.27 9 5.15"/>',
     abajo: '<path d="m6 9 6 6 6-6"/>', arriba: '<path d="m18 15-6-6-6 6"/>', izq: '<path d="m15 18-6-6 6-6"/>', der: '<path d="m9 18 6-6-6-6"/>',
     reloj: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
     euro: '<path d="M4 10h12"/><path d="M4 14h9"/><path d="M19 6a7.7 7.7 0 0 0-5.2-2A7.9 7.9 0 0 0 6 12c0 4.4 3.5 8 7.8 8 2 0 3.8-.8 5.2-2"/>',
@@ -983,6 +984,10 @@
   let FILTRO = null, VER_TODO = {}, AVT = false;   // AVT: el interruptor «Tareas» de Hoy, apagado al abrir la app (D-271, punto 2; D-180)
   function lineaAviso(x) {
     const quien = x.clientes.map(nombreCli).join(x.tipo === 'sesion' ? ' · ' : ' × ');
+    if (x.tipo === 'entrega') {   // una entrega pasada sin entregar (D-290): su mes, para mirarla
+      const r = x.r;
+      return fila({ a: x.B ? `data-ir="mes/${esc(x.B.key)}/lista/${esc(r.fecha.slice(0, 7))}"` : 'disabled', izq: icoFila('paquete', true), t1: esc(r.que || 'Entrega sin título'), t2: `${esc(quien)} · <span class="roja">sin entregar · venció el ${esc(corto(r.fecha))}</span>` });
+    }
     if (x.tipo === 'acuerdo') {   // renegociar (D-288): lo dice el núcleo (personal.js); se abre en el escritorio, como una factura
       const pas = x.cat === 'pasado', cu = M.personal._p && M.personal._p.acuerdoCuando ? M.personal._p.acuerdoCuando(x) : corto(x.dia);
       return fila({ a: `data-a="cobro"`, izq: icoFila('reloj', pas), t1: 'Renegociar el acuerdo', t2: `${esc(quien)} · ${pas ? `<span class="roja">${esc(cu)}</span>` : esc(cu)}` });
@@ -1044,11 +1049,18 @@
     html += `<div class="clis" style="margin-top:18px">${filas.map(f => {
       const m = f.meses[0], B = m && m.B, key = B ? B.key : ((C.boards.filter(b => b.client === f.c.id).sort((a, b) => String(b.month).localeCompare(String(a.month)))[0]) || {}).key;
       return `<button type="button" class="cli"${key ? ` data-ir="mes/${esc(key)}/lista/${esc(m && B ? m.m : '')}"` : ' disabled'}>
-      <span class="cli-h" style="display:flex">${av(f.c.id, true)}<span class="nm"><b>${esc(f.c.name)}</b><span>${esc(plural(f.pubs, 'publicación', 'publicaciones'))} · ${esc(plural(f.hs, 'historia', 'historias'))}</span></span><span class="chev">${ic('der')}</span></span>
+      ${f.cont ? cliCont(f, m, B) : `<span class="cli-h" style="display:flex">${av(f.c.id, true)}<span class="nm"><b>${esc(f.c.name)}</b><span>${esc(plural(f.pubs, 'publicación', 'publicaciones'))} · ${esc(plural(f.hs, 'historia', 'historias'))}</span></span><span class="chev">${ic('der')}</span></span>
       ${B ? tramos(m.paso) : `<div class="tramos" aria-hidden="true">${'<i></i>'.repeat(6)}</div>`}
-      <span class="cli-p" style="display:flex"><span>${B ? `<b>${esc(pasoTxt(m.paso))}</b>` : 'Sin tablero este mes'}</span>${f.pubSin ? `<span class="acc num">${esc(plural(f.pubSin, 'sin programar', 'sin programar'))}</span>` : B ? '<span>Todo programado</span>' : ''}</span>
+      <span class="cli-p" style="display:flex"><span>${B ? `<b>${esc(pasoTxt(m.paso))}</b>` : 'Sin tablero este mes'}</span>${f.pubSin ? `<span class="acc num">${esc(plural(f.pubSin, 'sin programar', 'sin programar'))}</span>` : B ? '<span>Todo programado</span>' : ''}</span>`}
     </button>`; }).join('')}</div>`;
     return html + '</main>' + tabs('clientes');
+  }
+
+  // un cliente de solo contenido (D-290): sus entregas en lugar de publicaciones, historias y pasos (lo cuenta personal.js)
+  function cliCont(f, m, B) {
+    const e = (m && m.ent) || { n: 0, h: 0 };
+    return `<span class="cli-h" style="display:flex">${av(f.c.id, true)}<span class="nm"><b>${esc(f.c.name)}</b><span>${esc(plural(f.ents || 0, 'entrega', 'entregas'))} · solo contenido</span></span><span class="chev">${ic('der')}</span></span>
+      <span class="cli-p" style="display:flex"><span>${B ? `<b>${e.n ? esc(`${e.h} de ${e.n} ${e.n === 1 ? 'entregada' : 'entregadas'}`) : 'Sin entregas este mes'}</b>` : 'Sin tablero este mes'}</span>${f.entSin ? `<span class="acc num">${esc(plural(f.entSin, 'sin entregar', 'sin entregar'))}</span>` : ''}</span>`;
   }
 
   // ---------- el mes de un cliente: lista, calendario e historias ----------
@@ -1061,8 +1073,8 @@
     const ant = otro(-1), sig = otro(1), sigB = !sig && MESES_CLI.sig ? `data-ir="mes/${esc(MESES_CLI.sig)}/${vista}"` : '', antB = !ant && MESES_CLI.ant ? `data-ir="mes/${esc(MESES_CLI.ant)}/${vista}"` : '';
     return top({ ...volverMes(), t: nombreCli(v.client) }) + `<main class="main" id="contenido">`
       + `<div class="mesnav"><h1>${esc(mesNombre(m))}</h1><div class="flechas"><button type="button" class="ib" ${ant || antB} ${ant || antB ? '' : 'disabled'} aria-label="Mes anterior">${ic('izq')}</button><button type="button" class="ib" ${sig || sigB} ${sig || sigB ? '' : 'disabled'} aria-label="Mes siguiente">${ic('der')}</button></div></div>`
-      + `<div class="pasos">${tramos(mx.paso.k)}<p><span class="acc">${esc(mx.paso.txt)}</span> · ${esc(plural(sin, 'sin programar', 'sin programar'))} · ${esc(plural(hs, 'historia', 'historias'))}</p></div>`
-      + `<div class="seg" role="tablist" aria-label="Vista del mes">${VISTAS.map(([k, t]) => `<button type="button" role="tab" class="${k === vista ? 'on' : ''}" aria-selected="${k === vista}" data-ir="mes/${esc(v.key)}/${k}/${esc(m)}">${t}</button>`).join('')}</div>`;
+      + (v.contenido ? '' : `<div class="pasos">${tramos(mx.paso.k)}<p><span class="acc">${esc(mx.paso.txt)}</span> · ${esc(plural(sin, 'sin programar', 'sin programar'))} · ${esc(plural(hs, 'historia', 'historias'))}</p></div>`)
+      + (v.contenido ? '' : `<div class="seg" role="tablist" aria-label="Vista del mes">${VISTAS.map(([k, t]) => `<button type="button" role="tab" class="${k === vista ? 'on' : ''}" aria-selected="${k === vista}" data-ir="mes/${esc(v.key)}/${k}/${esc(m)}">${t}</button>`).join('')}</div>`);
   }
   let MESES_CLI = { ant: null, sig: null };   // los tableros vecinos del cliente (otro tablero, otro mes)
   async function vecinos(v) {
@@ -1087,6 +1099,7 @@
     if (!v || v.key !== RUTA.a) return top(volverMes()) + `<main class="main" id="contenido">${L.error.mes ? mal(L.error.mes) : `<div class="lugar">Abriendo el mes…</div>`}</main>` + tabs('clientes');
     const m = mesDeRuta(v);
     let html = cabMes(v, m, vista);   // la barra va fuera de <main>, como en las demás
+    if (v.contenido) return html + entregasMes(v, m) + '</main>' + tabs('clientes');   // D-290
     const posts = v.posts.filter(p => p.mes === m).sort((a, b) => String(a.fecha.dia || '9').localeCompare(String(b.fecha.dia || '9')) || String(a.fecha.hora).localeCompare(String(b.fecha.hora)));
     if (vista === 'lista') {
       if (!posts.length) html += vacio('Este mes no tiene publicaciones', 'Se preparan en el escritorio.');
@@ -1105,6 +1118,16 @@
     return html + '</main>' + tabs('clientes');
   }
   const PUBS = { de: '', abierta: false };
+  // las entregas del mes de un cliente de solo contenido (D-290), para mirarlas: el enlace se abre fuera (se cambian en el Mac)
+  function entregasMes(v, m) {
+    const l = (v.entregas || []).filter(r => r.mes === m || (r.estado === 'pasada' && r.mes < m && m === v.hoy.slice(0, 7)));
+    if (!l.length) return vacio('Sin entregas este mes', 'Se apuntan en el escritorio.');
+    const h = l.filter(r => r.estado === 'entregada').length;
+    return `<div class="sec-h" style="margin-top:14px"><h2>Entregas <span class="n num">${h} de ${l.length}</span></h2></div><div class="lista">${l.map(r => fila({
+      a: r.enlace ? `data-a="enlace" data-u="${esc(r.enlace)}"` : 'disabled', izq: icoFila(r.estado === 'entregada' ? 'check' : 'paquete', r.estado === 'pasada'),
+      t1: esc(r.que || 'Entrega sin título'), t2: [r.cuanto ? esc(r.cuanto) : '', r.estado === 'entregada' ? 'entregada' : r.estado === 'pasada' ? '<span class="roja">sin entregar</span>' : `antes del ${esc(corto(r.fecha))}`, r.enlace ? '' : 'sin enlace'].filter(Boolean).join(' · '),
+      hr: corto(r.fecha), hrRoja: r.estado === 'pasada' })).join('')}</div>`;
+  }
   function listaDias(v, posts) {   // las publicaciones por día, cada día con su cabecera
     let h = '', dia = null;
     for (const p of posts) {
@@ -1700,6 +1723,7 @@
         return verTarea(id);
       }
       case 'cobro': return aviso('Las facturas y los acuerdos se abren en el escritorio.');
+      case 'enlace': { const u = b && b.dataset.u; if (u && /^https:\/\//.test(u)) { try { window.open(u, '_blank', 'noopener'); } catch (x) { /* */ } } return; }   // el enlace de una entrega (D-290)
       case 'hmov': { const v = L.vista, l = v.historias.filter(h => !h.cancelada).sort((x, y) => String(x.fecha.dia + x.fecha.hora).localeCompare(String(y.fecha.dia + y.fecha.hora))), i = l.findIndex(h => h.id === RUTA.b) + (+b.dataset.d); if (l[i]) ir(`his/${v.key}/${l[i].id}`, 'sustituir'); return; }
       case 'cerrarhoja': if (b && b.classList.contains('velo') && bajarTeclado(b)) return; return pedirCerrar();
       case 'recargar': try { location.reload(); } catch (x) { /* */ } return;

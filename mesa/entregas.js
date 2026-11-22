@@ -106,7 +106,7 @@
   function pintar() {
     const X = I(); if (!X || !X.S || !X.esContenido || !X.esContenido(X.S.client)) return;
     const iz = col('izq'), de = col('der'); if (!iz || !de) return;
-    if (UI.de && UI.de !== X.S.key) { const n = UI.nueva; UI.de = X.S.key; if (n) { UI.abierta = n; cerrarCampos(false); return; } UI.abierta = null; }   // another board: a new one still empty goes
+    if (UI.de && UI.de !== X.S.key) { UI.de = X.S.key; UI.abierta = null; UI.nueva = null; }   // another board (salir() already let the one before go)
     UI.de = X.S.key;
     if (SES === null && !sesLee) { leerSes(); }
     const a = document.activeElement;
@@ -128,8 +128,12 @@
   // its fields close; a new one still without «qué» goes, without a word (as a task without a title, D-204); the focus back on its
   // row, or on «+ Entrega» if it went
   async function cerrarCampos(foco) {
-    const was = UI.abierta, nuevaVacia = was && UI.nueva === was && !String((E().get(was) || {}).que || '').trim();
+    const was = UI.abierta, nueva = was && UI.nueva === was;
     UI.abierta = null; UI.nueva = null;
+    // decided over what is saved: the field being written goes in first and every write in course ends (a click right after a
+    // «change» never sees the record of before; second round of the cold review)
+    await soltarCampo(was); await E().esperar(); await new Promise(r => setTimeout(r, 0));   // and its cache, after it
+    const nuevaVacia = nueva && !String((E().get(was) || {}).que || '').trim();
     if (nuevaVacia) { try { await E().borrar(was); } catch (e) { /* it stays, «Sin título» */ } }
     pintar();
     if (foco) enfocar(nuevaVacia ? '.cont-izq [data-en="nueva"]' : `.cont-izq .en-f[data-id="${I().cssq(was)}"] .en-q`);
@@ -169,12 +173,15 @@
     return true;
   }
 
-  // a field being written goes in before the column is drawn again (its «change» would never come)
-  async function soltarCampo() {
+  // a field being written goes in before the column is drawn again (its «change» would never come); with an id, only that one's
+  async function soltarCampo(id) {
     const a = document.activeElement; if (!(a && a.matches && a.matches('.main > .cont .en-ed input'))) return;
+    if (id && a.closest('.en-ed').dataset.id !== id) return;
     if (a.dataset.en === 'campo') await campo(a);
     a.blur();
   }
+  // the board left (mesa.js, renderMain): its fields close, and a new one still without «qué» goes
+  function salir() { if (UI.abierta) cerrarCampos(false); UI.de = null; }
 
   // ---------- events ----------
   async function alClic(e) {
@@ -214,7 +221,7 @@
   let listoP = null;
   const listo = () => listoP || (listoP = new Promise((res, rej) => { const t0 = Date.now(), t = setInterval(() => { if (I() && I().ent && I().cob && I().estilo) { clearInterval(t); res(); } else if (Date.now() - t0 > 30000) { clearInterval(t); rej(new Error('mesa.js sin entregas')); } }, 50); }));
   M.entregasUI = {
-    version: VERSION, pintar, abrir,
+    version: VERSION, pintar, abrir, salir,
     _test: { UI },
     _off: () => { OFF.splice(0).forEach(f => f()); }
   };

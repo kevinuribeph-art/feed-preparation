@@ -3147,6 +3147,7 @@ ${TK_FUENTES}
     const mode = S ? (cont ? 'cont:' : 'board:') + S.key : CL.length ? 'empty-client:' + curClient + ':' + cn : 'no-clients';
     if (mode !== mainMode) {
       { const t = main.querySelector('.tray'); if (t) trayDonde(t); }   // the place of the folder it showed (D-092)
+      if (mainMode && mainMode.startsWith('cont:') && M.entregasUI && M.entregasUI.salir) { try { M.entregasUI.salir(); } catch (e) { /* */ } }   // a «Solo contenido» board left (D-290)
       mainMode = mode;
       if (M._ro) { M._ro.disconnect(); M._ro = null; }
       if (!S) root.classList.remove('client');
@@ -5633,8 +5634,11 @@ ${TK_FUENTES}
   // what of a stretch no invoice covers yet: from its first month without one to its end (a monthly invoice of before may
   // cover its first months); null, all of it covered
   function acuFalta(l, t) {
-    for (let m = t.de, i = 0; m <= t.hasta && i < 130; m = addMonths(m, 1), i++) if (!cobCubre(l, m)) return { de: m, hasta: t.hasta };
-    return null;
+    let de = null, hasta = null;
+    for (let m = t.de, i = 0; m <= t.hasta && i < 130; m = addMonths(m, 1), i++) {
+      if (!cobCubre(l, m)) { if (!de) de = m; hasta = m; } else if (de) break;   // the first run without one: a month invoiced after it stays out
+    }
+    return de ? { de, hasta } : null;
   }
   // a payment's amount for a part of its stretch: in proportion to its months (all of them, the whole amount)
   function acuImporte(q, t) {
@@ -5650,16 +5654,25 @@ ${TK_FUENTES}
   // what the agreement says in a line, for Kevin: «Cubre may 2026 – abr 2027 · dos pagos de 2700 € · …»
   const ACU_N = ['', 'un', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve', 'diez', 'once', 'doce'];
   function acuMes(m, conAno = true) { const n = COB_MESES[+m.slice(5, 7) - 1] || m; return n.slice(0, 3) + (conAno ? ' ' + m.slice(0, 4) : ''); }
+  // the last month of the cycle a month falls in (with a length; renewed, the cycle in course), or ''
+  function acuFinCiclo(a, m) {
+    if (!a || !a.desde || !a.meses) return '';
+    const d = m && m > a.desde ? mesesEntre(a.desde, m) : 0, c = a.renueva ? Math.floor(d / a.meses) : 0;
+    return addMonths(a.desde, (c + 1) * a.meses - 1);
+  }
   function acuResumen(c) {
     const a = acuerdoDe(c); if (!a) return '';
     const fin = acuFin(a), n = acuPaso(a), out = [];
     if (a.desde) out.push(fin ? `Cubre ${acuMes(a.desde)} – ${acuMes(fin)}` : `Cubre desde ${acuMes(a.desde)}`);
     if (a.importe != null) {
       if (a.pago === 'unico') out.push(`un pago de ${cobEur(a.importe)}`);
-      else if (fin) { const k = Math.ceil(a.meses / n); out.push(`${ACU_N[k] || k} ${k === 1 ? 'pago' : 'pagos'} de ${cobEur(a.importe)}`); }
+      else if (fin) {   // whole payments and, if its length isn't a multiple, a last one in proportion (as its invoices)
+        const k = Math.floor(a.meses / n), r = a.meses % n, ult = Math.round(a.importe * r / n * 100) / 100;
+        out.push([k ? `${ACU_N[k] || k} ${k === 1 ? 'pago' : 'pagos'} de ${cobEur(a.importe)}` : '', r ? `${k ? 'y ' : ''}un pago de ${cobEur(ult)}` : ''].filter(Boolean).join(' '));
+      }
       else out.push(`${cobEur(a.importe)} ${a.pago === 'mensual' ? 'al mes' : (ACU_PAGOS.find(x => x[0] === a.pago) || [, ''])[1].toLowerCase()}`);
     }
-    if (fin && a.pago !== 'unico') out.push(a.renueva ? `se renueva el 1 ${acuMes(addMonths(fin, 1))}` : `acaba en ${acuMes(fin)}`);
+    if (fin && a.pago !== 'unico') out.push(a.renueva ? `se renueva el 1 ${acuMes(addMonths(acuFinCiclo(a, madParts(ahora()).day.slice(0, 7)), 1))}` : `acaba en ${acuMes(fin)}`);   // the cycle in course
     if (a.renegociar) out.push('aviso en tu página 14 días antes de renegociar');
     return out.join(' · ');
   }
@@ -5854,8 +5867,9 @@ ${TK_FUENTES}
       if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; pulsa «Usar aquí» o vuelve a abrirla' };
       await loadClients(); const c = CL.find(x => x.id === cliente);
       if (!c) return { error: `cliente desconocido «${cliente}» (los ids, en MESA.clients())` };
-      if (a != null && (!acuValido(a) || !a.pago)) return { error: 'acuerdo no válido: {pago (' + ACU_PAGOS.map(x => x[0]).join(', ') + '), importe, dia (1-28), plazo (0-365), desde (AAAA-MM), meses (1-120), renueva, renegociar (AAAA-MM-DD)}' };
-      await acuGuardar(cliente, a == null ? null : a);
+      if (a === undefined) return { error: 'falta el acuerdo (para quitarlo, null)' };
+      if (a !== null && (!acuValido(a) || !a.pago || (a.importe != null && a.importe !== '' && !(+a.importe > 0)))) return { error: 'acuerdo no válido: {pago (' + ACU_PAGOS.map(x => x[0]).join(', ') + '), importe (> 0), dia (1-28), plazo (0-365), desde (AAAA-MM), meses (1-120), renueva, renegociar (AAAA-MM-DD)}' };
+      try { await acuGuardar(cliente, a); } catch (e) { return { error: String((e && e.message) || e) }; }
       return { ok: true, acuerdo: acuerdoDe(CL.find(x => x.id === cliente)) };
     },
     async cargar(lista) {
@@ -8525,10 +8539,10 @@ ${TK_FUENTES}
       dlgCliente: async (cid, tab) => { await loadClientPhotos(); return dlgEditClient(cid, tab); },   // «Editar cliente» of any client, in its tab (D-233)
       guardar: cobGuardar, parche: cobParche, pdfVolver: cobPdfVolver, borrar: cobBorrar, devolver: cobDevolver, pdfPoner: cobPdfPoner, pdfValido: cobPdfValido, pdfLibre: cobPdfLibre, nuevoId: cobId, cuotaGuardar, cuotaTxt, avisar: cobAvisar, MES: COB_MES,
       // the agreement (D-288): as kept, its stretches, its line, its save; an invoice's last month and whether one covers a month
-      acuerdo: acuerdoDe, tramo: acuTramo, libre: acuLibre, falta: acuFalta, importeDe: acuImporte, resumen: acuResumen, acuGuardar, acuLimpio, PAGOS: ACU_PAGOS, paso: acuPaso, fin: acuFin, mesCorto: acuMes, hasta: cobHasta, cubre: cobCubre },
+      acuerdo: acuerdoDe, tramo: acuTramo, libre: acuLibre, falta: acuFalta, importeDe: acuImporte, resumen: acuResumen, acuGuardar, acuLimpio, PAGOS: ACU_PAGOS, paso: acuPaso, fin: acuFin, finCiclo: acuFinCiclo, mesCorto: acuMes, hasta: cobHasta, cubre: cobCubre },
     // a «Solo contenido» client (D-289) and its deliveries (D-290): for entregas.js, personal.js, calendario.js and movil.js
     servicio: servicioDe, esContenido, metricasOk,
-    ent: { leer: entLeer, listo: () => !!ENT, vivas: entVivas, get: id => ENT && ENT.get(id), estado: entEstado, propuesta: entPropuesta, nueva: entNueva, cambiar: entCambiar, borrar: entBorrar, devolver: entDevolver, avisar: entAvisar, url: entUrl },
+    ent: { leer: entLeer, esperar: () => entPend, listo: () => !!ENT, vivas: entVivas, get: id => ENT && ENT.get(id), estado: entEstado, propuesta: entPropuesta, nueva: entNueva, cambiar: entCambiar, borrar: entBorrar, devolver: entDevolver, avisar: entAvisar, url: entUrl },
     get S() { return S; }, get CL() { return CL; }, get curClient() { return curClient; }, get locked() { return locked; },
     root: () => root, colPliegue, trayFold, shellReady, slot, changed, save, flushNow, render, renderFeed, renderBar, renderTray, refreshDetail, openDetail, closeDetail,
     get trayCarpeta() { return trayCarpeta; }, trayAbrir, pestNueva, pestIr, pestCerrar, pestLista, pestOrdenar, pestArrastrar, pestVisible, dondeGuardar, dondeVolver, trayLote, traySoltar, trayElegir, trayMover, trayCopiar, trayPegar, trayPuedePegar, trayPegaAlgo, get trayFoco() { return trayFoco; }, get trayClip() { return trayClip; }, rutaCarpeta, carpetasDeVista, cuentaCarpeta, minisPerezosas, MINIS_DE_UNA, ICON_CARPETA,

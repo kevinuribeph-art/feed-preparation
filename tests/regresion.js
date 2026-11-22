@@ -20970,10 +20970,18 @@
       igual(CB().tramo({ ...q10, renueva: true }, '2027-04'), { de: '2027-03', hasta: '2027-05' }, 'el ciclo renovado no empieza tras el final');
       await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 500, dia: 1, plazo: 10, meses: 12 });
       ok(!/pagos/.test(CB().resumen(cli())), 'cuenta pagos sin «desde»: ' + CB().resumen(cli()));
+      // segunda ronda: una factura en medio del tramo no se cobra dos veces; la línea cuenta el último pago con su parte
+      const q6 = { pago: 'semestral', importe: 2700, dia: 1, plazo: 15, desde: '2026-05', meses: null, renueva: true };
+      igual(CB().libre(q6, [{ periodo: '2026-07' }], '2026-08'), { de: '2026-05', hasta: '2026-06', importe: 900 }, 'lo que falta antes de una factura en medio');
+      igual(CB().libre(q6, [{ periodo: '2026-05' }, { periodo: '2026-06' }, { periodo: '2026-07' }], '2026-08'), { de: '2026-08', hasta: '2026-10', importe: 1350 }, 'lo que falta después');
+      await CB().acuGuardar(CLIENTE, q10);
+      ok(/tres pagos de 900 € y un pago de 300 €/.test(CB().resumen(cli())), 'la línea no cuenta el último pago con su parte: ' + CB().resumen(cli()));
     } finally { relojVuelve(); await CB().borrar('au-m'); }
     // MESA.cobros.acuerdo: Claude lo pone (con el OK de Kevin) y lo valida
     let ra = await M.cobros.acuerdo(CLIENTE, { pago: 'cada siglo' }); ok(ra.error, 'la API acepta un acuerdo no válido');
     ra = await M.cobros.acuerdo('nadie', AU_ACU); ok(ra.error, 'la API acepta un cliente que no existe');
+    ra = await M.cobros.acuerdo(CLIENTE); ok(ra.error, 'sin acuerdo, la API lo borra');
+    ra = await M.cobros.acuerdo(CLIENTE, { pago: 'mensual', importe: 0 }); ok(ra.error, 'la API acepta un importe de 0');
     ra = await M.cobros.acuerdo(CLIENTE, AU_ACU); ok(ra.ok && ra.acuerdo.pago === 'semestral' && ra.acuerdo.importe === 2700, 'la API no pone el acuerdo: ' + json(ra));
     // exportar e importar
     await CB().acuGuardar(CLIENTE, AU_ACU);
@@ -21178,6 +21186,19 @@
       ok(q(`.cont-izq .en-f[data-id="${e4.id}"]`) && /Diciembre/.test(q('.cont-izq .en-sub').textContent), 'la del mes siguiente no sale aparte: ' + q('.cont-izq').textContent.slice(0, 200));
       ok(/noviembre · 1 de 1 entregada/.test(q('.cont-izq .en-h').textContent), 'la del mes siguiente cuenta en el mes del tablero: ' + q('.cont-izq .en-h').textContent);
       await M._in.ent.borrar(e4.id);
+      // segunda ronda: «Listo» justo después de escribir «Qué» no la borra (el «change» y el clic seguidos)
+      q('.cont-izq [data-en="nueva"]').click(); await hasta(() => scCampo('que'), 2000, 'la entrega nueva');
+      const e5 = M._in.ent.vivas(CLIENTE).find(r => r.fecha === '2026-12-05' && !r.que);
+      const lb = q('.cont-izq [data-en="cerrar"]'); lb.focus(); coCambiar(scCampo('que'), 'Escrita y cerrada'); lb.click(); await espera(250);   // el foco ya en «Listo», como un clic de verdad
+      ok(M._in.ent.get(e5.id) && !M._in.ent.get(e5.id).borrado && M._in.ent.get(e5.id).que === 'Escrita y cerrada', '«Listo» justo después de escribir la borra');
+      await M._in.ent.borrar(e5.id);
+      // otro tablero con una entrega nueva vacía: se va
+      q('.cont-izq [data-en="nueva"]').click(); await hasta(() => scCampo('que'), 2000, 'otra entrega nueva');
+      const e6 = M._in.ent.vivas(CLIENTE).find(r => !r.que);
+      await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [], past: [], force: true }); await espera(250);
+      ok(!M._in.ent.get(e6.id) || M._in.ent.get(e6.id).borrado, 'cambiar de tablero deja la entrega vacía');
+      await M.open(`${CLIENTE}-${MES}`); await hasta(() => q('.main > .cont .cont-izq .en-h'), 4000, 'de vuelta al tablero');
+      ok(!scCampo('que'), 'de vuelta, los campos siguen abiertos');
       // soltar fotos en un tablero sin bandeja
       const tr0 = json(((await M._in.idbGet('bandejas', CLIENTE)) || {}).tray || []), dt = new W.DataTransfer(); dt.items.add(await foto('sc2.jpg'));
       q('.cont-izq').dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt })); await espera(300);

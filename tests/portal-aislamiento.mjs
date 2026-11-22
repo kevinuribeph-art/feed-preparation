@@ -44,10 +44,18 @@ const FA = `prueba-norte/${sha('foto-a')}.jpg`, FAH = `prueba-norte/${sha('foto-
 const C_PUB = 'cliente_id,pid,mes,orden,tipo,nombre,fecha,sin_hora,caption,imagenes,estado,version,visible,enviada';
 const C_APR = 'id,cliente_id,pid,version,decision,motivo,diapositiva,autor_nombre,hora';
 const C_COM = 'id,cliente_id,pid,version,diapositiva,texto,autor_nombre,de_kevin,hora,resuelto';
+// Lo que ve el cliente del acuerdo, de un cliente de solo contenido y de la reunión (D-294, D-297). Inventado.
+const A_ACUERDO = { servicio: 'contenido', metricas: 'https://metricas.ejemplo.test/norte', pago: 'semestral', pago_cent: 270000, cubre_de: '2026-05', cubre_hasta: '2026-10' };
+const B_ACUERDO = { metricas: 'https://metricas.ejemplo.test/sur-b', pago: 'trimestral', pago_cent: 99900 };
+const C_ACU = 'id,servicio,metricas,pago,pago_cent,cubre_de,cubre_hasta';
+const C_ENT = 'cliente_id,id,fecha,que,cuanto,enlace,entregada';
+const ent = (c, id, o) => ({ cliente_id: c, id, fecha: o.fecha || '2026-12-15', que: o.que, cuanto: o.cuanto || null, enlace: o.enlace || null, entregada: o.entregada || null });
 
 let fallos = 0, n = 0;
 const ok = (c, txt, extra) => { n++; if (c) console.log('  ok   ' + txt); else { fallos++; console.log('  FALLO ' + txt + (extra ? ' · ' + tapar(extra).slice(0, 200) : '')); } };
 const es = (r, ...codigos) => codigos.includes(r.status);
+// Una restricción (CHECK) que no se cumple: PostgREST responde 400 con el código de Postgres 23514.
+const rechazada = r => !r.ok && es(r, 400, 409) && /"code":"23514"/.test(r.text || '');
 { // Solo las claves nuevas (D-280): `firmar` no lee las heredadas (anon, service_role), apagadas y revocadas
   const f = readFileSync(new URL('../servidor/funciones/firmar.ts', import.meta.url), 'utf8');
   ok(!/SUPABASE_ANON_KEY|SUPABASE_SERVICE_ROLE_KEY|eyJ/.test(f) && /nuevas\('SUPABASE_PUBLISHABLE_KEYS'\)/.test(f) && /nuevas\('SUPABASE_SECRET_KEYS'\)/.test(f),
@@ -112,6 +120,20 @@ async function main() {
     const r = await servicio(t, { method: 'POST', body: filas, prefer: 'resolution=merge-duplicates' });
     if (!r.ok) throw new Fallo(`no se pudo sembrar ${t}: ${r.status} ${r.text}`);
   }
+  // Aparte (D-294, D-297): con un esquema que aún no lo tiene, sale en rojo y el resto de la prueba sigue.
+  console.log('Sembrar el acuerdo, las entregas y las reuniones (D-294, D-297)');
+  for (const [txt, ruta, o] of [
+    ['el acuerdo de Norte (solo contenido, semestral, de mayo a octubre) y su enlace de métricas', `clientes?id=eq.${A.id}`, { method: 'PATCH', body: A_ACUERDO }],
+    ['el de Sur (trimestral, sin tramo) y el suyo', `clientes?id=eq.${B.id}`, { method: 'PATCH', body: B_ACUERDO }],
+    ['una factura de varios meses en cada uno', 'pagos', { method: 'POST', body: [{ cliente_id: A.id, id: 'co-a2', periodo: '2026-05', hasta: '2026-10', importe_cent: 270000 }, { cliente_id: B.id, id: 'co-b2', periodo: '2026-09', hasta: '2026-11', importe_cent: 99900 }] }],
+    ['una reunión en cada uno', 'sesiones', { method: 'POST', body: [{ cliente_id: A.id, id: 'reu-a1', mes: '2026-12', nombre: 'Reunión Norte', inicio: '2026-12-03T10:00:00Z', clase: 'reunion' }, { cliente_id: B.id, id: 'reu-b1', mes: '2026-12', nombre: 'Reunión Sur', inicio: '2026-12-04T10:00:00Z', clase: 'reunion' }] }],
+    ['las entregas (de Norte una pendiente y una entregada; de Sur una entregada)', 'entregas', { method: 'POST', body: [ent(A.id, 'ent-a1', { que: '20 fotos de producto', cuanto: '20 fotos' }),
+      ent(A.id, 'ent-a2', { fecha: '2026-11-30', que: 'Vídeo de la carta', cuanto: '1 vídeo', enlace: 'https://entregas.ejemplo.test/norte', entregada: '2026-11-28' }),
+      ent(B.id, 'ent-b1', { fecha: '2026-11-20', que: 'Entrega Sur', enlace: 'https://entregas.ejemplo.test/sur-b', entregada: '2026-11-19' })] }],
+  ]) {
+    const r = await servicio(ruta, { ...o, prefer: o.method === 'PATCH' ? 'return=representation' : 'resolution=merge-duplicates' });
+    ok(r.ok && (o.method !== 'PATCH' || (r.json || []).length === 1), 'se siembra ' + txt, `${r.status} ${r.text}`);
+  }
   for (const [b, ruta, bytes, tipo] of [['fotos', FA, JPG, 'image/jpeg'], ['fotos', FAH, JPG, 'image/jpeg'], ['fotos', FB, JPG, 'image/jpeg'], ['facturas', PDFB, PDF, 'application/pdf']]) await subir(b, ruta, bytes, tipo);
   const kb = await entrar(CORREO.b), ka = await entrar(CORREO.a), kk = (await conCodigo(P, await entrar(CORREO.k))).access_token;   // con el código de su app (D-262)
   const sem = async (tk, body) => { const r = await rest(P, 'comentarios', { method: 'POST', token: tk, body }); if (!r.ok) throw new Fallo('no se pudo sembrar un comentario: ' + r.text); };
@@ -127,7 +149,7 @@ async function main() {
   r = await a(`publicaciones?select=${C_PUB}&pid=eq.${PAH}`); ok(r.ok && r.json.length === 0, 'una oculta no se ve', r.text);
   r = await a('publicaciones?select=vistas_hasta'); ok(es(r, 400, 401, 403), 'la marca de lo leído de Kevin no está en la publicación', r.text);
   r = await a('comentarios?select=autor'); ok(es(r, 401, 403), 'el uuid del autor no se lee', r.text);
-  for (const t of ['clientes', 'pagos', 'meses', 'sesiones']) {
+  for (const t of ['clientes', 'pagos', 'meses', 'sesiones', 'entregas']) {
     r = await a(`${t}?select=*`); ok(r.ok && r.json.every(x => (x.cliente_id || x.id) === A.id), `${t}: solo de su cliente`, r.text);
   }
   r = await a(`comentarios?select=${C_COM}`); ok(r.ok && r.json.every(x => x.cliente_id === A.id && x.pid !== PAH), 'comentarios: solo de lo que ve (ni de Sur ni de la oculta)', r.text);
@@ -136,6 +158,61 @@ async function main() {
   r = await a('duenos?select=*'); ok(r.ok && r.json.length === 0, 'duenos: nada', r.text);
   r = await a('lecturas', { method: 'POST', body: { cliente_id: A.id, visto_hasta: new Date().toISOString() } }); ok(es(r, 401, 403), 'Ana no escribe «leído» (es de Kevin)', r.text);
   r = await rest(P, `publicaciones?select=${C_PUB}`); ok(es(r, 401, 403) || (r.ok && r.json.length === 0), 'sin entrar: nada', r.text);
+
+  console.log('Acuerdo, entregas y reuniones (D-294, D-297)');
+  const igual = (x, esperado) => !!x && Object.entries(esperado).every(([c, v]) => x[c] === v);
+  r = await a(`clientes?select=${C_ACU}`);
+  ok(r.ok && r.json.length === 1 && igual(r.json[0], { id: A.id, ...A_ACUERDO }), 'Ana ve solo su acuerdo y su enlace de métricas, con sus valores', r.text);
+  r = await a(`entregas?select=${C_ENT}&order=id`);
+  ok(r.ok && r.json.length === 2 && r.json.every(x => x.cliente_id === A.id), 'Ana ve solo sus 2 entregas', r.text);
+  ok(r.ok && Array.isArray(r.json) && igual(r.json.find(x => x.id === 'ent-a1'), { enlace: null, entregada: null, que: '20 fotos de producto' })
+    && igual(r.json.find(x => x.id === 'ent-a2'), { enlace: 'https://entregas.ejemplo.test/norte', entregada: '2026-11-28', cuanto: '1 vídeo' }), 'la pendiente sin enlace y la entregada con el suyo', r.text);
+  r = await a(`entregas?select=${C_ENT}&cliente_id=eq.${B.id}`); ok(r.ok && r.json.length === 0, 'pidiendo las de Sur por id, nada', r.text);
+  r = await a('pagos?select=id,hasta&order=id');
+  ok(r.ok && r.json.map(x => x.id).join() === 'co-a1,co-a2' && r.json[0].hasta === null && r.json[1].hasta === '2026-10', 'pagos: solo los suyos, la factura de varios meses con su «hasta»', r.text);
+  r = await a('sesiones?select=id,clase');
+  ok(r.ok && r.json.length === 1 && igual(r.json[0], { id: 'reu-a1', clase: 'reunion' }), 'sesiones: solo las suyas, con su reunión', r.text);
+  r = await rest(P, `entregas?select=${C_ENT}`); ok(es(r, 401, 403) || (r.ok && r.json.length === 0), 'sin entrar: ninguna entrega', r.text);
+  const intrusa = { cliente_id: A.id, id: 'ent-intrusa', fecha: '2026-12-20', que: 'Intrusa' };
+  r = await a('entregas', { method: 'POST', body: intrusa }); ok(es(r, 401, 403), 'Ana no añade entregas a su cliente', r.text);
+  r = await rest(P, 'entregas', { method: 'POST', token: ka, body: { ...intrusa, cliente_id: B.id } }); ok(es(r, 401, 403), 'ni a Sur', r.text);
+  await a(`entregas?cliente_id=eq.${A.id}`, { method: 'PATCH', body: { que: 'Cambiada por Ana', enlace: null, entregada: null } });
+  await rest(P, `entregas?cliente_id=eq.${B.id}`, { method: 'PATCH', token: ka, body: { que: 'Cambiada por Ana' } });
+  await a(`entregas?cliente_id=eq.${A.id}`, { method: 'DELETE' });
+  await rest(P, `entregas?cliente_id=eq.${B.id}`, { method: 'DELETE', token: ka });
+  r = await servicio(`entregas?select=${C_ENT}&cliente_id=in.(${A.id},${B.id})`);
+  ok(r.ok && r.json.length === 3 && !r.json.some(x => x.id === 'ent-intrusa' || x.que === 'Cambiada por Ana') && igual(r.json.find(x => x.id === 'ent-a2'), { enlace: 'https://entregas.ejemplo.test/norte' }),
+    'Ana no añade, ni cambia, ni borra ninguna entrega (ni suya ni de Sur)', r.text);
+  await a(`clientes?id=eq.${A.id}`, { method: 'PATCH', body: { metricas: 'https://otra.ejemplo.test/ana', servicio: 'redes' } });
+  r = await servicio(`clientes?id=eq.${A.id}&select=servicio,metricas`);
+  ok(r.ok && igual(r.json[0], { servicio: 'contenido', metricas: A_ACUERDO.metricas }), 'Ana no cambia el enlace de métricas ni el servicio de su cliente', r.text);
+
+  console.log('Restricciones del acuerdo, las entregas y las reuniones (D-294, D-297)');
+  const CA = `clientes?id=eq.${A.id}`, PA = `pagos?cliente_id=eq.${A.id}&id=eq.co-a2`, mala = o => ent(A.id, 'ent-mala', { que: 'Mala', ...o });
+  for (const [txt, ruta, method, body] of [
+    ['métricas por http', CA, 'PATCH', { metricas: 'http://metricas.ejemplo.test/norte' }],
+    ['métricas con un espacio', CA, 'PATCH', { metricas: 'https://metricas.ejemplo.test/no rte' }],
+    ['métricas de más de 500 caracteres', CA, 'PATCH', { metricas: 'https://metricas.ejemplo.test/' + 'x'.repeat(480) }],
+    ['un servicio que no existe', CA, 'PATCH', { servicio: 'otro' }],
+    ['un pago «semanal»', CA, 'PATCH', { pago: 'semanal' }],
+    ['un importe de pago negativo', CA, 'PATCH', { pago_cent: -1 }],
+    ['un tramo que acaba antes de empezar', CA, 'PATCH', { cubre_de: '2026-10', cubre_hasta: '2026-05' }],
+    ['solo el principio del tramo', CA, 'PATCH', { cubre_hasta: null }],
+    ['solo el final del tramo', CA, 'PATCH', { cubre_de: null }],
+    ['un tramo con meses que no existen', CA, 'PATCH', { cubre_de: '2026-13', cubre_hasta: '2026-14' }],
+    ['una factura que acaba antes de su periodo', PA, 'PATCH', { hasta: '2026-04' }],
+    ['una factura con «hasta» y sin periodo', PA, 'PATCH', { periodo: null }],
+    ['una sesión de clase «otra»', `sesiones?cliente_id=eq.${A.id}&id=eq.reu-a1`, 'PATCH', { clase: 'otra' }],
+    ['una entrega con enlace y sin entregar', 'entregas', 'POST', mala({ enlace: 'https://entregas.ejemplo.test/mala' })],
+    ['una entrega con enlace por http', 'entregas', 'POST', mala({ enlace: 'http://entregas.ejemplo.test/mala', entregada: '2026-12-19' })],
+    ['una entrega sin «qué» (solo espacios)', 'entregas', 'POST', mala({ que: '   ' })],
+    ['una entrega con un id raro', 'entregas', 'POST', { ...mala({}), id: 'ent mala/1' }],
+  ]) { r = await servicio(ruta, { method, body }); ok(rechazada(r), `${txt}: rechazada (23514)`, `${r.status} ${r.text}`); }
+  r = await servicio(`clientes?id=eq.${A.id}&select=${C_ACU}`); ok(r.ok && igual(r.json[0], A_ACUERDO), 'el acuerdo de Norte sigue como estaba', r.text);
+  r = await servicio(`entregas?select=id&cliente_id=eq.${A.id}`); ok(r.ok && r.json.length === 2, 'y no entró ninguna entrega mala', r.text);
+  r = await servicio('clientes?select=renegociar'); ok(es(r, 400), 'no hay columna de renegociar: esa fecha nunca llega al servidor', r.text);
+  const g = await gestion(`projects/${P.ref}/database/query`, { method: 'POST', body: { query: `select table_name, column_name from information_schema.columns where table_schema = 'public' and column_name ilike '%renegoc%'` } });
+  ok(g.ok && Array.isArray(g.json) && g.json.length === 0, 'ni ninguna otra con «renegoc…» en el esquema público', g.text);
 
   console.log('Archivos');
   r = await firmarFn(ka, 'fotos', [FA, FB, FAH]);
@@ -203,7 +280,12 @@ async function main() {
   const ko = await entrar(CORREO.o), o = como(ko);
   r = await o('miembros?select=cliente_id,observa'); ok(r.ok && r.json.length >= 2 && r.json.every(x => x.observa === true) && [A.id, B.id].every(c => r.json.some(x => x.cliente_id === c)), 've sus filas, todas «solo mirar»', r.text);
   r = await o(`publicaciones?select=${C_PUB}&cliente_id=in.(${A.id},${B.id})`); ok(r.ok && r.json.length === 4 && !r.json.some(x => x.pid === PAH), 've las publicaciones visibles de los dos clientes (la oculta, no)', r.text);
-  for (const t of ['pagos', 'meses', 'sesiones']) { r = await o(`${t}?select=cliente_id&cliente_id=in.(${A.id},${B.id})`); ok(r.ok && new Set(r.json.map(x => x.cliente_id)).size === (t === 'sesiones' ? 1 : 2), `${t}: los de los dos clientes, como cada uno`, r.text); }
+  for (const t of ['pagos', 'meses', 'sesiones', 'entregas']) { r = await o(`${t}?select=cliente_id&cliente_id=in.(${A.id},${B.id})`); ok(r.ok && new Set(r.json.map(x => x.cliente_id)).size === 2, `${t}: los de los dos clientes, como cada uno`, r.text); }
+  r = await o(`entregas?select=id&cliente_id=in.(${A.id},${B.id})`); ok(r.ok && r.json.length === 3, 've las 3 entregas de los dos clientes', r.text);
+  r = await o('entregas', { method: 'POST', body: { cliente_id: B.id, id: 'ent-mira', fecha: '2026-12-20', que: 'Solo miro' } }); ok(es(r, 401, 403), 'no añade entregas', r.text);
+  await o(`entregas?cliente_id=in.(${A.id},${B.id})`, { method: 'PATCH', body: { que: 'Cambiada al mirar' } });
+  await o(`entregas?cliente_id=in.(${A.id},${B.id})`, { method: 'DELETE' });
+  r = await servicio(`entregas?select=id,que&cliente_id=in.(${A.id},${B.id})`); ok(r.ok && r.json.length === 3 && !r.json.some(x => x.id === 'ent-mira' || x.que === 'Cambiada al mirar'), 'ni cambia ni borra ninguna', r.text);
   r = await o(`comentarios?select=${C_COM}&cliente_id=in.(${A.id},${B.id})`); ok(r.ok && r.json.length > 0 && !r.json.some(x => x.pid === PAH), 've los comentarios de lo que se ve, no los de una oculta', r.text);
   r = await firmarFn(ko, 'fotos', [FA, FB, FAH]); const uo1 = (r.ok && r.json && r.json.urls) || {};
   ok(r.ok && uo1[FA] && uo1[FB] && !uo1[FAH], 'la función le firma las fotos de lo que ve (no la de una oculta)', r.text);
@@ -293,11 +375,22 @@ async function main() {
   const cid = r.ok && r.json[0] && r.json[0].id;
   if (cid) { r = await k(`comentarios?id=eq.${cid}&select=id,resuelto`, { method: 'PATCH', body: { resuelto: new Date().toISOString() }, prefer: 'return=representation' }); ok(r.ok && r.json[0] && r.json[0].resuelto, 'Kevin marca resuelto', r.text); }
   r = await apr({ cliente_id: B.id, pid: PB1, version: VB1, decision: 'aprobada' }, kk); ok(es(r, 403), 'Kevin no aprueba en nombre del cliente', r.text);
+  r = await k(`entregas?select=cliente_id&cliente_id=in.(${A.id},${B.id})`); ok(r.ok && r.json.length === 3 && new Set(r.json.map(x => x.cliente_id)).size === 2, 'Kevin ve las entregas de los dos clientes', r.text);
+  r = await k(`entregas?select=${C_ENT}`, { method: 'POST', body: ent(B.id, 'ent-k1', { fecha: '2026-12-22', que: 'Entrega de Kevin', cuanto: '10 fotos' }), prefer: 'return=representation' });
+  ok(r.ok && igual(r.json[0], { id: 'ent-k1', que: 'Entrega de Kevin', enlace: null }), 'Kevin añade una entrega', r.text);
+  r = await k(`entregas?cliente_id=eq.${B.id}&id=eq.ent-k1&select=${C_ENT}`, { method: 'PATCH', body: { entregada: '2026-12-21', enlace: 'https://entregas.ejemplo.test/k1' }, prefer: 'return=representation' });
+  ok(r.ok && igual(r.json[0], { entregada: '2026-12-21', enlace: 'https://entregas.ejemplo.test/k1' }), 'la marca entregada, con su enlace', r.text);
+  r = await k(`entregas?cliente_id=eq.${B.id}&id=eq.ent-k1`, { method: 'DELETE' });
+  let q = await servicio('entregas?select=id&id=eq.ent-k1'); ok(r.ok && q.ok && q.json.length === 0, 'y la borra', r.text || q.text);
+  r = await k(`clientes?id=eq.${B.id}&select=${C_ACU}`, { method: 'PATCH', body: { servicio: 'contenido', pago: 'anual', cubre_de: '2026-01', cubre_hasta: '2026-12' }, prefer: 'return=representation' });
+  ok(r.ok && igual(r.json[0], { servicio: 'contenido', pago: 'anual', cubre_de: '2026-01', cubre_hasta: '2026-12' }), 'Kevin cambia el acuerdo de un cliente', r.text);
   r = await k(`publicaciones?cliente_id=eq.${A.id}&pid=eq.${PA1}`, { method: 'DELETE' }); ok(!r.ok, 'borrar una publicación con decisiones no se lleva su historial', r.text);
   await servicio('clientes', { method: 'POST', body: { id: BORRADO, nombre: 'Cliente Prueba Borrado' } });
+  r = await servicio('entregas', { method: 'POST', body: ent(BORRADO, 'ent-borrada', { que: 'Del cliente que se borra' }) }); ok(r.ok, 'una entrega del cliente que se va a borrar', r.text);
   r = await k(`clientes?id=eq.${BORRADO}`, { method: 'DELETE' }); ok(!r.ok, 'Kevin no borra un cliente desde la página (se borra con tools/web.mjs)', r.text);
   r = await k(`clientes?id=eq.${BORRADO}`, { method: 'PATCH', body: { id: 'prueba-otro-id' } }); ok(es(r, 409), 'el id de un cliente no se cambia', r.text);
   await servicio(`clientes?id=eq.${BORRADO}`, { method: 'DELETE' });
+  q = await servicio(`entregas?select=id&cliente_id=eq.${BORRADO}`); ok(q.ok && q.json.length === 0, 'borrar un cliente se lleva sus entregas', q.text);
   r = await servicio('clientes', { method: 'POST', body: { id: BORRADO, nombre: 'Otro con el mismo id' } }); ok(es(r, 409), 'un id de cliente borrado (por cualquier vía) no se vuelve a usar', r.text);
   r = await a('comentarios', { method: 'POST', body: { cliente_id: A.id, pid: PA3, version: sha('nunca'), texto: 'versión inventada' } }); ok(es(r, 409), 'un comentario sobre una versión que no es la vigente: 409', r.text);
   r = await firmarFn(ka, '__proto__', [FA]); ok(es(r, 400), 'la función no acepta un bucket raro', r.text);
@@ -310,13 +403,18 @@ async function main() {
 
   console.log('Rastros de otro cliente en lo que recibe Ana');
   const todo = vistoComoA.join('\n');
-  for (const s of [B.id, B.nombre, B.handle, PB1, VB1, 'Bea Sur', 'Rodaje Sur', 'Texto de Prueba Sur', 'co-b1', 'Comentario en la oculta', ub, uk])
+  for (const s of [B.id, B.nombre, B.handle, PB1, VB1, 'Bea Sur', 'Rodaje Sur', 'Texto de Prueba Sur', 'co-b1', 'Comentario en la oculta', ub, uk,
+    'Entrega Sur', 'metricas.ejemplo.test/sur-b', 'entregas.ejemplo.test/sur-b', 'Reunión Sur', 'trimestral', 'co-b2', 'reu-b1', 'ent-b1'])
     ok(!todo.includes(s), `nada de «${s.length > 20 ? s.slice(0, 8) + '…' : s}»`);
 }
 
 main().catch(e => { fallos++; console.error(tapar(e instanceof Fallo ? e.message : (e.stack || e))); })
   .finally(async () => {
     try { await limpiar(); } catch (e) { console.error('limpieza: ' + tapar(e.message)); }
+    try {   // las entregas se van con su cliente (D-297)
+      const q = await servicio(`entregas?select=id&cliente_id=in.(${A.id},${B.id},${BORRADO},${NUEVO})`);
+      ok(q.ok && q.json.length === 0, 'limpieza: no queda ninguna entrega de los clientes inventados', q.text);
+    } catch (e) { ok(false, 'limpieza: no se pudo mirar si quedan entregas', e.message); }
     console.log(fallos ? `\n${fallos} FALLO(S) de ${n}` : `\nTodo en orden: ${n} de ${n}`);
     process.exit(fallos ? 1 : 0);
   });

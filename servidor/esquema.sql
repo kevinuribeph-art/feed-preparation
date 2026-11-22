@@ -11,6 +11,9 @@
 --   · Una cuenta que solo mira (`miembros.observa`, D-266) ve lo mismo que el cliente y no escribe nada: ni aprueba, ni pide
 --     cambios, ni comenta. Su fila llega sola a cada cliente nuevo.
 --   · Aprobaciones y comentarios solo se añaden; nadie los borra, salvo al borrar un cliente entero.
+--   · Lo que el cliente ve de su acuerdo (D-297: servicio, cada cuánto paga, cuánto y qué meses cubre) y su enlace de métricas
+--     («Ver más en Zernio», D-294) van en `clientes`; las entregas de un cliente de solo contenido, en `entregas`; una reunión,
+--     en `sesiones` (`clase`). Todo eso lo escribe solo Kevin. La fecha de renegociar un acuerdo nunca sale de la Mesa.
 --   · Los archivos no se abren desde fuera: los firma la función `firmar` (servidor/funciones/firmar.ts) con caducidad fija
 --     y solo si los usa algo que ese cliente puede ver.
 --   · Los errores para el cliente son códigos HTTP claros (PTxxx) y no distinguen lo ajeno de lo que no existe.
@@ -30,6 +33,34 @@ create table if not exists public.clientes (
   proxima_emision date,
   creado          timestamptz not null default now()
 );
+-- El acuerdo que ve el cliente (D-297) y su enlace de métricas (D-294). `cuota_cent` y `proxima_emision` siguen como estaban.
+--   · servicio: 'redes' (calendario de publicaciones) o 'contenido' (solo contenido: entregas);
+--   · metricas: «Ver más en Zernio», un enlace https sin espacios;
+--   · pago y pago_cent: cada cuánto paga y cuánto en cada pago (céntimos);
+--   · cubre_de y cubre_hasta (AAAA-MM, como `meses.mes`): el tramo que cubre el pago de hoy, los dos o ninguno.
+-- La fecha de renegociar no tiene columna: se queda en la Mesa.
+alter table public.clientes add column if not exists servicio    text not null default 'redes';
+alter table public.clientes add column if not exists metricas    text;
+alter table public.clientes add column if not exists pago        text;
+alter table public.clientes add column if not exists pago_cent   integer;
+alter table public.clientes add column if not exists cubre_de    text;
+alter table public.clientes add column if not exists cubre_hasta text;
+alter table public.clientes drop constraint if exists clientes_servicio_check;
+alter table public.clientes add constraint clientes_servicio_check check (servicio in ('redes', 'contenido'));
+alter table public.clientes drop constraint if exists clientes_metricas_check;
+alter table public.clientes add constraint clientes_metricas_check
+  check (metricas is null or (metricas ~ '^https://[^[:space:]]+$' and char_length(metricas) <= 500));
+alter table public.clientes drop constraint if exists clientes_pago_check;
+alter table public.clientes add constraint clientes_pago_check
+  check (pago is null or pago in ('mensual', 'trimestral', 'semestral', 'anual', 'unico'));
+alter table public.clientes drop constraint if exists clientes_pago_cent_check;
+alter table public.clientes add constraint clientes_pago_cent_check check (pago_cent is null or pago_cent between 0 and 100000000);
+alter table public.clientes drop constraint if exists clientes_cubre_check;
+-- (Con `is not null` explícito: con uno solo nulo, la comparación daría NULL y un CHECK que da NULL deja pasar la fila.)
+alter table public.clientes add constraint clientes_cubre_check check (
+  (cubre_de is null and cubre_hasta is null)
+  or (cubre_de is not null and cubre_hasta is not null
+      and cubre_de ~ '^[0-9]{4}-(0[1-9]|1[0-2])$' and cubre_hasta ~ '^[0-9]{4}-(0[1-9]|1[0-2])$' and cubre_hasta >= cubre_de));
 
 -- Un id de cliente borrado no se vuelve a usar: sus archivos podían seguir en el almacén.
 create table if not exists public.clientes_borrados (
@@ -78,6 +109,10 @@ create table if not exists public.sesiones (
   primary key (cliente_id, id)
 );
 alter table public.sesiones add column if not exists sin_hora boolean not null default false;
+-- Una reunión con el cliente (D-297) va con las sesiones: `clase` las distingue.
+alter table public.sesiones add column if not exists clase text not null default 'sesion';
+alter table public.sesiones drop constraint if exists sesiones_clase_check;
+alter table public.sesiones add constraint sesiones_clase_check check (clase in ('sesion', 'reunion'));
 
 create table if not exists public.meses (
   cliente_id text not null references public.clientes on delete cascade,
@@ -100,6 +135,35 @@ create table if not exists public.pagos (
   pdf          text check (pdf is null or pdf ~ '^[a-z0-9-]+/[a-z0-9._-]+\.pdf$'),
   primary key (cliente_id, id)
 );
+-- Una factura de varios meses (D-297): `periodo` es el primero y `hasta`, el último.
+alter table public.pagos add column if not exists hasta text;
+alter table public.pagos drop constraint if exists pagos_hasta_check;
+alter table public.pagos add constraint pagos_hasta_check
+  check (hasta is null or (hasta ~ '^[0-9]{4}-(0[1-9]|1[0-2])$' and periodo is not null and hasta >= periodo));
+
+-- Las entregas de un cliente de solo contenido (D-297): qué, cuánto y para cuándo (`fecha`, la fecha límite); el enlace, solo
+-- cuando ya está entregada. Las escribe Kevin; el cliente las ve.
+create table if not exists public.entregas (
+  cliente_id text not null references public.clientes on delete cascade,
+  id         text not null,
+  fecha      date not null,
+  que        text not null,
+  cuanto     text,
+  enlace     text,
+  entregada  date,
+  primary key (cliente_id, id)
+);
+alter table public.entregas drop constraint if exists entregas_id_check;
+alter table public.entregas add constraint entregas_id_check check (char_length(id) between 1 and 60 and id ~ '^[A-Za-z0-9_.-]+$');
+alter table public.entregas drop constraint if exists entregas_que_check;
+alter table public.entregas add constraint entregas_que_check check (char_length(que) between 1 and 200 and que ~ '[^[:space:]]');
+alter table public.entregas drop constraint if exists entregas_cuanto_check;
+alter table public.entregas add constraint entregas_cuanto_check check (cuanto is null or char_length(cuanto) <= 120);
+alter table public.entregas drop constraint if exists entregas_enlace_check;
+alter table public.entregas add constraint entregas_enlace_check
+  check (enlace is null or (enlace ~ '^https://[^[:space:]]+$' and char_length(enlace) <= 1000));
+alter table public.entregas drop constraint if exists entregas_entregada_check;
+alter table public.entregas add constraint entregas_entregada_check check (enlace is null or entregada is not null);
 
 create table if not exists public.aprobaciones (
   id           uuid primary key default gen_random_uuid(),
@@ -408,6 +472,7 @@ alter table public.publicaciones     enable row level security;
 alter table public.sesiones          enable row level security;
 alter table public.meses             enable row level security;
 alter table public.pagos             enable row level security;
+alter table public.entregas          enable row level security;   -- D-297
 alter table public.aprobaciones      enable row level security;
 alter table public.comentarios       enable row level security;
 alter table public.lecturas          enable row level security;
@@ -415,15 +480,17 @@ alter table public.ajustes_entrada   enable row level security;   -- sin políti
 
 -- Nada para quien no ha entrado; lo que puede intentar quien ha entrado (las políticas deciden sobre qué filas).
 revoke all on public.duenos, public.clientes, public.clientes_borrados, public.miembros, public.publicaciones, public.sesiones,
-  public.meses, public.pagos, public.aprobaciones, public.comentarios, public.lecturas, public.ajustes_entrada from anon, authenticated;
+  public.meses, public.pagos, public.entregas, public.aprobaciones, public.comentarios, public.lecturas, public.ajustes_entrada
+  from anon, authenticated;
 -- La clave secreta (solo en .env de Kevin) lo puede todo: altas, bajas y las pruebas. Explícito porque el proyecto se crea
 -- sin «Automatically expose new tables».
 grant all on public.duenos, public.clientes, public.clientes_borrados, public.miembros, public.publicaciones, public.sesiones,
-  public.meses, public.pagos, public.aprobaciones, public.comentarios, public.lecturas, public.ajustes_entrada to service_role;
+  public.meses, public.pagos, public.entregas, public.aprobaciones, public.comentarios, public.lecturas, public.ajustes_entrada
+  to service_role;
 grant select on public.duenos, public.miembros to authenticated;
 -- Kevin no borra clientes desde la página: se borran con `tools/web.mjs borrar-cliente` (antes sus archivos).
 grant select, insert, update on public.clientes to authenticated;
-grant select, insert, update, delete on public.sesiones, public.meses, public.pagos to authenticated;
+grant select, insert, update, delete on public.sesiones, public.meses, public.pagos, public.entregas to authenticated;
 -- Publicaciones: Kevin escribe todo; nadie lee `vistas_hasta` (es solo una marca de sus envíos).
 grant insert, update, delete on public.publicaciones to authenticated;
 grant select (cliente_id, pid, mes, orden, tipo, nombre, fecha, sin_hora, caption, imagenes, estado, version, visible, enviada)
@@ -485,6 +552,14 @@ create policy pagos_ver on public.pagos for select to authenticated
   using ((select public.es_dueno()) or public.es_miembro(cliente_id));
 drop policy if exists pagos_kevin on public.pagos;
 create policy pagos_kevin on public.pagos for all to authenticated
+  using ((select public.es_dueno())) with check ((select public.es_dueno()));
+
+-- Entregas (D-297): el cliente (y la cuenta que solo mira) las ve; solo Kevin las escribe.
+drop policy if exists entregas_ver on public.entregas;
+create policy entregas_ver on public.entregas for select to authenticated
+  using ((select public.es_dueno()) or public.es_miembro(cliente_id));
+drop policy if exists entregas_kevin on public.entregas;
+create policy entregas_kevin on public.entregas for all to authenticated
   using ((select public.es_dueno())) with check ((select public.es_dueno()));
 
 -- Aprobaciones y comentarios: los de una publicación que se puede ver (una oculta, tampoco su conversación).

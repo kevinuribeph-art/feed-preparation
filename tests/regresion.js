@@ -20706,13 +20706,17 @@
           cerca(caja().bottom, T.H - 336 + 120, 1.5, 'con la vista desplazada la hoja no sigue encima del teclado');
           cerca(caja().top, 128, 1.5, 'con la vista desplazada la hoja no va de arriba');
           cerca(pie().bottom, caja().bottom, 2, 'con la vista desplazada el pie no está encima del teclado');
+          await T.desplazar(300);   // iOS la desplaza casi tanto como el teclado: sigue habiendo teclado (revisión del lote B)
+          ok(W.document.getElementById('movil').classList.contains('teclado'), 'con la vista muy desplazada, la cara cree que no hay teclado');
+          cerca(caja().bottom, T.H - 336 + 300, 1.5, 'con la vista muy desplazada la hoja no sigue encima del teclado');
+          await T.desplazar(120);
           // iOS desliza la página para enseñar el campo: vuelve a su sitio; el velo no deja deslizarla
           W.scrollTo(0, y0 + 200); await T.evento('scroll'); cerca(W.scrollY, y0, 1, 'la página de detrás se movió');
           igual(W.getComputedStyle(W.document.querySelector('#movil .velo.on')).touchAction, 'none', 'el velo deja deslizar la página de detrás');
           await T.desplazar(0);
           // tocar fuera con el teclado y cambios sin guardar: solo baja el teclado, sin preguntar
           await naEscribe(campo, ' y algo más');
-          clicCara('#movil .velo.on'); await espera(120);
+          { const v = W.document.querySelector('#movil .velo.on'); v.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch' })); campo.blur(); v.click(); await espera(120); }   // como un toque de verdad: el campo pierde el foco antes del click (revisión del lote B)
           ok(hoja() && !preg(), 'tocar fuera con el teclado preguntó o cerró la hoja');
           ok(W.document.activeElement !== campo, 'tocar fuera con el teclado no lo bajó');
           await T.cerrar();
@@ -20758,15 +20762,19 @@
           const hl = W.Highlight; W.Highlight = undefined;
           try { cn._esc.dibujar(); ok(capa.querySelectorAll('.pp-ecm.gris').length >= 3 && regla('#movil .pp-ecm.gris'), 'sin el resaltado, las marcas no salen en gris'); } finally { W.Highlight = hl; cn._esc.dibujar(); }
           // el menú «/»: solo lo del iPhone, dentro de la cara, con opciones de 44 px y sin las teclas del ordenador
+          const T = tecladoFalso(); cn.focus(); naFin(cn); await T.abrir(420);   // el menú, con el teclado fuera
           await naEscribe(cn, '\n/');
           igual(naMenu(), 'lista*,numerada,casilla,separador', 'el menú «/» de una nota en el iPhone');
-          const m = menu(); ok(md.contains(m), 'el menú «/» no va en la cara del móvil');
-          const rm = m.getBoundingClientRect(); ok(rm.left >= 0 && rm.right <= W.innerWidth && rm.top >= 0 && rm.bottom <= W.innerHeight, 'el menú «/» se sale');
+          const m = menu(); ok(m.parentElement === md.querySelector(':scope > .capas'), 'el menú «/» no va en las capas de la cara (un redibujo lo quitaría)');
+          const rm = m.getBoundingClientRect(); ok(rm.left >= 0 && rm.right <= W.innerWidth && rm.top >= 0 && rm.bottom <= T.H - 420 + 1, `el menú «/» se sale o queda bajo el teclado: ${Math.round(rm.top)}–${Math.round(rm.bottom)}, el teclado empieza en ${T.H - 420}`);
           ok([...m.querySelectorAll('.pp-smo')].every(b => b.getBoundingClientRect().height >= 44), 'una opción del menú «/» mide menos de 44');
           igual(W.getComputedStyle(m.querySelector('.pp-smp')).display, 'none', 'el menú del iPhone enseña las teclas del ordenador');
           elige('separador'); await espera(60);
           await naEscribe(cn, '/'); elige('casilla'); await espera(60);
           igual(cn.textContent, N0.txt + '\n⸻\n[] ', 'el separador y la casilla en la nota');
+          await T.cerrar(); T.fin(); hoja().scrollTop = 0; await espera(60);
+          const ca = capa.querySelector('.pp-ecm.ca'); ok(ca, 'la casilla no está dibujada');
+          ok(!(await arrastrarMv(ca, 220)), 'arrastrar desde una casilla dibujada arrastra la hoja'); await espera(400); ok(hoja() && !hoja().style.transform, 'arrastrar desde una casilla movió o cerró la hoja');
           ok(!hoja().querySelector('.mv-sub'), 'en una nota «Casilla» creó una subtarea');
           clicCara('#movil .hoja [data-ed-a="guardar"]'); await guardado('guardar la nota');
           igual((await M._in.idbGet('tareas', nt)).txt, N0.txt + '\n⸻\n[]', 'el texto de la nota guardado');
@@ -20800,6 +20808,13 @@
           elige('lista'); await espera(60); await naEscribe(sc, 'trípode');
           clicCara('#movil .hoja [data-sc-a="si"]'); await guardado('guardar el texto de la sesión');
           igual((await M._in.idbGet('tareas', ss)).sesion.apartados[0].texto, 'Llegar a las 9\n- trípode', 'el texto de la sesión guardado');
+          // sin red: la nota se lee con sus marcas, sin escribir (revisión del lote B)
+          W.dispatchEvent(new W.Event('offline')); await espera(150);
+          try {
+            await irMovil('#tareas', `#movil [data-a="tver"][data-id="${nt}"]`); clicCara(`#movil [data-a="tver"][data-id="${nt}"]`); await hojaCara('[data-ed="txt"]', 'la nota sin red');
+            const off = hoja().querySelector('[data-ed="txt"]'); ok(!off.isContentEditable && off.querySelector('.pp-em.vi') && off.querySelector('.pp-el.se'), 'sin red, la nota sale en crudo o se puede escribir');
+            clicCara('#movil .hoja [data-ed-a="cancelar"]'); await espera(450);
+          } finally { W.dispatchEvent(new W.Event('online')); await espera(100); }
         } finally { W.localStorage.removeItem('mesa-movil-ops2'); await C.fin(); }
       });
     } finally { await sinTareas(); }
@@ -20807,7 +20822,8 @@
 
   prueba('MK1', 'Las marcas de estado del iPhone son las del Mac (D-287): ✓ Programado, ✓✓ Publicado, ✕ Cancelado y un punto del color de su estado para el resto, salidas del núcleo (estIco), en la lista del mes, la cabecera y el campo de la publicación, su hoja de estado y Hoy, y en lo que arma el iPhone sin guardar (lo que tocaría publicarse); ningún punto viejo', async () => {
     const key = await tableroMovil();
-    ok(!(M.setEstado('r2', 'publicado')[0] || {}).error, 'no se publicó r2'); ok(!(M.setEstado('r4', 'cancelado')[0] || {}).error, 'no se canceló r4'); await M.flush();
+    ok(!(M.setEstado('r2', 'publicado')[0] || {}).error, 'no se publicó r2'); ok(!(M.setEstado('r4', 'cancelado')[0] || {}).error, 'no se canceló r4');
+    await hasta(() => M.cargarHistorias, 6000, 'historias.js'); await M.cargarHistorias([{ date: '2026-11-03T13:00:00+01:00', order: 1, slotId: 'r1', note: 'MK1' }]); await M.flush();
     try {
       await enMovilPagina(async () => {
         const md = W.document.getElementById('movil'), verde = kbTok(md, '--ok'), rojo = kbTok(md, '--red');
@@ -20829,7 +20845,10 @@
         clicCara('#movil [data-a="estado"]'); const h = await hojaCara('.estado-op', 'la hoja del estado');
         const ops = [...h.querySelectorAll('.estado-op .es')].map(marca); ok(ops.length >= 5 && ops.every(x => /^(ico|punto):/.test(x)), 'la hoja del estado: ' + json(ops));
         igual(viejos(), 0, 'queda un punto viejo en la publicación o su hoja');
+        // la rejilla de historias (el iPhone arma su estado): las marcas del Mac, con su trazo blanco sobre la foto (revisión del lote B)
         clicCara('#movil .velo.on'); await espera(450);
+        await irMovil(`#mes/${key}/hist`, '#movil .hc .hh');
+        const hh = [...W.document.querySelectorAll('#movil .hc .hh')].map(x => marca(x)); ok(hh.length && hh.every(x => /^(ico|punto):/.test(x)), 'la rejilla de historias: ' + json(hh));
         // lo que el iPhone arma sin guardar: la Programada cuya hora pasó, con lo que tocaría (Publicado)
         M._test.reloj(Date.parse('2026-11-20T10:00:00+01:00')); await M.movil.releer();
         await irMovil(`#mes/${key}/lista`, '#movil .mv-pubs');

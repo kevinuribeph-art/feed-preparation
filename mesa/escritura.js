@@ -18,7 +18,7 @@
 
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const sinTilde = s => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-  const raiz = () => { const X = I(); return (X && X.root && X.root()) || document.getElementById('mesa') || document.getElementById('movil') || document.body; };   // the iPhone's face (D-286)
+  const raiz = () => { const X = I(); return (X && X.root && X.root()) || document.getElementById('mesa') || document.querySelector('#movil > .capas') || document.getElementById('movil') || document.body; };   // the iPhone's face, in its layers: a redraw of the face never takes it away (D-286)
   const svg = b => `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${b}</svg>`;
   const ICO = {                                // Lucide (ISC), one stroke (D-168)
     sesion: svg('<path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z"/><path d="m6.2 5.3 3.1 3.9"/><path d="m12.4 3.4 3.1 4"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>'),
@@ -455,6 +455,7 @@
     const el = document.createElement('div');
     el.className = 'cpmenu pp-sm'; el.setAttribute('role', 'listbox'); el.setAttribute('aria-label', 'Comandos');
     el.addEventListener('pointerdown', e => e.preventDefault());   // the caret stays in the field
+    el.addEventListener('mousedown', e => e.preventDefault());
     el.addEventListener('pointermove', e => { const b = e.target.closest('[data-k]'); if (b && ctl.menu && b.dataset.k !== ctl.menu.act) { ctl.menu.act = b.dataset.k; marcarAct(ctl); } });
     el.addEventListener('click', e => { const b = e.target.closest('[data-k]'); if (b) usar(ctl, b.dataset.k); });
     raiz().append(el);

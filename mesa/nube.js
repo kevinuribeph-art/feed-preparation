@@ -9,7 +9,7 @@
 // Apagada (lo normal hasta la mudanza, lote 5) no hace nada: ni red ni temporizadores.
 (function (G) {
   'use strict';
-  const VERSION = '1.6';   // 1.6: las entregas de un cliente de solo contenido, un almacén más (D-290). 1.5: los avisos del portal (portal_aparato_nuevo, portal_no_miembro, portal_codigos, portal_fallo; D-278). 1.4: las fotos de tareas y sesiones bajan al verlas (M.nube.archivo), mira cada 10 s, el avance para el monograma (D-271). 1.3: el iPhone (D-268): mira sin coger la Mesa, la coge sin recargar para cada cambio y la suelta en cuanto sube; «no contesta» al momento; «aparato nuevo». 1.2: la entrada (D-262): «falta el código» (`verificacion`), el avance de la bajada para la pantalla de carga, sin «Entrar y traer tu Mesa»
+  const VERSION = '1.7';   // 1.7: «Es mío» y «No lo reconozco» en el aviso de aparato nuevo, que dice cuál es; una sesión cerrada en el servidor lleva a entrar otra vez (D-298); «Visto» de los avisos en el servidor (D-299). 1.6: las entregas de un cliente de solo contenido, un almacén más (D-290). 1.5: los avisos del portal (portal_aparato_nuevo, portal_no_miembro, portal_codigos, portal_fallo; D-278). 1.4: las fotos de tareas y sesiones bajan al verlas (M.nube.archivo), mira cada 10 s, el avance para el monograma (D-271). 1.3: el iPhone (D-268): mira sin coger la Mesa, la coge sin recargar para cada cambio y la suelta en cuanto sube; «no contesta» al momento; «aparato nuevo». 1.2: la entrada (D-262): «falta el código» (`verificacion`), el avance de la bajada para la pantalla de carga, sin «Entrar y traer tu Mesa»
 
   // ================= el núcleo =================
   const TOPES = Object.freeze({ cambios: 500, valor: 1950000, lote: 3600000, masivo: 20 });   // como jsonb; los del servidor: 500 / 2 MB / 4 MB
@@ -139,6 +139,7 @@
   const masNueva = (min, app) => { const [a1, a2] = vNum(min), [b1, b2] = vNum(app); return a1 > b1 || (a1 === b1 && a2 > b2); };
   const esRed = e => !!e && (!e.status || e.codigo === 'red' || e.status >= 500 || e.status === 408 || e.status === 429);
   const sinSesionE = e => !!e && (e.status === 401 || e.codigo === 'sesion');
+  const sinFuncionE = e => !!e && (e.status === 404 || e.codigo === 'PGRST202');   // un servidor de antes (esquema 5): sin mesa_visto, mesa_aparato ni `vistos` (D-299)
 
   function crear(o) {
     const S = o.servidor, A = o.almacen, R = o.reloj, D = o.dispositivo, APP = o.app, E = o.efectos || {};
@@ -170,6 +171,8 @@
     };
     let ultSubida = -Infinity, proximoFotos = 0, esperandoN = 0, traerPend = false;   // fotos: un registro que espera sus archivos no se reintenta cada segundo
     let ultCambio = -Infinity, ultLatido = -Infinity, colaLatida = -1, ultActividad = -Infinity, proximo = 0, reint = 0, enVuelo = null, AV = [];
+    let conVistos = null;   // el servidor guarda «Visto» y «Es mío» (esquema 6, D-298, D-299): null hasta la primera lectura
+    const sesionCerrada = () => { const ya = st.fase === 'sin_sesion'; ponerTurno(false); modoLocal = false; fase('sin_sesion'); if (!ya) { try { if (E.sesionCerrada) E.sesionCerrada(); } catch (e) { /* la cara decide */ } } };   // D-298: «No lo reconozco» u otra contraseña cerró esta sesión: entrar otra vez, sin apartar nada
     const avisar = () => { try { if (E.estado) E.estado(estado()); } catch (e) { /* un oyente roto no para la nube */ } };
     const fase = f => { if (st.fase !== f) { st.fase = f; } avisar(); };
     const otroIntento = () => { const l = TIEMPOS.reintento; proximo = R.ahora() + l[Math.min(reint++, l.length - 1)]; };
@@ -207,6 +210,7 @@
       if (c === 'app') return vieja();
       if (c === 'permiso') { ponerTurno(false); modoLocal = false; return fase('otra_cuenta'); }
       if (c === 'verificacion') { ponerTurno(false); modoLocal = false; return fase('sin_codigo'); }   // pasaron los 30 días del código de la app (D-262): nada se aparta, espera
+      if (c === 'sesion') return sesionCerrada();   // la sesión ya no está abierta en el servidor (D-298): nada se aparta, se entra otra vez
       st.error = er.mensaje || (r ? 'respuesta sin «ok»' : 'sin respuesta'); otroIntento(); avisar();
     }
     function sinRed(e) {
@@ -287,6 +291,7 @@
       if (c === 'app') { await vieja(); return { modo: 'vieja' }; }
       if (c === 'permiso') { fase('otra_cuenta'); return { modo: 'otra_cuenta' }; }
       if (c === 'verificacion') { fase('sin_codigo'); return { modo: 'sin_codigo' }; }   // D-262: abre con lo de aquí, sin escribir arriba
+      if (c === 'sesion') { await contarCola(); sesionCerrada(); return { modo: 'sin_sesion' }; }   // D-298: abre con lo de aquí y lleva a entrar otra vez
       return abrirLocal({ message: (r && r.error && r.error.mensaje) || 'respuesta sin «ok»' });
     }
     // The phone opens looking: a device that never came down (traer) comes down whole first, without taking it (D-262 without the
@@ -863,20 +868,60 @@
     // ---------- avisos de actividad (lote 2): como mucho uno cada minuto ----------
     async function leerActividad() {
       ultActividad = R.ahora();
+      await enviarVistos();
       const m = await A.meta(), primera = m.actividad == null;
-      let desde = primera ? 0 : m.actividad, hora = null; const nuevos = [];
-      for (let i = 0; i < 3; i++) {
+      let desde = primera ? 0 : m.actividad, hora = null, vdesde = m.vistos == null ? 0 : m.vistos; const nuevos = [], vistos = [];
+      for (let i = 0; i < 4; i++) {
         let r;
-        try { r = await llamar('mesa_actividad', { desde, limite: 200 }); } catch (e) { return; }
-        if (!r || r.ok !== true) return;
-        hora = r.hora || hora; nuevos.push(...(r.filas || []).filter(esAviso)); desde = r.hasta;
-        if (!r.mas) break;
+        const args = conVistos === false ? { desde, limite: 200 } : { desde, limite: 200, vistos: vdesde };
+        try { r = await llamar('mesa_actividad', args); }
+        catch (e) { if (conVistos !== true && sinFuncionE(e) && args.vistos !== undefined) { conVistos = false; continue; } return; }   // un servidor de antes: otra vez, sin `vistos`
+        if (!r || r.ok !== true) { if (r && r.error && r.error.codigo === 'sesion') sesionCerrada(); return; }
+        if (Array.isArray(r.vistos)) { conVistos = true; vistos.push(...r.vistos); if (Number.isFinite(+r.vistos_hasta)) vdesde = +r.vistos_hasta; }
+        hora = r.hora || hora; nuevos.push(...(r.filas || []).filter(f => esAviso(f) && f.visto !== true)); desde = r.hasta;
+        if (!r.mas && !r.vistos_mas) break;
       }
       let l = nuevos;
       if (primera && hora) { const lim = Date.parse(hora) - 7 * 864e5; l = l.filter(f => Date.parse(f.hora) >= lim); }   // la primera vez, solo la última semana (horas del servidor)
+      const fuera = new Set(vistos.map(Number));
+      l = l.filter(f => !fuera.has(+f.id));
       if (l.length) await A.ponerAvisos(l);
-      await A.ponerMeta({ actividad: desde });
+      for (const id of fuera) await A.quitarAviso(id);   // vistos en otro aparato (D-299)
+      await A.ponerMeta(conVistos ? { actividad: desde, vistos: vdesde } : { actividad: desde });
       AV = await A.avisos(); avisar();
+    }
+    // «Visto» (D-299): se quita aquí al momento y sube con lo que esperaba (sin red, en la siguiente lectura). Un servidor de antes
+    // no lo guarda: se queda en este aparato, como hasta la 4.48.
+    async function enviarVistos() {
+      const m = await A.meta(), pend = Array.isArray(m.vistosPend) ? m.vistosPend.filter(x => Number.isFinite(+x) && +x > 0).slice(-500) : [];
+      if (!pend.length) return;
+      if (conVistos === false) { await A.ponerMeta({ vistosPend: [] }); return; }
+      let r;
+      try { r = await llamar('mesa_visto', { dispositivo: D, avisos: pend }); }
+      catch (e) { if (sinFuncionE(e)) { conVistos = false; await A.ponerMeta({ vistosPend: [] }); } return; }
+      if (r && r.error && r.error.codigo === 'sesion') { sesionCerrada(); return; }
+      if (r && (r.ok === true || (r.error && r.error.codigo === 'forma'))) { const m2 = await A.meta(); await A.ponerMeta({ vistosPend: (m2.vistosPend || []).filter(x => !pend.includes(x)) }); }
+    }
+    async function marcarVisto(id) {
+      await A.quitarAviso(id);
+      const m = await A.meta(); await A.ponerMeta({ vistosPend: [...new Set([...(Array.isArray(m.vistosPend) ? m.vistosPend : []), id])].slice(-500) });
+      AV = await A.avisos(); avisar();
+      await enviarVistos();
+    }
+    // Un aparato nuevo (D-298): «Es mío» (esMio) o «No lo reconozco», en el servidor. Con «No lo reconozco», el servidor cierra todas
+    // las sesiones, también esta: queda «sin sesión» y la cara lleva a entrar (sin llamar a sesionCerrada: lo pidió ella).
+    async function aparato(id, esMio) {
+      const f = (await A.avisos()).find(x => +x.id === +id);
+      if (!f || f.tipo !== 'dispositivo_nuevo' || !f.dispositivo) return { error: 'sin_aparato' };
+      let r;
+      try { r = await llamar('mesa_aparato', { dispositivo: D, aparato: f.dispositivo, es_mio: !!esMio }); }
+      catch (e) { return { error: sinFuncionE(e) ? 'viejo' : sinSesionE(e) ? 'sin_sesion' : 'sin_conexion' }; }
+      if (!r || r.ok !== true) { const c = (r && r.error && r.error.codigo) || 'sin respuesta'; if (c === 'sesion') sesionCerrada(); return { error: c, mensaje: r && r.error && r.error.mensaje }; }
+      conVistos = true;
+      for (const x of await A.avisos()) if (x.tipo === 'dispositivo_nuevo' && x.dispositivo === f.dispositivo) await A.quitarAviso(x.id);
+      AV = await A.avisos(); avisar();
+      if (!esMio) { ponerTurno(false); modoLocal = false; fase('sin_sesion'); }
+      return { ok: true, sesiones: r.sesiones };
     }
 
     // ---------- la mudanza (lote 5): subirlo todo y comprobarlo ----------
@@ -1001,9 +1046,9 @@
       archivosListos: () => { proximoFotos = Math.min(proximoFotos, ultSubida + 5000); },   // como mucho una pasada adelantada cada 5 s
       cambio: () => { ultCambio = R.ahora(); },
       avisos: async () => { AV = await A.avisos(); return AV; },
-      marcarVisto: async id => { await A.quitarAviso(id); AV = await A.avisos(); avisar(); },
+      marcarVisto, aparato, conVistos: () => conVistos,
       sinSubir: () => A.sinSubir(),
-      leerActividad,
+      leerActividad, enviarVistos,
       conTurno: () => conTurno,
       // la sesión volvió (Kevin entró otra vez): como al volver la red, sin reclamar a mitad
       reintentar: () => { if (!conTurno && (st.fase === 'sin_sesion' || st.fase === 'sin_codigo' || st.fase === 'sin_conexion')) { proximo = 0; reint = 0; if (MOVIL) { fase('mirando'); return; } modoLocal = true; } },   // the phone tries again by looking (D-268)
@@ -1053,6 +1098,16 @@
     if (id === yo) return m && (m[1] === 'mac' || m[1] === 'iphone') ? `Este ${SO[m[1]]} · ${NAV[m[2]] || m[2]}` : `Este ${MOVIL_G ? 'aparato' : 'ordenador'}${m ? ' · ' + (NAV[m[2]] || m[2]) : ''}`;
     return m ? `${SO[m[1]] || (MOVIL_G ? 'Aparato' : 'Ordenador')} · ${NAV[m[2]] || m[2]} (${m[3]})` : `${otro} (${String(id).slice(0, 8)})`;
   }
+  // Un aparato por su id (D-298): «Safari · Mac»; este, «Safari · este Mac». Su trozo de id va solo al título (dos iguales).
+  function aparatoDe(id) {
+    const m = /^([a-z]+)-([a-z]+)-([0-9a-f]{4})/.exec(String(id || '')), yo = lsG(DISP_K) || DISP_;
+    if (!m) return { txt: nombreDe(id), corto: String(id || '').slice(0, 8), movil: false };
+    const nav = NAV[m[2]] || m[2], so = SO[m[1]] || (MOVIL_G ? 'Aparato' : 'Ordenador');
+    return { txt: `${nav.charAt(0).toUpperCase() + nav.slice(1)} · ${id === yo ? 'este ' + so : so}`, corto: m[3], movil: m[1] === 'iphone' || m[1] === 'ios' || m[1] === 'android' };
+  }
+  // «hoy a las 10:12», «ayer a las 10:12», «el 19 nov a las 10:12» (hora de Madrid)
+  const cuandoLargo = iso => { try { const d = X().localDay(iso), h = X().localTime(iso), hoy = X().hoy(), ayer = X().localDay(new Date(Date.parse(hoy + 'T12:00:00Z') - 864e5).toISOString()); return `${d === hoy ? 'hoy' : d === ayer ? 'ayer' : 'el ' + X().fmtDate(d, true)} a las ${h}`; } catch (e) { return ''; } };
+  const aparatoLargo = f => [aparatoDe(f.dispositivo).txt, cuandoLargo(f.hora)].filter(Boolean).join(' · ');
   const cuando = iso => { try { const d = X().localDay(iso), h = X().localTime(iso); return (d === X().hoy() ? '' : X().fmtDate(d) + ' ') + (h || ''); } catch (e) { return ''; } };
   const cuandoCorto = iso => { try { const d = X().localDay(iso), h = X().localTime(iso); return d === X().hoy() ? esc(h) : `${esc(X().fmtDate(d, true))}<br>${esc(h)}`; } catch (e) { return ''; } };
   // «desde las 10:02» hoy; «desde el mié, 18 nov a las 23:17» otro día (hora de Madrid)
@@ -1088,7 +1143,8 @@
       reloj: { ahora: () => Date.now(), esperar: ms => new Promise(r => setTimeout(r, ms)) },
       dispositivo: DISP0(), app: M.version, archivo: archivoHook, ceder: () => new Promise(r => setTimeout(r, 0)), movil: MOVIL_G,
       efectos: (MOVIL_G ? efectosMovil : x => x)({ pausar, congelar: () => X().pausaNube(null), recargar: () => { try { G.location.reload(); } catch (e) { /* */ } }, estado: e => { const antes = ESTADO && ESTADO.fase; ESTADO = e; pintar(); if (e.fase === 'sin_codigo' && antes !== 'sin_codigo' && M.entrada) M.entrada.pedirCodigo(); },   // solo al pasar a «falta el código» («Más tarde» se respeta)
-        avance: (h, t) => { if (M.entrada && M.entrada.avance) M.entrada.avance(h, t); } })
+        avance: (h, t) => { if (M.entrada && M.entrada.avance) M.entrada.avance(h, t); },
+        sesionCerrada: () => { if (M.entrada && M.entrada.sesionCerrada) M.entrada.sesionCerrada(); } })   // D-298
     });
     X().NUBE.alApuntar = () => N.cambio();
     return N;
@@ -1546,7 +1602,7 @@
     const d = f.detalle || {}, quien = f.dispositivo ? nombreDe(f.dispositivo) : '';
     if (f.tipo === 'ajeno') return ['Una cuenta que no es la tuya intentó entrar en la Mesa', `quiso ${FN[d.funcion] || d.funcion || 'algo'}; el servidor lo rechazó`];
     if (f.tipo === 'ajeno_tope') return ['Muchas llamadas de cuentas que no son la tuya', `${d.en_un_minuto || 'más de 60'} en un minuto; todas rechazadas`];
-    if (f.tipo === 'dispositivo_nuevo') return ['La Mesa se abrió en un aparato nuevo', quien];   // an iPhone too (D-268)
+    if (f.tipo === 'dispositivo_nuevo') return [d.vuelve ? 'Volvió un aparato que no reconociste' : 'La Mesa se abrió en un aparato nuevo', aparatoLargo(f)];   // an iPhone too (D-268); which one and when, and one you didn't recognise coming back (D-298)
     // the portal's accounts (D-278): who (the member's name and its clients, never an email) and the device as «browser · system»
     const cuenta = [d.nombre, Array.isArray(d.clientes) ? d.clientes.join(', ') : ''].filter(Boolean).join(' · ');
     if (f.tipo === 'portal_aparato_nuevo') return [d.primera ? 'Primera entrada en el portal' : 'El portal se abrió en un aparato nuevo', [cuenta, d.aparato].filter(Boolean).join(' · ')];
@@ -1555,20 +1611,58 @@
     if (f.tipo === 'portal_fallo') return ['El registro del portal falló', 'la entrada no se paró por esto'];
     const PL = { files: ['foto', 'fotos'], boards: ['tablero', 'tableros'], clients: ['cliente', 'clientes'], bandejas: ['bandeja', 'bandejas'], tareas: ['tarea o nota', 'tareas o notas'], tfotos: ['foto de sesión', 'fotos de sesiones'], cobros: ['factura', 'facturas'], entregas: ['entrega', 'entregas'], cfacturas: ['PDF', 'PDF'], meses: ['mes', 'meses'], ubicaciones: ['ubicación', 'ubicaciones'] };
     if (f.tipo === 'borrado_masivo') return [`Se borraron ${+d.cuantos || 'muchos'} registros de una vez`, [Object.entries(d.almacenes || {}).map(([a, n]) => `${+n || 0} ${PL[a] ? PL[a][+n === 1 ? 0 : 1] : a}`).join(', '), quien].filter(Boolean).join(' · ')];
-    const POR = { tope: 'era demasiado grande', forma: 'venía mal formado', turno: 'llegó sin el turno', turno_cambiado: 'el turno había cambiado', app: 'venía de una versión vieja de la Mesa', permiso: 'sin permiso', cursor: 'de otra copia del servidor' };
+    const POR = { tope: 'era demasiado grande', forma: 'venía mal formado', turno: 'llegó sin el turno', turno_cambiado: 'el turno había cambiado', app: 'venía de una versión vieja de la Mesa', permiso: 'sin permiso', cursor: 'de otra copia del servidor', sesion: 'de una sesión cerrada' };
     return ['El servidor rechazó un lote', [POR[d.codigo] || (d.codigo ? 'código ' + d.codigo : ''), quien].filter(Boolean).join(' · ')];
   }
   function avisosHTML() {
     if (!X().NUBE.activa || !AVS.length) return '';
     const mas = AVS.length > 8 ? `<p class="pp-sub nubemas">y ${AVS.length - 8} más: «Visto» en estos para ver los siguientes</p>` : '';
-    const l = AVS.slice(-8).reverse().map(f => { const [t, x] = avisoTexto(f);
-      return `<div class="pp-av nubeav" data-av="${esc(f.id)}" title="${esc(t + (x ? ' · ' + x : ''))}"><span class="pp-avs"></span><span class="pp-cu">${cuandoCorto(f.hora)}</span><span class="pp-afoto vacia nubeico" aria-hidden="true"></span><span class="pp-nm"><b>${esc(t)}</b></span><span class="pp-est">${esc(x)}</span><button type="button" class="lnk nubevisto" data-nube="visto" data-id="${esc(f.id)}" aria-label="Marcar como visto: ${esc(t)}">Visto</button></div>`; }).join('');
+    const srv = N && N.conVistos ? N.conVistos() !== false : true;   // el servidor guarda «Es mío» (esquema 6); hasta saberlo, sí
+    const yo = lsG(DISP_K) || DISP_;
+    const l = AVS.slice(-8).reverse().map(f => { const [t, x] = avisoTexto(f), ap = f.tipo === 'dispositivo_nuevo' && !!f.dispositivo && srv, a = ap ? aparatoDe(f.dispositivo) : null;
+      const fin = ap && f.dispositivo === yo ? '<span class="nubeacc"><span class="nubeotro">Confírmalo desde otro aparato</span></span>'   // un aparato nunca se confirma a sí mismo (D-298)
+        : ap ? `<span class="nubeacc"><button type="button" class="btn2 nubemio" data-nube="mio" data-id="${esc(f.id)}" aria-label="Es mío: ${esc(x)}">Es mío</button><button type="button" class="lnk nubeajeno" data-nube="ajeno" data-id="${esc(f.id)}" aria-label="No lo reconozco: ${esc(x)}">No lo reconozco</button></span>`
+        : `<button type="button" class="lnk nubevisto" data-nube="visto" data-id="${esc(f.id)}" aria-label="Marcar como visto: ${esc(t)}">Visto</button>`;
+      return `<div class="pp-av nubeav${ap ? ' ap' : ''}" data-av="${esc(f.id)}" title="${esc(t + (x ? ' · ' + x : '') + (a ? ' · ' + a.corto : ''))}"><span class="pp-avs"></span><span class="pp-cu">${cuandoCorto(f.hora)}</span><span class="pp-afoto vacia nubeico${ap ? (a.movil ? ' apmovil' : ' apmac') : ''}" aria-hidden="true"></span><span class="pp-nm"><b>${esc(t)}</b></span><span class="pp-est">${esc(x)}</span>${fin}</div>`; }).join('');
     return `<section class="pp-grupo" data-cat="nube"><h3 class="pp-gt">Nube <span>${AVS.length}</span></h3><div class="pp-lista">${l}${mas}</div></section>`;
   }
   async function visto(id) {
     await nucleo().marcarVisto(isNaN(+id) ? id : +id);
     AVS = await X().nubeAlmacen.avisos().catch(() => AVS);
     if (M.personal && M.personal.abierta && M.personal.abierta()) M.personal.render();
+  }
+  // un aparato nuevo (D-298): «Es mío» se guarda en el servidor y el aviso se va en todos; si no se puede, se queda y lo dice
+  const porQue = r => (r && r.mensaje) || ({ sin_conexion: 'sin conexión', sin_sesion: 'tu sesión se cerró', sin_aparato: 'ese aviso ya no está' })[r && r.error] || (r && r.error) || 'inténtalo otra vez';
+  async function mio(id, b) {
+    const fila = b && b.closest('.nubeav'), bs = fila ? [...fila.querySelectorAll('button')] : [];
+    bs.forEach(x => { x.disabled = true; });
+    const r = await nucleo().aparato(+id, true).catch(e => ({ error: String((e && e.message) || e) }));
+    if (r && r.ok) X().toast('Apuntado en todos tus aparatos.');
+    else if (r && r.error === 'viejo') await nucleo().marcarVisto(+id);   // un servidor de antes: «Visto» aquí, como hasta la 4.48
+    else { bs.forEach(x => { x.disabled = false; }); X().toast('No se pudo: ' + porQue(r) + '.', { error: true }); return; }
+    AVS = await X().nubeAlmacen.avisos().catch(() => AVS);
+    if (M.personal && M.personal.abierta && M.personal.abierta()) M.personal.render();
+  }
+  function ajeno(id) {
+    const f = AVS.find(x => String(x.id) === String(id)); if (!f) return;
+    X().showDialog('nubeajeno', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>¿No lo reconoces?</h3><p class="nubep"><b>${esc(aparatoLargo(f))}</b>. Se cerrará la Mesa en todos tus aparatos, también en este, y tendrás que entrar otra vez con tu contraseña y el código de tu app. Lo que otro aparato tenga sin subir se queda en él. Al volver a entrar, te propondrá cambiar la contraseña.</p><p class="ferr" role="alert" hidden></p>`
+      + `<div class="row"><button type="button" class="btn2" data-act="close">Cancelar</button><button type="button" class="btn danger" data-nube="ajeno-si" data-id="${esc(f.id)}">Cerrar todas las sesiones</button></div>`);
+    setTimeout(() => { const c = D.querySelector('.detail[data-dlg="nubeajeno"] .row .btn2'); if (c) c.focus(); }, 0);   // lo seguro, con el foco
+  }
+  async function ajenoSi(id, b) {
+    const d = b.closest('.detail'), p = d && d.querySelector('.ferr'), bs = d ? [...d.querySelectorAll('button')] : [];
+    bs.forEach(x => { x.disabled = true; });
+    try { if (M.flush) await M.flush(); } catch (e) { /* lo de aquí está a salvo en el diario */ }
+    const r = await nucleo().aparato(+id, false).catch(e => ({ error: String((e && e.message) || e) }));
+    if (r && r.ok) {
+      lsS('mesa-cambiar-clave', '1');   // al volver a entrar, la entrada propone cambiar la contraseña
+      if (M.entrada && M.entrada.sesionCerrada) M.entrada.sesionCerrada({ propia: true });
+      return;
+    }
+    bs.forEach(x => { x.disabled = false; });
+    const duda = r && r.error === 'sin_conexion';   // la respuesta pudo perderse con las sesiones ya cerradas: la siguiente llamada lo dirá («sesion»)
+    if (duda) lsS('mesa-cambiar-clave', '1');
+    if (p) { p.hidden = false; p.textContent = r && r.error === 'viejo' ? 'El servidor aún no puede cerrar las sesiones desde aquí: no se ha cerrado nada.' : duda ? 'Sin conexión: no se sabe si se cerraron. Vuelve a intentarlo.' : `No se pudo: ${porQue(r)}. No se ha cerrado nada.`; }
   }
 
 
@@ -1636,6 +1730,9 @@
     else if (a === 'recargar') G.location.reload();
     else if (a === 'entrar') { if (entradaActiva()) G.location.reload(); else if (M.web && M.web.entrar) M.web.entrar(); }
     else if (a === 'visto') visto(b.dataset.id);
+    else if (a === 'mio') mio(b.dataset.id, b);
+    else if (a === 'ajeno') ajeno(b.dataset.id);
+    else if (a === 'ajeno-si') ajenoSi(b.dataset.id, b);
     else if (a === 'encima' || a === 'descartar') reconciliar(a, false, b);
     else if (a === 'encima-todo') reconciliar('encima', true, b);
     else if (a === 'descartar-todo') reconciliar('descartar', true, b);
@@ -1701,7 +1798,7 @@
     // solo para la batería: el estado pintado, los avisos releídos y un núcleo con un servidor de mentira (nunca la red)
     _estado: e => { ESTADO = { cola: 0, sinSubir: 0, ...e }; estilar(); pintar(); },
     _releerAvisos: async () => { AVS = await X().nubeAlmacen.avisos().catch(() => []); estilar(); return AVS.length; },
-    _con: (servidor, almacenamiento) => { N = null; ALM_TEST = almacenamiento || null; const c = { rpc: servidor.rpc }; N = G.NubeNucleo.crear({ servidor: c, almacen: X().nubeAlmacen, reloj: { ahora: () => Date.now(), esperar: ms => new Promise(r => setTimeout(r, ms)) }, dispositivo: DISP0(), app: M.version, archivo: archivoHook, movil: MOVIL_G, efectos: (MOVIL_G ? efectosMovil : x => x)({ pausar, recargar: () => { N._recargas = (N._recargas || 0) + 1; }, estado: e => { ESTADO = e; pintar(); } }) }); X().NUBE.alApuntar = () => N.cambio(); return N; },
+    _con: (servidor, almacenamiento) => { N = null; ALM_TEST = almacenamiento || null; const c = { rpc: servidor.rpc }; N = G.NubeNucleo.crear({ servidor: c, almacen: X().nubeAlmacen, reloj: { ahora: () => Date.now(), esperar: ms => new Promise(r => setTimeout(r, ms)) }, dispositivo: DISP0(), app: M.version, archivo: archivoHook, movil: MOVIL_G, efectos: (MOVIL_G ? efectosMovil : x => x)({ pausar, recargar: () => { N._recargas = (N._recargas || 0) + 1; }, estado: e => { ESTADO = e; pintar(); }, sesionCerrada: () => { if (M.entrada && M.entrada.sesionCerrada) M.entrada.sesionCerrada(); } }) }); X().NUBE.alApuntar = () => N.cambio(); return N; },
     _soltar: () => { clearInterval(pulso); clearInterval(mirarT); FOTOS_ARCH.clear(); unaFoto = Promise.resolve(); N = null; ALM_TEST = null; X().NUBE.alApuntar = null; ESTADO = { fase: 'apagada' }; COLA.clear(); FALLOS.clear(); HU.clear(); SUBIDOS.clear(); REG = null; pintar(); },
     _off: () => { OFF.splice(0).forEach(f => f()); clearInterval(pulso); }
   };
@@ -1716,6 +1813,8 @@
   const I_OFF = ICO("<path d='m2 2 20 20'/><path d='M5.782 5.782A7 7 0 0 0 9 19h8.5a4.5 4.5 0 0 0 1.307-.193'/><path d='M21.532 16.5A4.5 4.5 0 0 0 17.5 10h-1.79A7.008 7.008 0 0 0 10 5.07'/>");
   const I_PAUSA = ICO("<circle cx='12' cy='12' r='10'/><line x1='10' x2='10' y1='15' y2='9'/><line x1='14' x2='14' y1='15' y2='9'/>");
   const I_ALERTA = ICO("<path d='m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3'/><path d='M12 9v4'/><path d='M12 17h.01'/>");
+  const I_PORTATIL = ICO("<path d='M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16'/>");   // Lucide laptop
+  const I_MOVIL = ICO("<rect width='14' height='20' x='5' y='2' rx='2' ry='2'/><path d='M12 18h.01'/>");   // Lucide smartphone
   const I_ESCUDO = ICO("<path d='M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z'/><path d='M12 8v4'/><path d='M12 16h.01'/>");
   const ESTILO = `#mesa .nubest{flex:none;align-self:center;display:inline-flex;align-items:center;gap:6px;height:28px;max-width:340px;margin:0 2px 0 4px;padding:0 10px 0 8px;border:0;border-radius:var(--r-pill);background:none;color:var(--mute);font:inherit;font-size:12px;white-space:nowrap;cursor:pointer;transition:background var(--d1) ease-out,color var(--d1) ease-out}
 #mesa .nubest[hidden]{display:none}
@@ -1744,5 +1843,12 @@
 #mesa .pp-av.nubeav .pp-cu{line-height:1.25}#mesa .nubemas{margin:6px 10px 0}
 #mesa .pp-av.nubeav .nubevisto{grid-column:5;grid-row:1 / span 2;font-size:12px;min-height:32px;padding:4px 6px}
 #mesa .pp-av.nubeav .pp-cu{color:var(--chg);font-weight:600}
-#mesa .nubeico::before{content:'';width:16px;height:16px;background:var(--chg);-webkit-mask:${I_ESCUDO} center/contain no-repeat;mask:${I_ESCUDO} center/contain no-repeat}`;
+#mesa .nubeico::before{content:'';width:16px;height:16px;background:var(--chg);-webkit-mask:${I_ESCUDO} center/contain no-repeat;mask:${I_ESCUDO} center/contain no-repeat}
+#mesa .nubeico.apmac::before{-webkit-mask-image:${I_PORTATIL};mask-image:${I_PORTATIL}}#mesa .nubeico.apmovil::before{-webkit-mask-image:${I_MOVIL};mask-image:${I_MOVIL}}
+#mesa .pp-av.nubeav.ap{grid-template-columns:28px 42px 32px minmax(0,1fr);padding-bottom:9px}
+#mesa .pp-av.nubeav .nubeacc{grid-column:4;grid-row:3;display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;margin-top:7px}
+#mesa .pp-av.nubeav .nubemio{min-height:28px;padding:0 12px;font-size:12px}
+#mesa .pp-av.nubeav .nubeajeno{min-height:28px;padding:4px 2px;font-size:12px;color:var(--red)}
+#mesa .pp-av.nubeav .nubeotro{font-size:12px;color:var(--mute)}
+#mesa .detail .btn.danger{background:var(--red);color:var(--bg) !important}#mesa .detail .btn.danger:hover:not(:disabled){background:color-mix(in srgb,var(--red) 86%,var(--ink))}`;
 })(typeof window !== 'undefined' ? window : globalThis);

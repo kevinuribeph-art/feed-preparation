@@ -148,6 +148,9 @@ function servidorSimulado(reloj) {
     malas: new Set(),     // «almacén|clave» que hacen que el lote entero dé HTTP 400 22P05 (antes de llegar a la función)
     formaSi: null,        // c => true: ese cambio sale como `forma` con su `indice`
     escribirRaro: 0,      // n respuestas `ok: false` con un código que el contrato no nombra
+    vistos: new Map(), vistoN: 0, aparatos: new Map(),   // esquema 6 (D-298, D-299): «Visto» y «Es mío» en el servidor
+    viejo: false,         // un servidor con el esquema 5: sin mesa_visto, mesa_aparato ni el parámetro `vistos`
+    sesionCerrada: false, // «No lo reconozco» cerró todas las sesiones: cualquier llamada de Kevin da `sesion` (D-298)
   };
   const ahora = () => reloj.t;
   const hace = t => (t == null ? null : Math.max(0, Math.floor((ahora() - t) / 1000)));
@@ -274,7 +277,26 @@ function servidorSimulado(reloj) {
       const desde = 'desde' in a ? a.desde : 0, lim = Math.min(Math.max(a.limite === undefined ? 200 : ent(a.limite) ? a.limite : 200, 1), 500);
       if (!ent(desde) || desde < 0) return forma('mesa_actividad', a.dispositivo);
       const todas = S.actividad.filter(x => x.id > desde), filas = todas.slice(0, lim);
-      return { ok: true, filas: clon(filas), hasta: filas.length ? filas[filas.length - 1].id : desde, mas: todas.length > filas.length, epoca: S.epoca, hora: iso(ahora()) };
+      const r = { ok: true, filas: clon(filas).map(f => ({ ...f, visto: S.vistos.has(f.id) })), hasta: filas.length ? filas[filas.length - 1].id : desde, mas: todas.length > filas.length, epoca: S.epoca, hora: iso(ahora()) };
+      if (a.vistos !== undefined && a.vistos !== null) {   // esquema 6: los vistos desde el cursor `vistos`
+        const v = [...S.vistos.entries()].filter(([, n]) => n > a.vistos).sort((x, y) => x[1] - y[1]).slice(0, 1000);
+        Object.assign(r, { vistos: v.map(([id]) => id), vistos_hasta: v.length ? v[v.length - 1][1] : Math.max(+a.vistos || 0, 0), vistos_mas: false });
+      }
+      return r;
+    },
+    mesa_visto(a) {
+      if (!Array.isArray(a.avisos) || !a.avisos.length || a.avisos.length > 500 || !a.avisos.every(x => ent(x) && x > 0)) return forma('mesa_visto', a.dispositivo);
+      for (const id of a.avisos) if (!S.vistos.has(id) && S.actividad.some(x => x.id === id)) S.vistos.set(id, ++S.vistoN);
+      return { ok: true, vistos_hasta: S.vistoN, epoca: S.epoca };
+    },
+    mesa_aparato(a) {
+      if (!DISP_RE.test(a.aparato || '') || typeof a.es_mio !== 'boolean') return forma('mesa_aparato', a.dispositivo);
+      if (!S.dispositivos.has(a.aparato)) return rech('mesa_aparato', a.dispositivo, 'forma', 404, 'ese aparato nunca abrió la Mesa');
+      S.aparatos.set(a.aparato, a.es_mio ? 'mio' : 'ajeno');
+      for (const x of S.actividad) if (x.tipo === 'dispositivo_nuevo' && x.dispositivo === a.aparato && !S.vistos.has(x.id)) S.vistos.set(x.id, ++S.vistoN);
+      anotar(a.es_mio ? 'aparato_mio' : 'aparato_ajeno', a.dispositivo, { aparato: a.aparato });
+      if (!a.es_mio) S.sesionCerrada = true;
+      return { ok: true, vistos_hasta: S.vistoN, sesiones: a.es_mio ? undefined : 2, epoca: S.epoca };
     },
   };
   return {
@@ -314,6 +336,8 @@ function servidorSimulado(reloj) {
           if (fn === 'mesa_escribir' && Array.isArray(reg.args.cambios) && reg.args.cambios.some(x => x && S.malas.has(K(x.almacen, x.clave)))) lanzar(400, '22P05', 'unsupported Unicode escape sequence (simulado)');
           let r;
           if (c.permiso) { anotar('ajeno', reg.args.dispositivo, { funcion: fn }); r = { ok: false, error: { codigo: 'permiso', http: 403, mensaje: 'sin permiso' } }; }
+          else if (S.viejo && (fn === 'mesa_visto' || fn === 'mesa_aparato' || (fn === 'mesa_actividad' && reg.args.vistos !== undefined))) lanzar(404, 'PGRST202', 'función desconocida con esos parámetros (esquema 5, simulado)');
+          else if (S.sesionCerrada) r = rech(fn, reg.args.dispositivo, 'sesion', 401, 'la sesión se cerró: entra otra vez (simulado)');   // D-298
           else if (c.sinCodigo) r = rech(fn, reg.args.dispositivo, 'verificacion', 401, 'falta el código de tu app (simulado)');   // D-262
           else if (!F[fn]) lanzar(404, 'PGRST202', 'función desconocida: ' + fn);
           else r = F[fn](reg.args);
@@ -415,7 +439,8 @@ function efectosEspia(reloj, hooks) {
     async soltada() { e.soltadas = (e.soltadas || 0) + 1; if (hooks.soltada) await hooks.soltada(); },
     async releido(n) { (e.releidos = e.releidos || []).push(n); },
     async antesDeSoltar() { e.antes = (e.antes || 0) + 1; if (hooks.antesDeSoltar) await hooks.antesDeSoltar(); },
-    async congelar() { e.congeladas = (e.congeladas || 0) + 1; if (hooks.congelar) await hooks.congelar(); } };
+    async congelar() { e.congeladas = (e.congeladas || 0) + 1; if (hooks.congelar) await hooks.congelar(); },
+    sesionCerrada() { e.cerradas = (e.cerradas || 0) + 1; } };   // D-298: la Mesa tiene que entrar otra vez
   return e;
 }
 
@@ -469,7 +494,7 @@ await grupo('NS0 la costura de NubeNucleo', async () => {
   const T = N.TIEMPOS || {}, num = ['latido', 'calma', 'pideViva', 'espera', 'primera', 'actividad', 'pedirCada'].filter(k => typeof T[k] !== 'number');
   ok(!num.length && Array.isArray(T.reintento) && T.reintento.length > 0, 'NS0.3 TIEMPOS trae latido, calma, pideViva, espera, primera, actividad, pedirCada y reintento', { faltan: num, TIEMPOS: T });
   const x = mundo().nodo(DA);
-  const metodos = ['abrir', 'tic', 'cambio', 'subir', 'usarAqui', 'forzar', 'subirEncima', 'descartar', 'avisos', 'marcarVisto', 'estado', 'parar'].filter(m => typeof x.n[m] !== 'function');
+  const metodos = ['abrir', 'tic', 'cambio', 'subir', 'usarAqui', 'forzar', 'subirEncima', 'descartar', 'avisos', 'marcarVisto', 'aparato', 'conVistos', 'estado', 'parar'].filter(m => typeof x.n[m] !== 'function');
   ok(!metodos.length, 'NS0.4 el núcleo trae abrir, tic, cambio, subir, usarAqui, forzar, subirEncima, descartar, avisos, marcarVisto, estado y parar', metodos);
 });
 
@@ -1429,6 +1454,77 @@ await grupo('NS36 el avance de una mirada solo cuenta cuando trae algo (el monog
   await W.correr(() => M1.n.mirar(), { tics: [A], max: 20 });
   const con = (M1.efectos.avances || []).slice(a1);
   ok(con.some(([h]) => h >= 2), 'NS36.2 una mirada que trae dos filas avisa con lo que trajo', con);
+});
+
+await grupo('NS37 «Visto», «Es mío» y «No lo reconozco» en el servidor (esquema 6, D-298, D-299)', async () => {
+  const ids = l => (Array.isArray(l) ? l : []).map(x => (x && typeof x === 'object' ? x.id : x));
+  {
+    const W = mundo(), A = W.nodo(DA);
+    const r = await W.abrir(A); if (!r || r.modo !== 'turno') throw new Error('A no abrió con turno');
+    const sv = W.srv, S = W.S, DC37 = 'prueba-c-37';
+    sv.anotar('ajeno', null, { funcion: 'mesa_bajar' }); const idAjeno = S.actividad[S.actividad.length - 1].id;
+    sv.anotar('borrado_masivo', DA, { cuantos: 30 }); const idMasivo = S.actividad[S.actividad.length - 1].id;
+    S.dispositivos.add(DC37); sv.anotar('dispositivo_nuevo', DC37, { turno: 7, antes: null }); const idNuevoC = S.actividad[S.actividad.length - 1].id;
+    const nuevoA = S.actividad.find(x => x.tipo === 'dispositivo_nuevo' && x.dispositivo === DA);
+    await W.vivir(65, A);
+    let a = ids(await A.n.avisos());
+    ok([idAjeno, idMasivo, idNuevoC].every(i => a.includes(i)) && nuevoA && a.includes(nuevoA.id), 'NS37.1 con la Mesa, lee los avisos', a);
+    ok(A.cli.llamadas.some(l => l.fn === 'mesa_actividad' && l.args.vistos !== undefined) && (await A.n.conVistos()) === true, 'NS37.2 mesa_actividad pide los vistos y el núcleo sabe que el servidor los guarda', A.cli.llamadas.filter(l => l.fn === 'mesa_actividad').map(l => l.args));
+    await W.correr(() => A.n.marcarVisto(idAjeno), { tics: [A], max: 10 });
+    ok(S.vistos.has(idAjeno) && A.cli.llamadas.some(l => l.fn === 'mesa_visto' && (l.args.avisos || []).includes(idAjeno) && l.args.dispositivo === DA), 'NS37.3 «Visto» se guarda en el servidor', [...S.vistos.keys()]);
+    ok(!ids(await A.n.avisos()).includes(idAjeno), 'NS37.4 y se quita aquí al momento');
+    A.cli.red = true;
+    await W.correr(() => A.n.marcarVisto(idMasivo), { tics: [A], max: 10 });
+    ok(!ids(await A.n.avisos()).includes(idMasivo) && !S.vistos.has(idMasivo), 'NS37.5 sin red, «Visto» lo quita aquí y espera', [...S.vistos.keys()]);
+    A.cli.red = false; await W.vivir(65, A);
+    ok(S.vistos.has(idMasivo) && !(A.alm.metaYa().vistosPend || []).length, 'NS37.6 al volver la red, sube el «Visto» que esperaba', { vistos: [...S.vistos.keys()], meta: A.alm.metaYa() });
+    const ra = await W.correr(() => A.n.aparato(idNuevoC, true), { tics: [A], max: 10 });
+    ok(ra.valor && ra.valor.ok && S.aparatos.get(DC37) === 'mio' && A.cli.llamadas.some(l => l.fn === 'mesa_aparato' && l.args.aparato === DC37 && l.args.es_mio === true && l.args.dispositivo === DA), 'NS37.7 «Es mío» llama a mesa_aparato con ese aparato', { r: ra.valor, ap: [...S.aparatos] });
+    ok(!ids(await A.n.avisos()).includes(idNuevoC) && S.vistos.has(idNuevoC), 'NS37.8 y su aviso se quita aquí al momento (y queda visto arriba)');
+    const rx = await W.correr(() => A.n.aparato(idAjeno, true), { tics: [A], max: 10 });
+    ok(rx.valor && rx.valor.error && !S.aparatos.has(DA) && ![...S.aparatos.keys()].includes(null), 'NS37.9 «Es mío» de un aviso que no es de un aparato no llama a nada', rx.valor);
+    await W.correr(() => A.n.parar(), { tics: [A], max: 20 });
+    const B = W.nodo(DB); const rb = await W.abrir(B); if (!rb || rb.modo !== 'turno') throw new Error('B no abrió con turno: ' + corto(rb));
+    await W.vivir(5, B);
+    const b = ids(await B.n.avisos());
+    ok(![idAjeno, idMasivo, idNuevoC].some(i => b.includes(i)) && b.includes(nuevoA.id), 'NS37.10 otro aparato, al leer, no enseña lo visto ni «Es mío» en el primero (sí lo demás)', b);
+    const rn = await W.correr(() => B.n.aparato(nuevoA.id, false), { tics: [B], max: 10 });
+    ok(rn.valor && rn.valor.ok && S.aparatos.get(DA) === 'ajeno' && S.sesionCerrada, 'NS37.11 «No lo reconozco» llama a mesa_aparato y el servidor cierra las sesiones', rn.valor);
+    ok((await fase(B)) === 'sin_sesion', 'NS37.12 quien lo pulsa queda sin sesión (la cara lo lleva a entrar)', await B.n.estado());
+    const tras = B.cli.llamadas.length; await W.vivir(30, B);
+    ok(B.cli.llamadas.length - tras <= 1, 'NS37.13 y no sigue llamando', B.cli.llamadas.slice(tras).map(l => l.fn));
+    ok(!S.actividad.some(x => x.tipo === 'ajeno' && x.id > idNuevoC), 'NS37.14 nada queda como «ajeno»');
+  }
+  {
+    const W = mundo(); W.S.viejo = true;
+    const A = W.nodo(DA); const r = await W.abrir(A); if (!r || r.modo !== 'turno') throw new Error('A no abrió con turno (viejo)');
+    W.srv.anotar('ajeno', null, { funcion: 'mesa_bajar' }); const id = W.S.actividad[W.S.actividad.length - 1].id;
+    await W.vivir(65, A);
+    ok(ids(await A.n.avisos()).includes(id) && (await A.n.conVistos()) === false, 'NS37.15 con un servidor de antes (esquema 5), los avisos se leen igual y el núcleo sabe que no guarda vistos', { av: ids(await A.n.avisos()), llamadas: A.cli.llamadas.filter(l => l.fn === 'mesa_actividad').map(l => [l.args, l.error && l.error.status]) });
+    await W.correr(() => A.n.marcarVisto(id), { tics: [A], max: 10 });
+    ok(!ids(await A.n.avisos()).includes(id), 'NS37.16 y «Visto» se queda en este aparato, como antes');
+    const tras = A.cli.llamadas.length; await W.vivir(130, A);
+    const errs = A.cli.llamadas.slice(tras).filter(l => l.error && l.error.status === 404);
+    ok(!errs.length && A.cli.llamadas.slice(tras).filter(l => l.fn === 'mesa_actividad').length >= 1, 'NS37.17 sin repetir llamadas que el servidor no tiene', errs.map(l => [l.fn, l.args]));
+  }
+  {
+    const W = mundo(); W.S.sesionCerrada = true;
+    const A = W.nodo(DA); A.alm.sembrar({ registros: [['boards', 'mio37', { n: 1 }]], notas: [['boards', 'mio37']] });
+    const r = await W.correr(() => A.n.abrir(), { tics: [A], max: 40 });
+    ok(r.valor && r.valor.modo === 'sin_sesion' && (A.efectos.cerradas || 0) === 1, 'NS37.18 abrir con la sesión cerrada: «sin_sesion» y la cara lo sabe', { r: r.valor, cerradas: A.efectos.cerradas });
+    ok(A.alm.enDiario('boards', 'mio37') && !(await A.alm.sinSubir()).length, 'NS37.19 sin apartar nada de lo de aquí', resumen(A));
+  }
+  {
+    const { W, A, S } = await conTurno();
+    await W.vivir(6, A);
+    S.sesionCerrada = true;   // «No lo reconozco» en otro aparato
+    A.alm.escribirLocal('boards', 'b37', { n: 1 });
+    await W.vivir(20, A);
+    ok((await fase(A)) === 'sin_sesion' && (A.efectos.cerradas || 0) === 1, 'NS37.20 con la Mesa cogida, en su siguiente llamada se queda sin sesión y avisa a la cara una vez', { fase: await fase(A), cerradas: A.efectos.cerradas });
+    ok(A.alm.enDiario('boards', 'b37') && !(await A.alm.sinSubir()).length && !S.registros.has('boards|b37'), 'NS37.21 lo que tenía sin subir sigue en su diario (nada apartado ni subido)', resumen(A));
+    const tras = A.cli.llamadas.length; await W.vivir(60, A);
+    ok(A.cli.llamadas.length - tras <= 2 && (A.efectos.cerradas || 0) === 1, 'NS37.22 y no sigue llamando ni avisando', A.cli.llamadas.slice(tras).map(l => l.fn));
+  }
 });
 
 console.log('NS0 al final');

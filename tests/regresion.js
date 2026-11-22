@@ -18386,7 +18386,7 @@
 
   prueba('EN1', 'La entrada (D-262) sin proyecto no hace nada: en una copia de este Mac (127.0.0.1) sin `mesa-web-proyecto` la Mesa abre como siempre, sin capa ni almacén de sesión, y abrir() contesta enseguida', async () => {
     const E = M.entrada;
-    ok(E && E.version === '1.4', 'falta MESA.entrada');   // 1.4: «pide otro dentro de 3 minutos» (D-280). 1.3: un cliente no sigue en la Mesa (D-274)
+    ok(E && E.version === '1.5', 'falta MESA.entrada');   // 1.5: la sesión cerrada en el servidor y «No lo reconozco» (D-298). 1.4: «pide otro dentro de 3 minutos» (D-280). 1.3: un cliente no sigue en la Mesa (D-274)
     igual(E.modo, 'sin_proyecto', 'modo');
     ok(!D.getElementById('mesa-entrada'), 'hay capa de entrada en una Mesa sin proyecto');
     ok(!M._in.almacenSesion, 'almacén de sesión sin proyecto');
@@ -18499,6 +18499,191 @@
       E.cargaFin(); await espera(400);
       ok(!D.getElementById('mesa-entrada'), 'la pantalla de carga no se va');
     } finally { E._test.quitar(); E.carga = false; }
+  });
+
+  // ---------- Lote E de la 4.42 (Mesa 4.49): aparatos (D-298) y «Visto» en el servidor (D-299) ----------
+  const apServidor = (o = {}) => {   // un servidor de la Mesa de mentira para el núcleo de la nube (M.nube._con)
+    const ll = [], sv = { ll, viejo: !!o.viejo, aparato: o.aparato || null, rechazo: o.rechazo || null, rpc: async (fn, a) => {
+      ll.push([fn, a]);
+      const base = { ok: true, epoca: 'e-ap', hora: new Date().toISOString(), version_minima: '0.0' };
+      if (sv.rechazo && sv.rechazo.fn === fn) return { ok: false, error: sv.rechazo.error, epoca: 'e-ap' };
+      if (sv.viejo && (fn === 'mesa_visto' || fn === 'mesa_aparato' || (fn === 'mesa_actividad' && a.vistos !== undefined))) throw Object.assign(new Error('función desconocida'), { status: 404, codigo: 'PGRST202' });
+      if (fn === 'mesa_actividad') return { ...base, filas: [], hasta: a.desde, mas: false, ...(a.vistos !== undefined ? { vistos: [], vistos_hasta: a.vistos, vistos_mas: false } : {}) };
+      if (fn === 'mesa_visto') return { ...base, vistos_hasta: 1 };
+      if (fn === 'mesa_aparato') return sv.aparato ? sv.aparato(a) : { ...base, vistos_hasta: 2, ...(a.es_mio ? {} : { sesiones: 2 }) };
+      if (fn === 'mesa_turno_ver') return { ...base, turno: 1, tuyo: false, libre: true, tiene: null, pide: null, orden: 0 };
+      return { ok: false, error: { codigo: 'forma', http: 400 } };
+    } };
+    return sv;
+  };
+  const apAvisos = () => {
+    const ah = M._in.ahora(), iso = ms => new Date(ms).toISOString();
+    return [{ id: 9301, hora: iso(ah - 90e3), tipo: 'dispositivo_nuevo', dispositivo: 'mac-safari-5e0d9c2b7a314f68', detalle: { turno: 4, antes: null } },
+      { id: 9302, hora: iso(ah - 864e5), tipo: 'dispositivo_nuevo', dispositivo: 'iphone-inicio-0b1c2d3e4f5a6b7c', detalle: { turno: 5, antes: null } },
+      { id: 9303, hora: iso(ah - 3 * 864e5), tipo: 'dispositivo_nuevo', dispositivo: 'win-chrome-aa11bb22cc33dd44', detalle: { turno: 6, antes: null } },
+      { id: 9304, hora: iso(ah - 3600e3), tipo: 'ajeno', dispositivo: null, detalle: { funcion: 'mesa_bajar' } }];
+  };
+  const apPagina = async () => { M._in.NUBE.activa = true; await M.nube._releerAvisos(); await M.personal.abrir(); await espera(200); return q('.pp-grupo[data-cat="nube"]'); };
+
+  prueba('AP1', 'El aviso de aparato nuevo dice cuál es («Safari · Mac · hoy a las 10:12», el nombre sale de su id) y lleva «Es mío» y «No lo reconozco» en lugar de «Visto»; los demás avisos siguen con «Visto»; con un servidor de antes (sin «Es mío»), «Visto» como hasta hoy (D-298)', async () => {
+    await tablero([pub(1)]);
+    const A = M._in.nubeAlmacen, av = apAvisos(), L = M._in.localTime;
+    try {
+      await A.ponerAvisos(av); M.nube._con(apServidor());
+      const g = await apPagina(), t = g ? g.textContent : '';
+      ok(g && g.querySelectorAll('.nubeav').length === 4, 'los cuatro avisos: ' + (g ? g.querySelectorAll('.nubeav').length : 0));
+      const fila = id => g.querySelector(`.nubeav[data-av="${id}"]`), txt = id => (fila(id) || {}).textContent || '';
+      ok(txt(9301).includes('La Mesa se abrió en un aparato nuevo') && txt(9301).includes('Safari · Mac · hoy a las ' + L(av[0].hora)), 'el de hoy: ' + txt(9301));
+      ok(txt(9302).includes('Pantalla de inicio · iPhone · ayer a las ' + L(av[1].hora)), 'el de ayer (un iPhone): ' + txt(9302));
+      ok(new RegExp('Chrome · Windows · el \\d{1,2} [a-z]{3,4} a las ' + L(av[2].hora)).test(txt(9303)), 'el de otro día: ' + txt(9303));
+      for (const id of [9301, 9302, 9303]) {
+        const f = fila(id);
+        ok(f.querySelector('[data-nube="mio"]') && f.querySelector('[data-nube="ajeno"]') && !f.querySelector('[data-nube="visto"]'), id + ': sin «Es mío» y «No lo reconozco», o con «Visto»');
+        igual([...f.querySelectorAll('button')].map(b => b.textContent.trim()), ['Es mío', 'No lo reconozco'], id + ': los botones');
+        ok(f.querySelector('[data-nube="ajeno"]').getAttribute('aria-label').includes('Safari · Mac') || id !== 9301, 'el botón no dice de qué aparato');
+      }
+      ok(fila(9304).querySelector('[data-nube="visto"]') && !fila(9304).querySelector('[data-nube="mio"]'), 'el aviso que no es de un aparato perdió su «Visto»');
+      M.personal.cerrar();
+      const yo = (await M.nube.estado()).dispositivo;
+      await A.ponerAvisos([{ id: 9305, hora: new Date(M._in.ahora() - 60e3).toISOString(), tipo: 'dispositivo_nuevo', dispositivo: yo, detalle: { turno: 7, antes: null } },
+        { id: 9306, hora: new Date(M._in.ahora() - 30e3).toISOString(), tipo: 'dispositivo_nuevo', dispositivo: 'mac-chrome-77aa66bb55cc44dd', detalle: { turno: 8, antes: null, vuelve: true } }]);
+      const g3 = await apPagina(), f5 = g3.querySelector('.nubeav[data-av="9305"]'), f6 = g3.querySelector('.nubeav[data-av="9306"]');
+      ok(f5 && !f5.querySelector('button') && /Confírmalo desde otro aparato/.test(f5.textContent) && / · este /.test(f5.textContent), 'el aviso de este mismo aparato lleva botones (un aparato no se confirma a sí mismo): ' + (f5 && f5.textContent));
+      ok(f6 && /Volvió un aparato que no reconociste/.test(f6.textContent) && f6.querySelector('[data-nube="mio"]'), 'un aparato que no reconociste y vuelve: ' + (f6 && f6.textContent));
+      M.personal.cerrar(); await A.quitarAviso(9305); await A.quitarAviso(9306);
+      ok(!/\(5e0d\)|5e0d9c/.test(txt(9301)) && /5e0d/.test(fila(9301).title), 'el trozo del id se ve (va en el título, para distinguir dos iguales)');
+      M.personal.cerrar();
+      const n = M.nube._con(apServidor({ viejo: true })); await n.leerActividad();
+      ok(n.conVistos() === false, 'el núcleo no sabe que el servidor es de antes');
+      const g2 = await apPagina();
+      ok(g2 && g2.querySelector('.nubeav[data-av="9301"] [data-nube="visto"]') && !g2.querySelector('[data-nube="mio"]'), 'con un servidor de antes, sin «Visto» en el de aparato nuevo');
+    } finally { await nbLimpiar(); if (M.personal) M.personal.cerrar(); }
+  });
+
+  prueba('AP2', '«Es mío» se guarda en el servidor (mesa_aparato con ese aparato) y el aviso se va; si no se puede, se queda y lo dice; «Visto» de los demás también va al servidor (mesa_visto) (D-298, D-299)', async () => {
+    await tablero([pub(1)]);
+    const A = M._in.nubeAlmacen;
+    try {
+      await A.ponerAvisos(apAvisos()); const sv = apServidor(); M.nube._con(sv);
+      let g = await apPagina();
+      g.querySelector('.nubeav[data-av="9301"] [data-nube="mio"]').click();
+      await hasta(() => !q('.nubeav[data-av="9301"]'), 3000, 'que «Es mío» quite el aviso');
+      const ap = sv.ll.find(([fn]) => fn === 'mesa_aparato');
+      ok(ap && ap[1].aparato === 'mac-safari-5e0d9c2b7a314f68' && ap[1].es_mio === true && /^[a-z]+-[a-z]+-[0-9a-f]+$/.test(ap[1].dispositivo), 'la llamada: ' + json(ap));
+      ok(toastCon(/todos tus aparatos/), 'sin aviso de que vale en todos');
+      ok(!(await A.avisos()).some(x => x.id === 9301) && (await A.avisos()).some(x => x.id === 9302), 'lo guardado aquí');
+      q('.nubeav[data-av="9304"] [data-nube="visto"]').click();
+      await hasta(() => sv.ll.some(([fn]) => fn === 'mesa_visto'), 3000, 'que «Visto» llame al servidor');
+      igual(sv.ll.find(([fn]) => fn === 'mesa_visto')[1].avisos, [9304], 'los vistos enviados');
+      sv.aparato = () => ({ ok: false, error: { codigo: 'forma', http: 404, mensaje: 'ese aparato nunca abrió la Mesa' } });
+      g = q('.pp-grupo[data-cat="nube"]'); const b = g.querySelector('.nubeav[data-av="9302"] [data-nube="mio"]'); b.click();
+      await hasta(() => toastCon(/No se pudo/), 3000, 'el aviso del fallo');
+      ok(q('.nubeav[data-av="9302"]') && (await A.avisos()).some(x => x.id === 9302), 'tras un fallo, el aviso se fue');
+      ok(!q('.nubeav[data-av="9302"] [data-nube="mio"]').disabled, 'tras un fallo, el botón sigue apagado');
+    } finally { await nbLimpiar(); if (M.personal) M.personal.cerrar(); }
+  });
+
+  prueba('AP3', '«No lo reconozco» pregunta antes («¿No lo reconoces?», Cancelar · Cerrar todas las sesiones); Cancelar no hace nada; aceptar cierra todas las sesiones en el servidor (mesa_aparato) y lleva a entrar otra vez, apuntando que al volver proponga cambiar la contraseña (D-298)', async () => {
+    await tablero([pub(1)]);
+    const A = M._in.nubeAlmacen, E = M.entrada, sc0 = E.sesionCerrada, llam = [];
+    try {
+      W.localStorage.removeItem('mesa-cambiar-clave');
+      E.sesionCerrada = o => { llam.push(o || {}); };
+      await A.ponerAvisos(apAvisos()); const sv = apServidor(); M.nube._con(sv);
+      const g = await apPagina();
+      g.querySelector('.nubeav[data-av="9303"] [data-nube="ajeno"]').click();
+      await hasta(() => q('.detail[data-dlg="nubeajeno"]'), 3000, 'la pregunta');
+      let d = q('.detail[data-dlg="nubeajeno"]');
+      ok(/¿No lo reconoces\?/.test(d.querySelector('h3').textContent) && /Chrome · Windows/.test(d.textContent) && /todos tus aparatos/.test(d.textContent) && /contraseña/.test(d.textContent), 'la pregunta: ' + d.textContent.slice(0, 300));
+      igual([...d.querySelectorAll('.row button')].map(b => b.textContent.trim()), ['Cancelar', 'Cerrar todas las sesiones'], 'los botones');
+      ok(W.getComputedStyle(d.querySelector('[data-nube="ajeno-si"]')).backgroundColor !== W.getComputedStyle(d.querySelector('.row .btn2')).backgroundColor, 'el botón de cerrar no se distingue');
+      d.querySelector('.row .btn2').click(); await espera(150);
+      ok(!q('.detail[data-dlg="nubeajeno"]') && !sv.ll.some(([fn]) => fn === 'mesa_aparato') && !llam.length, 'Cancelar hizo algo');
+      q('.nubeav[data-av="9303"] [data-nube="ajeno"]').click();
+      await hasta(() => q('.detail[data-dlg="nubeajeno"]'), 3000, 'la pregunta otra vez');
+      q('.detail[data-dlg="nubeajeno"] [data-nube="ajeno-si"]').click();
+      await hasta(() => llam.length === 1, 3000, 'que lleve a entrar otra vez');
+      const ap = sv.ll.find(([fn]) => fn === 'mesa_aparato');
+      ok(ap && ap[1].aparato === 'win-chrome-aa11bb22cc33dd44' && ap[1].es_mio === false, 'la llamada: ' + json(ap));
+      ok(llam[0].propia === true, 'entrar otra vez sin decir que lo pidió él: ' + json(llam[0]));
+      igual(M._in.lsGet('mesa-cambiar-clave'), '1', 'no apunta que proponga cambiar la contraseña');
+      W.localStorage.removeItem('mesa-cambiar-clave'); llam.length = 0; M._in.closeDetail && M._in.closeDetail();
+      sv.aparato = () => ({ ok: false, error: { codigo: 'forma', http: 404, mensaje: 'ese aparato nunca abrió la Mesa' } });
+      q('.nubeav[data-av="9302"] [data-nube="ajeno"]').click();
+      await hasta(() => q('.detail[data-dlg="nubeajeno"]'), 3000, 'la pregunta (fallo)');
+      q('.detail[data-dlg="nubeajeno"] [data-nube="ajeno-si"]').click();
+      await hasta(() => { const p = q('.detail[data-dlg="nubeajeno"] .ferr'); return p && !p.hidden && p.textContent; }, 3000, 'el fallo en la pregunta');
+      ok(!llam.length && !M._in.lsGet('mesa-cambiar-clave'), 'tras un fallo, salió de la sesión o apuntó la contraseña');
+      M._in.closeDetail && M._in.closeDetail();
+      sv.aparato = () => { throw Object.assign(new Error('sin conexión'), { status: 0, codigo: 'red' }); };
+      q('.nubeav[data-av="9302"] [data-nube="ajeno"]').click();
+      await hasta(() => q('.detail[data-dlg="nubeajeno"]'), 3000, 'la pregunta (sin conexión)');
+      q('.detail[data-dlg="nubeajeno"] [data-nube="ajeno-si"]').click();
+      await hasta(() => { const p = q('.detail[data-dlg="nubeajeno"] .ferr'); return p && !p.hidden && p.textContent; }, 3000, 'el aviso sin conexión');
+      ok(/no se sabe si se cerraron/.test(q('.detail[data-dlg="nubeajeno"] .ferr').textContent) && M._in.lsGet('mesa-cambiar-clave') === '1', 'sin respuesta dice «no se ha cerrado nada» o no apunta la contraseña: ' + q('.detail[data-dlg="nubeajeno"] .ferr').textContent);
+    } finally { E.sesionCerrada = sc0; W.localStorage.removeItem('mesa-cambiar-clave'); if (M._in.closeDetail) M._in.closeDetail(); await nbLimpiar(); if (M.personal) M.personal.cerrar(); }
+  });
+
+  prueba('AP4', 'Una sesión cerrada en el servidor (rechazo «sesion») lleva a entrar otra vez, una sola vez: la nube se queda «sin sesión» sin apartar nada y la entrada borra la sesión guardada, dice «Tu sesión se cerró» y recarga; al recargar, entrar con el correo puesto y el aviso (D-298)', async () => {
+    await tablero([pub(1)]);
+    const E = M.entrada, sc0 = E.sesionCerrada, llam = [];
+    try {
+      E.sesionCerrada = o => { llam.push(o || {}); };
+      const sv = apServidor({ rechazo: { fn: 'mesa_turno_ver', error: { codigo: 'sesion', http: 401, mensaje: 'la sesión se cerró' } } });
+      const n = M.nube._con(sv); const r = await n.abrir();
+      igual(r.modo, 'sin_sesion', 'abrir con la sesión cerrada'); igual(llam.length, 1, 'avisos a la entrada');
+      igual((await M._in.nubeAlmacen.sinSubir()).length, 0, 'apartó algo');
+      // la entrada: borrar la guardada, decirlo y recargar (con su cliente y su almacén de mentira)
+      const hizo = [], c = { salir: async a => { hizo.push('salir:' + a); }, usuario: () => ({ email: 'k@ejemplo.test' }) };
+      const Al = { guardada: () => ({ correo: 'k@ejemplo.test' }), olvidar: () => hizo.push('olvidar') };
+      let rec = 0; const fin = E._test.cerrar({}, { c, A: Al, recargar: () => { rec++; } });
+      await hasta(() => E.paso === 'mensaje' && D.getElementById('mesa-entrada'), 3000, 'la pantalla');
+      const capa = D.getElementById('mesa-entrada');
+      ok(/Tu sesión se cerró/.test(capa.querySelector('h1').textContent) && /a salvo/.test(capa.textContent), 'la pantalla: ' + capa.textContent.slice(0, 200));
+      capa.querySelector('form').requestSubmit(); await fin;
+      igual(hizo, ['salir:local', 'olvidar'], 'lo que hizo'); igual(rec, 1, 'recargas');
+      const av = E._test.tomarAviso();
+      ok(av && av.correo === 'k@ejemplo.test' && /Tu sesión se cerró: entra otra vez/.test(av.aviso), 'el aviso para entrar: ' + json(av));
+      ok(!E._test.tomarAviso(), 'el aviso se queda para la siguiente vez');
+      hizo.length = 0; rec = 0; E._test.quitar();   // la recarga se la llevaría
+      E._test.pantalla('carga'); E.carga = true;   // al abrir, con el monograma en pantalla (revisión del lote E)
+      const fin2 = E._test.cerrar({}, { c, A: Al, recargar: () => { rec++; } });
+      await hasta(() => E.paso === 'mensaje', 3000, 'el mensaje sobre la carga');
+      E.cargaFin(); await espera(400);
+      const cp = D.getElementById('mesa-entrada');
+      ok(cp && /Tu sesión se cerró/.test(cp.textContent), 'al acabar la carga se llevó «Tu sesión se cerró»');
+      if (cp) { cp.querySelector('form').requestSubmit(); await fin2; }
+      igual(rec, 1, 'tras la carga, recargas'); hizo.length = 0; rec = 0; E._test.quitar(); E._test.tomarAviso();
+      await E._test.cerrar({ propia: true }, { c, A: Al, recargar: () => { rec++; } });
+      ok(rec === 1 && hizo.join() === 'salir:local,olvidar' && !D.getElementById('mesa-entrada'), 'la propia («No lo reconozco») pregunta otra vez o no recarga');
+      ok(/Cerraste todas las sesiones/.test((E._test.tomarAviso() || {}).aviso || ''), 'la propia no dice que las cerró él');
+      const p = E._test.pantalla('nuevo', { aviso: 'Cerraste todas las sesiones: entra otra vez', correo: 'k@ejemplo.test' });
+      ok(/Cerraste todas las sesiones/.test(p.textContent) && p.querySelector('#e-co').value === 'k@ejemplo.test', 'entrar no dice el aviso ni pone el correo');
+    } finally { E.sesionCerrada = sc0; E._test.quitar(); E._test.tomarAviso(); await nbLimpiar(); }
+  });
+
+  prueba('AP5', 'Tras «No lo reconozco», al volver a entrar propone cambiar la contraseña una vez: «Ahora no» lo deja; con una nueva, la cambia en el servidor y vuelve a guardar la sesión cifrada con ella; sin la marca, nada (D-298)', async () => {
+    const E = M.entrada;
+    try {
+      const hizo = [], c = { usuario: () => ({ email: 'k@ejemplo.test' }), ponerContrasena: async pw => { hizo.push('poner:' + pw.length); return true; } };
+      const Al = { leer: () => ({ user: { email: 'k@ejemplo.test' } }), nueva: async (pw, s) => { hizo.push('nueva:' + pw.length + ':' + !!s); }, esperar: async () => {} };
+      W.localStorage.removeItem('mesa-cambiar-clave');
+      igual(await E._test.proponerClave({ c, A: Al }), 'nada', 'sin la marca');
+      M._in.lsSet('mesa-cambiar-clave', '1');
+      let fin = E._test.proponerClave({ c, A: Al });
+      await hasta(() => E.paso === 'contrasena' && D.getElementById('e-n1'), 3000, 'la pantalla');
+      let capa = D.getElementById('mesa-entrada');
+      ok(/Cambia tu contraseña/.test(capa.querySelector('h1').textContent) && capa.querySelector('[data-accion="ahora-no"]'), 'la pantalla: ' + capa.textContent.slice(0, 200));
+      capa.querySelector('[data-accion="ahora-no"]').click();
+      igual(await fin, 'ahora-no', '«Ahora no»'); ok(!M._in.lsGet('mesa-cambiar-clave') && !hizo.length, '«Ahora no» cambió algo o dejó la marca');
+      M._in.lsSet('mesa-cambiar-clave', '1');
+      fin = E._test.proponerClave({ c, A: Al });
+      await hasta(() => E.paso === 'contrasena' && D.getElementById('e-n1'), 3000, 'la pantalla otra vez');
+      const pw = 'una-contraseña-nueva-de-más-de-veinte';
+      D.getElementById('e-n1').value = pw; D.getElementById('e-n2').value = pw; D.getElementById('e-n1').form.requestSubmit();
+      igual(await fin, 'cambiada', 'con una nueva');
+      igual(hizo, ['poner:' + pw.length, 'nueva:' + pw.length + ':true'], 'lo que hizo'); ok(!M._in.lsGet('mesa-cambiar-clave'), 'la marca sigue');
+    } finally { W.localStorage.removeItem('mesa-cambiar-clave'); E._test.quitar(); }
   });
 
   prueba('CS2', 'Nada escrito por un cliente ejecuta código en la Mesa (D-252): un <img src=x onerror=…> en un caption, una Nota, el nombre de un cliente y un comentario del cliente bajado del servidor no corre; y uno que se colara en el HTML lo para la CSP y lo dice', async () => {

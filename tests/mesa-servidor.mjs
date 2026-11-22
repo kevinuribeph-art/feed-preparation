@@ -19,7 +19,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { proyecto, rest, cab, pedir, gestion, tapar, clave, usuarioPorCorreo, Fallo } from '../tools/web.mjs';
-import { conCodigo } from './codigo-app.mjs';   // Kevin entra con el código de su app (D-262)
+import { conCodigo, verificar } from './codigo-app.mjs';   // Kevin entra con el código de su app (D-262)
 
 if (process.argv.slice(2).some(a => a !== 'pruebas')) { console.error('esta prueba solo corre contra el proyecto de pruebas'); process.exit(1); }
 const P = proyecto('pruebas');
@@ -109,7 +109,8 @@ const cuantasAct = async cond => (await act(cond)).length;
 const borrarAct = cond => sql(`select set_config('mesa.poda', '1', true); delete from mesa.actividad a where ${cond};`);
 async function limpiarDatos() {
   await sql(`delete from mesa.registros where clave like 'prueba-%'; delete from mesa.historial where clave like 'prueba-%';
-    delete from mesa.dispositivos where dispositivo like 'prueba-%';`);
+    delete from mesa.dispositivos where dispositivo like 'prueba-%';
+    do $l$ begin if to_regclass('mesa.vistos') is not null then delete from mesa.vistos where dispositivo like 'prueba-%'; end if; end $l$;`);
   await borrarAct(`a.dispositivo like 'prueba-%' or a.detalle ->> 'clave' like 'prueba-%'`);
   for (;;) {
     const l = await pedir(`${P.url}/storage/v1/object/list/mesa`, { method: 'POST', headers: { ...cab(S), 'Content-Type': 'application/json' }, body: { prefix: ALM, limit: 1000, offset: 0 } });
@@ -208,7 +209,8 @@ async function main() {
     const r = await servicio(t, { method: 'POST', body: filas, prefer: 'resolution=merge-duplicates' });
     if (!r.ok) throw new Fallo(`no se pudo sembrar ${t}: ${r.status} ${r.text}`);
   }
-  const kk = (await conCodigo(P, await entrar(CORREO.k))).access_token, ka = await entrar(CORREO.a), kn = await entrar(CORREO.n);
+  const kkC = await conCodigo(P, await entrar(CORREO.k)), kk = kkC.access_token, ka = await entrar(CORREO.a), kn = await entrar(CORREO.n);
+  const otraSesionK = async () => (await verificar(P, await entrar(CORREO.k), kkC.factor, kkC.secreto)).access_token;   // otro aparato, con el mismo código (conCodigo quitaría el factor y, con él, las sesiones que lo usaron)
   const K = rpcDe(kk), A = rpcDe(ka, true), NAD = rpcDe(kn, true), N = rpcDe(null, true);
   const esc = (d, t, cambios, app = APP, reescanear) => K('mesa_escribir', { dispositivo: d, turno: t, app, cambios, ...(reescanear === undefined ? {} : { reescanear }) });
   const reclamar = (d, visto, forzar) => K('mesa_turno_reclamar', { dispositivo: d, visto, app: APP, ...(forzar === undefined ? {} : { forzar }) });
@@ -549,6 +551,8 @@ async function main() {
     ['mesa_escribir', { dispositivo: DA, turno: T, app: APP, cambios: [cambio('intruso', null, 1), cambio('k1', 3, { t: 'pisado' })] }],
     ['mesa_bajar', { desde: 0 }],
     ['mesa_actividad', { desde: 0 }],
+    ['mesa_visto', { dispositivo: DA, avisos: [1] }],                      // esquema 6 (D-299)
+    ['mesa_aparato', { dispositivo: DA, aparato: DB, es_mio: false }],     // esquema 6 (D-298): nunca cierra las sesiones de Kevin desde fuera
   ];
   for (const [fn, args] of llamadas) {
     r = await A(fn, args);
@@ -600,7 +604,57 @@ async function main() {
   ok(a1 && a1.detalle.recortado === true && a1.detalle.claves.length === 5 && +a1.detalle.almacenes[ALM] === 30 && +a1.detalle.cuantos === 30,
     'un detalle de más de 2 KB guarda menos claves de muestra, sin perder almacenes ni cuántos', JSON.stringify(a1 && { n: a1.detalle.claves && a1.detalle.claves.length, alm: a1.detalle.almacenes }));
   for (const [q, txt] of [[`update mesa.actividad set tipo = 'cambiada' where id > ${A0}`, 'cambiarla'], [`delete from mesa.actividad where id > ${A0}`, 'borrarla'],
-    ['begin; truncate mesa.actividad; rollback;', 'vaciarla']]) { const y = await sqlIntento(q); ok(!y.ok && /solo se añaden/.test(y.text), `ni el dueño de la base puede ${txt} (solo se añaden filas)`, y.text); }
+    ['begin; truncate mesa.actividad; rollback;', 'vaciarla']]) { const y = await sqlIntento(q); ok(!y.ok && /solo se añaden|referenced in a foreign key/.test(y.text), `ni el dueño de la base puede ${txt} (solo se añaden filas; para vaciarla, además, la sujetan sus «vistos»)`, y.text); }
+
+  console.log('Aparatos y «Visto» en el servidor (esquema 6, D-298, D-299)');
+  const nuevoA = await ultimaAct(`tipo = 'dispositivo_nuevo' and dispositivo = '${DA}'`), nuevoB = await ultimaAct(`tipo = 'dispositivo_nuevo' and dispositivo = '${DB}'`);
+  const masivo = await ultimaAct(`tipo = 'borrado_masivo' and dispositivo = '${DA}'`);
+  ok(nuevoA && nuevoB && masivo, 'los dos ordenadores inventados dejaron su «dispositivo_nuevo» (y hay un «borrado_masivo»)');
+  r = await K('mesa_actividad', { desde: A0, limite: 500 });   // lo que llama una Mesa de antes (4.48)
+  ok(bien(r) && !('vistos' in r.json) && r.json.filas.length && r.json.filas.every(f => f.visto === false), 'una Mesa de antes (sin «vistos») lee como siempre; cada fila dice que nadie la ha visto', r.text);
+  r = await K('mesa_actividad', { desde: A0, limite: 500, vistos: 0 });
+  const v0 = bien(r) ? +r.json.vistos_hasta : NaN;
+  ok(bien(r) && Array.isArray(r.json.vistos) && Number.isFinite(v0) && r.json.vistos_mas === false, 'con «vistos»: la lista de vistos, hasta dónde y si hay más', r.text);
+  r = await K('mesa_visto', { dispositivo: DA, avisos: [+masivo.id] });
+  const v1 = bien(r) ? +r.json.vistos_hasta : NaN;
+  ok(bien(r) && v1 > v0, '«Visto» se guarda en el servidor', r.text);
+  r = await K('mesa_actividad', { desde: A0, limite: 500, vistos: v0 });
+  ok(bien(r) && r.json.vistos.map(Number).includes(+masivo.id) && +r.json.vistos_hasta === v1 && (r.json.filas.find(f => +f.id === +masivo.id) || {}).visto === true,
+    'otro aparato lo lee: en «vistos» desde su cursor y marcado en su fila', r.text);
+  r = await K('mesa_actividad', { desde: A0, limite: 500, vistos: v1 });
+  ok(bien(r) && r.json.vistos.length === 0 && +r.json.vistos_hasta === v1, 'desde el último cursor, nada nuevo', r.text);
+  r = await K('mesa_visto', { dispositivo: DB, avisos: [+masivo.id] });
+  ok(bien(r) && +r.json.vistos_hasta === v1 && +(await sql(`select count(*) as n from mesa.vistos where aviso = ${+masivo.id}`))[0].n === 1, 'marcarlo otra vez (otro aparato) no repite nada', r.text);
+  r = await K('mesa_visto', { dispositivo: DA, avisos: [999999999999] });
+  ok(bien(r) && +r.json.vistos_hasta === v1, 'un aviso que no existe no se apunta (ni falla)', r.text);
+  r = await K('mesa_visto', { dispositivo: DA, avisos: 5 }); ok(!r.ok && es(r, 400), 'mesa_visto con avisos que no son una lista: no llega a la función (400)', `${r.status} ${r.text}`);
+  for (const [txt, args] of [['sin avisos', { dispositivo: DA, avisos: [] }],
+    ['más de 500', { dispositivo: DA, avisos: Array.from({ length: 501 }, (_, i) => i + 1) }], ['un id negativo', { dispositivo: DA, avisos: [-1] }], ['un dispositivo mal escrito', { dispositivo: 'x', avisos: [+masivo.id] }]]) {
+    r = await K('mesa_visto', args); ok(rech(r, 'forma', 400), `mesa_visto ${txt}: «forma»`, r.text);
+  }
+  r = await K('mesa_visto', { dispositivo: DA, avisos: [+nuevoB.id] });
+  ok(bien(r) && !+(await sql(`select count(*) as n from mesa.vistos where aviso = ${+nuevoB.id}`))[0].n, '«Visto» no quita un aviso de aparato nuevo (eso, mesa_aparato)', r.text);
+  r = await K('mesa_aparato', { dispositivo: DB, aparato: DB, es_mio: true });
+  ok(rech(r, 'propio', 403), '«Es mío» de un aparato desde él mismo: «propio» (403)', r.text);
+  r = await K('mesa_aparato', { dispositivo: DA, aparato: DB, es_mio: true });
+  ok(rech(r, 'propio', 403), '«Es mío» desde la sesión que abrió ese aparato (aunque diga otro nombre): «propio»', r.text);
+  ok(!(await sql(`select 1 from mesa.dispositivos where dispositivo = '${DB}' and reconocido is not null`)).length, 'y no se apunta nada');
+  const kOtra = await otraSesionK();
+  r = await rpcDe(kOtra)('mesa_aparato', { dispositivo: DA, aparato: DB, es_mio: true });
+  ok(bien(r) && +r.json.vistos_hasta > v1, '«Es mío» (B) desde otra sesión de Kevin', r.text);
+  s = (await sql(`select reconocido is not null as rec, rechazado is null as sin from mesa.dispositivos where dispositivo = '${DB}'`))[0];
+  ok(s && s.rec && s.sin, 'se apunta en ese aparato (mesa.dispositivos.reconocido)', JSON.stringify(s));
+  r = await rpcDe(kOtra)('mesa_actividad', { desde: A0, limite: 500, vistos: v1 });
+  ok(bien(r) && r.json.vistos.map(Number).includes(+nuevoB.id) && (r.json.filas.find(f => +f.id === +nuevoB.id) || {}).visto === true && (r.json.filas.find(f => +f.id === +nuevoA.id) || {}).visto === false,
+    'y su aviso «aparato nuevo» queda visto en todos (el de A, no)', r.text);
+  a1 = await ultimaAct(`tipo = 'aparato_mio'`);
+  ok(a1 && a1.detalle.aparato === DB && a1.dispositivo === DA && a1.usuario === uk, 'queda en la actividad («aparato_mio»: cuál, desde dónde y quién)', JSON.stringify(a1));
+  for (const [txt, args, cod, http] of [['un aparato que nunca abrió la Mesa', { dispositivo: DA, aparato: 'prueba-nunca-' + RUN, es_mio: true }, 'forma', 404],
+    ['es_mio vacío', { dispositivo: DA, aparato: DB, es_mio: null }, 'forma', 400], ['un aparato mal escrito', { dispositivo: DA, aparato: 'x', es_mio: true }, 'forma', 400]]) {
+    r = await rpcDe(kOtra)('mesa_aparato', args); ok(rech(r, cod, http), `mesa_aparato con ${txt}: «${cod}» (${http})`, r.text);
+  }
+  r = await K('mesa_aparato', { dispositivo: DA, aparato: DB }); ok(!r.ok && es(r, 404), 'mesa_aparato sin decir si es suyo: no llega a ninguna función (404)', `${r.status} ${r.text}`);
+  ok(+(await sql(`select count(*) as n from auth.sessions where user_id = '${uk}'`))[0].n >= 1, 'y nada de esto ha cerrado ninguna sesión');
 
   console.log('El portal en «Avisos» (D-278)');
   {
@@ -660,7 +714,8 @@ async function main() {
     from pg_proc p join pg_namespace s on s.oid = p.pronamespace where s.nspname = 'public' and p.proname like 'mesa\\_%'`);
   const siete = ['mesa_turno_ver', 'mesa_turno_pedir', 'mesa_turno_latido', 'mesa_turno_reclamar', 'mesa_turno_soltar', 'mesa_escribir', 'mesa_bajar', 'mesa_actividad'];   // ocho desde el esquema 3 (ver, lote 3)
   // y `mesa_yo`, de esquema.sql (D-262): quién eres para la Mesa y hasta cuándo vale tu código
-  ok(fns.length === 9 && [...siete, 'mesa_yo'].every(f => fns.some(y => y.proname === f)) && fns.every(y => +y.firmas === 1), 'las 8 funciones mesa_* y mesa_yo, una sola firma cada una', JSON.stringify(fns.map(y => y.proname)));
+  siete.push('mesa_visto', 'mesa_aparato');   // diez desde el esquema 6 (D-298, D-299)
+  ok(fns.length === 11 && [...siete, 'mesa_yo'].every(f => fns.some(y => y.proname === f)) && fns.every(y => +y.firmas === 1), 'las 10 funciones mesa_* y mesa_yo, una sola firma cada una', JSON.stringify(fns.map(y => y.proname)));
   ok(fns.every(y => y.prosecdef && y.conf === '{"search_path=\\"\\""}'), "todas security definer con search_path=''", JSON.stringify(fns.map(y => y.conf)));
   ok(fns.every(y => !/(^|[{,])(anon)?=X/.test(y.acl) && /authenticated=X/.test(y.acl)), 'ninguna ejecutable por anon ni por PUBLIC; sí por authenticated', JSON.stringify(fns.map(y => y.acl)));
   const usos = await sql(`with roles(rol) as (values ('anon'), ('authenticated'), ('service_role'), ('authenticator')),
@@ -744,6 +799,40 @@ async function main() {
   console.log('Rastros de Kevin en lo que reciben la clienta, quien no es nadie y la clave pública');
   const todo = ajeno.join('\n');
   for (const v of [PRE, SECRETO, 'uno-c', DA, DB, EPOCA]) ok(!todo.includes(v), `nada de «${v.length > 20 ? v.slice(0, 12) + '…' : v}»`);
+
+  console.log('«No lo reconozco»: todas las sesiones de Kevin se cierran al momento (D-298)');
+  const kk2 = await otraSesionK(), K2 = rpcDe(kk2);
+  r = await K2('mesa_turno_ver', { dispositivo: DB }); ok(bien(r), 'otra sesión de Kevin (otro aparato) entra', r.text);
+  const ses0 = +(await sql(`select count(*) as n from auth.sessions where user_id = '${uk}'`))[0].n;
+  const sesA = +(await sql(`select count(*) as n from auth.sessions where user_id = '${ua}'`))[0].n;
+  const ajenos0 = await cuantasAct(`tipo = 'ajeno' and usuario = '${uk}'`);
+  r = await K('mesa_aparato', { dispositivo: DA, aparato: DB, es_mio: false });
+  ok(bien(r) && +r.json.sesiones === ses0 && ses0 >= 2, `«No lo reconozco» cierra todas las sesiones de la cuenta (${ses0})`, r.text);
+  ok(+(await sql(`select count(*) as n from auth.sessions where user_id = '${uk}'`))[0].n === 0, 'no queda ninguna en auth.sessions');
+  ok(+(await sql(`select count(*) as n from auth.sessions where user_id = '${ua}'`))[0].n === sesA, 'las de la clienta siguen igual');
+  s = (await sql(`select reconocido is null as sinrec, rechazado is not null as rech from mesa.dispositivos where dispositivo = '${DB}'`))[0];
+  ok(s && s.sinrec && s.rech, 'se apunta en ese aparato (rechazado, ya no reconocido)', JSON.stringify(s));
+  a1 = await ultimaAct(`tipo = 'aparato_ajeno'`);
+  ok(a1 && a1.detalle.aparato === DB && +a1.detalle.sesiones === ses0, 'y en la actividad («aparato_ajeno», con cuántas sesiones cerró)', JSON.stringify(a1));
+  for (const [quien, f] of [['esta sesión', K], ['la del otro aparato', K2]]) {
+    for (const [fn, args] of [['mesa_turno_ver', { dispositivo: DA }], ['mesa_bajar', { desde: 0, limite: 1 }], ['mesa_actividad', { desde: 0, limite: 1 }], ['mesa_visto', { dispositivo: DA, avisos: [+masivo.id] }]]) {
+      r = await f(fn, args); ok(rech(r, 'sesion', 401), `${quien}, con su pase aún sin caducar: ${fn} da «sesion» al momento`, r.text);
+    }
+  }
+  r = await rpcDe(kk2)('mesa_yo'); ok(r.ok && r.json.dueno === true && r.json.valido === false && r.json.sesion === false, 'mesa_yo: dueño, no válido, sesión cerrada', r.text);
+  ok((await cuantasAct(`tipo = 'ajeno' and usuario = '${uk}'`)) === ajenos0, 'una sesión cerrada de Kevin nunca queda como «ajeno»');
+  r = await rest(P, `clientes?id=eq.${CLI.id}&select=id`, { token: kk2 }); ok(r.ok && Array.isArray(r.json) && r.json.length === 0, 'el portal ya no le enseña nada', r.text);
+  r = await almacen(kk2)('POST', 'object/list/mesa', { tipo: 'application/json', body: { prefix: ALM, limit: 100 } }); ok(!r.ok || (Array.isArray(r.json) && r.json.length === 0), 'ni el almacén mesa', r.text);
+  r = await rest(P, `clientes?id=eq.${CLI.id}&select=id`, { token: ka }); ok(r.ok && r.json.length === 1, 'la clienta sigue viendo su cliente', r.text);
+  const kk3 = await otraSesionK(), K3 = rpcDe(kk3);
+  r = await K3('mesa_turno_ver', { dispositivo: DA }); ok(bien(r), 'al volver a entrar (contraseña y código), entra', r.text);
+  // el aparato que no reconoció vuelve a coger la Mesa: otro aviso, una vez (D-298)
+  const vuelta = async () => { const tn = +(await sql('select numero from mesa.turno where id'))[0].numero; return K3('mesa_turno_reclamar', { dispositivo: DB, visto: tn, app: APP, forzar: true }); };
+  const nuevos0 = await cuantasAct(`tipo = 'dispositivo_nuevo' and dispositivo = '${DB}'`);
+  r = await vuelta(); a1 = await ultimaAct(`tipo = 'dispositivo_nuevo' and dispositivo = '${DB}'`);
+  ok(bien(r) && (await cuantasAct(`tipo = 'dispositivo_nuevo' and dispositivo = '${DB}'`)) === nuevos0 + 1 && a1.detalle.vuelve === true, 'el aparato que no reconociste vuelve: otro aviso «aparato nuevo» (vuelve)', JSON.stringify(a1 && a1.detalle));
+  r = await vuelta();
+  ok(bien(r) && (await cuantasAct(`tipo = 'dispositivo_nuevo' and dispositivo = '${DB}'`)) === nuevos0 + 1, 'y una sola vez por vuelta (Kevin decide otra vez)', r.text);
 }
 
 main().catch(e => { fallos++; console.error(tapar(e instanceof Fallo ? e.message : (e.stack || e))); })

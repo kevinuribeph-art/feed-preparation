@@ -20822,6 +20822,42 @@
     } finally { await sinTareas(); }
   });
 
+  prueba('KB3', 'Las marcas al escribir, en su línea (D-286; arreglo tras probarlo en el iPhone): con el texto partido en un trozo por línea, como lo deja iOS al escribir, cada viñeta, casilla y el separador se dibujan en su línea, nunca al final de la de arriba; al deslizar la hoja, «Cancelar · Guardar» tapa las marcas', async () => {
+    await tableroMovil(); await sinTareas();
+    const ahora = new W.Date().toISOString(), nt = 'ntkb3marcasensulinea';
+    const LN = ['Estoy probando la lista', '- ejemplo 1', '- ejemplo 2', 'ahora la numeración', '1. Ejemplo 1', '2. Ejemplo 2', '⸻', '[] una casilla', ...Array.from({ length: 30 }, (_, i) => 'relleno ' + (i + 1)), '[] la de abajo'];
+    await M._in.diario.sinDiario('tareas', 'readwrite', st => { st.put({ id: nt, tipo: 'nota', txt: LN.join('\n'), creada: ahora, at: ahora }, nt); });
+    try {
+      await enMovilPagina(async () => {
+        await M.movil.releer(); await irMovil('#tareas', `#movil [data-a="tver"][data-id="${nt}"]`);
+        clicCara(`#movil [data-a="tver"][data-id="${nt}"]`); await hojaCara('[data-ed="txt"]', 'la hoja de la nota'); await espera(400);
+        const h = W.document.querySelector('#movil .hoja.on'), cn = h.querySelector('[data-ed="txt"]'), capa = cn.parentNode.querySelector('.pp-ecapa');
+        // como lo deja iOS al escribir: un trozo de texto por línea (lo que se lee y se guarda es lo mismo)
+        cn.textContent = ''; LN.forEach((t, i) => cn.append(W.document.createTextNode(t + (i < LN.length - 1 ? '\n' : ''))));
+        igual(cn.textContent, LN.join('\n'), 'el texto partido no es el mismo');
+        // y como mide Safari: un rango que empieza al final de un trozo (tras su «\n») da antes una caja al final de la línea de arriba
+        const RP = W.Range.prototype, gcr = RP.getClientRects;
+        RP.getClientRects = function () { const n = this.startContainer, l = gcr.call(this); if (n.nodeType === 3 && this.startOffset === n.data.length && !this.collapsed && n.data.endsWith('\n')) { const q = this.cloneRange(); q.setStart(n, n.data.length - 1); q.setEnd(n, n.data.length - 1); const c = gcr.call(q)[0] || q.getBoundingClientRect(); return [c, ...l]; } return l; };
+        try { cn._esc.dibujar(); } finally { RP.getClientRects = gcr; }
+        await espera(60);
+        const linea = i => { const n = cn.childNodes[i], r = W.document.createRange(); r.setStart(n, 0); r.setEnd(n, 1); return r.getBoundingClientRect(); };
+        const mitad = r => (r.top + r.bottom) / 2, en = (m, i, que) => cerca(mitad(m.getBoundingClientRect()), mitad(linea(i)), 4, `${que} no está en su línea (la ${i + 1})`);
+        const vi = [...capa.querySelectorAll('.pp-ecm.vi')]; igual(vi.length, 2, 'las viñetas dibujadas');
+        en(vi[0], 1, 'la primera viñeta'); en(vi[1], 2, 'la segunda viñeta');
+        en(capa.querySelector('.pp-ecm.se'), 6, 'el separador');
+        const ca = [...capa.querySelectorAll('.pp-ecm.ca')]; igual(ca.length, 2, 'las casillas dibujadas'); en(ca[0], 7, 'la casilla');
+        // al deslizar, la última casilla debajo de «Cancelar · Guardar»: el pie la tapa
+        const pie = h.querySelector('.pie'), u = ca[1];
+        h.scrollTop += mitad(u.getBoundingClientRect()) - mitad(pie.getBoundingClientRect()); await espera(120);
+        const ur = u.getBoundingClientRect(), x = (ur.left + ur.right) / 2, y = mitad(ur), pr = pie.getBoundingClientRect();
+        ok(y > pr.top && y < pr.bottom, 'la casilla no quedó bajo el pie (la prueba)');
+        const enc = W.document.elementFromPoint(x, y); ok(pie.contains(enc), 'una marca se ve encima de «Cancelar · Guardar»: ' + (enc && enc.className));
+        clicCara('#movil .hoja [data-ed-a="cancelar"]'); await espera(450);
+        if (W.document.querySelector('#movil .hoja [data-desc="si"]')) { clicCara('#movil .hoja [data-desc="si"]'); await espera(450); }
+      });
+    } finally { await sinTareas(); }
+  });
+
   prueba('MK1', 'Las marcas de estado del iPhone son las del Mac (D-287): ✓ Programado, ✓✓ Publicado, ✕ Cancelado y un punto del color de su estado para el resto, salidas del núcleo (estIco), en la lista del mes, la cabecera y el campo de la publicación, su hoja de estado y Hoy, y en lo que arma el iPhone sin guardar (lo que tocaría publicarse); ningún punto viejo', async () => {
     const key = await tableroMovil();
     ok(!(M.setEstado('r2', 'publicado')[0] || {}).error, 'no se publicó r2'); ok(!(M.setEstado('r4', 'cancelado')[0] || {}).error, 'no se canceló r4');

@@ -839,6 +839,7 @@ declare
   v_ap text := mesa_aparato.aparato;
   v_mio boolean := mesa_aparato.es_mio;
   v_ses integer := 0;
+  v_solto boolean := false;
 begin
   if not public.dueno_cuenta() then return mesa.ajeno('mesa_aparato', v_yo); end if;
   if not public.es_dueno() then return mesa.sin_codigo('mesa_aparato', v_yo); end if;
@@ -854,6 +855,8 @@ begin
                                           and a.sesion is not null and a.sesion = left((select auth.jwt()) ->> 'session_id', 64))) then
     return mesa.rechazar('mesa_aparato', v_yo, mesa.rechazo('propio', 403, 'un aparato no se confirma a sí mismo: hazlo desde otro'));
   end if;
+  -- el turno primero, como mesa_turno_reclamar: las dos quedan en fila (nunca bloqueo mutuo con la fila del aparato)
+  perform 1 from mesa.turno where id for update;
   update mesa.dispositivos d
      set reconocido = case when v_mio then now() end, rechazado = case when v_mio then null else now() end
    where d.dispositivo = v_ap;
@@ -866,9 +869,12 @@ begin
   on conflict (aviso) do nothing;
   if not v_mio then
     with fuera as (delete from auth.sessions s where s.user_id = auth.uid() returning 1) select count(*) into v_ses from fuera;
+    -- si ese aparato tiene la Mesa, se le quita (como al soltarla): al volver tendrá que reclamarla, y eso avisa otra vez
+    update mesa.turno x set dispositivo = null, desde = null, latido = null, cola = null, cola_desde = null
+     where x.id and x.dispositivo = v_ap returning true into v_solto;
   end if;
   perform mesa.apuntar(case when v_mio then 'aparato_mio' else 'aparato_ajeno' end, v_yo,
-    jsonb_strip_nulls(jsonb_build_object('aparato', v_ap, 'sesiones', case when not v_mio then v_ses end)));
+    jsonb_strip_nulls(jsonb_build_object('aparato', v_ap, 'sesiones', case when not v_mio then v_ses end, 'solto_mesa', case when v_solto then true end)));
   return jsonb_build_object('ok', true, 'vistos_hasta', coalesce((select max(y.n) from mesa.vistos y), 0), 'epoca', mesa.epoca())
     || case when v_mio then '{}'::jsonb else jsonb_build_object('sesiones', v_ses) end;
 end $$;

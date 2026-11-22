@@ -1620,7 +1620,7 @@
     const srv = N && N.conVistos ? N.conVistos() !== false : true;   // el servidor guarda «Es mío» (esquema 6); hasta saberlo, sí
     const yo = lsG(DISP_K) || DISP_;
     const l = AVS.slice(-8).reverse().map(f => { const [t, x] = avisoTexto(f), ap = f.tipo === 'dispositivo_nuevo' && !!f.dispositivo && srv, a = ap ? aparatoDe(f.dispositivo) : null;
-      const fin = ap && f.dispositivo === yo ? '<span class="nubeacc"><span class="nubeotro">Confírmalo desde otro aparato</span></span>'   // un aparato nunca se confirma a sí mismo (D-298)
+      const fin = ap && f.dispositivo === yo ? `<span class="nubeacc"><span class="nubeotro">Confírmalo desde otro aparato</span><button type="button" class="lnk nubeaqui" data-nube="visto" data-id="${esc(f.id)}" aria-label="Ocultar aquí: ${esc(x)}">Ocultar aquí</button></span>`   // un aparato nunca se confirma a sí mismo (D-298); «Ocultar aquí» solo lo quita en este (el servidor no apunta un «Visto» de aparato nuevo)
         : ap ? `<span class="nubeacc"><button type="button" class="btn2 nubemio" data-nube="mio" data-id="${esc(f.id)}" aria-label="Es mío: ${esc(x)}">Es mío</button><button type="button" class="lnk nubeajeno" data-nube="ajeno" data-id="${esc(f.id)}" aria-label="No lo reconozco: ${esc(x)}">No lo reconozco</button></span>`
         : `<button type="button" class="lnk nubevisto" data-nube="visto" data-id="${esc(f.id)}" aria-label="Marcar como visto: ${esc(t)}">Visto</button>`;
       return `<div class="pp-av nubeav${ap ? ' ap' : ''}" data-av="${esc(f.id)}" title="${esc(t + (x ? ' · ' + x : '') + (a ? ' · ' + a.corto : ''))}"><span class="pp-avs"></span><span class="pp-cu">${cuandoCorto(f.hora)}</span><span class="pp-afoto vacia nubeico${ap ? (a.movil ? ' apmovil' : ' apmac') : ''}" aria-hidden="true"></span><span class="pp-nm"><b>${esc(t)}</b></span><span class="pp-est">${esc(x)}</span>${fin}</div>`; }).join('');
@@ -1849,6 +1849,6 @@
 #mesa .pp-av.nubeav .nubeacc{grid-column:4;grid-row:3;display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;margin-top:7px}
 #mesa .pp-av.nubeav .nubemio{min-height:28px;padding:0 12px;font-size:12px}
 #mesa .pp-av.nubeav .nubeajeno{min-height:28px;padding:4px 2px;font-size:12px;color:var(--red)}
-#mesa .pp-av.nubeav .nubeotro{font-size:12px;color:var(--mute)}
+#mesa .pp-av.nubeav .nubeotro{font-size:12px;color:var(--mute)}#mesa .pp-av.nubeav .nubeaqui{min-height:28px;padding:4px 2px;font-size:12px}
 #mesa .detail .btn.danger{background:var(--red);color:var(--bg) !important}#mesa .detail .btn.danger:hover:not(:disabled){background:color-mix(in srgb,var(--red) 86%,var(--ink))}`;
 })(typeof window !== 'undefined' ? window : globalThis);

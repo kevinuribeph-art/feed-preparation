@@ -803,6 +803,8 @@ async function main() {
   console.log('«No lo reconozco»: todas las sesiones de Kevin se cierran al momento (D-298)');
   const kk2 = await otraSesionK(), K2 = rpcDe(kk2);
   r = await K2('mesa_turno_ver', { dispositivo: DB }); ok(bien(r), 'otra sesión de Kevin (otro aparato) entra', r.text);
+  const tnB = +(await sql('select numero from mesa.turno where id'))[0].numero;
+  r = await K2('mesa_turno_reclamar', { dispositivo: DB, visto: tnB, app: APP, forzar: true }); ok(bien(r) && r.json.tuyo, 'el aparato B coge la Mesa', r.text);
   const ses0 = +(await sql(`select count(*) as n from auth.sessions where user_id = '${uk}'`))[0].n;
   const sesA = +(await sql(`select count(*) as n from auth.sessions where user_id = '${ua}'`))[0].n;
   const ajenos0 = await cuantasAct(`tipo = 'ajeno' and usuario = '${uk}'`);
@@ -813,7 +815,8 @@ async function main() {
   s = (await sql(`select reconocido is null as sinrec, rechazado is not null as rech from mesa.dispositivos where dispositivo = '${DB}'`))[0];
   ok(s && s.sinrec && s.rech, 'se apunta en ese aparato (rechazado, ya no reconocido)', JSON.stringify(s));
   a1 = await ultimaAct(`tipo = 'aparato_ajeno'`);
-  ok(a1 && a1.detalle.aparato === DB && +a1.detalle.sesiones === ses0, 'y en la actividad («aparato_ajeno», con cuántas sesiones cerró)', JSON.stringify(a1));
+  ok(a1 && a1.detalle.aparato === DB && +a1.detalle.sesiones === ses0 && a1.detalle.solto_mesa === true, 'y en la actividad («aparato_ajeno», con cuántas sesiones cerró y que le quitó la Mesa)', JSON.stringify(a1));
+  ok(!(await sql('select dispositivo from mesa.turno where id'))[0].dispositivo, 'el aparato que no reconociste ya no tiene la Mesa (al volver, tendrá que reclamarla)');
   for (const [quien, f] of [['esta sesión', K], ['la del otro aparato', K2]]) {
     for (const [fn, args] of [['mesa_turno_ver', { dispositivo: DA }], ['mesa_bajar', { desde: 0, limite: 1 }], ['mesa_actividad', { desde: 0, limite: 1 }], ['mesa_visto', { dispositivo: DA, avisos: [+masivo.id] }]]) {
       r = await f(fn, args); ok(rech(r, 'sesion', 401), `${quien}, con su pase aún sin caducar: ${fn} da «sesion» al momento`, r.text);
@@ -831,8 +834,10 @@ async function main() {
   const nuevos0 = await cuantasAct(`tipo = 'dispositivo_nuevo' and dispositivo = '${DB}'`);
   r = await vuelta(); a1 = await ultimaAct(`tipo = 'dispositivo_nuevo' and dispositivo = '${DB}'`);
   ok(bien(r) && (await cuantasAct(`tipo = 'dispositivo_nuevo' and dispositivo = '${DB}'`)) === nuevos0 + 1 && a1.detalle.vuelve === true, 'el aparato que no reconociste vuelve: otro aviso «aparato nuevo» (vuelve)', JSON.stringify(a1 && a1.detalle));
+  const tnA = +(await sql('select numero from mesa.turno where id'))[0].numero;
+  r = await K3('mesa_turno_reclamar', { dispositivo: DA, visto: tnA, app: APP, forzar: true }); ok(bien(r) && r.json.tuyo, 'otro aparato coge la Mesa entre medias', r.text);
   r = await vuelta();
-  ok(bien(r) && (await cuantasAct(`tipo = 'dispositivo_nuevo' and dispositivo = '${DB}'`)) === nuevos0 + 1, 'y una sola vez por vuelta (Kevin decide otra vez)', r.text);
+  ok(bien(r) && r.json.tuyo && (await cuantasAct(`tipo = 'dispositivo_nuevo' and dispositivo = '${DB}'`)) === nuevos0 + 1, 'y una sola vez por vuelta (Kevin decide otra vez)', r.text);
 }
 
 main().catch(e => { fallos++; console.error(tapar(e instanceof Fallo ? e.message : (e.stack || e))); })

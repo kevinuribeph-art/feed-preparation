@@ -18548,9 +18548,12 @@
       await A.ponerAvisos([{ id: 9305, hora: new Date(M._in.ahora() - 60e3).toISOString(), tipo: 'dispositivo_nuevo', dispositivo: yo, detalle: { turno: 7, antes: null } },
         { id: 9306, hora: new Date(M._in.ahora() - 30e3).toISOString(), tipo: 'dispositivo_nuevo', dispositivo: 'mac-chrome-77aa66bb55cc44dd', detalle: { turno: 8, antes: null, vuelve: true } }]);
       const g3 = await apPagina(), f5 = g3.querySelector('.nubeav[data-av="9305"]'), f6 = g3.querySelector('.nubeav[data-av="9306"]');
-      ok(f5 && !f5.querySelector('button') && /Confírmalo desde otro aparato/.test(f5.textContent) && / · este /.test(f5.textContent), 'el aviso de este mismo aparato lleva botones (un aparato no se confirma a sí mismo): ' + (f5 && f5.textContent));
+      ok(f5 && !f5.querySelector('[data-nube="mio"], [data-nube="ajeno"]') && /Confírmalo desde otro aparato/.test(f5.textContent) && / · este /.test(f5.textContent), 'el aviso de este mismo aparato lleva «Es mío» o «No lo reconozco» (un aparato no se confirma a sí mismo): ' + (f5 && f5.textContent));
+      const oc = f5 && f5.querySelector('[data-nube="visto"]');
+      ok(oc && oc.textContent.trim() === 'Ocultar aquí', 'el aviso de este mismo aparato no se puede quitar aquí («Ocultar aquí»)');
+      oc.click(); await hasta(() => !q('.nubeav[data-av="9305"]'), 3000, 'que «Ocultar aquí» lo quite');
       ok(f6 && /Volvió un aparato que no reconociste/.test(f6.textContent) && f6.querySelector('[data-nube="mio"]'), 'un aparato que no reconociste y vuelve: ' + (f6 && f6.textContent));
-      M.personal.cerrar(); await A.quitarAviso(9305); await A.quitarAviso(9306);
+      M.personal.cerrar(); await A.quitarAviso(9306);
       ok(!/\(5e0d\)|5e0d9c/.test(txt(9301)) && /5e0d/.test(fila(9301).title), 'el trozo del id se ve (va en el título, para distinguir dos iguales)');
       M.personal.cerrar();
       const n = M.nube._con(apServidor({ viejo: true })); await n.leerActividad();

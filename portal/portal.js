@@ -104,7 +104,8 @@
     if (mal && (mal.reason.status === 401 || mal.reason.codigo === 'sesion')) throw mal.reason;
     if (r.slice(0, 3).some(x => x.status === 'rejected')) throw r.slice(0, 3).find(x => x.status === 'rejected').reason;   // sin publicaciones ni conversación, no se pinta
     const v = (i, k) => (r[i].status === 'fulfilled' ? r[i].value || [] : prev[k] || []);   // un panel que falla se queda como estaba
-    return { pubs: v(0, 'pubs').map(visto), aprs: v(1, 'aprs'), coms: v(2, 'coms'), ses: v(3, 'ses'), meses: v(4, 'meses'), pagos: v(5, 'pagos'), ents: v(6, 'ents') };
+    return { pubs: v(0, 'pubs').map(visto), aprs: v(1, 'aprs'), coms: v(2, 'coms'), ses: v(3, 'ses'), meses: v(4, 'meses'), pagos: v(5, 'pagos'), ents: v(6, 'ents'),
+      entsMal: r[6].status === 'rejected' && !prev.ents };   // una lectura fallida no es «sin entregas» (lección 94)
   }
   // URL firmadas (10 minutos): se piden juntas y se guardan hasta un minuto antes de caducar.
   async function urls(rutas, bucket = 'fotos') {
@@ -220,10 +221,12 @@
       h('span', { class: 'pv-obs-t' }, h('b', { text: 'Solo mirar' }), ' · ves cada calendario como lo ve su cliente'),
       st.clientes.length > 1 ? h('span', { class: 'pv-obs-l', text: 'Ver como' }) : null,
       st.clientes.length > 1 ? st.clientes.map(c => h('button', { type: 'button', class: 'pv-obs-c' + (c.id === st.cli ? ' on' : ''), 'aria-pressed': String(c.id === st.cli), text: c.nombre, onclick: () => irA(c.id) })) : null) : null;
-    const y = window.scrollY;
+    const y = window.scrollY, ys = st.colsDe === st.cli + '|' + st.mes ? scrollCols() : null;   // otro cliente u otro mes: arriba
     app.replaceChildren(...[tira, h('div', { class: 'pv' }, top, aviso, cols, pie)].filter(Boolean));
     window.scrollTo(0, y);
     lleno();
+    if (ys) scrollCols(ys);
+    st.colsDe = st.cli + '|' + st.mes;
     pintarMinis();
   }
   // A pantalla completa (D-293): con las tres columnas (desde 1100 px de ancho) y 700 px de alto o más, cada columna mide el
@@ -234,6 +237,15 @@
     pv.classList.toggle('lleno', si);
     if (si) pv.style.setProperty('--cols-top', Math.round(cols.getBoundingClientRect().top + window.scrollY) + 'px');   // CSSOM: la CSP lo deja (lección 243)
   }
+  // A pantalla completa cada columna se desliza dentro: repintar (una pestaña, «Ver las anteriores», aprobar, el repaso de cada
+  // minuto) no la devuelve arriba (revisión en frío; D-240: nada salta mientras se lee). Sin `ys`, las lee; con `ys`, las devuelve.
+  const claveCol = e => e.classList.contains('cent') ? 'cent|' + st.tab : e.getAttribute('aria-labelledby') || e.className.split(' ').filter(c => c !== 'card')[0] || '';
+  function scrollCols(ys) {
+    const l = [...app.querySelectorAll('.cols > *, .lado > *')];
+    if (!ys) return new Map(l.filter(e => e.scrollTop).map(e => [claveCol(e), e.scrollTop]));
+    l.forEach(e => { const v = ys.get(claveCol(e)); if (v) e.scrollTop = v; });
+  }
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => lleno()).catch(() => {});   // la cabecera, con su letra ya puesta
   let llenoRaf = 0;
   window.addEventListener('resize', () => { cancelAnimationFrame(llenoRaf); llenoRaf = requestAnimationFrame(lleno); });   // una vez por cuadro (lección 113)
 
@@ -274,7 +286,8 @@
     const del = E.filter(e => e.fecha.slice(0, 7) === m), sig = E.filter(e => e.fecha.slice(0, 7) === sigM), n = del.filter(e => e.entregada).length;
     return h('section', { class: 'card entw', 'aria-labelledby': 'h-ent' },
       h('div', { class: 'ti' }, h('h2', { id: 'h-ent', text: 'Tus entregas' }), h('span', { text: may(MESES[+m.slice(5, 7) - 1]) + (del.length ? ` · ${n} de ${del.length} entregada${del.length === 1 ? '' : 's'}` : '') })),
-      del.length ? h('ol', { class: 'ents' }, del.map(filaEnt)) : h('p', { class: 'vacio', text: 'Este mes aún no tiene entregas.' }),
+      st.d.entsMal ? h('p', { class: 'vacio', text: 'No se pudieron cargar tus entregas: vuelve a abrir la página en un momento.' })
+        : del.length ? h('ol', { class: 'ents' }, del.map(filaEnt)) : h('p', { class: 'vacio', text: 'Este mes aún no tiene entregas.' }),
       sig.length ? [h('p', { class: 'h3', text: may(MESES[+sigM.slice(5, 7) - 1]) }), h('ol', { class: 'ents' }, sig.map(filaEnt))] : null);
   }
   async function otraVez(e) {   // una URL firmada que caducó antes de verse (perezosa): se pide de nuevo, una vez
@@ -298,11 +311,11 @@
       h('span', { class: 'cl' }, h('span', { class: 'cn', text: p.nombre })), p.sin_hora || !p.fecha ? null : h('span', { class: 'ct', text: horaDe(p.fecha) }));
   }
   const reu = x => x.clase === 'reunion';   // una reunión (D-297): su dibujo (Lucide «users») y su nombre, como una sesión
-  const chipSes = x => h('span', { class: 'chip ses' + (reu(x) ? ' reu' : ''), 'aria-label': (reu(x) ? 'Reunión' : 'Sesión') + ' · ' + x.nombre + (x.sin_hora ? '' : ' · ' + horaDe(x.inicio)) },
-    h('span', { class: 'cl' }, ico(reu(x) ? 'users' : 'clap', 'cses'), h('span', { class: 'cn', text: x.nombre })), x.sin_hora ? null : h('span', { class: 'ct', text: horaDe(x.inicio) }));
+  const chipSes = x => h('span', { class: 'chip ses' + (reu(x) ? ' reu' : '') },
+    h('span', { class: 'cl' }, ico(reu(x) ? 'users' : 'clap', 'cses'), h('span', { class: 'sr', text: (reu(x) ? 'Reunión' : 'Sesión') + ': ' }), h('span', { class: 'cn', text: x.nombre })), x.sin_hora ? null : h('span', { class: 'ct', text: horaDe(x.inicio) }));
   // una entrega en su día (D-297): entregada, con su ✓; si no, en camino
-  const chipEnt = e => h('span', { class: 'chip entg' + (e.entregada ? ' hecha' : ''), 'aria-label': `Entrega · ${e.que} · ${e.entregada ? 'entregada' : 'en camino'}` },
-    h('span', { class: 'cl' }, e.entregada ? ico('check', 'cses') : null, h('span', { class: 'cn', text: e.que })));
+  const chipEnt = e => h('span', { class: 'chip entg' + (e.entregada ? ' hecha' : '') },
+    h('span', { class: 'cl' }, e.entregada ? ico('check', 'cses') : null, h('span', { class: 'sr', text: 'Entrega: ' }), h('span', { class: 'cn', text: e.que }), h('span', { class: 'sr', text: e.entregada ? ', entregada' : ', en camino' })));
   function pintarCalendario() {
     const m = st.mes, [y, mo] = m.split('-').map(Number), d0 = new Date(Date.UTC(y, mo - 1, 1)), dias = new Date(Date.UTC(y, mo, 0)).getUTCDate();
     const lun = (d0.getUTCDay() + 6) % 7, H = hoy(), pubs = delMes(m).filter(p => p.fecha), ses = st.d.ses.filter(x => x.mes === m), ents = (st.d.ents || []).filter(e => e.fecha.slice(0, 7) === m);
@@ -499,7 +512,7 @@
     hoja.style.setProperty('--r', prop.toFixed(4));   // CSSOM: la CSP lo deja (lección 243)
     if (nueva || !dl0) {
       const x = h('button', { type: 'button', class: 'hoja-x', 'aria-label': 'Cerrar', onclick: () => cerrar() }, ico('x'));
-      hoja.replaceChildren(x, ig, h('div', { class: 'dl' }, cuentaDe(cli), cab, h('div', { class: 'dl-b' }, aviso, capEl, h('div', { class: 'hilo' }, h('h3', { text: 'Comentarios' }), lista)), h('div', { class: 'dl-pie' }, escr, acc)));
+      hoja.replaceChildren(x, cuentaDe(cli), ig, h('div', { class: 'dl' }, cab, h('div', { class: 'dl-b' }, aviso, capEl, h('div', { class: 'hilo' }, h('h3', { text: 'Comentarios' }), lista)), h('div', { class: 'dl-pie' }, escr, acc)));
     } else {   // solo cambia lo que cambió; el campo de escribir se queda donde está, con su foco
       const b = dl0.querySelector('.dl-b');
       if (otraVersion) { hoja.querySelector('.ig').replaceWith(ig); b.querySelector(':scope > .cap')?.remove(); if (capEl) b.querySelector(':scope > .hilo').before(capEl); }

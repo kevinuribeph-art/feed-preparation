@@ -21534,6 +21534,29 @@
       });
     } finally { relojVuelve(); }
   });
+  prueba('VD7', 'La ventana de la «Vista cliente», tras la revisión en frío (D-295): sin nada leído de su web no dice «Aún no hay comentarios» (no sale «Comentarios»); con una foto horizontal en una ventana mediana, nunca menos de 520 px de alto, la foto entera dentro; en un cliente de solo contenido, la columna derecha mide 360 px como la del portal', async () => {
+    await tablero([pub(1), pub(2)]);
+    await poner('r1', [await foto('vd7.jpg', 1910, 1000)]);
+    await vistaCliente(true);
+    try {
+      q('.cell[data-slot="r1"]').click();
+      const card = await hasta(vdIg, 3000, 'la ventana');
+      ok(!card.querySelector('.igcoms'), 'sin nada leído dice «Comentarios»: ' + (card.querySelector('.igcoms') || {}).textContent);
+      const R = vdR(card), mw = vdR(card.querySelector('.igmw')), md = vdR(card.querySelector('.igmedia'));
+      ok(R.height >= Math.min(W.innerHeight * 0.92, 520) - 1, 'la ventana mide menos de 520 px de alto: ' + Math.round(R.height));
+      ok(md.width <= mw.width + 1 && md.height <= mw.height + 1 && Math.abs(md.width / md.height - 1.91) < 0.02, 'la foto no va entera dentro de su caja: ' + json([md.width, md.height, mw.width, mw.height]));
+      ok(R.right <= W.innerWidth && R.bottom <= W.innerHeight, 'la ventana se sale');
+      await vdCerrarIg();
+    } finally { await vdCerrarIg(); await vistaCliente(false); }
+    // solo contenido: la columna derecha, 360 px
+    await tableroContenido();
+    await coCliente({ importe: 500, dia: 1, plazo: 15 });
+    try {
+      M._in.render(); await espera(120); await vistaCliente(true); await espera(150);
+      const col = await hasta(() => q('.main > .cont > .vc-lado'), 3000, '«Tus pagos» a la derecha');
+      cerca(vdR(col).width, 360, 1, 'la columna derecha no mide 360 px');
+    } finally { await vistaCliente(false); }
+  });
 
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;

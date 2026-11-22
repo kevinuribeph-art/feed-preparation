@@ -650,7 +650,8 @@
 #mesa .vc-parte{min-height:0;overflow-y:auto;background:var(--panel);border-radius:var(--r-lg);padding:18px 20px 20px;color:var(--ink)}
 #mesa .vc-lado>.vc-parte:only-child{grid-row:1/-1}
 #mesa:not(.client) .vc-lado{display:none}
-#mesa.client .cont>.cont-der{display:none}#mesa .cont>.vc-lado{min-height:0}#mesa.client:not(.vc-lado-on) .cont{grid-template-columns:minmax(0,1fr) minmax(0,1.25fr)}   /* without its parts, the calendar widens, as the portal */   /* «Solo contenido» in the vista cliente: «Tus pagos» in place of the agreement (D-297) */
+#mesa.client .cont>.cont-der{display:none}#mesa .cont>.vc-lado{min-height:0}#mesa.client:not(.vc-lado-on) .cont{grid-template-columns:minmax(0,1fr) minmax(0,1.25fr)}#mesa.client.vc-lado-on .cont{grid-template-columns:minmax(0,1fr) minmax(0,1.25fr) 360px}
+@media (max-width:980px){#mesa .cont>.vc-lado{display:flex;flex-direction:column;overflow:visible}#mesa .cont>.vc-lado>.vc-parte{overflow:visible}}   /* one column: each part as tall as it is */   /* without its parts, the calendar widens, as the portal */   /* «Solo contenido» in the vista cliente: «Tus pagos» in place of the agreement (D-297) */
 #mesa.client .side>.cal{border-radius:inherit}   /* alone in its column (no tray): round on top too, as the drawing (D-240) */
 #mesa.client.vc-lado-on .feed{width:min(440px,32vw);margin:0}
 @media (prefers-reduced-motion:reduce){#mesa .vcp-tab{transition:none}#mesa .vcp-tab:active:not(.on){transform:none}}

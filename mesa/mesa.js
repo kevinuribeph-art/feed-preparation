@@ -2932,7 +2932,7 @@ ${TK_FUENTES}
 #mesa .detail[data-dlg="ig"] .igest svg{width:14px;height:14px}
 #mesa .igest.ok{background:var(--ok-soft);color:var(--ok)}#mesa .igest.cb{background:var(--acc-soft);color:var(--acc-ink)}#mesa .igest.pr{background:var(--bg-2);color:var(--ink-2)}
 #mesa .igest.ap{background:color-mix(in srgb,var(--st-aprobar) 22%,var(--panel));color:var(--ink)}#mesa .igdot{width:8px;height:8px;border-radius:50%;background:var(--st-aprobar)}
-#mesa .detail[data-dlg="ig"] .igbody{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:8px 16px 14px;display:flex;flex-direction:column;gap:12px}
+#mesa .detail[data-dlg="ig"] .igbody{order:0;max-height:none;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:8px 16px 14px;display:flex;flex-direction:column;gap:12px}
 #mesa .detail[data-dlg="ig"] .igcap{display:block;margin:0;padding:0 0 14px;border-bottom:1px solid var(--line2);font-size:14px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
 #mesa .detail[data-dlg="ig"] .igcap b{font-weight:600}#mesa .detail[data-dlg="ig"] .igtag{color:inherit}
 #mesa .igcoms h3{margin:0 0 10px;font-size:14px;font-weight:600}
@@ -4623,8 +4623,10 @@ ${TK_FUENTES}
       const cw = Math.max(280, Math.min(W - 32, 640)), bh = Math.round(alto * 0.46), w = Math.min(cw, bh * R), h = w / R;
       return { apilada: true, cw, ch: Math.round(alto), bw: cw, bh, w: Math.round(w), h: Math.round(h) };
     }
-    const h = Math.max(160, Math.min(alto, (W - 448) / R)), w = h * R;
-    return { bw: Math.round(w), bh: Math.round(h), w: Math.round(w), h: Math.round(h) };
+    // never under 520 px tall (a horizontal photo in a middling window, cold review): the photo whole inside its black box
+    const h = Math.max(Math.min(alto, 520), Math.min(alto, (W - 448) / R)), bw = Math.max(160, Math.min(h * R, W - 48 - 400));
+    const w = Math.min(bw, h * R), hh = w / R;
+    return { bw: Math.round(bw), bh: Math.round(h), w: Math.round(w), h: Math.round(hh) };
   }
   async function openIG(id, idx, soloVer) {   // soloVer: from the stories' view, without «Editar» (D-079)
     const P = igFotos(id); if (!P || !shellReady()) return;
@@ -4650,7 +4652,7 @@ ${TK_FUENTES}
     const pill = est ? `<span class="igest ${est[1]}">${est[1] === 'ap' ? '<i class="igdot" aria-hidden="true"></i>' : est[1] === 'cb' ? IGPEN : est[1] === 'ok' ? IGOK : ''}${esc(est[0])}</span>` : '';
     // what the client said, from what was already read (D-295): never asked for here
     const coms = !P.prev && M.web && M.web.hilo ? M.web.hilo(S, id) : null;
-    const lista = coms && coms.length ? `<ol>${coms.map(c => `<li${c.kv ? ' class="kv"' : ''}><span class="igq"><b>${esc(c.autor)}</b>${esc(igCuando(c.t))}${c.cambios ? ' · pidió cambios' : ''}${c.vieja ? ' · de una versión anterior' : ''}</span>${c.diapositiva ? `<span class="igsl">Diapositiva ${+c.diapositiva}</span>` : ''}<p>${esc(c.texto)}</p></li>`).join('')}</ol>`
+    const lista = coms === null ? '' : coms.length ? `<ol>${coms.map(c => `<li${c.kv ? ' class="kv"' : ''}><span class="igq"><b>${esc(c.autor)}</b>${esc(igCuando(c.t))}${c.cambios ? ' · pidió cambios' : ''}${c.vieja ? ' · de una versión anterior' : ''}</span>${c.diapositiva ? `<span class="igsl">Diapositiva ${+c.diapositiva}</span>` : ''}<p>${esc(c.texto)}</p></li>`).join('')}</ol>`
       : '<p class="igvacio">Aún no hay comentarios.</p>';
     const d = root.querySelector('.detail');
     d.innerHTML = `<div class="igwrap">${soloVer ? '' : '<div class="igtop"><button type="button" class="igedit" data-act="igedit" title="Editar la publicación o dejar una nota (solo en tu mesa)">Editar</button></div>'}`
@@ -4658,7 +4660,7 @@ ${TK_FUENTES}
       + `<div class="igmw" style="width:${T.bw}px;height:${T.bh}px"><div class="igmedia" style="width:${T.w}px;height:${T.h}px">${media}${nav}</div></div>`
       + `<div class="igside"><header class="ighead">${avatarHTML(c0)}<b>${esc(handle)}</b><button type="button" class="igx" data-act="close" aria-label="Cerrar">${IGX}</button></header>`
       + `<div class="ighd"><h2 class="igt">${esc(titulo)}</h2><p class="igf">${esc(igFechaPub(P.date))}</p>${pill}</div>`
-      + `<div class="igbody">${cap}<div class="igcoms"><h3>Comentarios</h3>${lista}</div></div>`
+      + `<div class="igbody">${cap}${lista ? `<div class="igcoms"><h3>Comentarios</h3>${lista}</div>` : ''}</div>`   // nothing read from its web: nothing said (lesson 94)
       + `<p class="igpie">Así lo ve el cliente: aquí solo se mira.</p></div></div></div>`;
     if (d.hidden || d.dataset.dlg !== 'ig') clearToasts();
     repeCancel(); d.hidden = false; d.dataset.dlg = 'ig'; delete d.dataset.slot; delete d.dataset.prev; delete d.dataset.file;

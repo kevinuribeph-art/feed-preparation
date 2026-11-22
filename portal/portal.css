@@ -220,7 +220,9 @@ svg.i *{vector-effect:non-scaling-stroke}
 /* como Instagram (D-295): la foto a la izquierda, a su proporción (--r, la pone portal.js) y del alto de la ventana (como mucho
    min(92vh, 880 px)); a la derecha, 400 px: la cuenta; título, fecha y estado; el caption y los comentarios, que se deslizan
    juntos; abajo, escribir y aprobar */
-.hoja{--h:min(92vh,880px,calc((100vw - 448px) / var(--r,.8)));position:fixed;z-index:21;inset:0;margin:auto;width:calc(var(--h) * var(--r,.8) + 400px);height:var(--h);background:var(--panel);border-radius:var(--r-xl);box-shadow:var(--shadow-lg);display:grid;grid-template-columns:minmax(0,1fr) 400px;overflow:hidden;animation:aparece var(--d2) var(--ease)}
+.hoja{--h:max(min(92vh,880px,calc((100vw - 448px) / var(--r,.8))),min(92vh,520px));position:fixed;z-index:21;inset:0;margin:auto;width:min(calc(var(--h) * var(--r,.8) + 400px),calc(100vw - 48px));height:var(--h);background:var(--panel);border-radius:var(--r-xl);box-shadow:var(--shadow-lg);display:grid;grid-template-columns:minmax(0,1fr) 400px;grid-template-rows:auto minmax(0,1fr);overflow:hidden;animation:aparece var(--d2) var(--ease)}
+/* nunca menos de 520 px de alto (una foto horizontal en una ventana mediana): la foto, entera sobre negro (revisión en frío) */
+.hoja>.ig{grid-column:1;grid-row:1/-1}.hoja>.ig-h{grid-column:2;grid-row:1;border-left:1px solid var(--sep)}.hoja>.dl{grid-column:2;grid-row:2}
 @keyframes aparece{from{opacity:0}to{opacity:1}}
 .hoja-x{position:absolute;top:10px;right:10px;width:44px;height:44px;border-radius:50%;border:0;background:none;display:grid;place-items:center;color:var(--ink-2);z-index:2}
 .hoja-x svg{width:20px;height:20px}
@@ -235,7 +237,7 @@ svg.i *{vector-effect:non-scaling-stroke}
 .car-l{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;background:var(--bg-3)}
 .car-l::-webkit-scrollbar{display:none}
 .car-l>div{flex:0 0 100%;scroll-snap-align:center;display:flex;align-items:center;justify-content:center;background:#000}
-.car-l img{width:100%;height:100%;object-fit:cover;display:block}
+.car-l img{width:100%;height:100%;object-fit:contain;display:block}
 .car-l .ph{width:100%;aspect-ratio:4/5;display:grid;place-items:center;color:var(--mute);font-size:13px}
 .ig-n{position:absolute;top:10px;right:10px;padding:3px 9px;border-radius:var(--r-pill);background:rgba(22,17,14,.72);color:#fff;font-size:12px;font-weight:600}
 /* las flechas del carrusel, del tamaño de las de Instagram (D-296): 30 px, blancas al 72 %, la flecha de 16 px; un borde
@@ -308,8 +310,8 @@ svg.i *{vector-effect:non-scaling-stroke}
 /* de 560 a 800 px (D-295): la foto arriba, a un 46 % del alto y entera; lo demás debajo, que se desliza dentro */
 @media (max-width: 800px){
   .hoja{inset:16px;width:auto;max-width:640px;height:min(92vh,880px);display:flex;flex-direction:column}
-  .ig{flex:none;height:46%}
-  .car-l img{object-fit:contain}
+  .hoja>.ig{order:-1;flex:none;height:46%}   /* la foto arriba; en el código, la cuenta va antes (para leerla y con el teclado) */
+  .hoja>.ig-h{border-left:0}
   .dl{flex:1;border-left:0}
   .hoja-x{background:rgba(22,17,14,.55);color:#fff}   /* sobre la foto */
 }
@@ -339,14 +341,14 @@ svg.i *{vector-effect:non-scaling-stroke}
   .pub{font-size:11px;padding:3px 8px;left:5px;top:5px}
   .pub .l{display:none}.pub .c{display:inline}
 }
-@media (max-width: 559px){
+@media (max-width: 559px), (max-height: 599px){
   .velo{display:none}
   /* el móvil (D-295): todo se desliza junto; la foto como mucho a un 60 % del alto, así el estado y «Aprobar» se ven al abrirla
      (también en un iPhone de 667 px); la barra de acciones, pegada abajo de la hoja (sin nada que decidir, no se pega) */
   .hoja{inset:0;margin:0;width:auto;max-width:none;height:auto;border-radius:0;box-shadow:none;display:flex;flex-direction:column;overflow-y:auto}
   .dl,.dl-pie{display:contents}
-  .ig-h{order:-1;padding:6px 16px 6px 8px;min-height:52px;border-bottom:0}
-  .ig{flex:none;height:auto;background:var(--bg-3)}
+  .hoja>.ig-h{padding:6px 16px 6px 8px;min-height:52px;border-bottom:0}
+  .hoja>.ig{order:0;flex:none;height:auto;background:var(--bg-3)}
   .ig .car,.ig .car-l{height:auto}
   .ig .car-l>div{background:var(--bg-3);height:min(60vh,calc(100vw / var(--r,.8)));height:min(60dvh,calc(100vw / var(--r,.8)))}   /* su caja antes de cargar: nada salta */
   .car-l img{object-fit:contain}

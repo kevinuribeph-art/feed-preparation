@@ -138,7 +138,7 @@
     }
     UI.sucio = false;
     if (X.root().classList.contains('client')) {   // the vista cliente (D-297): the right column is the client's (calendario.js)
-      const hv = vcIzqHTML(); if (iz._h !== hv) { iz.innerHTML = hv; iz._h = hv; iz.scrollTop = 0; }
+      const hv = vcIzqHTML(); if (iz._h !== hv) { const y = iz.scrollTop; iz.innerHTML = hv; iz._h = hv; iz.scrollTop = y; }
       return;
     }
     const hi = izqHTML(), hd = derHTML();

@@ -20805,6 +20805,46 @@
     } finally { await sinTareas(); }
   });
 
+  prueba('MK1', 'Las marcas de estado del iPhone son las del Mac (D-287): ✓ Programado, ✓✓ Publicado, ✕ Cancelado y un punto del color de su estado para el resto, salidas del núcleo (estIco), en la lista del mes, la cabecera y el campo de la publicación, su hoja de estado y Hoy, y en lo que arma el iPhone sin guardar (lo que tocaría publicarse); ningún punto viejo', async () => {
+    const key = await tableroMovil();
+    ok(!(M.setEstado('r2', 'publicado')[0] || {}).error, 'no se publicó r2'); ok(!(M.setEstado('r4', 'cancelado')[0] || {}).error, 'no se canceló r4'); await M.flush();
+    try {
+      await enMovilPagina(async () => {
+        const md = W.document.getElementById('movil'), verde = kbTok(md, '--ok'), rojo = kbTok(md, '--red');
+        const marca = es => { const i = es && es.querySelector(':scope > i'); if (!i) return 'nada'; const e = ([...i.classList].find(c => c.startsWith('e-')) || 'e-?').slice(2); return i.classList.contains('eico') ? 'ico:' + e + (i.querySelector('svg') ? '' : ' sin dibujo') : i.classList.contains('edot') ? 'punto:' + e : 'viejo'; };
+        const viejos = () => [...md.querySelectorAll('.es > i:not(.eico):not(.edot)')].length;
+        const fila = r => W.document.querySelector(`#movil [data-ir="pub/${key}/${r}"] .es`);
+        await irMovil(`#mes/${key}/lista`, `#movil [data-ir="pub/${key}/r3"]`);
+        igual(['r1', 'r2', 'r3', 'r4'].map(r => marca(fila(r))), ['punto:aprobado', 'ico:publicado', 'ico:programado', 'ico:cancelado'], 'las marcas de la lista del mes');
+        const ip = fila('r3').querySelector(':scope > i'), dibujo = i => i.querySelector('svg path:not(.h)');
+        igual([W.getComputedStyle(ip).backgroundColor, W.getComputedStyle(dibujo(ip)).stroke, W.getComputedStyle(ip.querySelector('svg path.h') || ip).display === 'none' || !ip.querySelector('svg path.h')], ['rgba(0, 0, 0, 0)', verde, true], 'el ✓ de Programado: sin fondo, en verde y sin el trazo blanco de la foto');
+        igual(W.getComputedStyle(dibujo(fila('r4').querySelector(':scope > i'))).stroke, rojo, 'el ✕ de Cancelado, en rojo');
+        igual(W.getComputedStyle(fila('r1').querySelector(':scope > i')).backgroundColor, verde, 'el punto de Aprobado, en verde');
+        ok(ip.getBoundingClientRect().width >= 12 && ip.getBoundingClientRect().height >= 11, 'el ✓ no tiene el tamaño del iPhone: ' + json(ip.getBoundingClientRect()));
+        igual(viejos(), 0, 'queda un punto viejo en la lista del mes');
+        // la publicación: la cabecera, el campo «Estado» y su hoja
+        await irMovil(`#pub/${key}/r3`, '#movil .pub-h .es');
+        igual(marca(W.document.querySelector('#movil .pub-h .es')), 'ico:programado', 'la cabecera de la publicación');
+        igual(marca(W.document.querySelector('#movil [data-a="estado"] .es')), 'ico:programado', 'el campo «Estado»');
+        clicCara('#movil [data-a="estado"]'); const h = await hojaCara('.estado-op', 'la hoja del estado');
+        const ops = [...h.querySelectorAll('.estado-op .es')].map(marca); ok(ops.length >= 5 && ops.every(x => /^(ico|punto):/.test(x)), 'la hoja del estado: ' + json(ops));
+        igual(viejos(), 0, 'queda un punto viejo en la publicación o su hoja');
+        clicCara('#movil .velo.on'); await espera(450);
+        // lo que el iPhone arma sin guardar: la Programada cuya hora pasó, con lo que tocaría (Publicado)
+        M._test.reloj(Date.parse('2026-11-20T10:00:00+01:00')); await M.movil.releer();
+        await irMovil(`#mes/${key}/lista`, '#movil .mv-pubs');
+        if (!fila('r3')) { clicCara('#movil .mv-pubs'); await hasta(() => fila('r3'), 4000, 'la fila de la Programada pasada, en «Publicadas»'); }   // lo que ya pasó va plegado (D-271, punto 12)
+        igual(marca(fila('r3')), 'ico:publicado', 'lo que tocaría (Publicado) sin su marca');
+        // Hoy: la publicación del día, con su marca
+        M._test.reloj(Date.parse('2026-11-03T09:00:00+01:00')); await M.movil.releer();
+        await irMovil('#hoy', `#movil [data-ir="pub/${key}/r1"]`);
+        igual(marca(W.document.querySelector(`#movil [data-ir="pub/${key}/r1"] .es`)), 'punto:aprobado', 'la fila de Hoy');
+        igual(viejos(), 0, 'queda un punto viejo en Hoy');
+      });
+    } finally { M._test.reloj(RELOJ_PRUEBAS); }
+  });
+
+
   async function pasar() {
     const go = $('go'); go.disabled = true;
     const solo = (new URLSearchParams(location.search).get('solo') || '').split(',').map(s => s.trim()).filter(Boolean);

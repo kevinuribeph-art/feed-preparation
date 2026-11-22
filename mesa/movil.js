@@ -148,15 +148,15 @@
 #movil .ty.collab{background:var(--ty-collab);color:var(--ty-collab-ink)}
 #movil .ty.hist{background:color-mix(in srgb,var(--story) 14%,var(--panel-2));color:color-mix(in srgb,var(--story) 70%,var(--ink))}
 #movil .es{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:var(--ink-2);white-space:nowrap}
-#movil .es i{width:9px;height:9px;border-radius:50%;flex:none;background:var(--c);box-shadow:inset 0 0 0 1.5px var(--a,transparent)}
-#movil .es.empezar{--c:var(--st-empezar);--a:var(--st-empezar-aro)}
-#movil .es.captions{--c:var(--st-captions)}
-#movil .es.aprobar{--c:var(--st-aprobar)}
-#movil .es.noaprobado{--c:var(--st-noaprobado)}
-#movil .es.aprobado{--c:var(--st-aprobado)}
-#movil .es.programado{--c:var(--st-programado)}
-#movil .es.publicado{--c:var(--st-publicado)}
-#movil .es.cancelado{--c:var(--st-cancelado)}
+/* las marcas de estado del Mac (D-081), salidas del núcleo (estIco, D-287): ✓ Programado, ✓✓ Publicado, ✕ Cancelado y un punto del color de
+   su estado para el resto; al tamaño del iPhone. Solo .edot y .eico: un icono nuevo en <i> dentro de .es no se pinta (lección 244) */
+#movil .es>.edot{display:inline-block;width:9px;height:9px;border-radius:50%;flex:none}
+#movil .es>.e-empezar{background:var(--st-empezar-aro)}#movil .es>.e-captions{background:var(--st-captions)}#movil .es>.e-aprobar{background:var(--st-aprobar)}
+#movil .es>.e-noaprobado{background:var(--red)}#movil .es>.e-aprobado{background:var(--ok)}
+#movil .es>.eico{display:inline-flex;flex:none;width:14px;height:13px;color:var(--ok)}
+#movil .es>.eico.e-publicado{width:17px}#movil .es>.eico.e-cancelado{width:12px;color:var(--red)}
+#movil .es>.eico svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;overflow:visible}
+#movil .es>.eico .h{display:none}
 #movil .pill{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 12px 0 10px;border-radius:999px;background:var(--bg-2);font-size:14px;font-weight:600}
 #movil .cli{display:block;width:100%;text-align:left;padding:14px 14px 14px;border-radius:18px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2)}
 #movil .clis{display:grid;gap:10px;padding:0 var(--pad)}
@@ -274,7 +274,7 @@
 #movil .estados{display:grid;gap:8px}
 #movil .estado-op{display:flex;align-items:center;gap:12px;min-height:54px;padding:0 14px;border-radius:14px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2);font-size:16px;font-weight:500;text-align:left;width:100%}
 #movil .estado-op .es{font-size:16px;color:var(--ink);font-weight:500;flex:1}
-#movil .estado-op .es i{width:11px;height:11px}
+#movil .estado-op .es>.edot{width:11px;height:11px}
 #movil .estado-op.on{box-shadow:inset 0 0 0 2px var(--ink)}
 #movil .estado-op .ck{width:22px;height:22px;color:var(--ink)}
 #movil .estado-op .sub{font-size:13px;color:var(--mute);font-weight:400}
@@ -868,7 +868,8 @@
   // ---------- piezas comunes ----------
   const TY = { Foto: 'foto', Carrusel: 'carr', Reel: 'reel', 'Collab Reel': 'collab', 'Trial Reel': 'reel' };
   const ty = t => `<span class="ty ${TY[t.k] || (t.reel ? 'reel' : 'foto')}">${esc(t.txt)}</span>`;
-  const est = e => `<span class="es ${esc(e.k)}"><i></i>${esc(e.txt)}</span>`;
+  const marcaEst = k => X().estIco(k, ' aria-hidden="true"');   // la del Mac, del núcleo (D-287): también para lo que arma el iPhone (lo que tocaría, un cambio que se guarda)
+  const est = e => `<span class="es ${esc(e.k)}">${marcaEst(e.k)}${esc(e.txt)}</span>`;
   // el monograma: su capa de color se llena de abajo arriba mientras el iPhone baja algo o guarda (D-271, punto 10); en las pantallas
   // con «‹ atrás», uno pequeño a la derecha de la barra que solo sale entonces (variante B)
   const mono = mini => `<span class="mono-w${mini ? ' mini' : ''}" data-mono${mini ? ' hidden' : ''}><img class="mono" src="portal/marca/monograma.svg" alt="${mini ? '' : 'Uribe Visuals'}" width="30" height="30"><img class="mono mono-ll" src="portal/marca/monograma.svg" alt="" aria-hidden="true" width="30" height="30"></span>`;
@@ -988,7 +989,7 @@
     }
     if (x.tipo === 'historias') return fila({ a: `data-ir="mes/${esc(x.B.key)}/hist"`, izq: icoFila('historias'), t1: esc(plural(x.n, 'historia', 'historias')), t2: `${esc(quien)} · ${esc(plural(x.sin, 'sin programar', 'sin programar'))}` });
     const s = x.s, tp = X().tipoPost(s), esOtro = tp.txt === 'Foto' ? '' : tp.ico;
-    const estado = x.e === 'publicado' || !x.e ? '' : `<span class="es ${esc(x.e)}"><i></i>${esc((X().ESTADOS.find(z => z[0] === x.e) || [x.e, x.e])[1])}</span>`;
+    const estado = x.e === 'publicado' || !x.e ? '' : est({ k: x.e, txt: (X().ESTADOS.find(z => z[0] === x.e) || [x.e, x.e])[1] });
     let t2;
     if (x.cat === 'pasado') t2 = `${esc(diaCorto(x.dia))}${x.hora ? ' ' + esc(x.hora) : ''} · ${x.mano ? '<span class="roja">publicar a mano</span>' : x.e !== 'programado' ? '<span class="roja">sin programar</span>' : '<span class="roja">vencida</span>'}`;
     else if (x.cat === 'espera') { const w = M.web && M.web.contestado ? M.web.contestado(x.B.client, s.id) : ''; t2 = `${w ? `<span class="acc">${esc(cap1(w))} en su web</span>` : x.e === 'noaprobado' ? '<span class="roja">Pidió cambios</span>' : estado} · ${esc(corto(x.dia))}${x.lleva ? ` · lleva ${x.lleva} días` : ''}`; }
@@ -2103,7 +2104,7 @@
     const p = pAhora(), v = L.vista; if (!p) return;
     await aqui();
     const l = MV().estadosPosibles(v.key, p.id), visto = (await MV().valor({ key: v.key, slot: p.id, campo: 'estado' })).v;
-    const h = hoja(`<h2>Estado</h2><p class="ex">${esc(p.nombre)} · ahora ${esc(p.estado.txt)}</p><div class="estados">${l.map(x => `<button type="button" class="estado-op${x.actual ? ' on' : ''}" data-v="${x.v || ''}"${x.ok ? '' : ' disabled'}${x.actual ? ' aria-current="true"' : ''}><span class="es ${esc(x.k)}"><i></i><span>${esc(x.txt)}<br><span class="sub">${esc(x.v ? SUB[x.v] : 'Lo que dicen sus datos')}</span>${x.ok ? '' : `<span class="porque">${esc(cap1(x.porque))}</span>`}</span></span>${x.actual ? `<span class="ck">${ic('check', 2.25)}</span>` : ''}</button>`).join('')}</div><div data-motivo hidden><span class="lbl">Motivo (opcional)</span><textarea rows="2" maxlength="500" data-mot>${esc(p.motivo || '')}</textarea></div><div class="pie"><div class="botones"><button type="button" class="btn sua ancho" data-a2="cancelar">Cancelar</button></div></div>`, { etiqueta: 'Estado' });
+    const h = hoja(`<h2>Estado</h2><p class="ex">${esc(p.nombre)} · ahora ${esc(p.estado.txt)}</p><div class="estados">${l.map(x => `<button type="button" class="estado-op${x.actual ? ' on' : ''}" data-v="${x.v || ''}"${x.ok ? '' : ' disabled'}${x.actual ? ' aria-current="true"' : ''}><span class="es ${esc(x.k)}">${marcaEst(x.k)}<span>${esc(x.txt)}<br><span class="sub">${esc(x.v ? SUB[x.v] : 'Lo que dicen sus datos')}</span>${x.ok ? '' : `<span class="porque">${esc(cap1(x.porque))}</span>`}</span></span>${x.actual ? `<span class="ck">${ic('check', 2.25)}</span>` : ''}</button>`).join('')}</div><div data-motivo hidden><span class="lbl">Motivo (opcional)</span><textarea rows="2" maxlength="500" data-mot>${esc(p.motivo || '')}</textarea></div><div class="pie"><div class="botones"><button type="button" class="btn sua ancho" data-a2="cancelar">Cancelar</button></div></div>`, { etiqueta: 'Estado' });
     h.addEventListener('click', e => { if (!h.isConnected) return;
       const b = e.target.closest('.estado-op'), c = e.target.closest('[data-a2]');
       if (c && c.dataset.a2 === 'cancelar') return cerrarHojas();

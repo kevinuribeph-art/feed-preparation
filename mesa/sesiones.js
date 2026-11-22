@@ -15,7 +15,7 @@
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;
   const MOVIL = document.documentElement.hasAttribute('data-movil');   // the iPhone (D-275): nothing mounted, only its view and its setters
-  const VERSION = '1.7';   // 1.7: on the iPhone nothing mounts; M.sesiones.movil (vista, campo, editar) for the whole session (D-275). 1.6: a session's photo that hasn't come down from the server yet (lot 4 of the traspaso) waits instead of breaking the sheet, and is read again when it arrives (D-259). 1.5: with the cloud on, the loose photos are cleaned only once everything came down, and only here (D-256). 1.4: a sporadic client's file has its «Cobros», one per session and client (cobros.js); «Pasar a mensual» takes them (D-234); drawing the file never takes the focus from what is being written in it. 1.3: the sheet changes in place only what changed (D-223); seen as the client, no empty section («Aún sin detalles» if none is left) and the separator still (D-228); the end the same day, its calendar with the pointer over it; --mute for what is read (D-231). 1.2: a chip each client and «+ Cliente» (D-217); «– Fin» (D-218); fixed in «Ver como el cliente» over the board in the vista cliente (D-219); templates of material (D-220); «Duplicar sesión» (D-221). 1.1: a click writes in the sheet and the file (D-209); the sheet widens (D-210); the mood board in columns of a cell of the feed (D-211); the shots' tabs as titles (D-214); the right column 20 px inside (D-216)
+  const VERSION = '1.8';   // 1.8: «Nueva sesión» with a day given (the board's calendar, D-285); «/-» a separator in its texts (D-283). 1.7: on the iPhone nothing mounts; M.sesiones.movil (vista, campo, editar) for the whole session (D-275). 1.6: a session's photo that hasn't come down from the server yet (lot 4 of the traspaso) waits instead of breaking the sheet, and is read again when it arrives (D-259). 1.5: with the cloud on, the loose photos are cleaned only once everything came down, and only here (D-256). 1.4: a sporadic client's file has its «Cobros», one per session and client (cobros.js); «Pasar a mensual» takes them (D-234); drawing the file never takes the focus from what is being written in it. 1.3: the sheet changes in place only what changed (D-223); seen as the client, no empty section («Aún sin detalles» if none is left) and the separator still (D-228); the end the same day, its calendar with the pointer over it; --mute for what is read (D-231). 1.2: a chip each client and «+ Cliente» (D-217); «– Fin» (D-218); fixed in «Ver como el cliente» over the board in the vista cliente (D-219); templates of material (D-220); «Duplicar sesión» (D-221). 1.1: a click writes in the sheet and the file (D-209); the sheet widens (D-210); the mood board in columns of a cell of the feed (D-211); the shots' tabs as titles (D-214); the right column 20 px inside (D-216)
   if (M.sesiones && M.sesiones._off) { try { M.sesiones._off(); } catch (e) { /* */ } }
   let P = null;                                // personal.js's own (M.personal._p)
   const OFF = [];
@@ -364,7 +364,7 @@
     if (pt && document.caretRangeFromPoint) { rg = document.caretRangeFromPoint(pt.x, pt.y); if (rg && !el.contains(rg.startContainer)) rg = null; }
     if (!rg) { rg = document.createRange(); rg.selectNodeContents(el); rg.collapse(false); }
     const sel = getSelection(); sel.removeAllRanges(); sel.addRange(rg);
-    if (!UNA.test(campo) && P.ES()) ctlCampo = P.ES().activar(el, { comandos: () => ['tarea', 'fecha', 'lista', 'numerada', 'casilla'], alComando: (k, ctx) => P.comando(k, ctx, campo) });
+    if (!UNA.test(campo) && P.ES()) ctlCampo = P.ES().activar(el, { comandos: () => ['tarea', 'fecha', 'lista', 'numerada', 'casilla', 'separador'], alComando: (k, ctx) => P.comando(k, ctx, campo) });
   }
   function empezar(campo, pt) {
     if (S.vista) return;
@@ -694,9 +694,9 @@
 
   // ---------- «Nueva sesión» (Q2): the mesa's dialog ----------
   let DLG = null;                              // {estado, ctx, campo, desde, cambiando}
-  function nueva({ ctx, campo, desde }) {
+  function nueva({ ctx, campo, desde, fecha }) {   // fecha: a day given (the posts' calendar's right click, D-285)
     const cli = campo === 'nueva' ? (P.st.tcli || P.st.nueva.cliente || '') : (desde && desde.tipo === 'esporadico' ? desde.id : desde && desde.cliente) || '';
-    DLG = { origen: document.activeElement, estado: { nombre: nombreDe('fotovideo'), tocado: false, clase: 'fotovideo', fecha: '', hora: '', fin: null, clientes: P.cliDe(cli) ? [cli] : [], visible: true }, ctx, campo, desde };
+    DLG = { origen: document.activeElement, estado: { nombre: nombreDe('fotovideo'), tocado: false, clase: 'fotovideo', fecha: /^\d{4}-\d{2}-\d{2}$/.test(fecha || '') ? fecha : '', hora: '', fin: null, clientes: P.cliDe(cli) ? [cli] : [], visible: true }, ctx, campo, desde };
     dialogo();
   }
   function dialogo() {

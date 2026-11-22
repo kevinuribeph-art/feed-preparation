@@ -125,6 +125,18 @@
   const mcCerrar = () => tecla('Escape', { en: D.activeElement || D.body });
   const mcItems = m => [...m.querySelectorAll('[role="menuitem"]')].map(b => b.firstChild.textContent.trim());
   const mcElegir = t => { const m = mcAbrir(); ok(m, 'sin el menú de copias'); const b = [...m.querySelectorAll('[role="menuitem"]')].find(x => x.firstChild.textContent.trim() === t); ok(b, 'el menú de copias no tiene ' + t); b.click(); };
+  // «Exportar…» del símbolo con la copia ligera (.json, fotos a 1080 px; D-284, antes «Exportar», D-263)
+  async function exportarLigera() { mcElegir('Exportar…'); const d = await hasta(() => q('.detail:not([hidden])[data-dlg="exportar"]'), 2000, '«Exportar…»'); d.querySelector('input[value="ligera"]').click(); d.querySelector('form').requestSubmit(); await espera(20); }
+  async function nuevoCliente() { mcElegir('Nuevo cliente'); await hasta(() => q('.detail [data-form="newclient"]'), 2000, '«Nuevo cliente»'); }   // del menú del símbolo (D-284; antes «+ Cliente»)
+  // «+ Hueco» desde el clic derecho del feed (D-282; antes, un chip de la barra del mes): con 2, apagado, no hace nada
+  async function huecoMas() {
+    const g = await hasta(() => q('.feed .grid'), 4000, 'el feed'), r = g.getBoundingClientRect();
+    g.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: r.x + 5, clientY: r.y + 5, view: W }));
+    const m = await hasta(() => q('.cpmenu[aria-label="Feed"]'), 2000, 'el menú del feed');
+    const b = [...m.querySelectorAll('[role="menuitem"]')].find(x => /Hueco/.test(x.textContent) && !/Quitar/.test(x.textContent));
+    if (b && !b.disabled) b.click(); else tecla('Escape', { en: D.activeElement || D.body });
+    await espera(30);
+  }
   const compDe = i => { const x = ed().sl[i]; return x.comp || x.raw; };
   const elegir = el => { ed().sel = el.id; ed().mas = []; };
   // tamaño de la diapositiva abierta en px de salida (1440 de ancho), por su formato; no se usa E.sz, que es el del último
@@ -201,7 +213,7 @@
     M._test.setNote('r1', 'Contexto de prueba');
     M._test.setMemo('r1', 'Nota privada');
     M.loadCaptions([{ slotId: 'r1', options: [{ tone: 'Cercano', text: 'Uno' }, { tone: 'Directo', text: 'Dos' }, { tone: 'Poético', text: 'Tres' }] }]);
-    await pulsar('[data-act="addfiller"]');
+    await huecoMas();
     await M.flush();
     const corte = b => ({ fillers: b.fillers, tray: b.tray, slots: b.slots.map(s => ({ id: s.id, name: s.name, type: s.type, photos: s.photos, note: s.note, memo: s.memo, caption: s.caption && { orig: s.caption.orig, tones: s.caption.tones } })) });
     const antes = corte(M.board());
@@ -300,7 +312,7 @@
 
   prueba('M9', '«+ Hueco»: como mucho 2, detrás de las fijadas, y siguen al reabrir (D-002)', async () => {
     await tablero([pub(1), pub(2), pub(3), pub(4)]);
-    for (let i = 0; i < 3; i++) await pulsar('[data-act="addfiller"]');
+    for (let i = 0; i < 3; i++) await huecoMas();
     ok(M.status().fillers === 2, 'huecos: ' + M.status().fillers);
     const S = M._in.S; S.pins = ['r1']; M._in.save(); M._in.renderFeed();
     const orden = () => qa('.feed .cell, .grid .cell').filter(c => !c.closest('.past, .prevm')).slice(0, 4).map(c => c.classList.contains('filler') ? 'hueco' : c.dataset.slot);
@@ -2159,7 +2171,7 @@
 
   prueba('M24', 'Portada en un hueco: foto y etiqueta en la mesa, «Vista cliente» y la imagen del feed; no es una publicación; se quita sin borrar el hueco y sigue al reabrir (D-049)', async () => {
     await tablero([pub(1), pub(2), pub(3), pub(4)]);
-    await pulsar('[data-act="addfiller"]'); await pulsar('[data-act="addfiller"]');
+    await huecoMas(); await huecoMas();
     ok(!('previews' in M.board()), 'un tablero sin portadas lleva el campo');
     const [a] = await M.addFiles([await foto('m24.jpg', 1600, 1000, '#b03030')]);
     await M._test.setPreview(0, a);
@@ -2201,7 +2213,7 @@
 
   prueba('M27', 'Portada a toda la casilla, sin borde negro y con la etiqueta recta y traslúcida, igual en la mesa, «Vista cliente» y la imagen del feed, sobre foto clara y oscura (D-067)', async () => {
     await tablero([pub(1), pub(2), pub(3), pub(4)]);
-    await pulsar('[data-act="addfiller"]'); await pulsar('[data-act="addfiller"]'); await pulsar('[data-act="addfiller"]');
+    await huecoMas(); await huecoMas(); await huecoMas();
     igual(M.status().fillers, 2, 'los huecos');
     const [clara, oscura] = await M.addFiles([await foto('m27-clara.jpg', 1600, 1000, '#f6f6f6'), await foto('m27-oscura.jpg', 1000, 1600, '#101010')]);
     await M._test.setPreview(0, clara); await M._test.setPreview(1, oscura);
@@ -2281,7 +2293,7 @@
     const DIC = '2026-12', dic = [pub(5, 'Foto', 3, DIC)], claveNov = `${CLIENTE}-${MES}`, claveDic = `${CLIENTE}-${DIC}`;
     const aviso = () => { const d = dialogo(); return d && d.querySelector('[data-act="repe"]'); };
     await tablero([pub(1), pub(2)]);
-    await pulsar('[data-act="addfiller"]');
+    await huecoMas();
     const [a] = await M.addFiles([await foto('m25.jpg')]);
     await filtro('sin');
     igual(vista(false), ['m25.jpg'], 'antes de ponerla');
@@ -2323,7 +2335,7 @@
     // se borra el mes del hueco, abierto otro mes o abierto él: la foto, que no va en otro sitio, queda en la bandeja del cliente
     for (const abierto of [DIC, MES]) {
       await tablero([pub(1)]);
-      await pulsar('[data-act="addfiller"]');
+      await huecoMas();
       const [c] = await M.addFiles([await foto('m25-c.jpg')]);
       await M._test.setPreview(0, c);
       await M.flush();
@@ -2344,7 +2356,7 @@
   prueba('M26', '«⇅ Exportar» e «Importar» conservan la portada de cada hueco; un archivo sin portadas importa igual, con los huecos negros (D-049, D-017)', async () => {
     const clave = `${CLIENTE}-${MES}`;
     await tablero([pub(1)]);
-    await pulsar('[data-act="addfiller"]'); await pulsar('[data-act="addfiller"]');
+    await huecoMas(); await huecoMas();
     const [a, b] = await M.addFiles([await foto('m26-a.jpg'), await foto('m26-b.jpg')]);
     await M._test.setPreview(0, a);
     await M._test.setPreview(1, b);
@@ -3319,7 +3331,7 @@
     A.click = function () { if (this.download) cap = { name: this.download, href: this.href }; else click.call(this); };
     try {
       W.localStorage.setItem(LS, '1');             // este navegador descarga: sin diálogo de guardar
-      mcElegir('Exportar'); await espera(30);   // el menú de copias del símbolo (D-263)
+      await exportarLigera(); await espera(30);   // «Exportar…» del símbolo, la copia ligera (D-284)
       const dl = await hasta(() => q('.detail:not([hidden])[data-dlg="revisar"]'), 15000, 'la revisión con el hueco vacío tras exportar');   // D-040: el aviso de D-037 va en la revisión
       ok(cap, 'con un hueco vacío no se exportó (no hubo descarga)');
       const d = JSON.parse(await (await (await fetch(cap.href)).blob()).text());
@@ -4324,7 +4336,7 @@
     M._test.place('r1', pu); M._test.place('r2', ca); M.setEstado('r2', 'cancelado');
     const hid = M.hs.anadir(`${MES}-20`);
     M._in.S.historias.find(h => h.id === hid).photos = [hi]; M._in.save();
-    await pulsar('[data-act="addfiller"]'); await M._test.setPreview(0, hu);
+    await huecoMas(); await M._test.setPreview(0, hu);
     await aCarpeta('historias', [await foto('c4-otr.jpg')]);
     await M.flush();
     const p = await M.planBorrarCarpeta(c);
@@ -7421,7 +7433,7 @@
     await poner('r1', [await foto('m41.jpg')]);
     await M.flush();
     const fotos = () => slot('r1').photos.length;
-    await pulsar('[data-act="addfiller"]'); await M.flush();
+    await huecoMas(); await M.flush();
     igual(M.board().fillers, 1, 'no se añadió el hueco');
     M._test.undo(); await M.flush();
     ok(!M.board().fillers, '⌘Z no quitó el hueco');
@@ -9067,7 +9079,7 @@
     const [x] = await poner('r3', [await foto('u3-cancelada.jpg')]);
     M.setEstado('r3', 'cancelado');
     const [x2] = await M._in.paraPoner([x]); M._test.place('r1', x2);   // y de relleno en el carrusel: solo cuenta esta
-    await pulsar('[data-act="addfiller"]');
+    await huecoMas();
     await M._test.setPreview(0, hz);
     const id = M.hs.anadir(DIA(10), { time: '12:00' });
     await historiaConFoto(id, h);
@@ -9261,7 +9273,7 @@
     ok(/agosto/i.test(d.textContent), 'la ventana no dice su uso: ' + d.textContent);
     d.querySelector('[data-act="close"]').click(); await p;
     // en un hueco del feed (D-049): la naranja entra sin preguntar
-    q('.bar [data-act="addfiller"]').click(); await espera(60);
+    await huecoMas(); await espera(30);
     const f = fs.find(x => M.files[x].name === 'u8-d-relleno.jpg');
     let hecho = false; M._test.setPreview(0, f).then(() => { hecho = true; });
     await hasta(() => hecho || repeVentana(), 4000, 'la portada del hueco');
@@ -10840,29 +10852,22 @@
     ok(qa('.cell.past').every(c => c.classList.contains('locked')) && / · Bloqueado: /.test(et()[0].title), 'no se volvió a bloquear desde la etiqueta');
   });
 
-  prueba('S2', '«Abrir notas» es un icono de la barra del mes, a la izquierda de «Revisar», solo con alguna Nota, marcado mientras están abiertas y nunca en «Vista cliente» (D-152)', async () => {
+  prueba('S2', '«Abrir todas las notas» va en el clic derecho del feed (D-282, antes un icono de la barra, D-152): apagada sin ninguna Nota, «Cerrar todas las notas» mientras están abiertas y nunca en «Vista cliente»', async () => {
     await tablero([pub(1), pub(2)]);
-    const b = () => q('.bar .memobtn'), est = () => [b().getAttribute('aria-label'), b().getAttribute('aria-pressed')];
-    ok(b() && b().hidden, 'sale sin ninguna Nota');
-    ok(b().nextElementSibling === q('.bar .rvbtn'), 'no va a la izquierda de «Revisar»');
+    const menu = async () => { const g = q('.feed .grid'), r = g.getBoundingClientRect(); g.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: r.x + 5, clientY: r.y + 5, view: W })); await espera(20); const m = q('.cpmenu[aria-label="Feed"]'); return m && m.querySelector('[role="menuitem"]'); };
+    ok(!q('.bar .memobtn'), 'sigue el icono de notas en la barra');
+    let b = await menu(); ok(b && b.disabled && /Abrir todas las notas/.test(b.textContent), 'sin ninguna Nota no está apagada'); tecla('Escape', { en: D.activeElement }); await espera(20);
     M._in.openDetail('r1', 0);
     const memo = await hasta(() => q('.detail textarea.memo'), 2000, 'el campo Nota');
     memo.focus(); memo.value = 'S2 nota'; memo.dispatchEvent(new W.Event('input', { bubbles: true }));
     M._in.closeDetail();
     await hasta(() => q('.cell[data-slot="r1"] .pit'), 2000, 'el post-it de la Nota');
-    ok(!b().hidden && b().offsetParent, 'no sale con una Nota');
-    ok(b().querySelector('svg') && !b().textContent.trim(), 'lleva texto o le falta el icono');
-    igual(est(), ['Abrir notas', 'false'], 'cerrado');
-    const borde0 = W.getComputedStyle(b()).borderTopColor;
-    b().click(); await espera(30);
+    b = await menu(); ok(b && !b.disabled, 'con una Nota sigue apagada'); b.click(); await espera(30);
     ok(q('#mesa').classList.contains('memos'), 'no abrió las notas');
-    igual(est(), ['Cerrar notas', 'true'], 'abierto');
-    ok(W.getComputedStyle(b()).borderTopColor !== borde0, 'abierto no se distingue');
-    b().click(); await espera(30);
+    b = await menu(); ok(/Cerrar todas las notas/.test(b.textContent), 'abiertas, no ofrece cerrarlas'); b.click(); await espera(30);
     ok(!q('#mesa').classList.contains('memos'), 'no cerró las notas');
-    igual(est(), ['Abrir notas', 'false'], 'cerrado otra vez');
     q('.clientToggle').click(); await espera(30);
-    try { ok(W.getComputedStyle(b()).display === 'none', 'sale en «Vista cliente»'); }
+    try { ok(!(await menu()), 'sale en «Vista cliente»'); }
     finally { q('.clientToggle').click(); await espera(30); }
   });
 
@@ -10883,7 +10888,7 @@
 
   prueba('LZ1', '«Vista cliente» no enseña «+ Cliente», «⋯», «+ Hueco» ni «Guardado» (ni «⇅», que ya no está, D-263); «No se pudo guardar» sí; al quitarla vuelven (D-154)', async () => {
     await tablero([pub(1), pub(2)]);
-    const P = ['.appbar .tab.add', '.tabs .tedit', '.bar [data-act="addfiller"]'];   // sin ⇅ (D-263)
+    const P = ['.tabs .tedit'];   // sin ⇅ (D-263), ni «+ Hueco» en la barra (D-282: va en el clic derecho del feed, FH2) ni «+ Cliente» (D-284: va en el menú del símbolo, SB1)
     P.forEach(s => ok(seVe(s), 'no sale sin la vista cliente: ' + s));
     q('.save').classList.remove('err'); q('.save').textContent = 'Guardado';
     await conCliente(async () => {
@@ -10913,12 +10918,12 @@
   prueba('LZ3', 'Fuera los textos de ayuda que no dicen nada nuevo: «Nuevo cliente», «Editar cliente», el menú de copias (antes ⇅, D-263), «Nueva carpeta», «Revisar», «Descargar fotos» y vencidas (D-156)', async () => {
     await tablero([pub(1, 'Carrusel'), pub(2)]);
     await poner('r1', [await foto('lz3-a.jpg'), await foto('lz3-b.jpg')]);
-    await pulsar('[data-act="newclient"]'); let t = dialogo().textContent;
+    await nuevoCliente(); let t = dialogo().textContent;
     ok(!/pestaña vacía|día del mes,/.test(t) && /\(1-28\)/.test(t), 'Nuevo cliente: ' + t); M._in.closeDetail();
     q('.tabs .tedit').click(); await hasta(() => q('.detail [data-form="editclient"]'), 3000, 'Editar cliente'); t = dialogo().textContent;
     ok(!/la de su Instagram|día del mes/.test(t) && /Foto de perfil/.test(t) && /\(1-28; los meses ya cargados conservan el suyo\)/.test(t), 'Editar cliente: ' + t); M._in.closeDetail();
     t = mcAbrir().textContent;   // el menú de copias (D-263) dice lo que decía ⇅
-    ok(!/En el otro Mac/.test(t) && /fotos a 1080 px/.test(t), 'copias: ' + t); mcCerrar();
+    ok(!/En el otro Mac/.test(t) && /Una copia de toda la Mesa/.test(t), 'copias: ' + t); mcCerrar();   // «Exportar…» (D-284)
     M.carpetasUI.accion('cp-nueva'); await hasta(() => q('.detail [data-form="cp-nueva"]'), 2000, 'Nueva carpeta'); t = dialogo().textContent;
     ok(!/En la bandeja de este cliente/.test(t), 'Nueva carpeta: ' + t); M._in.closeDetail();
     M.calendario.vencidas(); await hasta(() => ventanaV(), 2000, 'la lista de vencidas'); M._in.closeDetail();
@@ -11009,7 +11014,7 @@
     await limpiar();
     const r = await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1), pub(2)], past: [{ id: 'lz11-p', name: 'Foto 0.1', type: 'Foto', date: '2026-10-05T12:00:00.000+02:00' }], force: true });
     ok(r && r.key === `${CLIENTE}-${MES}`, 'no se abrió el tablero: ' + json(r));
-    await pulsar('[data-act="newclient"]'); sinBoton('Nuevo cliente'); M._in.closeDetail();
+    await nuevoCliente(); sinBoton('Nuevo cliente'); M._in.closeDetail();
     q('.tabs .tedit').click(); await hasta(() => q('.detail [data-form="editclient"]'), 3000, 'Editar cliente'); sinBoton('Editar cliente'); M._in.closeDetail();
     M.carpetasUI.accion('cp-nueva'); await hasta(() => q('.detail [data-form="cp-nueva"]'), 2000, 'Nueva carpeta'); sinBoton('Nueva carpeta'); M._in.closeDetail();
     const c = M.crearCarpeta('LZ11'); M.pedirBorrarCarpeta(c.id);
@@ -11268,7 +11273,7 @@
 
   prueba('LZ45', 'Doble clic en «Inicio de ciclo»: día 1 en «Nuevo cliente»; el guardado en «Editar cliente» (D-159)', async () => {
     await tablero([pub(1)]);
-    await pulsar('[data-act="newclient"]');
+    await nuevoCliente();
     const l = await hasta(() => q('.detail label.dcl[for="nc-cycle"]'), 2000, 'la etiqueta');
     ok(/^Inicio de ciclo · doble clic: día 1$/.test(l.title), 'el título: ' + l.title);
     q('#nc-cycle').value = '12'; dbl(l); igual(q('#nc-cycle').value, '1', 'Nuevo cliente');
@@ -11838,9 +11843,11 @@
     await hasta(() => M.calendario && q('.side > .cal .cgrid'), 4000, 'calendario.js');   // Σ ya no está (D-229, AV8)
     const masc = (el, ps = '::before') => decodeURIComponent(W.getComputedStyle(el, ps).webkitMaskImage || '');
     const tam0 = el => W.getComputedStyle(el).fontSize === '0px';
-    for (const [sel, txt] of [['[data-act="addfiller"]', '+ Hueco'], ['[data-act="newclient"]', '+ Cliente']]) {
-      const b = q(sel), i = b && b.querySelector('.i-mas');
-      ok(b && b.textContent.trim() === txt && i && tam0(i) && /M5 12h14/.test(masc(i)), txt + ' sin el icono plus o sin su texto');
+    {   // «+ Hueco» ya no está en la barra: su «+» en el clic derecho del feed, también un icono (D-282)
+      const g = q('.feed .grid'), r = g.getBoundingClientRect(); g.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: r.x + 5, clientY: r.y + 5, view: W })); await espera(20);
+      const b = [...q('.cpmenu[aria-label="Feed"]').querySelectorAll('[role="menuitem"]')].find(x => /Hueco/.test(x.textContent)), i = b && b.querySelector('.i-mas');
+      ok(b && b.textContent.trim() === '+ Hueco' && i && tam0(i) && /M5 12h14/.test(masc(i)), '«+ Hueco» del menú del feed sin el icono plus');
+      tecla('Escape', { en: D.activeElement }); await espera(20);
     }
     const ti = qa('.tray .trayhead .ttam i'); ok(ti.length === 2 && ti.every(i => W.getComputedStyle(i).borderTopWidth === '0px' && /rect/.test(masc(i, null))), 'la barra de tamaño sigue con bordes');
     await poner('r1', [await foto('es2.jpg')]); await espera(80);
@@ -12776,7 +12783,7 @@
       ok(M._in.root().classList.contains('pp-on') && q('.pp:not([hidden])'), 'la página no está a la vista');
       igual(W.getComputedStyle(q('.main')).display, 'none', 'el tablero se ve detrás');
       const logo = q('.appbar .brand');
-      igual([logo.tagName, logo.title, logo.getAttribute('aria-label'), logo.getAttribute('aria-current')], ['BUTTON', 'Clic: tu página · Clic derecho: copias', 'Página personal', 'page'], 'el logo');   // la ayuda del clic derecho (D-263)
+      igual([logo.tagName, logo.title, logo.getAttribute('aria-label'), logo.getAttribute('aria-current')], ['BUTTON', 'Clic: tu página · Clic derecho: nuevo cliente y copias', 'Página personal', 'page'], 'el logo');   // la ayuda del clic derecho (D-263)
       ok(W.getComputedStyle(q('.appbar .tema')).display !== 'none', 'claro / oscuro no sale con la página');
       // una pestaña de cliente la cierra (la del cliente abierto también)
       q(`.tabs [data-act="client"][data-id="${CLIENTE}"]`).click(); await espera(60);
@@ -13897,7 +13904,7 @@
     } finally { paginaCerrada(); await sinTareas(); }
   });
 
-  prueba('NA2', 'Teclas en una lista: Intro la sigue (el número sube), Intro en un elemento vacío la termina, ⌫ detrás de la marca la quita entera, Tab / ⇧Tab sangran dos espacios; fuera de una lista hacen lo de siempre; nada actúa componiendo; ⌘Z justo después de convertir deja la marca escrita con un espacio duro (D-202)', async () => {
+  prueba('NA2', 'Teclas en una lista: Intro la sigue (el número sube), Intro en un elemento vacío la termina, ⌫ detrás de la marca la quita entera, Tab / ⇧Tab un nivel (4 espacios, y en una numerada la cuenta de su nivel, D-283); fuera de una lista hacen lo de siempre; nada actúa componiendo; ⌘Z justo después de convertir deja la marca escrita con un espacio duro (D-202)', async () => {
     await tablero([pub(1)]); await sinTareas();
     try {
       await paginaAbierta(); await hasta(() => M.escritura, 6000, 'escritura.js');
@@ -13906,7 +13913,7 @@
       await naEscribe(cn, '\n\n3. tres\ncuatro');
       igual(cn.textContent, '- uno\n- dos\n3. tres\n4. cuatro', 'Intro en vacío no termina o el número no sube');
       ok(naTecla(cn, 'Tab'), 'Tab en una lista sale del campo'); await espera(20);
-      igual(cn.textContent.split('\n').pop(), '  4. cuatro', 'Tab no sangra dos espacios');
+      igual(cn.textContent.split('\n').pop(), '    1. cuatro', 'Tab no sangra un nivel (4 espacios) ni empieza su cuenta (D-283)');
       ok(naTecla(cn, 'Tab', { shiftKey: true }), '⇧Tab sale del campo'); await espera(20);
       igual(cn.textContent.split('\n').pop(), '4. cuatro', '⇧Tab no desangra');
       // ⌫ justo detrás de la marca la quita entera
@@ -13965,7 +13972,7 @@
     try {
       await paginaAbierta(); await hasta(() => M.escritura, 6000, 'escritura.js');
       const cn = await naNota('/');
-      ok(/^(sesion,)?tarea\*?,?.*fecha,lista,numerada,casilla$/.test(naMenu().replace('*', '')) && naMenu().split(',')[0].endsWith('*'), 'el menú de una nota: ' + naMenu());
+      ok(/^(sesion,)?tarea\*?,?.*fecha,lista,numerada,casilla,separador$/.test(naMenu().replace('*', '')) && naMenu().split(',')[0].endsWith('*'), 'el menú de una nota: ' + naMenu());   // «Separador» al final (D-283)
       const m = q('.pp-sm'); ok(/Empieza una lista/.test(m.textContent) && m.querySelectorAll('.pp-smp kbd').length === 4 && /elegir/.test(m.textContent), 'sin descripción o sin las teclas');
       const rs = q('.pp-sm').getBoundingClientRect(), rc = cn.getBoundingClientRect(); ok(rs.top >= rc.top, 'el menú no va bajo el «/»');
       await naEscribe(cn, 'nu'); igual(naMenu(), 'numerada*', '«/nu» no filtra');
@@ -17017,7 +17024,7 @@
     } finally { await cpFin(); }
   });
 
-  prueba('CP5', 'Almacenamiento que el navegador puede borrar (D-249, D-263): nada en la cabecera; el menú de copias del símbolo lo explica al pie y nombra «Exportar todo»; con almacenamiento persistente no sale', async () => {
+  prueba('CP5', 'Almacenamiento que el navegador puede borrar (D-249, D-263): nada en la cabecera; el menú de copias del símbolo lo explica al pie y nombra «Exportar…» (D-284); con almacenamiento persistente no sale', async () => {
     await tablero([pub(1)]);
     const st = W.navigator.storage;
     try {
@@ -17026,7 +17033,7 @@
       ok(!q('.appbar .persist') && !qa('.appbar button').some(b => /Haz una copia/.test(b.textContent)), 'sigue «Haz una copia» en la cabecera');
       let m = mcAbrir(); ok(m, 'sin el menú de copias');
       const n = m.querySelector('.nota');
-      ok(n && /si el disco se llena, puede borrarlos/.test(n.textContent) && /Exportar todo/.test(n.textContent), 'sin el aviso al pie: ' + (n && n.textContent));
+      ok(n && /si el disco se llena, puede borrarlos/.test(n.textContent) && /Haz «Exportar…» de vez en cuando/.test(n.textContent), 'sin el aviso al pie: ' + (n && n.textContent));   // «Exportar…» (D-284)
       ok(m.lastElementChild === n && m.getAttribute('aria-describedby') === n.id, 'el aviso no va al pie o el menú no lo nombra');
       mcCerrar(); await espera(20);
       st.persisted = async () => true;
@@ -17035,20 +17042,20 @@
     } finally { delete st.persisted; delete st.persist; await M._test.persistencia(false); }
   });
 
-  prueba('MC1', 'Sin «⇅» ni «Haz una copia» en la cabecera; el símbolo dice «Clic: tu página · Clic derecho: copias»; su clic abre la página personal y su clic derecho el menú de copias (Exportar · Exportar todo · Importar…), sin abrir la página ni una ventana; un clic fuera lo cierra; en «Vista cliente», nada (D-263)', async () => {
+  prueba('MC1', 'Sin «⇅» ni «Haz una copia» en la cabecera; el símbolo dice «Clic: tu página · Clic derecho: nuevo cliente y copias»; su clic abre la página personal y su clic derecho el menú (Nuevo cliente · Exportar… · Importar…, D-284), sin abrir la página ni una ventana; un clic fuera lo cierra; en «Vista cliente», nada (D-263)', async () => {
     await tablero([pub(1)]);
     await hasta(() => M.personal, 8000, 'personal.js');
     ok(!q('.appbar .xfer') && !q('.appbar [data-act="xfer"]') && !qa('.appbar button').some(b => b.textContent.trim() === '⇅'), 'sigue «⇅» en la cabecera');
     ok(!q('.appbar .persist'), 'sigue «Haz una copia» en la cabecera');
     const b = mcLogo();
-    igual([b.tagName, b.title, b.getAttribute('aria-label')], ['BUTTON', 'Clic: tu página · Clic derecho: copias', 'Página personal'], 'el símbolo');
+    igual([b.tagName, b.title, b.getAttribute('aria-label')], ['BUTTON', 'Clic: tu página · Clic derecho: nuevo cliente y copias', 'Página personal'], 'el símbolo');   // D-284
     paginaCerrada(); await espera(20);
     const m = mcAbrir(); ok(m, 'el clic derecho no abre el menú de copias');
-    igual(mcItems(m), ['Exportar', 'Exportar todo', 'Importar…'], 'lo que ofrece el menú');
-    igual(qa('.cp-copias [role="menuitem"] .sub').map(x => x.textContent), ['Todos los clientes, con las fotos a 1080 px', 'La copia completa, a su tamaño original', 'Un .json o los .tar de la copia completa'], 'su segunda línea');
+    igual(mcItems(m), ['Nuevo cliente', 'Exportar…', 'Importar…'], 'lo que ofrece el menú');   // D-284
+    igual(qa('.cp-copias [role="menuitem"] .sub').map(x => x.textContent), ['Mensual', 'Una copia de toda la Mesa', 'Un .json o los .tar de una copia'], 'su segunda línea');
     ok(!M.personal.abierta(), 'el clic derecho abrió la página personal');
     ok(!q('.detail:not([hidden])'), 'el clic derecho abrió una ventana');
-    igual(D.activeElement && D.activeElement.closest('.cp-copias') && D.activeElement.firstChild.textContent.trim(), 'Exportar', 'el foco no va a la primera');
+    igual(D.activeElement && D.activeElement.closest('.cp-copias') && D.activeElement.firstChild.textContent.trim(), 'Nuevo cliente', 'el foco no va a la primera');
     const r = m.getBoundingClientRect(); ok(r.right <= W.innerWidth && r.bottom <= W.innerHeight && r.left >= 0 && r.top >= 0, 'el menú se sale de la ventana');
     q('.bar').dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true, cancelable: true })); await espera(20);
     ok(!q('.cp-copias'), 'un clic fuera no lo cierra');
@@ -17061,7 +17068,7 @@
     });
   });
 
-  prueba('MC2', 'El menú de copias hace lo que hacía ⇅: Exportar exporta, Exportar todo hace la copia completa, Importar… elige un .json o varios .tar y los importa (D-263)', async () => {
+  prueba('MC2', 'El menú de copias hace lo que hacía ⇅: «Exportar…» hace la copia ligera o la completa (D-284), Importar… elige un .json o varios .tar y los importa (D-263)', async () => {
     await tablero([pub(1)]);
     await hasta(() => M.copia && M.copia.exportar, 8000, 'copia.js');
     const ex = M.exportAll, cx = M.copia.exportar, im = M.importData, IP = W.HTMLInputElement.prototype, clk = IP.click;
@@ -17071,9 +17078,9 @@
     M.importData = src => { log.push(['importar', Array.isArray(src) ? src.map(f => f.name) : src.name]); return Promise.resolve({}); };
     IP.click = function () { if (this.type === 'file' && this.classList.contains('xferin')) { inp = this; log.push('elegir'); } else clk.call(this); };
     try {
-      mcLogo().focus(); mcElegir('Exportar'); await espera(20); ok(!q('.cp-copias'), 'el menú sigue abierto tras elegir'); ok(D.activeElement === mcLogo(), 'tras elegir, el foco no vuelve al símbolo');
-      mcElegir('Exportar todo'); await espera(20);
-      mcElegir('Importar…'); await espera(20);
+      await exportarLigera(); ok(!q('.cp-copias'), 'el menú sigue abierto tras elegir');
+      mcElegir('Exportar…'); { const d = await hasta(() => q('.detail:not([hidden])[data-dlg="exportar"]'), 2000, '«Exportar…»'); d.querySelector('form').requestSubmit(); await espera(20); }   // la completa, de serie (D-284)
+      mcLogo().focus(); mcElegir('Importar…'); await espera(20); ok(D.activeElement === mcLogo(), 'tras elegir, el foco no vuelve al símbolo');
       igual(log, ['exportar', 'todo', 'elegir'], 'lo que hizo cada opción');
       ok(inp && inp.multiple && /\.json/.test(inp.accept) && /\.tar/.test(inp.accept), 'Importar no acepta un .json o varios .tar');
       const pon = fs => { const dt = new W.DataTransfer(); fs.forEach(f => dt.items.add(f)); inp.files = dt.files; inp.dispatchEvent(new W.Event('change', { bubbles: true })); };
@@ -17084,7 +17091,7 @@
     } finally { M.exportAll = ex; M.copia.exportar = cx; M.importData = im; IP.click = clk; }
   });
 
-  prueba('MC3', 'El menú de copias con el teclado: ⇧F10 o la tecla de menú en el símbolo lo abren bajo él con el foco en «Exportar», ↑ ↓ lo recorren en círculo, Esc lo cierra y devuelve el foco al símbolo sin llegar al tablero (D-263)', async () => {
+  prueba('MC3', 'El menú de copias con el teclado: ⇧F10 o la tecla de menú en el símbolo lo abren bajo él con el foco en «Nuevo cliente» (D-284), ↑ ↓ lo recorren en círculo, Esc lo cierra y devuelve el foco al símbolo sin llegar al tablero (D-263)', async () => {
     await tablero([pub(1)]); await hasta(() => M.personal, 8000, 'personal.js'); paginaCerrada(); await espera(20);
     const b = mcLogo(); b.focus();
     tecla('F10', { shift: true, en: b }); await espera(20);
@@ -17092,10 +17099,10 @@
     const r = m.getBoundingClientRect(), rb = b.getBoundingClientRect();
     ok(r.top >= rb.bottom - 2 && Math.abs(r.left - rb.left) < 12, 'desde el teclado no sale bajo el símbolo: ' + json([r.left, r.top, rb.left, rb.bottom]));
     const foco = () => D.activeElement && D.activeElement.firstChild && D.activeElement.firstChild.textContent.trim();
-    igual(foco(), 'Exportar', 'el foco al abrir');
-    tecla('ArrowDown', { en: D.activeElement }); igual(foco(), 'Exportar todo', '↓');
+    igual(foco(), 'Nuevo cliente', 'el foco al abrir');   // D-284
+    tecla('ArrowDown', { en: D.activeElement }); igual(foco(), 'Exportar…', '↓');
     tecla('ArrowDown', { en: D.activeElement }); igual(foco(), 'Importar…', '↓ otra vez');
-    tecla('ArrowDown', { en: D.activeElement }); igual(foco(), 'Exportar', '↓ no vuelve arriba');
+    tecla('ArrowDown', { en: D.activeElement }); igual(foco(), 'Nuevo cliente', '↓ no vuelve arriba');
     tecla('ArrowUp', { en: D.activeElement }); igual(foco(), 'Importar…', '↑ no va al último');
     let llego = false; const oy = () => { llego = true; }; D.addEventListener('keydown', oy);
     try { tecla('Escape', { en: D.activeElement }); await espera(20); } finally { D.removeEventListener('keydown', oy); }
@@ -20257,6 +20264,389 @@
     });
     await sinTareas();
   });
+
+  // =====================================================================================================
+  // ajustes de la 4.42, lote A (Mesa 4.43): bajar fotos de la bandeja, el clic derecho del feed y del calendario, las listas
+  // de las notas y el menú del símbolo (D-281 a D-285)
+  // =====================================================================================================
+  // un clic derecho de verdad (contextmenu) en el centro de un elemento o en x, y; true si la Mesa lo atendió
+  const a43Ctx = (el, x, y) => { const r = el.getBoundingClientRect(); const e = new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: x ?? r.x + r.width / 2, clientY: y ?? r.y + r.height / 2, view: W }); el.dispatchEvent(e); return e.defaultPrevented; };
+  const a43Menu = () => q('.cpmenu:not(.pp-sm)');
+  const a43Btns = () => { const m = a43Menu(); return m ? [...m.querySelectorAll('[role="menuitem"]')] : []; };
+  const a43Txt = b => { const c = b.cloneNode(true); c.querySelectorAll('.sub, .kb').forEach(x => x.remove()); return c.textContent.trim(); };
+  const a43Items = () => (a43Menu() ? a43Btns().map(b => (b.disabled ? '·' : '') + a43Txt(b)) : null);   // «·» delante: apagada
+  const a43Elige = t => { const b = a43Btns().find(x => a43Txt(x) === t); ok(b, 'el menú no tiene «' + t + '»: ' + json(a43Items())); ok(!b.disabled, '«' + t + '» está apagada'); b.click(); };
+  const a43Cmd = el => el.dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true, metaKey: true, view: W }));
+  async function a43Bytes(x, y) { const p = new Uint8Array(await x.arrayBuffer()), r = new Uint8Array(await y.arrayBuffer()); return p.length === r.length && p.every((v, i) => v === r[i]); }
+  // la luminancia relativa y el contraste de dos colores rgb() de getComputedStyle
+  const a43Lum = c => { const v = String(c).match(/[\d.]+/g).slice(0, 3).map(Number).map(x => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; };
+  const a43Contraste = (a, b) => { const x = a43Lum(a), y = a43Lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  const a43Fondo = el => { for (let x = el; x; x = x.parentElement) { const c = W.getComputedStyle(x).backgroundColor; if (c && !/rgba\(0, 0, 0, 0\)|transparent/.test(c)) return c; } return 'rgb(255, 255, 255)'; };
+
+  prueba('BD1', 'Bajar fotos de la bandeja (D-281): con fotos elegidas con ⌘+clic, «Descargar N» en su cabecera y «Descargar N fotos» arriba de su clic derecho (N cuenta también las fotos de las carpetas elegidas y sus subcarpetas); una foto sale tal cual (su nombre y sus bytes), dos o más en un ZIP «cliente-bandeja-AAAA-MM-DD.zip» con las carpetas elegidas dentro como carpetas; sin nada elegido, nada; en la bandeja del editor, no', async () => {
+    await tablero([pub(1)]);
+    const fs = [await foto('bd-a.jpg', 900, 1100, '#7a4a3c'), await foto('bd-b.jpg', 1000, 800, '#3c6a7a'), await foto('bd-c.jpg', 800, 800, '#5a7a3c'), await foto('bd-d.jpg', 700, 900, '#6a3c7a'), await foto('bd-e.jpg', 600, 600, '#2c4a3c')];
+    const ids = await M.addFiles(fs); ok(ids.length === 5, 'no entraron las fotos: ' + json(ids));
+    const id = n => ids[fs.findIndex(f => f.name === n)];   // addFiles ordena por nombre
+    const t1 = M.crearCarpeta('Terraza'), t2 = M.crearCarpeta('Detalle', t1.id);
+    M._in.trayMover({ files: [id('bd-b.jpg')] }, t1.id); M._in.trayMover({ files: [id('bd-c.jpg')] }, t2.id);
+    await espera(150);
+    const boton = () => q('.side > .tray .trayhead [data-act="tdescargar"]');
+    const it = n => q(`.side > .tray .titem[data-file="${id(n)}"]`);
+    await hasta(() => it('bd-a.jpg') && it('bd-d.jpg'), 4000, 'las fotos en la bandeja');
+    ok(!boton() || boton().hidden, 'sin nada elegido sale «Descargar»');
+    a43Cmd(it('bd-a.jpg')); await espera(40);
+    ok(boton() && !boton().hidden && /^Descargar 1$/.test(boton().textContent.trim()), '«Descargar 1» no sale: ' + json(boton() && boton().textContent));
+    // una foto: su archivo, tal cual
+    let r = await conDescarga(async cap => { boton().click(); await hasta(() => cap(), 8000, 'la descarga de una foto'); });
+    igual(r.name, 'bd-a.jpg', 'el nombre de una foto sola');
+    ok(await a43Bytes(r.blob, fs[0]), 'la foto sola no sale con sus mismos bytes');
+    ok(it('bd-a.jpg').classList.contains('elegida'), 'tras bajarla, se pierde lo elegido');
+    // una carpeta (con su subcarpeta) y otra foto: 4 fotos en un ZIP, la carpeta dentro como carpeta
+    a43Cmd(q(`.side > .tray .tcarpeta[data-id="${t1.id}"]`)); a43Cmd(it('bd-d.jpg')); await espera(40);
+    ok(/^Descargar 4$/.test(boton().textContent.trim()), 'N no cuenta las fotos de la carpeta y su subcarpeta: ' + json(boton().textContent));
+    ok(a43Ctx(it('bd-d.jpg')), 'el clic derecho en una elegida es el del navegador');
+    ok(a43Items()[0] === 'Descargar 4 fotos', 'el clic derecho no empieza por «Descargar 4 fotos»: ' + json(a43Items()));
+    r = await conDescarga(async cap => { a43Elige('Descargar 4 fotos'); await hasta(() => cap(), 15000, 'el ZIP'); });
+    igual(r.name, `cliente-de-prueba-bandeja-${M._in.hoy()}.zip`, 'el nombre del ZIP');
+    const z = await leerZip(r.blob), nombres = z.map(e => e.name).sort();
+    igual(nombres, ['Terraza/Detalle/bd-c.jpg', 'Terraza/bd-b.jpg', 'bd-a.jpg', 'bd-d.jpg'], 'lo que lleva el ZIP');
+    for (const e of z) ok(await a43Bytes(new W.Blob([e.data]), fs.find(f => f.name === e.name.split('/').pop())), e.name + ' no va tal cual');
+    // más de 4 GB: un aviso que pide menos fotos, nada baja
+    const sz = [M.files[id('bd-a.jpg')].size, M.files[id('bd-d.jpg')].size];
+    M.files[id('bd-a.jpg')].size = 3e9; M.files[id('bd-d.jpg')].size = 2e9;
+    try {
+      r = await conDescarga(async () => { boton().click(); await espera(400); });
+      ok(!r, 'con más de 4 GB baja algo');
+      ok(qa('.toast').some(t => /elige menos fotos/.test(t.textContent)), 'con más de 4 GB no avisa: ' + json(qa('.toast').map(t => t.textContent)));
+    } finally { M.files[id('bd-a.jpg')].size = sz[0]; M.files[id('bd-d.jpg')].size = sz[1]; }
+    // el clic derecho en una que no está elegida: lo de siempre, sin «Descargar»
+    a43Ctx(it('bd-e.jpg')); ok(!a43Items().some(t => /Descargar/.test(t)), 'una foto sin elegir ofrece descargar lo elegido'); tecla('Escape'); await espera(20);
+    // la bandeja plegada no enseña «Descargar N»
+    q('.side > .tray .tfold').click(); await espera(400);
+    ok(W.getComputedStyle(boton()).display === 'none', 'con la bandeja plegada sigue «Descargar N»');
+    q('.side > .tray .tfold').click(); await espera(400);
+    // nada elegido: un clic sin ⌘ lo suelta y el botón se va
+    q('.side > .tray .tbody').click(); await espera(40);
+    ok(!boton() || boton().hidden, 'sin nada elegido sigue «Descargar»');
+    // la bandeja del editor no baja nada
+    await abrirEditor('r1');
+    const ph = await hasta(() => q('.lb-tray .lb-tph[data-f]'), 4000, 'la bandeja del editor');
+    a43Cmd(ph); await espera(40);
+    ok(!q('.lb-tray [data-act="tdescargar"]'), 'la bandeja del editor lleva «Descargar»');
+    if (a43Ctx(ph)) { ok(!(a43Items() || []).some(t => /Descargar/.test(t)), 'el clic derecho del editor ofrece descargar'); tecla('Escape'); }
+    M.libre.cerrar(); await espera(60);
+  });
+
+  prueba('BD2', 'Bajar de la bandeja una foto de la que aquí solo está la copia de 2560 de la nube (D-281): antes, una pregunta corta «N fotos solo están aquí en su copia de 2560» · «Bajar la copia» · «Parar»; «Parar» no baja nada y «Bajar la copia» baja la copia', async () => {
+    await tablero([pub(1)]);
+    const fs = [await foto('bd2-a.jpg', 900, 1100, '#7a4a3c'), await foto('bd2-b.jpg', 1000, 800, '#3c6a7a')];
+    const ids = await M.addFiles(fs);
+    const it = f => q(`.side > .tray .titem[data-file="${f}"]`);
+    await hasta(() => it(ids[0]) && it(ids[1]), 4000, 'las fotos en la bandeja');
+    M.files[ids[1]].copia = { w: 1000, h: 800 };
+    try {
+      a43Cmd(it(ids[0])); a43Cmd(it(ids[1])); await espera(40);
+      const boton = q('.side > .tray .trayhead [data-act="tdescargar"]');
+      let r = await conDescarga(async () => { boton.click(); await espera(300); });
+      ok(!r, 'baja sin preguntar por la copia');
+      const d = dialogo(); ok(d && /Una foto solo está aquí en su copia de 2560/.test(d.textContent), 'no pregunta por la copia: ' + json(d && d.textContent));
+      igual([...d.querySelectorAll('.amode button')].map(b => b.querySelector('b').textContent), ['Bajar la copia', 'Parar'], 'las respuestas');
+      ok(D.activeElement === d.querySelector('.amode button'), 'el foco no entra en la pregunta');
+      d.querySelector('.amode button:last-child').click(); await espera(300);
+      ok(!dialogo(), '«Parar» deja la pregunta');
+      r = await conDescarga(async () => { await espera(200); }); ok(!r, '«Parar» bajó algo');
+      r = await conDescarga(async cap => { boton.click(); const d2 = await hasta(() => dialogo(), 2000, 'la pregunta'); d2.querySelector('.amode button').click(); await hasta(() => cap(), 8000, 'el ZIP'); });
+      ok(r && /\.zip$/.test(r.name), '«Bajar la copia» no baja el ZIP');
+    } finally { delete M.files[ids[1]].copia; }
+  });
+
+
+  prueba('FH1', 'Clic derecho en el feed (D-282): en una casilla o en el espacio del grid, «Abrir todas las notas» (apagada sin ninguna Nota, con su motivo en el título) y «+ Hueco»; ni el chip «+ Hueco» ni el icono de notas en la barra del mes; con 2 huecos, «+ Hueco» apagado con «máximo 2» a la derecha y su motivo; sobre un hueco, «Quitar hueco» arriba (con portada, «Quitar portada» y «Quitar hueco»)', async () => {
+    await tablero([pub(1), pub(2), pub(3)]);
+    ok(!q('.bar [data-act="addfiller"]') && !q('.bar .memobtn'), 'la barra del mes sigue con «+ Hueco» o con el icono de notas');
+    ok(a43Ctx(celda('r1')), 'el clic derecho en una casilla es el del navegador');
+    igual(a43Items(), ['·Abrir todas las notas', '+ Hueco'], 'el menú de una casilla, sin ninguna Nota');
+    ok(/Nota/.test(a43Btns()[0].title), 'la apagada no dice su motivo: ' + json(a43Btns()[0].title));
+    ok(D.activeElement === a43Btns()[1], 'el foco no va a la primera que hace algo');
+    a43Elige('+ Hueco'); await espera(60);
+    igual(M.status().fillers, 1, '«+ Hueco» no añadió un hueco'); ok(!a43Menu(), 'el menú sigue abierto');
+    // en el espacio del grid, debajo de las casillas
+    const feed = q('.feed'), fr = feed.getBoundingClientRect(), gr = q('.feed .grid').getBoundingClientRect();
+    ok(a43Ctx(feed, fr.x + 20, Math.min(fr.bottom - 4, gr.bottom + 30)), 'el clic derecho en el espacio del grid es el del navegador');
+    a43Elige('+ Hueco'); await espera(60); igual(M.status().fillers, 2, 'desde el espacio del grid no añadió un hueco');
+    // con 2: apagado, «máximo 2» y su motivo; sobre un hueco, «Quitar hueco» arriba
+    a43Ctx(q('.feed .cell.filler[data-filler="1"]'));
+    igual(a43Items(), ['Quitar hueco', '·Abrir todas las notas', '·+ Hueco'], 'el menú de un hueco con 2');
+    const mas = a43Btns()[2]; igual(mas.querySelector('.kb') && mas.querySelector('.kb').textContent, 'máximo 2', '«+ Hueco» apagado no dice «máximo 2»'); ok(/2 huecos/.test(mas.title), '«+ Hueco» apagado no dice su motivo');
+    ok(a43Menu().querySelector('hr'), 'sin la raya entre lo del hueco y lo del feed');
+    for (const tema of ['light', 'dark']) await enTema(tema, async () => { const c = a43Contraste(W.getComputedStyle(a43Menu().querySelector('hr')).backgroundColor, W.getComputedStyle(a43Menu()).backgroundColor); ok(c >= 1.5, `la raya del menú casi no se ve (${c.toFixed(2)}:1, ${tema})`); });
+    { const ic = mas.querySelector('.i-mas').getBoundingClientRect(), tn = [...(mas.querySelector('.cpt') || mas).childNodes].find(n => n.nodeType === 3 && n.data.trim()), r = D.createRange(); r.selectNodeContents(tn); const tx = r.getBoundingClientRect(); ok(tx.left - ic.right < 10, `el «+» y «Hueco» no van juntos (${Math.round(tx.left - ic.right)} px entre los dos)`); }
+    a43Elige('Quitar hueco'); await espera(60); igual(M.status().fillers, 1, '«Quitar hueco» no lo quitó');
+    // con portada: «Quitar portada» y «Quitar hueco»
+    const [f] = await M.addFiles([await foto('fh1-p.jpg', 1080, 1350, '#806040')]);
+    await M._test.setPreview(0, f); await espera(60);
+    a43Ctx(q('.feed .cell.filler[data-filler="0"]'));
+    igual(a43Items().slice(0, 2), ['Quitar portada', 'Quitar hueco'], 'el menú de un hueco con portada');
+    a43Elige('Quitar portada'); await espera(80);
+    ok(!M.board().previews || !M.board().previews[0], '«Quitar portada» no la quitó'); igual(M.status().fillers, 1, '«Quitar portada» quitó el hueco');
+    await M._test.setPreview(0, f); await espera(60);
+    a43Ctx(q('.feed .cell.filler[data-filler="0"]')); a43Elige('Quitar hueco'); await espera(80);
+    igual(M.status().fillers, 0, '«Quitar hueco» con portada no quitó el hueco');
+    ok(M.board().tray.includes(f), 'la foto de la portada no volvió a la bandeja');
+    await hasta(() => q(`.side > .tray .titem[data-file="${f}"]`), 2000, 'la foto de la portada dibujada en la bandeja');
+    // con una Nota: abrir y cerrar todas
+    M._test.setMemo('r2', 'FH1 nota'); await espera(60);
+    a43Ctx(celda('r3')); a43Elige('Abrir todas las notas'); await espera(40);
+    ok(q('#mesa').classList.contains('memos'), 'no abrió las notas');
+    a43Ctx(celda('r3')); igual(a43Items()[0], 'Cerrar todas las notas', 'abiertas, no ofrece cerrarlas');
+    a43Elige('Cerrar todas las notas'); await espera(40); ok(!q('#mesa').classList.contains('memos'), 'no cerró las notas');
+  });
+
+  prueba('FH2', 'El menú del feed con el teclado (D-282): el grid es una parada de Tab y ⇧F10 o la tecla de menú abren el menú sobre la primera casilla, con el foco dentro; ↑ ↓ lo recorren, Esc lo cierra y devuelve el foco al grid sin llegar al tablero; nada en «Vista cliente»', async () => {
+    await tablero([pub(1), pub(2)]);
+    const g = q('.feed .grid');
+    igual(g.tabIndex, 0, 'el grid no es una parada de Tab'); igual(g.getAttribute('role'), 'group', 'el grid no dice qué es');
+    g.focus(); tecla('F10', { shift: true, en: g }); await espera(30);
+    ok(a43Menu(), '⇧F10 no abre el menú');
+    const r1 = q('.feed .grid > .cell').getBoundingClientRect(), mr = a43Menu().getBoundingClientRect();
+    ok(mr.left >= r1.left - 1 && mr.left <= r1.right && mr.top >= r1.top - 1 && mr.top <= r1.bottom, 'el menú no sale sobre la primera casilla');
+    ok(a43Menu().contains(D.activeElement), 'el foco no entra en el menú');
+    tecla('ArrowDown', { en: D.activeElement }); ok(a43Menu().contains(D.activeElement), '↓ saca el foco del menú');
+    let llego = false; const oy = e => { if (e.key === 'Escape') llego = true; }; W.addEventListener('keydown', oy);
+    try { tecla('Escape', { en: D.activeElement }); await espera(20); } finally { W.removeEventListener('keydown', oy); }
+    ok(!a43Menu(), 'Esc no lo cierra'); ok(D.activeElement === g, 'el foco no vuelve al grid'); ok(!llego, 'el Esc llegó al tablero');
+    tecla('ContextMenu', { en: g }); await espera(20); ok(a43Menu(), 'la tecla de menú no lo abre'); tecla('Escape', { en: D.activeElement }); await espera(20);
+    await vistaCliente(true);
+    try {
+      ok(!a43Ctx(celda('r1')) && !a43Menu(), 'en «Vista cliente» sale el menú del feed');
+      ok(q('.feed .grid').tabIndex !== 0, 'en «Vista cliente» el grid es una parada de Tab');
+    } finally { await vistaCliente(false); }
+  });
+
+
+  // listas en notas, «Detalles» y sesiones (escritura.js 1.1)
+  const a43Linea = (el, n) => { const L = el.textContent.split('\n'); let o = 0; for (let i = 0; i < n; i++) o += L[i].length + 1; return o + L[n].length; };   // el final de la línea n
+  const a43Caret = (el, n) => { el.focus(); el._esc.poner(a43Linea(el, n)); };
+  prueba('LI1', 'Viñetas y números en terracota (D-283): leyendo, la viñeta en --acc-ink al 100 % y el número en --acc-ink y 600; en el post-it, #A0472F, también en oscuro; escribiendo, el resaltado solo cambia el color; cada pareja con su fondo, 4,5:1 o más en claro y en oscuro', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await hasta(() => M.escritura, 6000, 'escritura.js');
+      const t = await M.personal.tarea({ txt: 'LI1 tarea' }); await M.personal.render();
+      await M.personal._p.cambiar(t.id, x => { x.detalles = '- uno\n1. dos'; return x; });
+      { const cn = await naNota(); cn.textContent = '- uno\n1. dos'; cn.dispatchEvent(new W.InputEvent('input', { bubbles: true })); await espera(60); }
+      ppLeer(); await espera(80);
+      const css = (q('#mesa-es-css') || {}).textContent || '';
+      ok(/::highlight\(pp-en\)\{color:var\(--acc-ink\)\}/.test(css), 'escribiendo, el número no va en --acc-ink');
+      ok(!/::highlight\(pp-en\)\{[^}]*font-weight/.test(css), 'el resaltado cambia algo más que el color');
+      ok(/\.pp-card\.nota ::highlight\(pp-en\)\{color:var\(--postit-marca\)\}/.test(css), 'escribiendo en el post-it, el número no va en --postit-marca');
+      igual(W.getComputedStyle(q('#mesa')).getPropertyValue('--postit-marca').trim().toUpperCase(), '#A0472F', 'el terracota del post-it no es #A0472F');
+      for (const tema of ['light', 'dark']) {
+        await enTema(tema, async () => {
+          const nu = q('.pp-card .pp-cn .pp-em.nu'), vi = q('.pp-card .pp-cn .pp-em.vi .pp-emk');
+          const cn = W.getComputedStyle(nu), cv = W.getComputedStyle(vi, '::before');
+          igual([cn.color, cn.fontWeight], ['rgb(160, 71, 47)', '600'], `el número del post-it (${tema})`);
+          igual([cv.backgroundColor, cv.opacity], ['rgb(160, 71, 47)', '1'], `la viñeta del post-it (${tema})`);
+          ok(a43Contraste(cn.color, a43Fondo(nu)) >= 4.5, `el número del post-it, ${a43Contraste(cn.color, a43Fondo(nu)).toFixed(2)}:1 (${tema})`);
+        });
+      }
+      ppTecla('Escape'); await espera(200);
+      ppRaton(q(`.pp-tk[data-tid="${t.id}"] .pp-tt`), 'click', 1); await espera(80);
+      for (const tema of ['light', 'dark']) {
+        await enTema(tema, async () => {
+          const nu = q('.pp-card .pp-cd .pp-em.nu'), vi = q('.pp-card .pp-cd .pp-em.vi .pp-emk');
+          ok(nu && vi, 'los «Detalles» no se leen con sus marcas');
+          const acc = W.getComputedStyle(q('#mesa')).getPropertyValue('--acc-ink').trim(), cn = W.getComputedStyle(nu), cv = W.getComputedStyle(vi, '::before');
+          const pr = D.createElement('i'); pr.style.color = acc; q('#mesa').append(pr); const accRgb = W.getComputedStyle(pr).color; pr.remove();
+          igual([cn.color, cn.fontWeight], [accRgb, '600'], `el número de «Detalles» (${tema})`);
+          igual([cv.backgroundColor, cv.opacity], [accRgb, '1'], `la viñeta de «Detalles» (${tema})`);
+          ok(a43Contraste(cn.color, a43Fondo(nu)) >= 4.5, `el número de «Detalles», ${a43Contraste(cn.color, a43Fondo(nu)).toFixed(2)}:1 (${tema})`);
+        });
+      }
+    } finally { paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('LI2', '«/.» crea una lista y «/-» un separador (D-283): el menú «/» con «.» ofrece «Lista» y con «-», solo «Separador»; el separador se guarda como «⸻» y se dibuja como una línea fina al escribir y al leer; «- » al principio sigue creando lista; «---» escrito a mano y «.» fuera del menú no convierten nada', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await hasta(() => M.escritura, 6000, 'escritura.js');
+      const cn = await naNota('Plan');
+      await naEscribe(cn, '\n/.'); igual(naMenu(), 'lista*', '«/.» no filtra «Lista»');
+      ok(naTecla(cn, 'Enter'), 'Intro no usa «Lista»'); await espera(30);
+      igual(cn.textContent, 'Plan\n- ', '«/.» no escribe una viñeta');
+      await naEscribe(cn, 'uno\n\n/-'); igual(naMenu(), 'separador*', '«/-» no ofrece solo «Separador»');
+      ok(naTecla(cn, 'Enter'), 'Intro no usa «Separador»'); await espera(30);
+      igual(cn.textContent.replace(/\n+$/, '\n'), 'Plan\n- uno\n⸻\n', 'el separador no se guarda como «⸻» en su línea');   // al final, el navegador deja un salto de más para el cursor
+      await espera(60);
+      igual(ppCard().querySelectorAll('.pp-ecm.se').length, 1, 'escribiendo, el separador no se dibuja como una línea');
+      igual(W.CSS.highlights.get('pp-es') ? W.CSS.highlights.get('pp-es').size : 0, 1, 'escribiendo, la raya «⸻» no se esconde');
+      // ⌫ al principio de la línea de debajo quita el separador entero (nunca lo pega al texto); escribir en su línea va a una nueva
+      await naEscribe(cn, 'x'); a43Caret(cn, 3); cn._esc.poner(a43Linea(cn, 3) - 1); ok(naTecla(cn, 'Backspace'), '⌫ bajo el separador es el del navegador'); await espera(30);
+      igual(cn.textContent.replace(/\n+$/, ''), 'Plan\n- uno\nx', '⌫ bajo el separador no lo quita entero');
+      cn._esc.poner(a43Linea(cn, 1)); D.execCommand('insertLineBreak'); await naEscribe(cn, '/-'); naTecla(cn, 'Enter'); await espera(30);
+      a43Caret(cn, 2); { const ev = new W.InputEvent('beforeinput', { inputType: 'insertText', data: 'z', bubbles: true, cancelable: true }); cn.dispatchEvent(ev); if (!ev.defaultPrevented) D.execCommand('insertText', false, 'z'); } await espera(30);   // execCommand no lanza beforeinput: como el teclado
+      igual(cn.textContent.split('\n').slice(0, 4), ['Plan', '- uno', '⸻', 'z'], 'escribir en la línea del separador lo rompe');
+      cn.textContent = 'Plan\n- uno\n⸻\n---'; cn.dispatchEvent(new W.InputEvent('input', { bubbles: true })); await espera(40); naFin(cn);
+      await naEscribe(cn, '\n- dos\n\n.punto');   // Intro en una viñeta vacía termina la lista
+      ppLeer(); await espera(60);
+      const L = qa('.pp-card .pp-cn .pp-el').map(x => x.className.replace('pp-el', '').trim() || '-');
+      igual(L, ['-', 'vi', 'se', '-', 'vi', '-'], 'leyendo, las líneas');
+      const se = q('.pp-card .pp-cn .pp-el.se'); ok(se.getAttribute('role') === 'separator' && !se.textContent.trim(), 'leyendo, el separador no es una línea sin texto');
+      const h = se.getBoundingClientRect().height; ok(h > 0 && h < 24, 'leyendo, el separador no es una línea fina: ' + h);
+      const k = (await M.personal.tareas()).find(x => x.tipo === 'nota');
+      igual(k && k.txt, 'Plan\n- uno\n⸻\n---\n- dos\n.punto', 'lo guardado');
+    } finally { paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('LI3', 'Tab y los números (D-283): Tab mete 4 espacios y ⇧Tab vuelve al nivel de encima (también desde una sublista de antes, de 2); en una numerada, Tab la pone en 1 o sigue la sublista de encima y las de fuera siguen su cuenta, ⇧Tab la devuelve a la cuenta de fuera, Intro sigue la de su nivel; una lista que empieza por 5 sigue por 5; los números se reescriben en el texto', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await hasta(() => M.escritura, 6000, 'escritura.js');
+      const cn = await naNota();
+      const pon = async t => { cn.textContent = t; cn.dispatchEvent(new W.InputEvent('input', { bubbles: true })); await espera(40); };
+      const tab = async (n, sh) => { a43Caret(cn, n); ok(naTecla(cn, 'Tab', { shiftKey: !!sh }), 'Tab en una lista sale del campo'); await espera(30); return cn.textContent; };
+      await pon('1. a\n2. b\n3. c');
+      igual(await tab(1), '1. a\n    1. b\n2. c', 'Tab en una numerada: 4 espacios, en 1, y la de fuera sigue su cuenta');
+      igual(await tab(1, true), '1. a\n2. b\n3. c', '⇧Tab la devuelve a la cuenta de fuera');
+      await pon('1. a\n    1. x\n2. b\n3. c');
+      igual(await tab(2), '1. a\n    1. x\n    2. b\n2. c', 'Tab no sigue la sublista de encima');
+      a43Caret(cn, 2); await naEscribe(cn, '\n');
+      igual(cn.textContent, '1. a\n    1. x\n    2. b\n    3. \n2. c', 'Intro no sigue la cuenta de su nivel');
+      await pon('1. a\n2. b\n3. c'); a43Caret(cn, 0); await naEscribe(cn, '\n');
+      igual(cn.textContent, '1. a\n2. \n3. b\n4. c', 'Intro en medio no sigue la cuenta de las de detrás');
+      D.execCommand('undo'); await espera(40);
+      igual(cn.textContent, '1. a\n2. b\n3. c', 'Intro en medio no se deshace con un solo ⌘Z');
+      await pon('1. a\n  1. x\n2. b');   // una sublista de antes, con 2 espacios
+      igual(await tab(2), '1. a\n  1. x\n  2. b', 'Tab no se pone al nivel de la sublista de encima, de 2');
+      igual(await tab(2, true), '1. a\n  1. x\n2. b', '⇧Tab no vuelve al nivel de encima');
+      await pon('- a\n  - b');
+      igual(await tab(1, true), '- a\n- b', '⇧Tab desde una sublista de 2 no vuelve');
+      igual(await tab(1), '- a\n    - b', 'Tab no mete 4 espacios');
+      await pon('5. a\n6. b\n7. c');
+      igual(await tab(1), '5. a\n    1. b\n6. c', 'una lista que empieza por 5 no sigue por 5');
+      igual(await tab(1, true), '5. a\n6. b\n7. c', '⇧Tab en una que empieza por 5');
+      // ⇧Tab de la primera de una sublista: la siguiente pasa a ser la primera de la suya
+      await pon('1. a\n    1. b\n    2. c\n2. d');
+      igual(await tab(1, true), '1. a\n2. b\n    1. c\n3. d', '⇧Tab de la primera de una sublista');
+      ppLeer(); await espera(60);
+      igual(qa('.pp-card .pp-cn .pp-ei').map(x => x.textContent.length), [4], 'leyendo, la sangría no son sus 4 espacios');
+    } finally { paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('LI4', 'Las listas en el iPhone (D-283): un texto de una sesión se lee como en el Mac, la viñeta y el número en terracota (el número en 600) y el separador como una línea fina', async () => {
+    const key = await tableroMovil(); await sinTareas();
+    const id = 'ssli4listasenelmovil', ahora = new W.Date().toISOString(), c0 = M._in.CL[0].id;
+    const S0 = { id, tipo: 'sesion', txt: 'Sesión LI4', fecha: '2026-11-24', cliente: c0, clientes: [c0], creada: ahora, at: ahora,
+      sesion: { clase: 'fotovideo', visible: true, plantilla: 1, apartados: [{ id: 'orden', nombre: 'Orden', visible: true, texto: '- uno\n1. dos\n⸻\nfin' }] } };
+    await M._in.diario.sinDiario('tareas', 'readwrite', st => { st.put(S0, id); });
+    try {
+      await enMovilPagina(async () => {
+        const C = await nubeCara(key);
+        try {
+          C.sv.escribirMac('tareas', id, S0);
+          await M.movil.releer(); await irMovil('#tareas', `#movil [data-a="tver"][data-id="${id}"]`);
+          clicCara(`#movil [data-a="tver"][data-id="${id}"]`);
+          await hasta(() => W.document.querySelector('#movil .mv-ses-h h1'), 6000, 'la pantalla de la sesión');
+          clicCara('#movil [data-a="sesap"][data-ap="orden"]'); await espera(80);
+          const md = W.document.querySelector('#movil'), nu = md.querySelector('.mv-stx .pp-em.nu'), vi = md.querySelector('.mv-stx .pp-em.vi .pp-emk'), se = md.querySelector('.mv-stx .pp-el.se');
+          ok(nu && vi && se, 'el texto no lleva sus marcas o el separador');
+          const pr = W.document.createElement('i'); pr.style.color = W.getComputedStyle(md).getPropertyValue('--acc-ink').trim(); md.append(pr); const acc = W.getComputedStyle(pr).color; pr.remove();
+          igual([W.getComputedStyle(nu).color, W.getComputedStyle(nu).fontWeight], [acc, '600'], 'el número en el iPhone');
+          igual([W.getComputedStyle(vi, '::before').backgroundColor, W.getComputedStyle(vi, '::before').opacity], [acc, '1'], 'la viñeta en el iPhone');
+          const h = se.getBoundingClientRect().height; ok(h > 0 && h < 24 && !se.textContent.trim(), 'el separador en el iPhone no es una línea fina: ' + h);
+        } finally { await C.fin(); }
+      });
+    } finally { await sinTareas(); }
+  });
+
+
+  prueba('SB1', 'El menú del símbolo (D-284): «Nuevo cliente» (segunda línea «Mensual») · «Exportar…» · «Importar…» y, al pie, «Haz «Exportar…» de vez en cuando»; sin «+ Cliente» en la cabecera; el título del símbolo «Clic: tu página · Clic derecho: nuevo cliente y copias»; «Nuevo cliente» abre su ventana', async () => {
+    await tablero([pub(1)]);
+    ok(!q('.appbar .tab.add'), 'sigue «+ Cliente» en la cabecera');
+    igual(M._in.AYUDA_LOGO, 'Clic: tu página · Clic derecho: nuevo cliente y copias', 'el título del símbolo (mesa.js)');
+    await paginaAbierta(); paginaCerrada(); await espera(40);
+    igual(mcLogo().title, 'Clic: tu página · Clic derecho: nuevo cliente y copias', 'el título del botón del símbolo (personal.js)');
+    const m = mcAbrir(); ok(m, 'sin el menú del símbolo');
+    igual(mcItems(m), ['Nuevo cliente', 'Exportar…', 'Importar…'], 'lo que ofrece');
+    igual(m.querySelector('[role="menuitem"] .sub').textContent, 'Mensual', 'la segunda línea de «Nuevo cliente»');
+    mcCerrar(); await espera(20);
+    mcElegir('Nuevo cliente'); await espera(40);
+    const d = dialogo(); ok(d && d.dataset.dlg === 'newclient', '«Nuevo cliente» no abre su ventana');
+    M._in.closeDetail();
+  });
+
+  prueba('SB2', '«Exportar…» del símbolo pregunta qué copia (D-284): «Copia completa» de serie (la de «Exportar todo») o «Copia ligera (.json, fotos a 1080 px)»; cada una hace lo de siempre; el aviso del almacenamiento dice «Haz «Exportar…» de vez en cuando»', async () => {
+    await tablero([pub(1)]);
+    const exp0 = M.exportAll, cop0 = M.copia && M.copia.exportar; let hecho = '';
+    M.exportAll = () => { hecho += 'ligera,'; }; if (M.copia) M.copia.exportar = () => { hecho += 'completa,'; };
+    try {
+      mcElegir('Exportar…'); await espera(40);
+      const d = dialogo(); ok(d && d.dataset.dlg === 'exportar', '«Exportar…» no pregunta: ' + json(d && d.dataset.dlg));
+      const rs = [...d.querySelectorAll('input[type="radio"][name="exp"]')];
+      igual(rs.map(x => x.value), ['completa', 'ligera'], 'las dos copias'); ok(rs[0].checked, 'la completa no va de serie');
+      ok(/Copia completa/.test(d.textContent) && /Copia ligera/.test(d.textContent) && /1080 px/.test(d.textContent), 'los nombres de las copias');
+      { const op = d.querySelector('.expop'), ri = op.querySelector('input').getBoundingClientRect(), tx = op.querySelector('.expd b').getBoundingClientRect();
+        ok(W.getComputedStyle(op).display === 'flex' && Math.abs(ri.top - tx.top) < 8 && ri.right < tx.left, 'el redondel y su texto no van en la misma fila'); ok(W.getComputedStyle(op.querySelector('input')).appearance === 'none', 'el redondel no es el de la Mesa'); }
+      d.querySelector('form').requestSubmit(); await espera(60);
+      igual(hecho, 'completa,', 'la completa no hace «Exportar todo»');
+      ok(!qa('.toast').some(t => /No se pudo/.test(t.textContent)), 'exportar deja un aviso de fallo: ' + json(qa('.toast').map(t => t.textContent))); ok(!dialogo() || dialogo().dataset.dlg !== 'exportar', 'la ventana sigue abierta');
+      mcElegir('Exportar…'); await espera(40);
+      const d2 = dialogo(); d2.querySelector('input[value="ligera"]').click(); d2.querySelector('form').requestSubmit(); await espera(60);
+      igual(hecho, 'completa,ligera,', 'la ligera no hace el .json');
+    } finally { M.exportAll = exp0; if (M.copia) M.copia.exportar = cop0; M._in.closeDetail(); }
+    const st = W.navigator.storage;
+    try {
+      st.persisted = async () => false; st.persist = async () => false; await M._test.persistencia(true);
+      const m = mcAbrir(); ok(m && /Haz «Exportar…» de vez en cuando/.test(m.textContent), 'el aviso del pie: ' + json(m && m.textContent)); mcCerrar(); await espera(20);
+    } finally { delete st.persisted; delete st.persist; await M._test.persistencia(false); }
+  });
+
+
+  prueba('CR1', 'Clic derecho en el calendario del tablero (D-285): en un día, «Nueva sesión», «Nueva tarea» y, si el día es del tablero, «Nueva historia», con su fecha; sobre una publicación, «Abrir»; sobre una sesión, «Abrir», «Duplicar sesión» y «Borrar sesión» (con «Deshacer»); nada en «Vista cliente»', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    const cal = () => q('.side > .cal'), dia = d => q(`.side > .cal .cday[data-day="${d}"]`);
+    try {
+      await hasta(() => dia('2026-11-25'), 4000, 'el calendario de noviembre');
+      ok(a43Ctx(dia('2026-11-25')), 'el clic derecho en un día es el del navegador');
+      igual(a43Items(), ['Nueva sesión', 'Nueva tarea', 'Nueva historia'], 'lo que ofrece un día del tablero');
+      igual(a43Btns().map(b => (b.querySelector('.kb') || {}).textContent), ['25 nov', '25 nov', '25 nov'], 'la fecha de cada una');
+      // una historia por diseñar ese día, y la vista de historias en él
+      const n0 = M.hs.lista().length; a43Elige('Nueva historia'); await espera(80);
+      ok(M.hs.lista().length === n0 + 1 && M.hs.lista().some(h => M._in.localDay(h.date) === '2026-11-25'), '«Nueva historia» no la añade ese día');
+      ok(M.hs.activo(), 'no abre la vista de historias'); M.hs.ver(false); await espera(60);
+      // una sesión con ese día y el cliente
+      a43Ctx(dia('2026-11-25')); a43Elige('Nueva sesión');
+      const d = await hasta(() => dialogo() && dialogo().dataset.dlg === 'pp-sesion' && dialogo(), 4000, '«Nueva sesión»');
+      igual(d.querySelector('#pp-ns-fecha').value, '2026-11-25', '«Nueva sesión» sin su día');
+      ok(d.querySelector(`.pp-ns-cli [data-c="${CLIENTE}"]`), '«Nueva sesión» sin el cliente');
+      d.querySelector('form.pp-ns').requestSubmit();
+      await hasta(async () => ((await M._in.idbAll('tareas')) || []).some(t => t.tipo === 'sesion' && t.fecha === '2026-11-25' && (t.clientes || []).includes(CLIENTE)), 4000, 'la sesión guardada');
+      ppTecla('Escape'); await espera(250); W.document.dispatchEvent(new W.CustomEvent('mesa-tareas'));
+      const chip = await hasta(() => q('.side > .cal .chip[data-ses]'), 4000, 'el chip de la sesión');
+      // sobre la sesión
+      a43Ctx(chip); igual(a43Items(), ['Abrir', 'Duplicar sesión', 'Borrar sesión'], 'lo que ofrece una sesión');
+      a43Elige('Borrar sesión'); await espera(120);
+      ok(!((await M._in.idbAll('tareas')) || []).some(t => t.tipo === 'sesion'), '«Borrar sesión» no la borra');
+      const tb = await hasta(() => qa('.toast').find(t => /Deshacer/.test(t.textContent)), 2000, 'el aviso con «Deshacer»');
+      tb.querySelector('button').click(); await espera(150);
+      ok(((await M._in.idbAll('tareas')) || []).some(t => t.tipo === 'sesion'), '«Deshacer» no la devuelve');
+      // sobre una publicación
+      a43Ctx(q('.side > .cal .chip[data-slot="r1"]')); igual(a43Items(), ['Abrir'], 'lo que ofrece una publicación');
+      a43Elige('Abrir'); await espera(60); ok(dialogo(), '«Abrir» no abre la publicación'); M._in.closeDetail(); await espera(40);
+      // una tarea con su fecha y el cliente, que no se crea sin título
+      a43Ctx(dia('2026-11-25')); a43Elige('Nueva tarea'); await espera(120);
+      ok(ppCard(), '«Nueva tarea» no abre la tarea en grande');
+      ppTecla('Escape'); await espera(250);
+      ok(!((await M._in.idbAll('tareas')) || []).some(t => t.tipo === 'tarea'), 'una tarea sin título se crea');
+      // un día fuera del tablero, sin «Nueva historia»
+      const fuera = q('.side > .cal .cday.off[data-day]');
+      if (fuera) { a43Ctx(fuera); ok(!a43Items().includes('Nueva historia'), 'un día fuera del tablero ofrece «Nueva historia»'); tecla('Escape'); await espera(20); }
+      // nada en «Vista cliente»
+      await vistaCliente(true);
+      try { ok(!a43Ctx(dia('2026-11-25')) && !a43Menu(), 'en «Vista cliente» sale el menú del calendario'); } finally { await vistaCliente(false); }
+    } finally { paginaCerrada(); await sinTareas(); }
+  });
+
 
   async function pasar() {
     const go = $('go'); go.disabled = true;

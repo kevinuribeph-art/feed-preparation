@@ -1,4 +1,4 @@
-// Descargar — Mesa de trabajo · v1.0
+// Descargar — Mesa de trabajo · v1.9
 // The photos of posts of the open board, to take away without asking Claude (D-083). ⌘+click on a cell of the month
 // chooses it or takes it away (Ctrl+click elsewhere), as in the tray (D-077); a click without ⌘ in the feed, Esc or
 // another board empty the choice. With something chosen, «Descargar (n)» in the month bar opens one dialog: the chosen
@@ -10,11 +10,13 @@
 // «Cancelar», so 24 MP photos don't hang the page. Never another client's photos nor the whole mesa: only the posts chosen
 // in the open board. Reads the board only through the mesa's bridge (M._in, mesa ≥ 3.67) and draws the editor's slides with
 // M.libre.pieza (libre ≥ 1.35). If this file doesn't load, the mesa works as before (⌘+click on a cell opens it).
+// Also the photos chosen with ⌘+click in the mesa's tray, and its chosen folders (D-281): «Descargar N» in its header and at the
+// top of its right click; as they are, one photo its own file, two or more a ZIP «cliente-bandeja-AAAA-MM-DD» with the folders inside.
 (function descargarBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.8';   // 1.8: «Original» of a photo that is only a working copy of 2560 px here (lot 4 of the traspaso) says so in a line and goes on with the copy or stops; never enlarged, never «the very file» (D-259). 1.7: Esc that closes a session's sheet over the board keeps the choice (D-219). 1.5: «Con textos / Solo la foto» only with a ticked piece with texts; no «Cancelar» nor help texts (D-155, D-156, D-162)
+  const VERSION = '1.9';   // 1.9: the photos chosen with ⌘+click in the mesa's tray (and the chosen folders' with their subfolders') go out as they are: one, its own file; two or more, a ZIP with the folders inside; a working copy of 2560 asks first (D-281). 1.8: «Original» of a photo that is only a working copy of 2560 px here (lot 4 of the traspaso) says so in a line and goes on with the copy or stops; never enlarged, never «the very file» (D-259). 1.7: Esc that closes a session's sheet over the board keeps the choice (D-219). 1.5: «Con textos / Solo la foto» only with a ticked piece with texts; no «Cancelar» nor help texts (D-155, D-156, D-162)
   if (M.descargar && M.descargar._off) { try { M.descargar._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const { esc, cssq, nOf } = M._in;   // the mesa's own helpers
   const MAX_PX = 36e6;                         // «Original» never goes over 36 MP (a canvas that big still draws everywhere)
@@ -232,10 +234,85 @@
     } finally { if (job === mio) job = null; if (card.isConnected) resumen(card); }
   }
 
+  // ---------- the tray's photos (D-281): what is chosen with ⌘+click in the mesa's tray (never the editor's), as it is ----------
+  // A chosen folder brings its photos and its subfolders', each in its path; a photo chosen loose that is also in a chosen
+  // folder goes only there. One photo: its own file. Two or more: one ZIP «cliente-bandeja-AAAA-MM-DD.zip». Nothing is
+  // compressed again nor resized, so there is no window of options; only a photo of which here there is only the cloud's
+  // working copy of 2560 px asks first (D-259).
+  const dirNom = t => String(t || '').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '-').trim() || 'carpeta';
+  function deBandeja() {
+    const X = I(), S = X && X.S; if (!S || !X.trayLote) return [];
+    const L = X.trayLote(), cs = S.carpetas || [], out = [], en = new Set(), vistas = new Set();
+    const bajo = (c, base) => {
+      if (vistas.has(c.id)) return; vistas.add(c.id);
+      const p = base + dirNom(c.name) + '/';
+      (c.files || []).forEach(f => { if (M.files[f]) { out.push({ id: f, dir: p }); en.add(f); } });
+      cs.filter(x => x.parent === c.id).forEach(x => bajo(x, p));
+    };
+    L.carpetas.forEach(id => { const c = cs.find(x => x.id === id); if (c) bajo(c, ''); });
+    L.files.forEach(f => { if (M.files[f] && !en.has(f)) out.push({ id: f, dir: '' }); });
+    return out;
+  }
+  const bandejaN = () => (I() && I().S ? deBandeja().length : 0);
+  const MAX_ZIP = 0xFFFFFFFF;
+  const EXT = { 'image/jpeg': ['.jpg', '.jpeg'], 'image/png': ['.png'], 'image/webp': ['.webp'], 'image/heic': ['.heic'], 'image/gif': ['.gif'] };
+  const conTipo = (n, b) => { const e = EXT[b && b.type]; return !e || e.some(x => n.toLowerCase().endsWith(x)) ? n : n.replace(/(\.[^./]*)?$/, e[0]); };   // its name with the extension of its bytes
+  async function blobDe(X, id) { try { return await X.getBlob(id); } catch (e) { throw new Error(`«${(M.files[id] || {}).name || 'una foto'}»: ${String((e && e.message) || e).replace(/\.$/, '')}`); } }
+  let jobB = null;
+  async function bandeja(conCopia) {
+    const X = I(); if (!X || !X.S || jobB) return;
+    const l = deBandeja(); if (!l.length) return;
+    const n = l.length, enc = new TextEncoder();
+    // past 4 GB a ZIP can't be made: said before reading anything (the sizes the mesa keeps)
+    if (n > 1 && (n > 65535 || l.reduce((t, x) => t + ((M.files[x.id] || {}).copia ? 0 : (M.files[x.id] || {}).size || 0) + 76 + 2 * enc.encode(x.dir + (M.files[x.id] || {}).name).length, 22) > MAX_ZIP)) {
+      X.toast('Pasa de 4 GB y no cabe en un ZIP: elige menos fotos.', { ms: 7000 }); return;
+    }
+    const nc = l.filter(x => (M.files[x.id] || {}).copia).length;
+    if (nc && !conCopia) { preguntarCopia(nc); return; }
+    const mio = jobB = {};
+    try {
+      if (n === 1) {
+        const f = M.files[l[0].id], blob = await blobDe(X, l[0].id), nm = conTipo(f.name || 'foto.jpg', blob);
+        bajar(blob, nm);
+        M.descargar.ultimo = { name: nm, bytes: blob.size, fotos: 1 };
+        X.toast(`Descargada «${nm}»${f.copia ? ', su copia de 2560' : ', tal cual'}. Está en Descargas.`, { ms: 6000 });
+        return;
+      }
+      const c = X.CL.find(x => x.id === X.curClient), name = `${(limpio(c ? c.name : X.S.client) || 'cliente').toLowerCase()}-bandeja-${X.hoy()}.zip`;
+      X.toast(`Bajando ${n} fotos en un ZIP: «${name}», cada foto tal cual.`, { key: 'dl-bandeja', ms: 600000 });
+      const files = [], usados = new Set();
+      for (const x of l) {
+        const f = M.files[x.id], blob = await blobDe(X, x.id), base = conTipo(f.name || 'foto.jpg', blob);
+        let nm = x.dir + base; for (let j = 2; usados.has(nm); j++) nm = x.dir + base.replace(/(\.[^.]*)?$/, m => `-${j}${m}`);
+        usados.add(nm); files.push({ name: nm, blob });
+      }
+      let blob;
+      try { blob = await zip(files, () => jobB !== mio); }
+      catch (e) { if (/4 GB/.test(String(e && e.message))) { X.toast('Pasa de 4 GB y no cabe en un ZIP: elige menos fotos.', { key: 'dl-bandeja', ms: 7000 }); return; } throw e; }
+      bajar(blob, name);
+      M.descargar.ultimo = { name, bytes: blob.size, fotos: n, entradas: files.map(x => x.name) };
+      X.toast(`Descargado «${name}»: ${nOf(n, 'foto', 'fotos')}, ${(blob.size / 1048576).toFixed(1).replace('.', ',')} MB. Está en Descargas.`, { key: 'dl-bandeja', ms: 7000 });
+    } catch (e) {
+      X.toast('No se pudo descargar: ' + String((e && e.message) || e) + '.', { key: 'dl-bandeja', ms: 7000 });
+    } finally { if (jobB === mio) jobB = null; }
+  }
+  // a short question, as the mesa's «1 / 2» (D-194): «Bajar la copia» or «Parar»
+  function preguntarCopia(n) {
+    const X = I();
+    X.showDialog('dlcopia', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>${n === 1 ? 'Una foto solo está' : `${n} fotos solo están`} aquí en su copia de 2560</h3>`
+      + '<div class="amode"><button type="button" class="btn2" data-dlb="copia"><kbd>1</kbd><b>Bajar la copia</b></button><button type="button" class="btn2" data-dlb="parar"><kbd>2</kbd><b>Parar</b></button></div>');
+    const b = X.root().querySelector('.detail[data-dlg="dlcopia"] [data-dlb]'); if (b) b.focus();   // the focus in the question, not on the page behind
+  }
+  function responderCopia(b) {
+    const X = I(), si = b.dataset.dlb === 'copia', fin = () => { const d = X.root().querySelector('.detail'); if (d && !d.hidden && d.dataset.dlg === 'dlcopia') X.closeDetail(); if (si) bandeja(true); };
+    if (X.elegirYa) X.elegirYa(b, fin); else fin();   // a second answer while the first one closes: nothing
+  }
+
   // ---------- events (capture: a ⌘+click on a cell never reaches the mesa, which would open it) ----------
   function onClick(e) {
     const X = I(); if (!X || !X.S || !X.root || !e.target || !e.target.closest) return;
     const root = X.root(); if (!root || !root.contains(e.target)) return;
+    const cb = e.target.closest('.detail[data-dlg="dlcopia"] [data-dlb]'); if (cb) { responderCopia(cb); return; }   // the tray's copy question (D-281)
     const b = e.target.closest('[data-dl]');
     if (b) {
       const a = b.dataset.dl, card = b.closest('.card.dlg');
@@ -251,6 +328,10 @@
   }
   function onChange(e) { const card = e.target && e.target.closest && e.target.closest('.detail[data-dlg="descargar"] .card.dlg'); if (card) resumen(card); }
   function onKey(e) {
+    if ((e.key === '1' || e.key === '2') && !e.metaKey && !e.ctrlKey && !e.altKey && !e.repeat) {   // the tray's copy question: 1 or 2 answer it
+      const X = I(), d = X && X.root && X.root().querySelector('.detail[data-dlg="dlcopia"]:not([hidden])');
+      if (d && !(e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))) { const b = d.querySelectorAll('[data-dlb]')[e.key === '1' ? 0 : 1]; if (b) { e.preventDefault(); e.stopPropagation(); responderCopia(b); } return; }
+    }
     if (e.key !== 'Escape' || !eleg.length) return;
     const X = I(), root = X && X.root && X.root(), det = root && root.querySelector('.detail');
     if (!root || (det && !det.hidden) || root.classList.contains('pp-card-on') || (M.libre && M.libre.abierto && M.libre.abierto()) || root.querySelector('.cpmenu')) return;   // Esc closes what is open first (a folder's menu too)
@@ -296,6 +377,7 @@
 
   M.descargar = {
     version: VERSION, barra, marcar, elegir, vaciar, abrir, elegidas: () => (I() ? vigentes().slice() : []),
+    bandeja: () => bandeja(false), bandejaN,   // the tray's chosen photos, as they are (D-281)
     _pieza: pieza, _zip: zip, _crc32: crc32,    // tests
     _off: () => { document.removeEventListener('click', onClick, true); document.removeEventListener('change', onChange, true); window.removeEventListener('keydown', onKey, true); }
   };

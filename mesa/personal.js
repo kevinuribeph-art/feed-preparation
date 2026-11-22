@@ -11,7 +11,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.13';   // 1.13: campo/editar de una tarea o nota desde el iPhone (D-272), _p.clis y esps para la sesión (D-275). 1.12: in the iPhone (data-movil) nothing mounts; datos(o), lista(), valor(id), nuevoId(tipo) and a task with its id for the phone (D-267). 1.11: the symbol's button says «Clic: tu página · Clic derecho: copias» (D-263). 1.10: a photo of a task or note that hasn't come down from the server yet (lot 4 of the traspaso) shows nothing and says so, instead of breaking the page (D-259). 1.9: the cloud's activity notices, first in Avisos (D-257). 1.8: «aprobó / pidió cambios / ha comentado en su web» en «Esperando al cliente» (D-244). 1.7: each client's most urgent payment under its block, which opens its «Cobros», and the sums paid this month and pending in the header of Clientes (D-235); a late invoice in «Se ha pasado» (D-236); «Borrar esporádico» off with payments (D-234). 1.6: today's posts not scheduled, tinted amber in Avisos (D-222); the page and a card change in place only what changed (D-223); widen and reduce in the ×'s box (D-224); Tareas as this tab left it (D-225); a session in 600 with its clapperboard in --ty-ses-ink (D-226); square corners where a session goes on, --mute for what is read, «Fecha» / «Cliente» with the pointer over them, widening with a transform (D-231). 1.5: a session's several clients shown once, «A · B» and the first one's avatar with «+N» (D-217); its end in Avisos, Lista, Semana and Mes, «Reprogramar» keeps its length (D-218); its sheet opens over the board from the posts' calendar (D-219); «Duplicar sesión» in its menu (D-221). 1.4: a click writes, Esc and the × close (D-209); a session's sheet widens (D-210); «Hoy» and «Mañana» apart (D-212); one thin line on what is written (D-213). 1.3: the note and the details write with marks and the «/» menu (escritura.js, D-202–D-204); the card widens (D-205). 1.2: a task's date offers «Sin fecha» (D-188); what is not scheduled stands out in «Hoy y mañana» and «Se ha pasado» (D-190); each month's step is its most delayed post's (D-192)
+  const VERSION = '1.14';   // 1.14: from the board's calendar, a session or a task with that day and the client, a session duplicated or deleted with «Deshacer» (D-285); «/-» a separator (D-283). 1.13: campo/editar de una tarea o nota desde el iPhone (D-272), _p.clis y esps para la sesión (D-275). 1.12: in the iPhone (data-movil) nothing mounts; datos(o), lista(), valor(id), nuevoId(tipo) and a task with its id for the phone (D-267). 1.11: the symbol's button says «Clic: tu página · Clic derecho: copias» (D-263). 1.10: a photo of a task or note that hasn't come down from the server yet (lot 4 of the traspaso) shows nothing and says so, instead of breaking the page (D-259). 1.9: the cloud's activity notices, first in Avisos (D-257). 1.8: «aprobó / pidió cambios / ha comentado en su web» en «Esperando al cliente» (D-244). 1.7: each client's most urgent payment under its block, which opens its «Cobros», and the sums paid this month and pending in the header of Clientes (D-235); a late invoice in «Se ha pasado» (D-236); «Borrar esporádico» off with payments (D-234). 1.6: today's posts not scheduled, tinted amber in Avisos (D-222); the page and a card change in place only what changed (D-223); widen and reduce in the ×'s box (D-224); Tareas as this tab left it (D-225); a session in 600 with its clapperboard in --ty-ses-ink (D-226); square corners where a session goes on, --mute for what is read, «Fecha» / «Cliente» with the pointer over them, widening with a transform (D-231). 1.5: a session's several clients shown once, «A · B» and the first one's avatar with «+N» (D-217); its end in Avisos, Lista, Semana and Mes, «Reprogramar» keeps its length (D-218); its sheet opens over the board from the posts' calendar (D-219); «Duplicar sesión» in its menu (D-221). 1.4: a click writes, Esc and the × close (D-209); a session's sheet widens (D-210); «Hoy» and «Mañana» apart (D-212); one thin line on what is written (D-213). 1.3: the note and the details write with marks and the «/» menu (escritura.js, D-202–D-204); the card widens (D-205). 1.2: a task's date offers «Sin fecha» (D-188); what is not scheduled stands out in «Hoy y mañana» and «Se ha pasado» (D-190); each month's step is its most delayed post's (D-192)
   if (M.personal && M.personal._off) { try { M.personal._off(); } catch (e) { /* */ } }
 
   const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
@@ -264,7 +264,7 @@
   // a client: one with a board (the mesa's) or a sporadic one (D-207), never in the tabs nor where the clients with a board are read
   const esps = () => [...TK.values()].filter(k => k.tipo === 'esporadico' && !k.pasado && !k._b).sort((a, b) => String(a.txt).localeCompare(String(b.txt), 'es'));
   const espDe = id => { const k = id && TK.get(id); return k && k.tipo === 'esporadico' && !k.pasado ? { id: k.id, name: k.txt, esporadico: true } : null; };
-  const cliDe = id => ((D && D.CL) || I().CL).find(c => c.id === id) || espDe(id);
+  const cliDe = id => ((D && D.CL) || []).find(c => c.id === id) || (I().CL || []).find(c => c.id === id) || espDe(id);   // the page's reading may be older than a client made since (D-285: from the board)
   // a session has several clients (D-217): `clientes`; one saved before the 4.24 still says `cliente`. A task or a note, one
   const clis = k => !k ? [] : k.tipo === 'sesion' && Array.isArray(k.clientes) ? k.clientes.filter(c => typeof c === 'string' && c) : k.cliente ? [k.cliente] : [];
   const conCli = (k, c) => !!c && clis(k).includes(c);
@@ -860,7 +860,7 @@
   // writing in the card: the note and «Detalles» take the marks and the «/» menu (escritura.js, D-202–D-204)
   function cmdsDe(campo) {
     const ext = EXT.sesion && EXT.sesion.nueva ? ['sesion'] : [];
-    return campo === 'det' ? [...ext, 'fecha', 'lista', 'numerada', 'casilla'] : [...ext, 'tarea', 'fecha', 'lista', 'numerada', 'casilla'];
+    return campo === 'det' ? [...ext, 'fecha', 'lista', 'numerada', 'casilla', 'separador'] : [...ext, 'tarea', 'fecha', 'lista', 'numerada', 'casilla', 'separador'];   // «/-» (D-283)
   }
   function activarCampos() {
     const E = ES(); if (!E || !ov || !CARD || !CARD.ed) return;
@@ -1239,7 +1239,7 @@
     const X = I(); if (!X || !X.root) return;
     const root = X.root(); if (!root || !root.contains(e.target)) return;
     if (e.detail >= 2 && !CARD && Date.now() - cerradaT < DBL + 200) { e.preventDefault(); e.stopPropagation(); return; }   // the second click of the double click that closed a card: never on what was under it (D-209)
-    if (st.on && e.target.closest('.tabs [data-act="client"], .tab.add')) { if (e.target.closest('[data-act="client"]') && e.target.closest('[data-act="client"]').dataset.id === X.curClient) cerrar(); return; }   // another client: its tab opens it (and M.openClient closes the page)
+    if (st.on && e.target.closest('.tabs [data-act="client"]')) { if (e.target.closest('[data-act="client"]') && e.target.closest('[data-act="client"]').dataset.id === X.curClient) cerrar(); return; }   // another client: its tab opens it (and M.openClient closes the page)
     if (CARD && enCard(e.target)) { clicCard(e); return; }
     // a task or a note in small: a click opens it big (D-182); its checkbox and its photo, as before
     const it = st.on && page && page.contains(e.target) && !e.target.closest('.pp-ck, [data-pp="foto"], [data-pp="reprog"]') && e.target.closest('[data-tid]:not([data-tid="nueva"]), [data-nid]');
@@ -1510,6 +1510,21 @@
     version: VERSION, abrir, cerrar, abierta: () => st.on, render: refrescar, _p,
     // a session's sheet over the board, from the posts' calendar (D-219): {de, vc, cli}
     abrirSesion: async (id, o = {}) => { if (!EXT.sesion) return false; if (!st.on) await cargarTK(); const r = TK.get(id); if (!r || r.tipo !== 'sesion') return false; return abrirCard(id, { ...o, tablero: !st.on }); },
+    // the posts' calendar's right click (D-285), over the board: a session with that day and the client; a task in big with them,
+    // made only once it has a title (D-204); a session duplicated (D-221) or deleted, this one with «Deshacer»
+    nuevaSesion: async (o = {}) => { if (!EXT.sesion || !EXT.sesion.nueva) return false; if (!st.on) await cargarTK(); EXT.sesion.nueva({ desde: o.cliente ? { cliente: o.cliente } : null, fecha: o.fecha }); return true; },
+    nuevaTarea: async (o = {}) => { if (!st.on) await cargarTK(); return !!borrador({ cliente: o.cliente, fecha: o.fecha, de: o.de }); },
+    duplicarSesion: async id => { if (!EXT.sesion || !EXT.sesion.duplicar) return false; if (!st.on) await cargarTK(); const r = TK.get(id); if (!r || r.tipo !== 'sesion') return false; await EXT.sesion.duplicar(id); return true; },
+    borrarSesion: async id => {
+      if (!st.on) await cargarTK();
+      const r = TK.get(id); if (!r || r._b || r.tipo !== 'sesion') return false;
+      const antes = copia(r);
+      if (CARD && CARD.id === id) cerrarCard(true);
+      if (!(await borrar(id))) return false;
+      if (st.on) pintar();
+      I().toast(`Sesión «${r.txt}» borrada.`, { action: 'Deshacer', ms: 6000, onAction: async () => { if (TK.has(id)) return; if (await hacer([{ id, despues: antes }]) && st.on) pintar(); } });
+      return true;
+    },
     // o (the iPhone, D-267): the period and the «Tareas» switch to sum with, without changing this page's own
     datos: async o => { const d = await leer(); if (!o) return calcular(d); const g = Object.fromEntries(Object.keys(o).map(k => [k, st[k]])); Object.assign(st, o); try { return calcular(d); } finally { Object.assign(st, g); } },
     lista: async () => { await cargarTK(); return listaMovil(); },

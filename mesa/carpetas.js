@@ -7,7 +7,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.6';   // 1.6: a photo over the mesa's limit (200 MB) is skipped and counted, nothing of it written (D-279). 1.5: «Pegar» on only when it would paste something (D-201). 1.4: «Nueva carpeta…» and «Subir carpeta…» in the mesa tray's right-click menu; no «Cancelar» (D-155, D-158)
+  const VERSION = '1.7';   // 1.7: «Descargar N fotos» at the top of the mesa's tray menu, on what is chosen (D-281). 1.6: a photo over the mesa's limit (200 MB) is skipped and counted, nothing of it written (D-279). 1.5: «Pegar» on only when it would paste something (D-201). 1.4: «Nueva carpeta…» and «Subir carpeta…» in the mesa tray's right-click menu; no «Cancelar» (D-155, D-158)
   const AVISO_DESDE = 20;                      // loose photos: fewer than this go in as always, without a warning
   const SISTEMA = /^(\.|__MACOSX$|Thumbs\.db$|desktop\.ini$)/i;   // .DS_Store, ._foto.jpg (the disk is exFAT), the system's folders
   const POR_EXT = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
@@ -233,7 +233,10 @@
     // in the mesa's tray (not the editor's, D-075) the menu ends with what «+ Carpeta» and «Subir carpeta» did: they create or
     // upload in what the tray has open (D-158)
     const crear = t.mesa ? '<hr>' + it('nueva', 'Nueva carpeta…') + it('subir', 'Subir carpeta…') : '';
-    el.innerHTML = (c ? it('abrir', 'Abrir') + it('pestana', 'Abrir en una pestaña nueva') + '<hr>'
+    // in the mesa's tray, on what is chosen (or on an empty spot) with something chosen: «Descargar N fotos» first (D-281)
+    const sel = I().trayLote(), enSel = t.id ? sel.carpetas.includes(t.id) : t.file ? sel.files.includes(t.file) : true;
+    const nDl = t.mesa && enSel && (sel.files.length || sel.carpetas.length) && M.descargar && M.descargar.bandejaN ? M.descargar.bandejaN() : 0;
+    el.innerHTML = (nDl ? it('descargar', `Descargar ${nDl} ${nDl === 1 ? 'foto' : 'fotos'}`) + '<hr>' : '') + (c ? it('abrir', 'Abrir') + it('pestana', 'Abrir en una pestaña nueva') + '<hr>'
       + it('copiar', 'Copiar', true, '⌘C') + it('pegar', 'Pegar', pegable, '⌘V') + '<hr>'
       + it('borrar', 'Borrar carpeta…', !c.fija, '', c.fija ? `«${c.name}» no se puede borrar: sus fotos se quitan una a una` : '')
       : (copiable ? it('copiar', 'Copiar', true, '⌘C') : '') + it('pegar', 'Pegar', pegable, '⌘V')) + crear;
@@ -244,6 +247,7 @@
       else if (b.dataset.a === 'pestana') I().pestNueva(id);
       else if (b.dataset.a === 'borrar') M.pedirBorrarCarpeta(id);
       else if (b.dataset.a === 'copiar') I().trayCopiar(loteDe(t));
+      else if (b.dataset.a === 'descargar') { if (M.descargar && M.descargar.bandeja) M.descargar.bandeja(); }
       else if (b.dataset.a === 'pegar') { I().trayPegar(id || I().trayCarpeta); if (M.libre && M.libre.bandeja) M.libre.bandeja(); }
       else if (b.dataset.a === 'nueva') pedirNombre();
       else if (b.dataset.a === 'subir') elegirCarpeta(I().trayCarpeta);

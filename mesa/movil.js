@@ -6,7 +6,7 @@
 // Mesa cogida un momento (lote 4, más abajo).
 (function () {
   'use strict';
-  const VERSION = '1.1';   // 1.1: los ajustes tras probarla en el iPhone (D-271), editar tareas (D-272) y la sesión entera (D-275)
+  const VERSION = '1.2';   // 1.2: las listas se leen como en el Mac: viñeta y número en terracota y el separador «⸻» como una línea (D-283). 1.1: los ajustes tras probarla en el iPhone (D-271), editar tareas (D-272) y la sesión entera (D-275)
   const M = window.MESA, D = document, W = window;
   const fallo = t => { (W.MESA_CARGA = W.MESA_CARGA || {}).movil = 'fallo'; const p = D.getElementById('arranque'); if (p) p.textContent = t; };
   if (!M || !M._in || !M._in.movil || !M._in.movil.activo) { fallo('No se pudo cargar la Mesa. Cierra la app y vuelve a abrirla.'); return; }
@@ -376,12 +376,13 @@
 #movil .mv-sw i::after{content:'';position:absolute;left:2px;top:2px;width:27px;height:27px;border-radius:50%;background:var(--knob);box-shadow:var(--shadow-xs),0 2px 6px rgba(0,0,0,.16);transition:transform var(--d2) var(--ease-m)}
 #movil .mv-sw[aria-checked="true"] i{background:var(--sw-on)}
 #movil .mv-sw[aria-checked="true"] i::after{transform:translateX(20px)}
-/* las marcas de una nota o unos detalles al leer (escritura.js, D-202–D-204): su hoja de estilo va bajo #mesa */
+/* las marcas de una nota o unos detalles al leer (escritura.js, D-202–D-204, D-283): su hoja de estilo va bajo #mesa */
 #movil .pp-el{display:flex;min-width:0}
 #movil .pp-ei,#movil .pp-em{flex:none;white-space:pre}
 #movil .pp-em.vi,#movil .pp-em.ca{color:transparent}
 #movil .pp-emk{position:relative;display:inline-block;color:transparent}
-#movil .pp-em.vi .pp-emk::before{content:'';position:absolute;left:50%;top:50%;width:.3em;height:.3em;margin:-.15em 0 0 -.15em;border-radius:50%;background:var(--ink-2);opacity:.7}
+#movil .pp-em.vi .pp-emk::before{content:'';position:absolute;left:50%;top:50%;width:.3em;height:.3em;margin:-.15em 0 0 -.15em;border-radius:50%;background:var(--acc-ink)}
+#movil .pp-el.se{position:relative;height:1.1em;margin:.25em 0}#movil .pp-el.se::before{content:'';position:absolute;left:0;right:0;top:50%;height:1px;background:var(--line-strong)}
 #movil .pp-em.ca .pp-emk::before{content:'';position:absolute;right:-.02em;top:50%;width:.8em;height:.8em;margin:-.4em 0 0;box-sizing:border-box;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--ink-2)}
 #movil .pp-em.ca.on .pp-emk::before{background:var(--acc);box-shadow:none}
 #movil .pp-em.ca.on .pp-emk::after{content:'';position:absolute;right:.1em;top:50%;width:.56em;height:.56em;margin:-.28em 0 0;background:var(--on-acc);-webkit-mask:var(--i-check) center/100% no-repeat;mask:var(--i-check) center/100% no-repeat}
@@ -389,7 +390,7 @@
 #movil .pp-em.ca{display:inline-block;width:1.3em;overflow:hidden}
 #movil .pp-em.ca .pp-emk::before{left:0;right:auto}
 #movil .pp-em.ca.on .pp-emk::after{left:.12em;right:auto}
-#movil .pp-em.nu{color:var(--mute)}
+#movil .pp-em.nu{color:var(--acc-ink);font-weight:600}   /* las listas como en el Mac (D-283) */
 #movil .pp-et{flex:1;min-width:0}
 #movil .pp-el.hecha .pp-et{text-decoration:line-through;color:var(--mute)}
 #movil .pp-ea{color:var(--acc-ink);text-decoration:underline;text-underline-offset:2px;overflow-wrap:anywhere}

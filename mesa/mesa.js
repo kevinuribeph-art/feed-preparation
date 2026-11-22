@@ -2768,6 +2768,7 @@ ${TK_FUENTES}
 #mesa .cpmenu hr{width:100%;height:1px;margin:5px 0;border:0;background:var(--line-strong)}#mesa .feed > .grid:focus-visible{outline-offset:-2px}#mesa .cpmenu button:disabled .kb{color:var(--faint)}
 #mesa .cpmenu.cp-copias{min-width:264px}
 #mesa .expops{display:flex;flex-direction:column;gap:8px;margin:4px 0 16px}
+#mesa .form .ncfila{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 12px}   /* «Nuevo cliente» (D-289): two fields side by side */
 #mesa .form .expop{position:relative;display:flex;gap:12px;align-items:flex-start;margin:0;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel);cursor:pointer;font-weight:400;transition:background var(--d1) ease-out,border-color var(--d1) ease-out}
 #mesa .expop:hover{border-color:var(--line-strong)}
 #mesa .expop input{flex:none;width:16px;height:16px;margin:2px 0 0;-webkit-appearance:none;appearance:none;box-sizing:border-box;border:1.5px solid var(--mute);border-radius:50%;background:var(--panel-2);cursor:pointer}#mesa .expop input:checked{border:4.5px solid var(--acc)}   /* the Mesa's radio (.caplab) */
@@ -4594,16 +4595,33 @@ ${TK_FUENTES}
     d.hidden = false; delete d.dataset.slot; delete d.dataset.prev; delete d.dataset.file; d.dataset.dlg = kind;
     const first = d.querySelector('input[type=text]'); if (first) first.focus();
   }
-  function dlgNewClient() {
-    // no help text nor «Cancelar» (D-156 and D-155: the ×, Esc or a click outside close it); a double click on «Inicio de ciclo»
-    // puts back day 1 (D-159)
-    showDialog('newclient', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Nuevo cliente</h3>
-      <form class="form" data-form="newclient" autocomplete="off"><label for="nc-name">Nombre</label><input id="nc-name" name="name" type="text" maxlength="60" placeholder="Ej.: daGiorgio" required>
-      <label for="nc-handle">Usuario de Instagram <span>(opcional)</span></label><input id="nc-handle" name="handle" type="text" maxlength="120" placeholder="@usuario">
-      <label for="nc-cycle" class="dcl" data-v="1" title="Inicio de ciclo · doble clic: día 1">Inicio de ciclo <span>(1-28)</span></label><input id="nc-cycle" name="cycleDay" type="number" min="1" max="28" step="1" value="1" required>
-      <p class="ferr" hidden></p><div class="row"><button type="submit" class="btn">Crear cliente</button></div></form>`);
+  // «Nuevo cliente» (D-289, variant B): first the kind of work in three cards, then the least it needs; the rest, in «Editar
+  // cliente». «Mensual» and «Esporádico» speak of the work, not of the payment. No help text nor «Cancelar» (D-156, D-155: the ×,
+  // Esc or a click outside close it); a double click on «Inicio de ciclo» puts back day 1 (D-159)
+  const NC_TIPOS = [['redes', 'Gestión de redes', 'Cada mes: su feed, sus historias y su calendario en Zernio.'], ['contenido', 'Solo contenido', 'Cada mes: sesiones y entregas, sin feed.'], ['esporadico', 'Esporádico', 'Una sesión suelta; se cobra por sesión.']];
+  let ncTipo = 'redes';
+  function dlgNewClient(tipo) {
+    if (tipo && NC_TIPOS.some(t => t[0] === tipo)) ncTipo = tipo;
+    const op = ([v, t, d]) => `<label class="expop${v === ncTipo ? ' on' : ''}"><input type="radio" name="nctipo" value="${v}"${v === ncTipo ? ' checked' : ''}><span class="expd"><b>${t}</b><span>${d}</span></span></label>`;
+    showDialog('newclient', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Nuevo cliente</h3><form class="form nctipos" autocomplete="off"><div class="expops" role="radiogroup" aria-label="Qué le haces">${NC_TIPOS.map(op).join('')}</div><div class="row"><button type="submit" class="btn">Siguiente</button></div></form>`);
+    const f = root.querySelector('.detail form.nctipos');   // no data-form: submitForm is the clients' own
+    f.addEventListener('change', () => f.querySelectorAll('.expop').forEach(l => l.classList.toggle('on', l.querySelector('input').checked)));   // a class, not :has() (it costs on every change of the page)
+    f.addEventListener('submit', e => { e.preventDefault(); ncTipo = (f.querySelector('input[name="nctipo"]:checked') || {}).value || 'redes'; dlgNewClientDatos(); });
+    f.addEventListener('dblclick', e => { const l = e.target.closest('.expop'); if (l) { l.querySelector('input').checked = true; f.requestSubmit(); } });   // a double click on a card goes on
+    const r = f.querySelector('input[name="nctipo"]:checked'); if (r) r.focus();
   }
-  // «Editar cliente» of the open board's client or, from the personal page, of any (D-233): `edCid` is the one it edits, never
+  const ncPago = () => `<label for="nc-pago">Cada cuánto paga</label><select id="nc-pago" name="pago">${ACU_PAGOS.map(([v, t]) => `<option value="${v}"${v === 'mensual' ? ' selected' : ''}>${t}</option>`).join('')}</select>`;
+  function dlgNewClientDatos() {
+    const t = NC_TIPOS.find(x => x[0] === ncTipo) || NC_TIPOS[0], esp = ncTipo === 'esporadico';
+    const nombre = `<label for="nc-name">Nombre</label><input id="nc-name" name="name" type="text" maxlength="60" placeholder="${esp ? 'Ej.: Boda de Clara y Pau' : 'Ej.: daGiorgio'}" required>`;
+    const handle = `<label for="nc-handle">Usuario de Instagram <span>(opcional)</span></label><input id="nc-handle" name="handle" type="text" maxlength="120" placeholder="@usuario">`;
+    const ciclo = `<div><label for="nc-cycle" class="dcl" data-v="1" title="Inicio de ciclo · doble clic: día 1">Inicio de ciclo <span>(1-28)</span></label><input id="nc-cycle" name="cycleDay" type="number" min="1" max="28" step="1" value="1" required></div>`;
+    const entregas = `<div><label for="nc-entregas">Entregas antes del día <span>(1-28)</span></label><input id="nc-entregas" name="entregasDia" type="number" min="1" max="28" step="1" placeholder="5"></div>`;
+    const campos = esp ? nombre : ncTipo === 'contenido' ? `${nombre}${handle}<div class="ncfila"><div>${ncPago()}</div>${entregas}</div>` : `${nombre}${handle}<div class="ncfila">${ciclo}<div>${ncPago()}</div></div>`;
+    showDialog('newclient', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>${esc(t[1])}</h3>
+      <form class="form" data-form="newclient" data-tipo="${ncTipo}" autocomplete="off">${campos}
+      <p class="ferr" hidden></p><div class="row"><button type="button" class="btn2 left" data-act="nc-atras">Atrás</button><button type="submit" class="btn">${esp ? 'Crear esporádico' : 'Crear cliente'}</button></div></form>`);
+  }  // «Editar cliente» of the open board's client or, from the personal page, of any (D-233): `edCid` is the one it edits, never
   // `curClient` (it opens over the page, without opening its board); with cobros.js, two tabs «Datos · Cobros» as wide
   async function dlgEditClient(cid, tab) {
     cid = cid || curClient;
@@ -4640,16 +4658,27 @@ ${TK_FUENTES}
   window.addEventListener('unhandledrejection', e => { if (shellReady()) fallo(e.reason); });
   async function submitForm(form) {
     const kind = form.dataset.form, err = form.querySelector('.ferr');
-    const name = form.elements.name.value.trim(), handle = normHandle(form.elements.handle.value), cyc = form.elements.cycleDay ? form.elements.cycleDay.value.trim() : '1';
+    const name = form.elements.name.value.trim(), handle = normHandle(form.elements.handle ? form.elements.handle.value : ''), cyc = form.elements.cycleDay ? form.elements.cycleDay.value.trim() : '1';
     const fail = m => { err.textContent = m; err.hidden = false; };
     if (!name) return fail('Escribe el nombre del cliente.');
     if (!/^\d+$/.test(cyc) || !okCd(+cyc)) return fail('El inicio de ciclo es un día del 1 al 28.');
     const cycleDay = +cyc;
     const cid = edCid || curClient;   // D-233
     if (CL.some(c => c.name.toLowerCase() === name.toLowerCase() && (kind === 'newclient' || c.id !== cid))) return fail('Ya existe un cliente con ese nombre.');
+    if (kind === 'newclient' && M.personal && M.personal._p && M.personal._p.esps && M.personal._p.esps().some(e => String(e.txt).toLowerCase() === name.toLowerCase())) return fail('Ya hay un esporádico con ese nombre.');
     if (kind === 'newclient') {
       if (busyGuard()) return;
-      const c = await M.addClient({ name, handle, cycleDay }); closeDetail(); await M.openClient(c.id); toast(`Cliente «${c.name}» creado.`);
+      const tipo = form.dataset.tipo || 'redes';
+      if (tipo === 'esporadico') {                // made as always (D-207): in the personal page, «Esporádicos»
+        if (!(M.personal && M.personal.nuevoEsporadico)) return fail('La página personal aún se está cargando: vuelve a intentarlo en un momento.');
+        const r = await M.personal.nuevoEsporadico(name); if (r && r.error) return fail(r.error);
+        closeDetail(); toast(`Esporádico «${name}» creado.`); return;
+      }
+      const ed = form.elements.entregasDia ? form.elements.entregasDia.value.trim() : '';
+      if (ed && (!/^\d+$/.test(ed) || !okCd(+ed))) return fail('Las entregas, antes de un día del 1 al 28.');
+      const pago = form.elements.pago && ACU_PAGO.has(form.elements.pago.value) ? form.elements.pago.value : 'mensual';
+      const c = await M.addClient({ name, handle, cycleDay, servicio: tipo === 'contenido' ? 'contenido' : undefined, pago, entregasDia: ed ? +ed : undefined });
+      closeDetail(); await M.openClient(c.id); toast(`Cliente «${c.name}» creado.`);
     } else {
       const av = avStage && avStage.cid === cid ? avStage : null;
       await M.updateClient(cid, { name, handle, cycleDay, ...(av ? { foto: av.id } : {}), ...(form.elements.notion ? { notion: form.elements.notion.checked } : {}) });
@@ -5286,6 +5315,7 @@ ${TK_FUENTES}
     else if (act === 'client') { if (a.dataset.id !== curClient && !root.classList.contains('client') && !busyGuard()) await M.openClient(a.dataset.id); }   // the vista cliente never reaches another client (D-227)
     else if (act === 'month') { if ((!S || a.dataset.key !== S.key) && !busyGuard()) await M.open(a.dataset.key); }
     else if (act === 'newclient') dlgNewClient();
+    else if (act === 'nc-atras') dlgNewClient();   // back to the kind (D-289)
     else if (act === 'editclient') { await loadClientPhotos(); await dlgEditClient(curClient); }
     else if (act === 'avpick') { const i = root.querySelector('.detail .avin'); if (i) i.click(); }
     else if (act === 'avdel') { const cid = edCid || curClient; await avDiscard(); avStage = { cid, id: '' }; const c = CL.find(x => x.id === cid); const pv = root.querySelector('.detail .avprev'); if (pv) pv.outerHTML = avatarHTML({ ...c, foto: null }, 'avprev'); a.hidden = true; }
@@ -7955,7 +7985,7 @@ ${TK_FUENTES}
     if (!shellReady() || root.classList.contains('client')) return false;
     const pie = persistida === false ? '<hr><p class="nota" id="cp-copias-nota">Este navegador no garantiza conservar los datos: si el disco se llena, puede borrarlos. Haz «Exportar…» de vez en cuando.</p>' : '';
     return !!menuMesa(x, y, [
-      { t: 'Nuevo cliente', sub: 'Mensual', hacer: dlgNewClient },
+      { t: 'Nuevo cliente', sub: 'Mensual o esporádico', hacer: () => dlgNewClient() },   // D-289
       '-',
       { t: 'Exportar…', sub: 'Una copia de toda la Mesa', hacer: dlgExportar },
       { t: 'Importar…', sub: 'Un .json o los .tar de una copia', hacer: elegirImportar }

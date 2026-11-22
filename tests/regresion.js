@@ -129,7 +129,9 @@
   const mcElegir = t => { const m = mcAbrir(); ok(m, 'sin el menú de copias'); const b = [...m.querySelectorAll('[role="menuitem"]')].find(x => x.firstChild.textContent.trim() === t); ok(b, 'el menú de copias no tiene ' + t); b.click(); };
   // «Exportar…» del símbolo con la copia ligera (.json, fotos a 1080 px; D-284, antes «Exportar», D-263)
   async function exportarLigera() { mcElegir('Exportar…'); const d = await hasta(() => q('.detail:not([hidden])[data-dlg="exportar"]'), 2000, '«Exportar…»'); d.querySelector('input[value="ligera"]').click(); d.querySelector('form').requestSubmit(); await espera(20); }
-  async function nuevoCliente() { mcElegir('Nuevo cliente'); await hasta(() => q('.detail [data-form="newclient"]'), 2000, '«Nuevo cliente»'); }   // del menú del símbolo (D-284; antes «+ Cliente»)
+  async function nuevoCliente(tipo = 'redes') {   // del menú del símbolo (D-284): primero el tipo en tres tarjetas y después sus datos (D-289)
+    mcElegir('Nuevo cliente'); const f = await hasta(() => q('.detail form.nctipos'), 2000, 'las tarjetas de «Nuevo cliente»');
+    f.querySelector(`input[value="${tipo}"]`).click(); f.requestSubmit(); await hasta(() => q('.detail [data-form="newclient"]'), 2000, '«Nuevo cliente»'); }   // del menú del símbolo (D-284; antes «+ Cliente»)
   // «+ Hueco» desde el clic derecho del feed (D-282; antes, un chip de la barra del mes): con 2, apagado, no hace nada
   async function huecoMas() {
     const g = await hasta(() => q('.feed .grid'), 4000, 'el feed'), r = g.getBoundingClientRect();
@@ -17054,7 +17056,7 @@
     paginaCerrada(); await espera(20);
     const m = mcAbrir(); ok(m, 'el clic derecho no abre el menú de copias');
     igual(mcItems(m), ['Nuevo cliente', 'Exportar…', 'Importar…'], 'lo que ofrece el menú');   // D-284
-    igual(qa('.cp-copias [role="menuitem"] .sub').map(x => x.textContent), ['Mensual', 'Una copia de toda la Mesa', 'Un .json o los .tar de una copia'], 'su segunda línea');
+    igual(qa('.cp-copias [role="menuitem"] .sub').map(x => x.textContent), ['Mensual o esporádico', 'Una copia de toda la Mesa', 'Un .json o los .tar de una copia'], 'su segunda línea');
     ok(!M.personal.abierta(), 'el clic derecho abrió la página personal');
     ok(!q('.detail:not([hidden])'), 'el clic derecho abrió una ventana');
     igual(D.activeElement && D.activeElement.closest('.cp-copias') && D.activeElement.firstChild.textContent.trim(), 'Nuevo cliente', 'el foco no va a la primera');
@@ -21058,6 +21060,47 @@
       await vistaCliente(false);
       if (M.web && M.web.paquete) { const P = await M.web.paquete(M._in.S); igual(P.cliente.cuota_cent, null, 'la web recibe la cuota de un pago semestral'); ok(P.pagos.find(x => x.id === 'au-1').periodo === '2026-05', 'la web recibe otro mes'); }
     } finally { relojVuelve(); M._in.closeDetail(); paginaCerrada(); }
+  });
+
+  prueba('NV1', '«Nuevo cliente», variante B (D-289): el menú del símbolo dice «Mensual o esporádico»; primero el tipo en tres tarjetas (Gestión de redes · Solo contenido · Esporádico) y después lo mínimo de cada uno; «Atrás» vuelve a las tarjetas; uno de gestión de redes con su inicio de ciclo y cada cuánto paga; uno de solo contenido con cada cuánto paga y el día de sus entregas, sin inicio de ciclo; un esporádico, solo el nombre, en la página personal como siempre; un nombre repetido, también de un esporádico, no entra', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    await hasta(() => M.personal && M.personal.nuevoEsporadico, 8000, 'personal.js');
+    const hechos = [];
+    try {
+      const m = mcAbrir(); const b = [...m.querySelectorAll('[role="menuitem"]')].find(x => x.firstChild.textContent.trim() === 'Nuevo cliente');
+      ok(b && /Mensual o esporádico/.test(b.textContent), 'el menú no dice «Mensual o esporádico»: ' + (b && b.textContent)); mcCerrar(); await espera(40);
+      mcElegir('Nuevo cliente'); const f = await hasta(() => q('.detail form.nctipos'), 2000, 'las tarjetas');
+      igual(qa('.detail .nctipos .expop b').map(x => x.textContent), ['Gestión de redes', 'Solo contenido', 'Esporádico'], 'las tres tarjetas');
+      ok(f.querySelector('input[value="redes"]').checked, 'no empieza en «Gestión de redes»'); ok(!q('.detail [data-form="newclient"]'), 'pide los datos antes del tipo');
+      // solo contenido
+      f.querySelector('input[value="contenido"]').click(); f.requestSubmit();
+      let fm = await hasta(() => q('.detail [data-form="newclient"]'), 2000, 'los datos');
+      igual(q('.detail h3').textContent, 'Solo contenido', 'el título de los datos'); ok(!fm.elements.cycleDay && fm.elements.pago && fm.elements.entregasDia && fm.elements.handle, 'los campos de solo contenido');
+      q('.detail [data-act="nc-atras"]').click(); const f2 = await hasta(() => q('.detail form.nctipos'), 2000, '«Atrás»');
+      ok(f2.querySelector('input[value="contenido"]').checked, '«Atrás» no recuerda el tipo'); f2.requestSubmit();
+      fm = await hasta(() => q('.detail [data-form="newclient"]'), 2000, 'los datos otra vez');
+      fm.elements.name.value = 'Contenido NV1'; fm.elements.pago.value = 'semestral'; fm.elements.entregasDia.value = '31'; fm.requestSubmit(); await espera(80);
+      ok(!M._in.CL.some(c => c.name === 'Contenido NV1') && (!fm.checkValidity() || /día del 1 al 28/.test(q('.detail .ferr').textContent)), 'un día de entregas no válido entra');
+      fm.elements.entregasDia.value = '5'; fm.requestSubmit();
+      const c1 = await hasta(() => M._in.CL.find(c => c.name === 'Contenido NV1'), 3000, 'el cliente de solo contenido'); hechos.push(c1.id);
+      ok(c1.servicio === 'contenido' && c1.entregasDia === 5 && c1.acuerdo && c1.acuerdo.pago === 'semestral' && c1.cycleDay === 1, 'el cliente de solo contenido: ' + json(c1));
+      // gestión de redes
+      await nuevoCliente('redes'); fm = q('.detail [data-form="newclient"]');
+      igual(q('.detail h3').textContent, 'Gestión de redes', 'el título'); ok(fm.elements.cycleDay && fm.elements.pago && !fm.elements.entregasDia, 'los campos de gestión de redes');
+      fm.elements.name.value = 'Redes NV1'; fm.elements.cycleDay.value = '12'; fm.elements.pago.value = 'trimestral'; fm.requestSubmit();
+      const c2 = await hasta(() => M._in.CL.find(c => c.name === 'Redes NV1'), 3000, 'el cliente de redes'); hechos.push(c2.id);
+      ok(!c2.servicio && c2.cycleDay === 12 && c2.acuerdo && c2.acuerdo.pago === 'trimestral', 'el cliente de redes: ' + json(c2));
+      // esporádico
+      await nuevoCliente('esporadico'); fm = q('.detail [data-form="newclient"]');
+      ok(!fm.elements.handle && !fm.elements.pago && /Crear esporádico/.test(fm.textContent), 'los campos del esporádico');
+      fm.elements.name.value = 'Redes NV1'; fm.requestSubmit(); await espera(120); ok(/Ya existe un cliente/.test(q('.detail .ferr').textContent), 'un esporádico con el nombre de un mensual entra');
+      fm.elements.name.value = 'Boda NV1'; fm.requestSubmit();
+      await hasta(async () => ((await M._in.idbAll('tareas')) || []).some(t => t.tipo === 'esporadico' && t.txt === 'Boda NV1'), 3000, 'el esporádico guardado');
+      ok(M.personal.abierta() && q('.pp-tcv button.on') && /Esporádicos/.test(q('.pp-tcv button.on').textContent), 'no abre la página en «Esporádicos»');
+      // un mensual con el nombre de un esporádico
+      await nuevoCliente('redes'); fm = q('.detail [data-form="newclient"]'); fm.elements.name.value = 'boda nv1'; fm.requestSubmit(); await espera(120);
+      ok(/esporádico con ese nombre/.test(q('.detail .ferr').textContent), 'un mensual con el nombre de un esporádico entra');
+    } finally { M._in.closeDetail(); paginaCerrada(); for (const id of hechos) await M.removeClient(id); await sinTareas(); }
   });
 
 

@@ -101,13 +101,14 @@
     const meses = [...new Set([...pubs.map(p => p.fila.mes), ...X.boardMonths ? (X.boardMonths(B) || []) : []].filter(Boolean))].sort();
     const previo = meses.length ? X.addMonths(meses[0], -1) : null;
     const tareas = await X.idbAll('tareas');   // si falla, no se envía (una lectura fallida no es «sin sesiones»: lección 94)
-    // una reunión, aún no (lote D, D-291)
-    const ses = tareas.filter(t => t.tipo === 'sesion' && !(t.sesion && t.sesion.visible === false) && !(t.sesion && t.sesion.clase === 'reunion') && /^\d{4}-\d{2}-\d{2}$/.test(t.fecha || '')
+    // una reunión con el ojo abierto va como «reunion» (D-297); con el ojo tachado, nada (como cualquier sesión)
+    const ses = tareas.filter(t => t.tipo === 'sesion' && !(t.sesion && t.sesion.visible === false) && /^\d{4}-\d{2}-\d{2}$/.test(t.fecha || '')
       && (Array.isArray(t.clientes) ? t.clientes : t.cliente ? [t.cliente] : []).includes(cli) && meses.includes(t.fecha.slice(0, 7)))
       .map(t => {
         const fin = t.fin && /^\d{4}-\d{2}-\d{2}$/.test(t.fin.fecha || '') && t.fin.fecha >= t.fecha ? t.fin.fecha : null;
         return { cliente_id: cli, id: String(t.id).slice(0, 60), mes: t.fecha.slice(0, 7), nombre: String(t.txt || 'Sesión').slice(0, 80),
-          inicio: X.madridISO(t.fecha, /^\d\d:\d\d$/.test(t.hora || '') ? t.hora : '00:00'), fin: fin ? X.madridISO(fin, '23:59') : null, sin_hora: !/^\d\d:\d\d$/.test(t.hora || '') };
+          inicio: X.madridISO(t.fecha, /^\d\d:\d\d$/.test(t.hora || '') ? t.hora : '00:00'), fin: fin ? X.madridISO(fin, '23:59') : null, sin_hora: !/^\d\d:\d\d$/.test(t.hora || ''),
+          clase: t.sesion && t.sesion.clase === 'reunion' ? 'reunion' : 'sesion' };
       });
     const mesesInfo = [];
     for (const m of [previo, ...meses].filter(Boolean)) {
@@ -119,22 +120,35 @@
     // solo lo que enseña «Tus pagos»: pendientes, retrasados y cobrados; nunca un borrador sin emitir (D-237)
     const pagos = vivos.filter(r => +r.importe >= 0 && ['pendiente', 'retrasada', 'cobrada'].includes(cob.estado(r, H).k)).map(r => ({ cliente_id: cli, id: String(r.id).slice(0, 80), periodo: /^\d{4}-\d{2}$/.test(r.periodo || '') ? r.periodo : null,
       concepto: r.concepto ? String(r.concepto).slice(0, 120) : null, importe_cent: Math.round((+r.importe || 0) * 100), factura: r.factura ? String(r.factura).slice(0, 40) : null,
-      emitida: r.emitida || null, vence: r.vence || null, cobrada: r.cobrada || null, _pdf: r.pdf || null }));
-    // hasta el lote D, lo de siempre (D-288): cada factura con el primer mes de su tramo (su periodo) y la cuota solo si paga cada mes
+      emitida: r.emitida || null, vence: r.vence || null, cobrada: r.cobrada || null, _pdf: r.pdf || null,
+      hasta: /^\d{4}-\d{2}$/.test(r.periodo || '') && cob.hasta && cob.hasta(r) !== r.periodo ? cob.hasta(r) : null }));   // el tramo que cubre (D-297)
+    // el acuerdo como lo ve el cliente (D-297): cada cuánto paga, cuánto en cada pago y el tramo que cubre hoy; la cuota, como
+    // siempre, solo si paga cada mes (un portal viejo la lee «al mes»); la fecha de renegociar, nunca
     const q = cob ? cob.cuota(c) : null, prox = cob && q ? cob.proxima(cli) : null, mensual = q && (q.pago || 'mensual') === 'mensual';
+    const tr = q && cob.tramo ? cob.tramo(q, H.slice(0, 7)) : null;
     const cliente = { id: cli, nombre: String(c.name || cli).slice(0, 80), handle: c.handle ? String(c.handle).replace(/^@/, '').slice(0, 40) : null,
       cuota_cent: mensual ? Math.round(q.importe * 100) : null, proxima_emision: prox && prox.emitida ? prox.emitida : null,
+      servicio: X.servicio ? X.servicio(c) : 'redes', pago: q ? q.pago || 'mensual' : null, pago_cent: q ? Math.round(q.importe * 100) : null,
+      cubre_de: tr ? tr.de : null, cubre_hasta: tr ? tr.hasta : null,
       metricas: c.metricas && X.metricasOk && X.metricasOk(c.metricas) && /^https:\/\//.test(c.metricas) ? c.metricas : null, _foto: c.foto || null };   // «Ver más en Zernio» (D-294)
+    // Las entregas de un cliente de solo contenido (D-297), todas las suyas (son pocas): qué, cuánto, su fecha y, solo entregada,
+    // su enlace. Leídas del almacén: una lectura fallida no es «sin entregas» (lección 94), no se envía.
+    const contenido = cliente.servicio === 'contenido';
+    const entregas = !contenido ? [] : ((await X.idbAll('entregas')) || []).filter(r => r && !r.borrado && r.cliente === cli && /^\d{4}-\d{2}-\d{2}$/.test(r.fecha || '') && String(r.que || '').trim() && /^[A-Za-z0-9_.-]{1,60}$/.test(String(r.id)))
+      .map(r => ({ cliente_id: cli, id: String(r.id), fecha: r.fecha, que: String(r.que).trim().slice(0, 200), cuanto: String(r.cuanto || '').trim() ? String(r.cuanto).trim().slice(0, 120) : null,
+        enlace: /^\d{4}-\d{2}-\d{2}$/.test(r.entregada || '') && /^https:\/\/\S+$/.test(r.enlace || '') && r.enlace.length <= 1000 ? r.enlace : null, entregada: /^\d{4}-\d{2}-\d{2}$/.test(r.entregada || '') ? r.entregada : null }))
+      .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id.localeCompare(b.id));
     // Ningún texto que va a la web nombra a otro cliente (lecciones 82 y 84): si no, no se envía.
     const problemas = [], esporadicos = tareas.filter(t => t.tipo === 'esporadico' && !t.pasado && t.txt).map(t => String(t.txt));
     const textos = [...pubs.flatMap(p => [[`«${p.fila.nombre}», nombre`, p.fila.nombre], [`«${p.fila.nombre}», caption`, p.fila.caption]]),
-      ...ses.map(x => [`sesión «${x.nombre}»`, x.nombre]), ...pagos.map(p => [`cobro ${p.factura || p.periodo || ''}, concepto`, p.concepto || ''])];
+      ...ses.map(x => [`sesión «${x.nombre}»`, x.nombre]), ...pagos.map(p => [`cobro ${p.factura || p.periodo || ''}, concepto`, p.concepto || '']),
+      ...entregas.flatMap(e => [[`entrega «${e.que}»`, e.que], [`entrega «${e.que}», cuánto`, e.cuanto || '']])];
     mesesInfo.forEach(r => { (r.porque && r.porque.partes || []).forEach((q, i) => textos.push([`por qué de ${r.mes}`, q.t], [`por qué de ${r.mes}`, q.x]));
       if (r.resumen) { (r.resumen.posts || []).forEach(q => textos.push([`resumen de ${r.mes}`, q.nombre])); textos.push([`resumen de ${r.mes}`, r.resumen.frase || '']); } });
     // La propia agencia no pasa esta comprobación: sus captions enseñan trabajos para clientes y su web solo la ve Kevin (D-245).
     if (!AGENCIA.includes(cli)) X.mesOtros(cli, textos, m => problemas.push(m), esporadicos, AGENCIA.filter(a => a !== cli));
     const mesesQuitar = [previo, ...meses].filter(m => m && !mesesInfo.some(r => r.mes === m));
-    return { cliente, publicaciones: pubs, sesiones: ses, meses: mesesInfo, mesesTablero: meses, mesesQuitar, pagos, problemas };
+    return { cliente, publicaciones: pubs, sesiones: ses, meses: mesesInfo, mesesTablero: meses, mesesQuitar, pagos, entregas, contenido, problemas };
   }
 
   // ---------- Estado de la barra ----------
@@ -159,7 +173,7 @@
   // Lo que no es una publicación (cliente, sesiones, porqué y resumen, cobros) cuenta como un cambio si no es lo último
   // que se envió desde aquí (su huella, por proyecto y tablero).
   const claveHuella = B => { const c = sb(); return 'mesa-web-huella:' + (c ? c._url : '') + ':' + B.key; };
-  const huellaExtra = P => sha(JSON.stringify([P.cliente, P.sesiones, P.meses, P.mesesQuitar, P.pagos]));
+  const huellaExtra = P => sha(JSON.stringify([P.cliente, P.sesiones, P.meses, P.mesesQuitar, P.pagos, P.entregas || []]));
   async function repaso(todo) {
     const X = I(), B = X && X.S, c = sb();
     if (MOVIL || !B || !c || !c.usuario() || st.enviando || X.locked) return;
@@ -288,9 +302,14 @@
       await c.borrar(`pagos?cliente_id=eq.${ce}` + (ids ? `&id=not.in.(${ids})` : ''));
       const sueltos = [...yaPdf].filter(n => !usados.has(n)).map(n => `${cli}/${n}`);
       if (sueltos.length) await c.quitar('facturas', sueltos).catch(() => null);   // los que ya no son de ningún cobro
+      // Las entregas de un cliente de solo contenido (D-297): primero las de ahora y después se quitan las que ya no están
+      if (P.contenido) {
+        if (P.entregas.length) await c.insertar('entregas', P.entregas, { upsert: true, conflicto: 'cliente_id,id' });
+        await c.borrar(`entregas?cliente_id=eq.${ce}` + (P.entregas.length ? `&id=not.in.(${P.entregas.map(x => `"${x.id}"`).join(',')})` : ''));
+      }
       lsS(claveHuella(B), await huellaExtra(P));
       st.servidor = await leerServidor(cli, B); st.clave = B.key; st.firma = ''; st.cambios = null; st.extra = 0; st.extraT = Date.now(); st.error = '';
-      toast(`Enviado a la web del cliente: ${filasPub.filter(f => f.visible).length} publicaciones`);
+      toast(P.contenido ? `Enviado a la web del cliente: ${P.entregas.length} ${P.entregas.length === 1 ? 'entrega' : 'entregas'}` : `Enviado a la web del cliente: ${filasPub.filter(f => f.visible).length} publicaciones`);
       return { ok: true, publicaciones: filasPub.filter(f => f.visible).length, ocultas: sobran.length, imagenes: [...imgs.values()].reduce((n, l) => n + l.length, 0), subidas };
     } catch (e) {
       const m = String(e.message || e);

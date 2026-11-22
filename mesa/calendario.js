@@ -120,8 +120,9 @@
 
   // a delivery (D-290): its «qué» on its deadline; delivered, with a ✓ and in green; gone past without delivering, red
   const ENT_OK = '<svg class="cent" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.33" stroke-linecap="round" stroke-linejoin="round"><path vector-effect="non-scaling-stroke" d="M20 6 9 17l-5-5"/></svg>';
-  function entHTML(X, r, hoy) {
-    const k = X.ent.estado(r, hoy), tit = `Entrega · ${r.que || 'Sin título'}${r.cuanto ? ' · ' + r.cuanto : ''} · ${k === 'entregada' ? 'entregada' : k === 'pasada' ? 'sin entregar, pasó su fecha' : 'antes del ' + (+r.fecha.slice(8, 10))}`;
+  function entHTML(X, r, hoy, client) {
+    // in the vista cliente (D-297), as the client's web: delivered or on its way, never «sin entregar» (that's Kevin's)
+    const k0 = X.ent.estado(r, hoy), k = client && k0 === 'pasada' ? 'pendiente' : k0, tit = `Entrega · ${r.que || 'Sin título'}${r.cuanto ? ' · ' + r.cuanto : ''} · ${k === 'entregada' ? 'entregada' : k === 'pasada' ? 'sin entregar, pasó su fecha' : client ? 'en camino' : 'antes del ' + (+r.fecha.slice(8, 10))}`;
     return `<button type="button" class="chip ty-ent ${k}" data-ent="${esc(r.id)}" title="${esc(tit)}"><span class="cl">${k === 'entregada' ? ENT_OK : ''}<span class="cn">${esc(r.que || 'Sin título')}</span></span></button>`;
   }
 
@@ -137,10 +138,12 @@
       lado: V ? V.lado.map(p => ({ id: p.id, html: html(p) })).filter(p => p.html) : [] };
   }
   function vcLado(X, root, partes) {             // the right column: each part in its panel; only what changed is drawn again
-    const main = root.querySelector('.main'); let col = main && main.querySelector(':scope > .vc-lado');
+    const main = root.querySelector('.main'), cont = main && main.querySelector(':scope > .cont'), host = cont || main;   // «Solo contenido»: in its grid, in place of Kevin's agreement (D-297)
+    let col = main && main.querySelector(':scope > .vc-lado, :scope > .cont > .vc-lado');
+    if (col && col.parentNode !== host) { col.remove(); col = null; }
     root.classList.toggle('vc-lado-on', partes.length > 0);
     if (!partes.length) { if (col) { col.remove(); dispatchEvent(new Event('resize')); } return; }
-    if (!col) { col = document.createElement('aside'); col.className = 'vc-lado'; col.setAttribute('aria-label', 'Este cliente'); main.append(col); }
+    if (!col) { col = document.createElement('aside'); col.className = 'vc-lado'; col.setAttribute('aria-label', 'Este cliente'); host.append(col); }
     const ya = new Map([...col.children].map(e => [e.dataset.vc, e]));
     partes.forEach((p, i) => {
       let e = ya.get(p.id); ya.delete(p.id);
@@ -192,7 +195,7 @@
         const cls = `cday${inM ? '' : ' out'}${d < sp.plo || d > sp.hi ? ' off' : d < sp.lo ? ' prevc' : inM ? '' : ' otromes'}${d === today ? ' today' : ''}`;
         const num = +d.slice(8) === 1 ? `${+d.slice(8)} ${X.MONTHS[+d.slice(5, 7) - 1].slice(0, 3)}` : String(+d.slice(8));
         body += `<div class="${cls}" data-day="${d}"><div class="dh"><span class="dn">${num}</span>${k > 1 && !client ? `<span class="dmany" title="${k} publicaciones este día">${k}</span>` : ''}</div>`
-          + (sd[d] ? [...items, ...sd[d]].sort((u, v) => u.t - v.t) : items).map(it => it.e ? entHTML(X, it.e, today) : it.x ? sesHTML(X, it.x, d) : it.p ? pastHTML(X, it.p) : chipHTML(X, it.s, client)).join('') + '</div>';
+          + (sd[d] ? [...items, ...sd[d]].sort((u, v) => u.t - v.t) : items).map(it => it.e ? entHTML(X, it.e, today, client) : it.x ? sesHTML(X, it.x, d) : it.p ? pastHTML(X, it.p) : chipHTML(X, it.s, client)).join('') + '</div>';
       }
       total += n;
     }
@@ -286,7 +289,7 @@
     }
     if (sec.classList.contains('fold') && !client && e.target.closest('.calhead') && sec.parentNode.querySelector(':scope > .tray.fold')) { plegar(X, sec); return; }   // its tab (D-148)
     const ch = e.target.closest('.chip'); if (!ch || Date.now() - noClick < 400) return;   // the click that ends a move opens nothing
-    if (ch.dataset.ent) { if (M.entregasUI && M.entregasUI.abrir) M.entregasUI.abrir(ch.dataset.ent); return; }   // a delivery: open in its column (D-290)
+    if (ch.dataset.ent) { if (client) { if (M.entregasUI && M.entregasUI.irA) M.entregasUI.irA(ch.dataset.ent); } else if (M.entregasUI && M.entregasUI.abrir) M.entregasUI.abrir(ch.dataset.ent); return; }   // a delivery: open in its column (D-290); in the vista cliente, its row (D-297)
     if (ch.dataset.ses) { if (M.personal && M.personal.abrirSesion) M.personal.abrirSesion(ch.dataset.ses, { de: `.side > .cal .chip[data-ses="${cssq(ch.dataset.ses)}"]`, vc: client, cli: X.S && X.S.client }); return; }   // its sheet over the board (D-219)
     if (ch.dataset.slot) { if (client) X.openIG(ch.dataset.slot, 0); else X.openDetail(ch.dataset.slot, 0); }
     else if (ch.dataset.prev) { const id = ch.dataset.prev; if (client) X.openIG(id, 0); else X.withPrev(() => X.openPast(id), 'open'); }
@@ -647,6 +650,7 @@
 #mesa .vc-parte{min-height:0;overflow-y:auto;background:var(--panel);border-radius:var(--r-lg);padding:18px 20px 20px;color:var(--ink)}
 #mesa .vc-lado>.vc-parte:only-child{grid-row:1/-1}
 #mesa:not(.client) .vc-lado{display:none}
+#mesa.client .cont>.cont-der{display:none}#mesa .cont>.vc-lado{min-height:0}#mesa.client:not(.vc-lado-on) .cont{grid-template-columns:minmax(0,1fr) minmax(0,1.25fr)}   /* without its parts, the calendar widens, as the portal */   /* «Solo contenido» in the vista cliente: «Tus pagos» in place of the agreement (D-297) */
 #mesa.client .side>.cal{border-radius:inherit}   /* alone in its column (no tray): round on top too, as the drawing (D-240) */
 #mesa.client.vc-lado-on .feed{width:min(440px,32vw);margin:0}
 @media (prefers-reduced-motion:reduce){#mesa .vcp-tab{transition:none}#mesa .vcp-tab:active:not(.on){transform:none}}

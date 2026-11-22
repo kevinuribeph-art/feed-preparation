@@ -7,7 +7,7 @@
 (function cobrosBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
-  const VERSION = '1.2';   // 1.2: «Acuerdo» instead of «Cuota mensual» — how often it pays, from when, for how long, whether it renews and when to renegotiate, with its line; «+ Factura» of its stretch; in «Tus pagos», «al mes» only if it pays each month and each invoice by its first month, as the client's web gets them until lot D (D-288). 1.1: a PDF that hasn't come down from the server yet (lot 4 of the traspaso) says so (D-259)
+  const VERSION = '1.3';   // 1.3: «Tus pagos» of the vista cliente with its stretch — «Pago semestral · 2700 €», «Cubre may – oct 2026 · el siguiente, el 1 nov» and each invoice «Mayo – octubre» (D-297). 1.2: «Acuerdo» instead of «Cuota mensual» — how often it pays, from when, for how long, whether it renews and when to renegotiate, with its line; «+ Factura» of its stretch; in «Tus pagos», «al mes» only if it pays each month and each invoice by its first month, as the client's web gets them until lot D (D-288). 1.1: a PDF that hasn't come down from the server yet (lot 4 of the traspaso) says so (D-259)
   const I = () => M._in, C = () => M._in.cob, P = () => (M.personal && M.personal._p) || null;
   if (M.cobrosUI && M.cobrosUI._off) { try { M.cobrosUI._off(); } catch (e) { /* */ } }
   const OFF = [];
@@ -282,6 +282,11 @@
   }
 
   // ---------- «Tus pagos» (vista cliente): only this client's, never Kevin's sums nor another client ----------
+  // With an agreement that isn't monthly (D-297): «Pago semestral · 2700 €» in its title and, under it, the stretch that covers
+  // today and when the next one is issued; each invoice named by its stretch. Never the date to renegotiate (that's Kevin's).
+  const PAGO_VC = { trimestral: 'Pago trimestral', semestral: 'Pago semestral', anual: 'Pago anual', unico: 'Pago único' };
+  const mesC = m => C().MESES[+m.slice(5, 7) - 1].slice(0, 3);
+  const tramoTxt = (de, ha) => de === ha ? `${mesC(de)} ${de.slice(0, 4)}` : de.slice(0, 4) === ha.slice(0, 4) ? `${mesC(de)} – ${mesC(ha)} ${ha.slice(0, 4)}` : `${mesC(de)} ${de.slice(0, 4)} – ${mesC(ha)} ${ha.slice(0, 4)}`;
   function pagosHTML(ctx) {
     const cli = ctx && ctx.cliente; if (!cli) return '';
     const h = hoy(), c = cliRec(cli), q = C().cuota(c), l = C().vivos(cli).map(r => ({ r, e: C().estado(r, h) }));
@@ -292,15 +297,18 @@
     const venc = deber.filter(x => x.e.k === 'retrasada').length, suma = deber.reduce((n, x) => n + (+x.r.importe || 0), 0);
     const ver = UI.ant.has(cli), N = Math.max(0, pagadas.length - 3);
     const linea = ({ r, e }) => {
-      const nom = C().nombre(r, h, true), nf = r.factura ? 'la factura ' + r.factura : 'la factura de ' + nom.toLowerCase();
+      const nom = C().nombre(r, h), nf = r.factura ? 'la factura ' + r.factura : 'la factura de ' + nom.toLowerCase();
       const t = e.k === 'cobrada' ? 'pagada el ' + corto(r.cobrada, h) : e.k === 'retrasada' ? 'venció el ' + corto(r.vence, h) : r.vence ? 'vence el ' + corto(r.vence, h) : 'emitida el ' + corto(r.emitida, h);
       const chip = e.k === 'cobrada' ? `<span class="co-ce ok">${IC.ok}Pagada</span>` : e.k === 'retrasada' ? `<span class="co-ce rojo">${IC.alerta}Pendiente</span>` : `<span class="co-ce pend">${IC.reloj}Pendiente</span>`;
       const dl = r.pdf ? `<button type="button" class="co-dw" data-co="dl" data-id="${esc(r.id)}" title="Descargar ${esc(nf)} (PDF)" aria-label="Descargar ${esc(nf)} (PDF)">${IC.descarga}</button>` : '<span class="co-dw0"></span>';
       return `<li data-id="${esc(r.id)}"><span class="m">${esc(nom)} · ${esc(eur(r.importe))}</span><span class="n">${r.factura ? 'Factura ' + esc(r.factura) + '<span class="co-pt"> · </span><span class="co-nw">' + esc(t) + '</span>' : `<span class="co-nw">${esc(may(t))}</span>`}</span>${chip}${dl}</li>`;
     };
     const lis = [...deber, ...pagadas.slice(0, 3), ...(ver ? pagadas.slice(3) : [])].map(linea).join('');
-    const px = prox ? `<p class="co-vprox">${IC.doc}La de ${esc(C().MESES[+prox.mes.slice(5, 7) - 1])} se emite ${prox.emitida >= h ? 'el ' + esc(corto(prox.emitida, h)) : 'en unos días'}</p>` : '';
-    return `<div class="co-pagos"><h2 class="co-vh">Tus pagos${q && q.pago === 'mensual' ? ` <span>${esc(eur(q.importe))} al mes</span>` : ''}</h2>`
+    const tramo = q && q.pago !== 'mensual', tr = tramo && C().tramo ? C().tramo(q, h.slice(0, 7)) : null;
+    const sigue = tramo && q.pago !== 'unico' && prox && prox.emitida >= h ? ` · el siguiente, el ${esc(corto(prox.emitida, h))}` : '';
+    const cubre = tr ? `<p class="co-vcubre">Cubre <b>${esc(tramoTxt(tr.de, tr.hasta))}</b>${sigue}</p>` : '';
+    const px = prox && !tramo ? `<p class="co-vprox">${IC.doc}La de ${esc(C().MESES[+prox.mes.slice(5, 7) - 1])} se emite ${prox.emitida >= h ? 'el ' + esc(corto(prox.emitida, h)) : 'en unos días'}</p>` : '';   // with a stretch, it's in «Cubre …»
+    return `<div class="co-pagos"><h2 class="co-vh">Tus pagos${q && q.pago === 'mensual' ? ` <span>${esc(eur(q.importe))} al mes</span>` : tramo ? ` <span>${esc(PAGO_VC[q.pago] || 'Pago')} · ${esc(eur(q.importe))}</span>` : ''}</h2>${cubre}`
       + (deber.length ? `<p class="co-vp">Pendiente de pago <b>${esc(eur(suma))}</b>${venc ? ` <span class="rojo">· ${venc} vencida${venc === 1 ? '' : 's'}</span>` : ''}</p>` : '')
       + (lis ? `<ul class="co-vl">${lis}</ul>` : '')
       + (N ? `<button type="button" class="co-ver" data-co="ver-ant" data-c="${esc(cli)}" aria-expanded="${ver}">${ver ? 'Ocultar las anteriores' : `Ver las anteriores (${N})`}</button>` : '')
@@ -465,6 +473,7 @@
 @container (max-width:420px){#mesa .co-vl .co-pt{display:none}#mesa .co-vl .n .co-nw{display:block}}
 #mesa .co-vh{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;margin:0 0 12px;font-size:17px;font-weight:800;letter-spacing:-.01em}
 #mesa .co-vh span{font-size:13px;font-weight:400;letter-spacing:0;color:var(--mute)}
+#mesa .co-vcubre{margin:-6px 0 12px;font-size:13.5px;color:var(--ink-2)}#mesa .co-vcubre b{font-weight:600;color:var(--ink)}
 #mesa .co-vp{display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 8px;margin:-4px 0 12px;font-size:13.5px;color:var(--ink-2)}
 #mesa .co-vp b{font-size:18px;font-weight:800;color:var(--ink)}#mesa .co-vp .rojo{color:var(--red);font-weight:600}
 #mesa .co-vl{display:flex;flex-direction:column;margin:0;padding:0;list-style:none}

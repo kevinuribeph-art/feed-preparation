@@ -17475,10 +17475,10 @@
   const WB_URL = 'https://pruebasfalsas.supabase.co';
   // Un servidor de mentira en memoria: lo que la Mesa envía queda en `db` y `archivos`; `fallar` simula la red caída.
   function wbServidor(f0) {
-    const db = { clientes: [], publicaciones: [], sesiones: [], meses: [], pagos: [], aprobaciones: [], comentarios: [], lecturas: [] }, archivos = new Map(), pedidos = [];
+    const db = { clientes: [], publicaciones: [], sesiones: [], meses: [], pagos: [], aprobaciones: [], comentarios: [], lecturas: [], entregas: [] }, archivos = new Map(), pedidos = [];
     const sv = { db, archivos, pedidos, fallar: false, f0 };   // f0: the frame's own fetch (another frame, D-267: its own)
     const resp = (st, j) => new W.Response(j === undefined || st === 204 ? null : JSON.stringify(j), { status: st, headers: { 'Content-Type': 'application/json' } });
-    const CLAVE = { clientes: ['id'], publicaciones: ['cliente_id', 'pid'], sesiones: ['cliente_id', 'id'], meses: ['cliente_id', 'mes'], pagos: ['cliente_id', 'id'], aprobaciones: ['id'], comentarios: ['id'], lecturas: ['cliente_id'] };
+    const CLAVE = { clientes: ['id'], publicaciones: ['cliente_id', 'pid'], sesiones: ['cliente_id', 'id'], meses: ['cliente_id', 'mes'], pagos: ['cliente_id', 'id'], aprobaciones: ['id'], comentarios: ['id'], lecturas: ['cliente_id'], entregas: ['cliente_id', 'id'] };
     const lista = v => v.slice(1, -1).split(',').map(x => x.replace(/^"|"$/g, ''));
     const pasa = filtro => r => filtro.every(([k, v]) => {
       const i = v.indexOf('.'), op = v.slice(0, i), val = v.slice(i + 1);
@@ -21087,7 +21087,7 @@
       relojEn('2026-11-20T10:00:00+01:00');
       await M.open(`${CLIENTE}-${MES}`); await vistaCliente(true); await espera(80);
       const lado = await hasta(() => q('.main > .vc-lado [data-vc="pagos"]'), 3000, '«Tus pagos»');
-      ok(!/al mes/.test(lado.textContent) && /Mayo · 2700 €/.test(lado.textContent) && !/Mayo – octubre/.test(lado.textContent), '«Tus pagos» de un pago semestral: ' + lado.textContent);
+      ok(!/al mes/.test(lado.textContent) && /Pago semestral · 2700 €/.test(lado.textContent) && /Mayo – octubre · 2700 €/.test(lado.textContent) && !/abr 2027 · el siguiente, el 1 abr/.test(lado.textContent), '«Tus pagos» de un pago semestral: ' + lado.textContent);   // al día a propósito: su tramo desde el lote D (D-297)
       await vistaCliente(false);
       if (M.web && M.web.paquete) { const P = await M.web.paquete(M._in.S); igual(P.cliente.cuota_cent, null, 'la web recibe la cuota de un pago semestral'); ok(P.pagos.find(x => x.id === 'au-1').periodo === '2026-05', 'la web recibe otro mes'); }
     } finally { relojVuelve(); M._in.closeDetail(); paginaCerrada(); }
@@ -21148,7 +21148,7 @@
     try {
       ok(!q('.main .feed') && !q('.main .tray'), 'el tablero tiene feed o bandeja');
       ok(q('.main > .cont .cont-izq') && q('.main > .cont > .cont-side > .cal') && q('.main > .cont .cont-der'), 'no están las tres columnas');
-      ok(!q('.bar [data-act="revisar"]') && !q('.bar .clientToggle') && !q('.bar .stats') && q('.bar .mchip.on'), 'la barra del mes de un cliente de solo contenido: ' + q('.bar').textContent);
+      ok(!q('.bar [data-act="revisar"]') && q('.bar .clientToggle') && !q('.bar .stats') && q('.bar .mchip.on'), 'la barra del mes de un cliente de solo contenido: ' + q('.bar').textContent);   // al día a propósito: «Vista cliente» desde el lote D (D-297)
       await hasta(() => q('.side > .cal .calhead .ctit'), 4000, 'el calendario');
       ok(!q('.side > .cal .cfold') && !q('.side > .cal .ctot') && !q('.side > .cal .csync') && !q('.side > .cal .cpaso'), 'el calendario con pliegue, total, Notion o pasos');
       ok(/Acuerdo/.test(q('.cont-der').textContent) && /Solo contenido/.test(q('.cont-der').textContent), 'la columna del acuerdo: ' + q('.cont-der').textContent);
@@ -21261,7 +21261,7 @@
     await vistaCliente(true); await espera(120); ok(!q('.side > .cal .chip[data-ses]'), 'se ve en la «Vista cliente» con el ojo tachado'); await vistaCliente(false);
     await M._in.idbPut('tareas', r.id, { ...r, sesion: { ...r.sesion, visible: true }, at: new Date().toISOString() }); W.document.dispatchEvent(new W.CustomEvent('mesa-tareas'));
     await vistaCliente(true); await hasta(() => q('.side > .cal .chip[data-ses]'), 3000, 'con el ojo abierto no se ve en la «Vista cliente»'); await vistaCliente(false);
-    if (M.web && M.web.paquete) { const P = await M.web.paquete(M._in.S); ok(!P.sesiones.some(x => x.id === r.id), 'la web recibe la reunión'); }
+    if (M.web && M.web.paquete) { const P = await M.web.paquete(M._in.S); ok(P.sesiones.some(x => x.id === r.id && x.clase === 'reunion'), 'la web no recibe la reunión con el ojo abierto (lote D, D-297)'); }   // al día a propósito: hasta el lote D no la recibía
     // sin cobro
     const now = new Date().toISOString();
     await M._in.idbPut('tareas', 'es-rn1', { id: 'es-rn1', tipo: 'esporadico', txt: 'Esporádico RN1', creada: now, at: now });
@@ -21455,6 +21455,84 @@
       const sv = n.querySelector('svg'); igual(Math.round(vdR(sv).width), 16, 'la flecha de dentro no mide 16 px');
       const t = W.document.elementFromPoint(R.right + 6, R.top + R.height / 2); ok(t === n || n.contains(t), 'no tiene 44 px de toque (a 6 px de su borde hay ' + (t && t.className) + ')');
     } finally { await vdCerrarIg(); await vistaCliente(false); }
+  });
+  prueba('VD5', '«Tus pagos» con su tramo en la «Vista cliente» (D-297): «Pago semestral · 2700 €», «Cubre may – oct 2026 · el siguiente, el 1 nov» y cada factura «Mayo – octubre»; la siguiente no se repite abajo; nunca la fecha de renegociar; uno mensual, como siempre', async () => {
+    await tablero([pub(1)]);
+    relojEn('2026-10-20T10:00:00+02:00');
+    try {
+      await hasta(() => M.cobrosUI, 8000, 'cobros.js');
+      await CB().acuGuardar(CLIENTE, AU_ACU);
+      ok((await M.cobros.cargar([{ id: 'vd5-1', cliente: CLIENTE, periodo: '2026-05', hasta: '2026-10', importe: 2700, factura: 'VD5-1', emitida: '2026-05-01', vence: '2026-05-16', cobrada: '2026-05-10' }])).ok, 'cargar');
+      await vistaCliente(true); M._in.render(); await espera(120);
+      const p = await hasta(() => q('.main > .vc-lado [data-vc="pagos"]'), 3000, '«Tus pagos»');
+      igual(p.querySelector('.co-vh').textContent, 'Tus pagos Pago semestral · 2700 €', 'el título');
+      igual(p.querySelector('.co-vcubre') && p.querySelector('.co-vcubre').textContent, 'Cubre may – oct 2026 · el siguiente, el 1 nov', 'el tramo');
+      igual(p.querySelector('.co-vl li .m').textContent, 'Mayo – octubre · 2700 €', 'la factura');
+      ok(!p.querySelector('.co-vprox'), 'la siguiente se repite abajo');
+      ok(!/abr|2027/.test(p.textContent), 'sale la fecha de renegociar: ' + p.textContent);
+      // mensual: como siempre
+      await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 450, dia: 15, plazo: 10, desde: '', meses: null, renueva: true, renegociar: '2027-04-01' }); M._in.render(); await espera(120);
+      const p2 = await hasta(() => q('.main > .vc-lado [data-vc="pagos"] .co-vh') && /al mes/.test(q('.main > .vc-lado [data-vc="pagos"] .co-vh').textContent) && q('.main > .vc-lado [data-vc="pagos"]'), 3000, 'el mensual');
+      igual(p2.querySelector('.co-vh').textContent, 'Tus pagos 450 € al mes', 'el título de un mensual'); ok(!p2.querySelector('.co-vcubre'), 'un mensual dice su tramo');
+    } finally { relojVuelve(); await vistaCliente(false); }
+  });
+  prueba('VD6', 'Un cliente de solo contenido en la «Vista cliente» (D-297): en su barra, «Vista cliente»; sus entregas del mes en el sitio del feed, solo para mirar (el enlace, solo entregada), el calendario con sesiones con el ojo abierto y entregas, y «Tus pagos»; nada de lo de Kevin', async () => {
+    await tableroContenido();
+    relojEn('2026-11-10T10:00:00+01:00');
+    try {
+      const e1 = await M._in.ent.nueva({ cliente: CLIENTE, fecha: '2026-11-05', que: 'Fotos de otoño', cuanto: '40 fotos', enlace: 'https://ejemplo.test/vd6' }); await M._in.ent.cambiar(e1.id, { entregada: '2026-11-04' });
+      await M._in.ent.nueva({ cliente: CLIENTE, fecha: '2026-11-25', que: 'Vídeo de la cata', cuanto: '1 vídeo', enlace: 'https://ejemplo.test/vd6-aun' });
+      await M._in.ent.nueva({ cliente: CLIENTE, fecha: '2026-11-02', que: 'Retratos del equipo' });   // pasada sin entregar: para el cliente, «En camino»
+      await coCliente({ importe: 500, dia: 1, plazo: 15 });
+      M._in.render(); await espera(150);
+      ok(q('.bar .clientToggle'), 'sin «Vista cliente» en su barra');
+      await vistaCliente(true); await espera(150);
+      const izq = await hasta(() => q('.main > .cont .cont-izq .en-vc'), 3000, 'sus entregas para el cliente');
+      ok(!q('.main > .cont [data-en="nueva"], .main > .cont .en-ed, .main > .cont .cont-izq input'), 'se puede escribir en la «Vista cliente»');
+      ok(izq.querySelector('a[href="https://ejemplo.test/vd6"][target="_blank"]'), 'la entregada sin su enlace');
+      ok(!q('#mesa a[href="https://ejemplo.test/vd6-aun"]'), 'se ve el enlace de una sin entregar');
+      ok(/Fotos de otoño/.test(izq.textContent) && /Vídeo de la cata/.test(izq.textContent) && /Retratos del equipo/.test(izq.textContent), 'faltan entregas: ' + izq.textContent);
+      ok(!/sin entregar|Borrar|Acuerdo|Renegociar|sin emitir/i.test(q('.main').innerText), 'se ve algo de Kevin: ' + q('.main').innerText.slice(0, 300));
+      ok(qa('.main > .cont .cal .chip[data-ent]').length >= 3, 'el calendario sin las entregas');
+      ok(q('.main > .cont > .vc-lado [data-vc="pagos"]') && !q('.main > .cont > .cont-der').getClientRects().length, 'sin «Tus pagos» a la derecha (o se ve el acuerdo de Kevin)');
+      await vistaCliente(false); ok(q('.main > .cont .cont-izq .en-h') && !q('.main > .cont .en-vc'), 'mi vista no vuelve');
+    } finally { relojVuelve(); await vistaCliente(false); }
+  });
+  prueba('WD1', 'Lo que la web recibe del lote D (D-294, D-297): el servicio, el enlace de métricas, cada cuánto paga, el importe de cada pago y el tramo de hoy, nunca la fecha de renegociar; cada factura con su tramo; la reunión con el ojo abierto, como «reunion»; las entregas de un cliente de solo contenido (el enlace, solo entregada), con la comprobación de otros clientes; enviar las sube y quita las que ya no están; «Web del cliente» en su barra', async () => {
+    await tableroContenido();
+    relojEn('2026-10-20T10:00:00+02:00');
+    try {
+      await M.updateClient(CLIENTE, { metricas: 'https://metricas.ejemplo.test/wd1' });
+      await CB().acuGuardar(CLIENTE, AU_ACU);
+      ok((await M.cobros.cargar([{ id: 'wd1-1', cliente: CLIENTE, periodo: '2026-05', hasta: '2026-10', importe: 2700, factura: 'WD1-1', emitida: '2026-05-01', vence: '2026-05-16', cobrada: '2026-05-10' }])).ok, 'cargar');
+      const e1 = await M._in.ent.nueva({ cliente: CLIENTE, fecha: '2026-11-05', que: 'Fotos de octubre', cuanto: '30 fotos', enlace: 'https://ejemplo.test/wd1' }); await M._in.ent.cambiar(e1.id, { entregada: '2026-11-04' });
+      const e2 = await M._in.ent.nueva({ cliente: CLIENTE, fecha: '2026-10-28', que: 'Vídeo', enlace: 'https://ejemplo.test/wd1-aun' });
+      await hasta(() => M.sesiones && M.sesiones._test, 8000, 'sesiones.js');
+      await M.sesiones._test.crear({ txt: 'Reunión de octubre', clase: 'reunion', visible: true, fecha: '2026-11-15', clientes: [CLIENTE] });
+      await M.sesiones._test.crear({ txt: 'Reunión privada', clase: 'reunion', visible: false, fecha: '2026-11-16', clientes: [CLIENTE] });   // con el ojo tachado: no va
+      await M.sesiones._test.crear({ txt: 'Rodaje', clase: 'foto', fecha: '2026-11-22', clientes: [CLIENTE] });
+      await conWeb(async sv => {
+        wbSesion(); M._in.renderBar(); await espera(60);
+        ok(q('.bar .webbtn'), 'sin «Web del cliente» en la barra de un cliente de solo contenido');
+        const P = await M.web.paquete(M._in.S);
+        ok(!P.error, 'el paquete: ' + json(P.error));
+        const C = P.cliente || {};
+        igual([C.servicio, C.metricas, C.pago, C.pago_cent, C.cubre_de, C.cubre_hasta, C.cuota_cent], ['contenido', 'https://metricas.ejemplo.test/wd1', 'semestral', 270000, '2026-05', '2026-10', null], 'el cliente');
+        ok(!json(P).includes('2027-04-01') && !/renegoc/i.test(json(P)), 'la fecha de renegociar va a la web');
+        igual((P.pagos || []).map(p => [p.periodo, p.hasta]), [['2026-05', '2026-10']], 'la factura sin su tramo');
+        igual((P.sesiones || []).map(x => [x.nombre, x.clase]).sort(), [['Reunión de octubre', 'reunion'], ['Rodaje', 'sesion']], 'las sesiones');
+        igual((P.entregas || []).map(x => [x.que, x.cuanto, x.enlace, x.entregada, x.fecha]).sort(), [['Fotos de octubre', '30 fotos', 'https://ejemplo.test/wd1', '2026-11-04', '2026-11-05'], ['Vídeo', null, null, null, '2026-10-28']], 'las entregas');
+        const r = await M.web.enviar(); ok(r.ok, 'no se envió: ' + json(r));
+        igual((sv.db.entregas || []).map(x => x.id).sort(), [e1.id, e2.id].sort(), 'las entregas en la web');
+        ok(sv.db.clientes[0] && sv.db.clientes[0].servicio === 'contenido' && sv.db.clientes[0].metricas === 'https://metricas.ejemplo.test/wd1', 'el cliente en la web');
+        await M._in.ent.borrar(e2.id);
+        const r2 = await M.web.enviar(); ok(r2.ok, 'no se envió otra vez: ' + json(r2));
+        igual((sv.db.entregas || []).map(x => x.id), [e1.id], 'la borrada sigue en la web');
+        await M.addClient({ id: CLIENTE2, name: NOMBRE2 });
+        await M._in.ent.nueva({ cliente: CLIENTE, fecha: '2026-10-29', que: 'Fotos para ' + NOMBRE2 });
+        const r3 = await M.web.enviar(); ok(r3.error && (r3.problemas || []).some(x => /entrega/.test(x)), 'una entrega que nombra a otro cliente se envía: ' + json(r3));
+      });
+    } finally { relojVuelve(); }
   });
 
   window.pasarBateria = pasar;

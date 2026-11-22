@@ -39,10 +39,12 @@
   const diaDe = iso => { const p = partes(new Date(iso), { year: 'numeric', month: '2-digit', day: '2-digit' }); return `${p.year}-${p.month}-${p.day}`; };
   const horaDe = iso => { const p = partes(new Date(iso), { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }); return `${p.hour}:${p.minute}`; };
   const dsem = dia => DIAS[new Date(dia + 'T12:00:00Z').getUTCDay()];
+  const madrid = dia => new Date(dia + 'T11:00:00Z').toISOString();   // una entrega, a mediodía de su día en Madrid (para ordenar la lista)
   const may = t => t ? t[0].toUpperCase() + t.slice(1) : t;
   const mesCorto = m => may(MESES[+m.slice(5, 7) - 1].slice(0, 3)) + ' ' + m.slice(0, 4);
   const mesNom = m => MESES[+m.slice(5, 7) - 1] + (m.slice(0, 4) !== hoy().slice(0, 4) ? ' ' + m.slice(0, 4) : '');
   const mesAntes = m => { let [y, mo] = m.split('-').map(Number); mo--; if (!mo) { mo = 12; y--; } return `${y}-${String(mo).padStart(2, '0')}`; };
+  const mesDespues = m => { let [y, mo] = m.split('-').map(Number); mo++; if (mo > 12) { mo = 1; y++; } return `${y}-${String(mo).padStart(2, '0')}`; };
   const diaCorto = d => +d.slice(8, 10) + ' ' + MESES[+d.slice(5, 7) - 1].slice(0, 3);
   const fechaPub = p => { if (!p.fecha) return 'Sin fecha'; const d = diaDe(p.fecha); return may(dsem(d)) + ' ' + diaCorto(d) + (p.sin_hora ? '' : ' · ' + horaDe(p.fecha)); };
   const cuando = iso => { const d = diaDe(iso), t = horaDe(iso); if (d === hoy()) return 'hoy, ' + t; const ay = diaDe(Date.now() - 864e5); return d === ay ? 'ayer, ' + t : diaCorto(d) + ', ' + t; };
@@ -77,29 +79,32 @@
     st.todoMira = !!(mios || []).length && (mios || []).every(m => m.observa === true);
     const ids = [...new Set((mios || []).map(m => m.cliente_id))];
     if (!ids.length) return [];
-    // `metricas` (D-294): un servidor que aún no la tiene contesta 400 y se lee como antes
+    // `metricas` (D-294) y el acuerdo y el servicio (D-297): un servidor que aún no los tiene contesta 400 y se lee como antes
     const en = ids.map(encodeURIComponent).join(','), C0 = 'id,nombre,handle,foto,cuota_cent,proxima_emision';
     let l;
-    try { l = await S.leer(`clientes?select=${C0},metricas&id=in.(${en})`); }
+    try { l = await S.leer(`clientes?select=${C0},metricas,servicio,pago,pago_cent,cubre_de,cubre_hasta&id=in.(${en})`); }
     catch (e) { if (e.status !== 400) throw e; l = await S.leer(`clientes?select=${C0}&id=in.(${en})`); }
     return (l || []).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   }
+  // una lectura con columnas nuevas (D-297): un servidor que aún no las tiene contesta 400 y se lee sin ellas
+  const leerCon = (t, cols, extra, resto) => S.leer(`${t}?select=${cols},${extra}${resto}`).catch(e => { if (e.status !== 400) throw e; return S.leer(`${t}?select=${cols}${resto}`); });
   async function cargarDatos(cli, antes) {
     const c = encodeURIComponent(cli), prev = antes || {};
     const pide = [
       S.leer(`publicaciones?select=${C_PUB}&cliente_id=eq.${c}&order=mes.desc,orden.asc`),
       S.leer(`aprobaciones?select=${C_APR}&cliente_id=eq.${c}&order=hora.asc`),
       S.leer(`comentarios?select=${C_COM}&cliente_id=eq.${c}&order=hora.asc`),
-      S.leer(`sesiones?select=id,mes,nombre,inicio,fin,sin_hora&cliente_id=eq.${c}`),
+      leerCon('sesiones', 'id,mes,nombre,inicio,fin,sin_hora', 'clase', `&cliente_id=eq.${c}`),
       S.leer(`meses?select=mes,porque,resumen&cliente_id=eq.${c}`),
-      S.leer(`pagos?select=id,periodo,concepto,importe_cent,factura,emitida,vence,cobrada,pdf&cliente_id=eq.${c}`),
+      leerCon('pagos', 'id,periodo,concepto,importe_cent,factura,emitida,vence,cobrada,pdf', 'hasta', `&cliente_id=eq.${c}`),
+      S.leer(`entregas?select=id,fecha,que,cuanto,enlace,entregada&cliente_id=eq.${c}&order=fecha.asc`),
     ];
     const r = await Promise.allSettled(pide);
     const mal = r.find(x => x.status === 'rejected');
     if (mal && (mal.reason.status === 401 || mal.reason.codigo === 'sesion')) throw mal.reason;
     if (r.slice(0, 3).some(x => x.status === 'rejected')) throw r.slice(0, 3).find(x => x.status === 'rejected').reason;   // sin publicaciones ni conversación, no se pinta
     const v = (i, k) => (r[i].status === 'fulfilled' ? r[i].value || [] : prev[k] || []);   // un panel que falla se queda como estaba
-    return { pubs: v(0, 'pubs').map(visto), aprs: v(1, 'aprs'), coms: v(2, 'coms'), ses: v(3, 'ses'), meses: v(4, 'meses'), pagos: v(5, 'pagos') };
+    return { pubs: v(0, 'pubs').map(visto), aprs: v(1, 'aprs'), coms: v(2, 'coms'), ses: v(3, 'ses'), meses: v(4, 'meses'), pagos: v(5, 'pagos'), ents: v(6, 'ents') };
   }
   // URL firmadas (10 minutos): se piden juntas y se guardan hasta un minuto antes de caducar.
   async function urls(rutas, bucket = 'fotos') {
@@ -155,7 +160,7 @@
   const delMes = m => visibles().filter(p => p.mes === m).sort((a, b) => a.orden - b.orden);
   const pendientes = () => visibles().filter(p => p.estado === 'por_aprobar').sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''));
   function mesesDisponibles() {
-    const s = new Set([...visibles().map(p => p.mes), ...st.d.ses.map(x => x.mes)]);
+    const s = new Set([...visibles().map(p => p.mes), ...st.d.ses.map(x => x.mes), ...(st.d.ents || []).map(x => x.fecha.slice(0, 7))]);
     return [...s].sort().reverse();
   }
   function mesInicial() {
@@ -209,7 +214,7 @@
       h('button', { type: 'button', class: 'btn p', text: pend.length === 1 ? 'Revisarla' : 'Revisarlas', onclick: () => abrir(pend[0].pid) })) : null;
     // la columna derecha solo si tiene algo; sin ella, el calendario ocupa su sitio (como la «Vista cliente» de la Mesa, D-230, D-246)
     const lado = [seguro(() => pintarPagos(cli)), seguro(() => pintarComoFue(cli))].filter(Boolean);
-    const cols = h('div', { class: 'cols' + (lado.length ? ' con-lado' : '') }, pintarFeed(), seguro(pintarCentro), lado.length ? h('div', { class: 'lado' }, lado) : null);
+    const cols = h('div', { class: 'cols' + (lado.length ? ' con-lado' : '') }, cli && cli.servicio === 'contenido' ? seguro(pintarEntregas) : pintarFeed(), seguro(pintarCentro), lado.length ? h('div', { class: 'lado' }, lado) : null);
     const pie = h('footer', { class: 'pie' }, h('a', { href: 'privacidad.html', text: 'Privacidad' }), h('a', { href: 'aviso-legal.html', text: 'Aviso legal' }), h('span', { text: 'Uribe Visuals' }));
     const tira = st.todoMira ? h('div', { class: 'pv-obs', role: 'region', 'aria-label': 'Cuenta que solo mira' },
       h('span', { class: 'pv-obs-t' }, h('b', { text: 'Solo mirar' }), ' · ves cada calendario como lo ve su cliente'),
@@ -255,6 +260,23 @@
     return h('section', { class: 'feedw', 'aria-label': 'Tu feed' },
       celdas.length ? h('div', { class: 'feed' }, celdas) : h('p', { class: 'vacio', text: 'Este mes aún no tiene publicaciones.' }));
   }
+  // Las entregas de un cliente de solo contenido (D-297), en el sitio del feed: las del mes, «N de M entregadas»; cada una con
+  // qué, cuánto y su fecha; entregada, su enlace (solo entonces) y el día; si no, «En camino»; las del mes siguiente, aparte.
+  // «qué» y «cuánto» pasaron en la Mesa el mismo filtro que los captions (mesOtros). Como la «Vista cliente» (entregas.js).
+  function filaEnt(e) {
+    const hecha = !!e.entregada, sub = [e.cuanto, hecha ? 'entregada el ' + diaCorto(e.entregada) : 'antes del ' + diaCorto(e.fecha)].filter(Boolean).join(' · ');
+    const der = hecha && /^https:\/\/\S+$/.test(e.enlace || '') ? h('a', { class: 'ent-l', href: e.enlace, target: '_blank', rel: 'noopener noreferrer' }, ico('ext'), 'Abrir')
+      : hecha ? null : h('span', { class: 'ent-cam', text: 'En camino' });
+    return h('li', { class: 'ent-f' + (hecha ? ' hecha' : ''), 'data-ent': e.id }, h('span', { class: 'd', text: diaCorto(e.fecha) }), h('span', { class: 't' }, h('b', { text: e.que }), h('span', { text: sub })), der);
+  }
+  function pintarEntregas() {
+    const E = st.d.ents || [], m = st.mes, sigM = mesDespues(m);
+    const del = E.filter(e => e.fecha.slice(0, 7) === m), sig = E.filter(e => e.fecha.slice(0, 7) === sigM), n = del.filter(e => e.entregada).length;
+    return h('section', { class: 'card entw', 'aria-labelledby': 'h-ent' },
+      h('div', { class: 'ti' }, h('h2', { id: 'h-ent', text: 'Tus entregas' }), h('span', { text: may(MESES[+m.slice(5, 7) - 1]) + (del.length ? ` · ${n} de ${del.length} entregada${del.length === 1 ? '' : 's'}` : '') })),
+      del.length ? h('ol', { class: 'ents' }, del.map(filaEnt)) : h('p', { class: 'vacio', text: 'Este mes aún no tiene entregas.' }),
+      sig.length ? [h('p', { class: 'h3', text: may(MESES[+sigM.slice(5, 7) - 1]) }), h('ol', { class: 'ents' }, sig.map(filaEnt))] : null);
+  }
   async function otraVez(e) {   // una URL firmada que caducó antes de verse (perezosa): se pide de nuevo, una vez
     const i = e.currentTarget, r = i.dataset.ruta || i.dataset.grande; if (!r || i.dataset.otra) return;
     i.dataset.otra = '1'; st.urls.delete(r);
@@ -275,11 +297,16 @@
     return h('button', { type: 'button', class: 'chip ' + p.tipo, 'data-pid': p.pid, onclick: () => abrir(p.pid), 'aria-label': `${p.nombre} · ${fechaPub(p)} · ${ESTADO[p.estado][0]}` },
       h('span', { class: 'cl' }, h('span', { class: 'cn', text: p.nombre })), p.sin_hora || !p.fecha ? null : h('span', { class: 'ct', text: horaDe(p.fecha) }));
   }
-  const chipSes = x => h('span', { class: 'chip ses' }, h('span', { class: 'cl' }, ico('clap', 'cses'), h('span', { class: 'cn', text: x.nombre })), x.sin_hora ? null : h('span', { class: 'ct', text: horaDe(x.inicio) }));
+  const reu = x => x.clase === 'reunion';   // una reunión (D-297): su dibujo (Lucide «users») y su nombre, como una sesión
+  const chipSes = x => h('span', { class: 'chip ses' + (reu(x) ? ' reu' : ''), 'aria-label': (reu(x) ? 'Reunión' : 'Sesión') + ' · ' + x.nombre + (x.sin_hora ? '' : ' · ' + horaDe(x.inicio)) },
+    h('span', { class: 'cl' }, ico(reu(x) ? 'users' : 'clap', 'cses'), h('span', { class: 'cn', text: x.nombre })), x.sin_hora ? null : h('span', { class: 'ct', text: horaDe(x.inicio) }));
+  // una entrega en su día (D-297): entregada, con su ✓; si no, en camino
+  const chipEnt = e => h('span', { class: 'chip entg' + (e.entregada ? ' hecha' : ''), 'aria-label': `Entrega · ${e.que} · ${e.entregada ? 'entregada' : 'en camino'}` },
+    h('span', { class: 'cl' }, e.entregada ? ico('check', 'cses') : null, h('span', { class: 'cn', text: e.que })));
   function pintarCalendario() {
     const m = st.mes, [y, mo] = m.split('-').map(Number), d0 = new Date(Date.UTC(y, mo - 1, 1)), dias = new Date(Date.UTC(y, mo, 0)).getUTCDate();
-    const lun = (d0.getUTCDay() + 6) % 7, H = hoy(), pubs = delMes(m).filter(p => p.fecha), ses = st.d.ses.filter(x => x.mes === m);
-    const deDia = d => [...pubs.filter(p => diaDe(p.fecha) === d).map(p => [p.fecha, chip(p)]), ...ses.filter(x => diaDe(x.inicio) === d).map(x => [x.inicio, chipSes(x)])].sort((a, b) => a[0].localeCompare(b[0])).map(x => x[1]);
+    const lun = (d0.getUTCDay() + 6) % 7, H = hoy(), pubs = delMes(m).filter(p => p.fecha), ses = st.d.ses.filter(x => x.mes === m), ents = (st.d.ents || []).filter(e => e.fecha.slice(0, 7) === m);
+    const deDia = d => [...pubs.filter(p => diaDe(p.fecha) === d).map(p => [p.fecha, chip(p)]), ...ses.filter(x => diaDe(x.inicio) === d).map(x => [x.inicio, chipSes(x)]), ...ents.filter(e => e.fecha === d).map(e => [e.fecha + 'T23:59', chipEnt(e)])].sort((a, b) => a[0].localeCompare(b[0])).map(x => x[1]);
     const celdas = [];
     const diasAntes = new Date(Date.UTC(y, mo - 1, 0)).getUTCDate();
     for (let i = 0; i < lun; i++) celdas.push(h('div', { class: 'dia fuera', 'aria-hidden': 'true' }, h('span', { class: 'n', text: String(diasAntes - lun + 1 + i) })));
@@ -287,15 +314,16 @@
     for (let d = 1; celdas.length % 7; d++) celdas.push(h('div', { class: 'dia fuera', 'aria-hidden': 'true' }, h('span', { class: 'n', text: d === 1 ? `1 ${MESES[mo % 12].slice(0, 3)}` : String(d) })));
     const grid = h('div', { class: 'cal', role: 'grid', 'aria-label': 'Calendario de ' + MESES[mo - 1] }, ['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(x => h('span', { class: 'dn', 'aria-hidden': 'true', text: x })), celdas);
     // lista por semanas (a 390): de lunes a domingo
-    const items = [...pubs.map(p => ({ t: p.fecha, p })), ...ses.map(x => ({ t: x.inicio, x }))].sort((a, b) => a.t.localeCompare(b.t));
+    const items = [...pubs.map(p => ({ t: p.fecha, p })), ...ses.map(x => ({ t: x.inicio, x })), ...ents.map(e => ({ t: madrid(e.fecha), e }))].sort((a, b) => a.t.localeCompare(b.t));
     const lista = h('ol', { class: 'agenda' }); let semAnt = null;
     for (const it of items) {
       const dia = diaDe(it.t), dd = new Date(dia + 'T12:00:00Z'), w = (dd.getUTCDay() + 6) % 7, lunes = new Date(dd - w * 864e5).toISOString().slice(0, 10), dom = new Date(dd.getTime() + (6 - w) * 864e5).toISOString().slice(0, 10);
       if (lunes !== semAnt) { semAnt = lunes; const n = Math.floor((+dia.slice(8) + lun - 1) / 7) + 1, mismo = lunes.slice(5, 7) === dom.slice(5, 7);
         lista.append(h('li', { class: 'sem', text: `Semana ${n} · ${mismo ? +lunes.slice(8) : diaCorto(lunes)} – ${diaCorto(dom)}` })); }
-      const est = it.p ? (it.p.estado === 'por_aprobar' ? h('span', { class: 'dot', 'aria-hidden': 'true' }) : ['aprobada', 'programada', 'publicada'].includes(it.p.estado) ? ico('check', 'ok') : it.p.estado === 'cambios' ? ico('pen', 'cb') : null) : null;
-      const hora = it.p ? (it.p.sin_hora ? '' : horaDe(it.p.fecha)) : (it.x.sin_hora ? '' : horaDe(it.x.inicio));
-      const cont = [h('span', { class: 'd' }, h('b', { text: String(+dia.slice(8)) }), h('span', { text: dsem(dia).slice(0, 3) })), h('span', { class: 'c ' + (it.p ? it.p.tipo : 'ses'), text: it.p ? it.p.nombre : it.x.nombre }), h('span', { class: 'h', text: hora }), h('span', { class: 's' }, est)];
+      const est = it.p ? (it.p.estado === 'por_aprobar' ? h('span', { class: 'dot', 'aria-hidden': 'true' }) : ['aprobada', 'programada', 'publicada'].includes(it.p.estado) ? ico('check', 'ok') : it.p.estado === 'cambios' ? ico('pen', 'cb') : null) : it.e && it.e.entregada ? ico('check', 'ok') : null;
+      const hora = it.p ? (it.p.sin_hora ? '' : horaDe(it.p.fecha)) : it.e ? '' : (it.x.sin_hora ? '' : horaDe(it.x.inicio));
+      const cont = [h('span', { class: 'd' }, h('b', { text: String(+dia.slice(8)) }), h('span', { text: dsem(dia).slice(0, 3) })),
+        h('span', { class: 'c ' + (it.p ? it.p.tipo : it.e ? 'entg' + (it.e.entregada ? ' hecha' : '') : 'ses' + (reu(it.x) ? ' reu' : '')), text: it.p ? it.p.nombre : it.e ? it.e.que : it.x.nombre }), h('span', { class: 'h', text: hora }), h('span', { class: 's' }, est)];
       lista.append(h('li', {}, it.p ? h('button', { type: 'button', class: 'ag', 'data-pid': it.p.pid, onclick: () => abrir(it.p.pid), 'aria-label': `${it.p.nombre} · ${fechaPub(it.p)} · ${ESTADO[it.p.estado][0]}` }, cont) : h('div', { class: 'ag' }, cont)));
     }
     if (!items.length) lista.append(h('li', {}, h('p', { class: 'vacio', text: 'Este mes aún no tiene nada en el calendario.' })));
@@ -322,24 +350,35 @@
     if (r.vence && r.vence < H) return ['Pendiente', 'ven', 'alert', 'venció el ' + diaCorto(r.vence)];
     return ['Pendiente', 'pen', 'clock', r.vence ? 'vence el ' + diaCorto(r.vence) : ''];
   }
+  // «Tus pagos» con su tramo (D-297): con un acuerdo que no es mensual, «Pago semestral · 2700 €» y «Cubre may – oct 2026 · el
+  // siguiente, el 1 nov»; cada factura por su tramo («Mayo – octubre»); nunca la fecha de renegociar (no llega). Como la Mesa.
+  const PAGO = { trimestral: 'Pago trimestral', semestral: 'Pago semestral', anual: 'Pago anual', unico: 'Pago único' };
+  const mesC = m => MESES[+m.slice(5, 7) - 1].slice(0, 3);
+  const tramoTxt = (de, ha) => de === ha ? `${mesC(de)} ${de.slice(0, 4)}` : de.slice(0, 4) === ha.slice(0, 4) ? `${mesC(de)} – ${mesC(ha)} ${ha.slice(0, 4)}` : `${mesC(de)} ${de.slice(0, 4)} – ${mesC(ha)} ${ha.slice(0, 4)}`;
+  const nomFactura = r => {   // «Noviembre», «Mayo – octubre», «Noviembre 2026 – abril 2027» (el año, si no es el de hoy)
+    const p = r.periodo, ha = r.hasta && r.hasta > p ? r.hasta : p, hy = hoy().slice(0, 4), M = (m, y) => MESES[+m.slice(5, 7) - 1] + (y ? ' ' + m.slice(0, 4) : '');
+    return may(ha === p ? M(p, p.slice(0, 4) !== hy) : p.slice(0, 4) !== ha.slice(0, 4) ? `${M(p, true)} – ${M(ha, true)}` : `${M(p, false)} – ${M(ha, ha.slice(0, 4) !== hy)}`);
+  };
   function pintarPagos(cli) {
     const P = st.d.pagos, H = hoy(), clave = r => r.emitida || (/^\d{4}-\d{2}$/.test(r.periodo || '') ? r.periodo + '-01' : '') || r.vence || '';
     const orden = (a, b) => clave(b).localeCompare(clave(a)) || String(b.id).localeCompare(String(a.id));
     const deber = P.filter(r => !r.cobrada && r.emitida && r.emitida <= H).sort((a, b) => clave(a).localeCompare(clave(b)));
     const pagadas = P.filter(r => r.cobrada).sort(orden), N = Math.max(0, pagadas.length - 3), ver = st.verAnt === st.cli;
     const prox = cli && cli.proxima_emision && cli.proxima_emision >= H ? cli.proxima_emision : '';
-    if (!(cli && cli.cuota_cent) && !deber.length && !pagadas.length && !prox) return null;
+    const tramo = cli && cli.pago && cli.pago !== 'mensual' && cli.pago_cent != null;
+    if (!(cli && cli.cuota_cent) && !tramo && !deber.length && !pagadas.length && !prox) return null;
     const filas = [...deber, ...pagadas.slice(0, 3), ...(ver ? pagadas.slice(3) : [])], venc = deber.filter(r => r.vence && r.vence < H).length;
     const fila = r => {
-      const [t, k, i, cuando] = estadoPago(r, H), titulo = (r.periodo ? may(MESES[+r.periodo.slice(5, 7) - 1]) : (r.concepto || 'Factura')) + ' · ' + eur(r.importe_cent);
+      const [t, k, i, cuando] = estadoPago(r, H), titulo = (r.periodo ? nomFactura(r) : (r.concepto || 'Factura')) + ' · ' + eur(r.importe_cent);
       return h('button', { type: 'button', class: 'fac', disabled: !r.pdf, 'aria-label': r.pdf ? `${titulo}: abrir la factura en PDF` : null, onclick: r.pdf ? () => abrirPdf(r.pdf) : null },
         h('div', {}, h('b', { text: titulo }), r.factura ? h('span', { class: 'm' }, r.pdf ? ico('file') : null, 'Factura ' + r.factura) : null, cuando ? h('span', { class: r.factura ? 'm2' : 'm', text: cuando }) : null),
         h('span', { class: 'est ' + k }, ico(i), t));
     };
-    const emite = prox ? h('p', { class: 'emite' }, ico('file'), `La de ${MESES[+prox.slice(5, 7) - 1]} se emite el ${diaCorto(prox)}`) : null;
+    const emite = prox && !tramo ? h('p', { class: 'emite' }, ico('file'), `La de ${MESES[+prox.slice(5, 7) - 1]} se emite el ${diaCorto(prox)}`) : null;   // con tramo, va en «Cubre …»
+    const cubre = tramo && cli.cubre_de && cli.cubre_hasta ? h('p', { class: 'cubre' }, 'Cubre ', h('b', { text: tramoTxt(cli.cubre_de, cli.cubre_hasta) }), cli.pago !== 'unico' && prox ? ` · el siguiente, el ${diaCorto(prox)}` : '') : null;
     const mas = N ? h('button', { type: 'button', class: 'lnk ver-ant', 'aria-expanded': String(ver), text: ver ? 'Ocultar las anteriores' : `Ver las anteriores (${N})`, onclick: () => { st.verAnt = ver ? null : st.cli; pintar(); } }) : null;
     return h('section', { class: 'card', 'aria-labelledby': 'h-pagos' },
-      h('div', { class: 'ti' }, h('h2', { id: 'h-pagos', text: 'Tus pagos' }), cli && cli.cuota_cent ? h('span', { text: eur(cli.cuota_cent) + ' al mes' }) : null),
+      h('div', { class: 'ti pagos-ti' }, h('h2', { id: 'h-pagos', text: 'Tus pagos' }), tramo ? h('span', { text: `${PAGO[cli.pago] || 'Pago'} · ${eur(cli.pago_cent)}` }) : cli && cli.cuota_cent ? h('span', { text: eur(cli.cuota_cent) + ' al mes' }) : null), cubre,
       deber.length ? h('p', { class: 'pend-pago' }, 'Pendiente de pago ', h('b', { text: eur(deber.reduce((s, r) => s + r.importe_cent, 0)) }), venc ? h('em', { text: `· ${venc === 1 ? '1 vencida' : venc + ' vencidas'}` }) : null) : null,
       filas.map(fila), mas, emite);
   }

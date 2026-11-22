@@ -3153,7 +3153,7 @@ ${TK_FUENTES}
       return `<button class="mchip${S && b.key === S.key ? ' on' : ''}" data-act="month" data-key="${esc(b.key)}" data-tt="${tt}"${root.classList.contains('client') ? '' : ` title="${tt}"`}>${esc(rangeLabel(b.month, b.span, true, b.cycleDay))}<i>${f}/${n}</i></button>`;
     }).join('');
     let stats = '';
-    if (S && cont) { bar.innerHTML = `<div class="mgrp"><div class="months">${months}</div></div><div class="spacer"></div>`; return; }
+    if (S && cont) { bar.innerHTML = `<div class="mgrp"><div class="months">${months}</div></div><div class="spacer"></div>${M.web && M.web.barra ? M.web.barra() : ''}<label class="sw"><input type="checkbox" class="clientToggle"${root.classList.contains('client') ? ' checked' : ''}> Vista cliente</label>`; return; }   // «Web del cliente» and «Vista cliente» since lot D (D-297)
     if (S) {
       const k = counts();
       const pl = (n, a, b) => n === 1 ? a : b;
@@ -3184,8 +3184,7 @@ ${TK_FUENTES}
       if (M._ro) { M._ro.disconnect(); M._ro = null; }
       if (!S) root.classList.remove('client');
       root.classList.toggle('cont-on', cont);
-      if (cont) {                                   // three columns: deliveries and sessions · calendar · agreement and payments (D-290, tablero A)
-        root.classList.remove('client');
+      if (cont) {                                   // three columns: deliveries and sessions · calendar · agreement and payments (D-290, tablero A); its vista cliente since lot D (D-297)
         main.innerHTML = '<div class="cont"><section class="cont-izq" aria-label="Entregas y sesiones"></section><div class="side cont-side"><section class="cal" aria-label="Calendario" hidden></section></div><section class="cont-der" aria-label="Acuerdo y pagos"></section></div>';
       } else if (S) {
         main.innerHTML = '<section class="feed"><div class="grid" tabindex="' + (root.classList.contains('client') ? -1 : 0) + '" role="group" aria-label="Feed del mes" aria-keyshortcuts="Shift+F10"></div></section><section class="hv" aria-label="Historias" hidden></section>'
@@ -5269,6 +5268,7 @@ ${TK_FUENTES}
         // the calendar drawn again at once: without the notice on opening (D-160), «N vencidas» of its header must be there as
         // soon as the view is left, and never in it
         if (M.calendario && M.calendario.render) M.calendario.render();
+        if (M.entregasUI && M.entregasUI.pintar) M.entregasUI.pintar();   // a «Solo contenido» board: its deliveries as the client sees them (D-297)
       }
       else if (e.target.matches('.pinToggle')) { if (!setPin(e.target.dataset.slot, e.target.checked)) e.target.checked = !e.target.checked; }
       else if (e.target.matches('.ubsel')) { if (!setUbicacion(e.target.dataset.slot, e.target.value || null)) refreshDetail(); }

@@ -68,7 +68,7 @@
   let S = null;
   try { S = window.Supa.crear({ url: CFG.url, publica: CFG.publica, clave: 'portal-sesion' }); } catch (e) { S = null; }
   const POR = 'Solo mirar: con esta cuenta no se aprueba, no se piden cambios ni se comenta.';   // D-266
-  const st = { observa: new Set(), todoMira: false, clientes: [], cli: null, d: null, mes: null, tab: 'cal', verAnt: null, urls: new Map(), cargando: false, error: '', abierta: null, gen: 0, carga: 0, sucio: false, codigoEn: 0 };
+  const st = { observa: new Set(), todoMira: false, clientes: [], cli: null, d: null, mes: null, tab: 'cal', verAnt: null, urls: new Map(), cargando: false, error: '', abierta: null, gen: 0, carga: 0, sucio: false, codigoEn: 0, ys: new Map(), colsDe: '' };
 
   async function cargarClientes() {
     // `observa` (D-266): una cuenta que solo mira; un servidor que aún no la tiene contesta 400 y se lee como siempre
@@ -105,7 +105,7 @@
     if (r.slice(0, 3).some(x => x.status === 'rejected')) throw r.slice(0, 3).find(x => x.status === 'rejected').reason;   // sin publicaciones ni conversación, no se pinta
     const v = (i, k) => (r[i].status === 'fulfilled' ? r[i].value || [] : prev[k] || []);   // un panel que falla se queda como estaba
     return { pubs: v(0, 'pubs').map(visto), aprs: v(1, 'aprs'), coms: v(2, 'coms'), ses: v(3, 'ses'), meses: v(4, 'meses'), pagos: v(5, 'pagos'), ents: v(6, 'ents'),
-      entsMal: r[6].status === 'rejected' && !prev.ents };   // una lectura fallida no es «sin entregas» (lección 94)
+      entsMal: r[6].status === 'rejected' && (!prev.ents || !!prev.entsMal) };   // una lectura fallida no es «sin entregas» (lección 94)
   }
   // URL firmadas (10 minutos): se piden juntas y se guardan hasta un minuto antes de caducar.
   async function urls(rutas, bucket = 'fotos') {
@@ -221,12 +221,13 @@
       h('span', { class: 'pv-obs-t' }, h('b', { text: 'Solo mirar' }), ' · ves cada calendario como lo ve su cliente'),
       st.clientes.length > 1 ? h('span', { class: 'pv-obs-l', text: 'Ver como' }) : null,
       st.clientes.length > 1 ? st.clientes.map(c => h('button', { type: 'button', class: 'pv-obs-c' + (c.id === st.cli ? ' on' : ''), 'aria-pressed': String(c.id === st.cli), text: c.nombre, onclick: () => irA(c.id) })) : null) : null;
-    const y = window.scrollY, ys = st.colsDe === st.cli + '|' + st.mes ? scrollCols() : null;   // otro cliente u otro mes: arriba
+    const y = window.scrollY, k = st.cli + '|' + st.mes;
+    if (st.colsDe !== k) st.ys = new Map(); else scrollCols();   // otro cliente u otro mes: arriba
     app.replaceChildren(...[tira, h('div', { class: 'pv' }, top, aviso, cols, pie)].filter(Boolean));
     window.scrollTo(0, y);
     lleno();
-    if (ys) scrollCols(ys);
-    st.colsDe = st.cli + '|' + st.mes;
+    scrollCols(true);
+    st.colsDe = k;
     pintarMinis();
   }
   // A pantalla completa (D-293): con las tres columnas (desde 1100 px de ancho) y 700 px de alto o más, cada columna mide el
@@ -238,14 +239,15 @@
     if (si) pv.style.setProperty('--cols-top', Math.round(cols.getBoundingClientRect().top + window.scrollY) + 'px');   // CSSOM: la CSP lo deja (lección 243)
   }
   // A pantalla completa cada columna se desliza dentro: repintar (una pestaña, «Ver las anteriores», aprobar, el repaso de cada
-  // minuto) no la devuelve arriba (revisión en frío; D-240: nada salta mientras se lee). Sin `ys`, las lee; con `ys`, las devuelve.
-  const claveCol = e => e.classList.contains('cent') ? 'cent|' + st.tab : e.getAttribute('aria-labelledby') || e.className.split(' ').filter(c => c !== 'card')[0] || '';
-  function scrollCols(ys) {
+  // minuto) no la devuelve arriba (revisión en frío; D-240: nada salta mientras se lee). Se guarda la de cada columna y pestaña
+  // de este cliente y este mes (st.ys); `volver` las devuelve.
+  const claveCol = e => e.classList.contains('cent') ? 'cent|' + (e.dataset.tab || '') : e.getAttribute('aria-labelledby') || e.className.split(' ').filter(c => c !== 'card')[0] || '';   // la pestaña de esa columna, no la de ahora
+  function scrollCols(volver) {
     const l = [...app.querySelectorAll('.cols > *, .lado > *')];
-    if (!ys) return new Map(l.filter(e => e.scrollTop).map(e => [claveCol(e), e.scrollTop]));
-    l.forEach(e => { const v = ys.get(claveCol(e)); if (v) e.scrollTop = v; });
+    if (!volver) { l.forEach(e => st.ys.set(claveCol(e), e.scrollTop)); return; }
+    l.forEach(e => { const v = st.ys.get(claveCol(e)); if (v) e.scrollTop = v; });
   }
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => lleno()).catch(() => {});   // la cabecera, con su letra ya puesta
+  if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', () => lleno());   // la cabecera, con cada letra que llega (600 y 800 se piden al pintar)
   let llenoRaf = 0;
   window.addEventListener('resize', () => { cancelAnimationFrame(llenoRaf); llenoRaf = requestAnimationFrame(lleno); });   // una vez por cuadro (lección 113)
 
@@ -355,7 +357,7 @@
     const tabs = hayPq ? h('div', { class: 'tabs', role: 'tablist' },
       h('button', { type: 'button', role: 'tab', class: 'tab' + (st.tab === 'cal' ? ' on' : ''), 'aria-selected': String(st.tab === 'cal'), text: 'Calendario', onclick: () => { st.tab = 'cal'; pintar(); } }),
       h('button', { type: 'button', role: 'tab', class: 'tab' + (st.tab === 'pq' ? ' on' : ''), 'aria-selected': String(st.tab === 'pq'), text: 'Por qué este calendario', onclick: () => { st.tab = 'pq'; pintar(); } })) : null;
-    return h('section', { class: 'card cent', 'aria-label': st.tab === 'pq' ? 'Por qué este calendario' : 'Calendario' }, tabs, st.tab === 'pq' ? h('div', { class: 'pq-w' }, pintarPorque()) : pintarCalendario());
+    return h('section', { class: 'card cent', 'data-tab': st.tab, 'aria-label': st.tab === 'pq' ? 'Por qué este calendario' : 'Calendario' }, tabs, st.tab === 'pq' ? h('div', { class: 'pq-w' }, pintarPorque()) : pintarCalendario());
   }
   function estadoPago(r, H) {
     if (r.cobrada) return ['Pagada', 'ok', 'check', 'pagada el ' + diaCorto(r.cobrada)];

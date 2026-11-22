@@ -13,7 +13,7 @@
   }
 
   const CLIENTE = 'prueba-regresion', NOMBRE = 'Cliente de prueba', MES = '2026-11';
-  const V_ARCHIVO = 19, V_IDB = 24;   // IndexedDB 24 desde la 4.33 (la marca «copia» de una foto que bajó como copia de trabajo, D-259); 23 desde la 4.32 (la nube, almacén 'nube', D-253); 22 desde la 4.31 (el diario de cambios, D-250); v19 y 21 desde la 4.27 (el porqué y cómo fue de cada mes, el almacén 'meses', D-238); v18 y 20 desde la 4.26 (cobros y sus facturas en PDF, la cuota de un cliente, D-232); v17 y 19 desde la 4.24 (varios clientes, fin y plantillas de material de una sesión, D-217 a D-220); v16 y 18 desde la 4.22 (sesiones, esporádicos, material y el almacén 'tfotos', D-206 a D-208); la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183); v15 y 17 desde la 4.19 (D-193)
+  const V_ARCHIVO = 20, V_IDB = 25;   // IndexedDB 25 y v20 desde la 4.47 (el acuerdo, el servicio, las entregas y la reunión, D-288 a D-292); 24 desde la 4.33 (la marca «copia» de una foto que bajó como copia de trabajo, D-259); 23 desde la 4.32 (la nube, almacén 'nube', D-253); 22 desde la 4.31 (el diario de cambios, D-250); v19 y 21 desde la 4.27 (el porqué y cómo fue de cada mes, el almacén 'meses', D-238); v18 y 20 desde la 4.26 (cobros y sus facturas en PDF, la cuota de un cliente, D-232); v17 y 19 desde la 4.24 (varios clientes, fin y plantillas de material de una sesión, D-217 a D-220); v16 y 18 desde la 4.22 (sesiones, esporádicos, material y el almacén 'tfotos', D-206 a D-208); la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183); v15 y 17 desde la 4.19 (D-193)
   // la batería va con el reloj de la mesa parado antes de sus fechas (noviembre de 2026): nada vence ni pasa solo a Publicado
   // salvo en las pruebas que lo adelantan (D-120)
   const RELOJ_PRUEBAS = Date.parse('2026-10-01T10:00:00+02:00');
@@ -80,6 +80,8 @@
     if (M._test.perBorrar) await M._test.perBorrar();   // las listas de personas (D-130)
     if (M._test.cobBorrarTodo) await M._test.cobBorrarTodo();   // los cobros, sus PDF y las cuotas (D-232)
     if (M._test.mesBorrarTodo) await M._test.mesBorrarTodo();   // el porqué y cómo fue de cada mes (D-238)
+    if (M._test.entBorrarTodo) await M._test.entBorrarTodo();   // las entregas (D-290)
+    if (M._test.camposBorrar) await M._test.camposBorrar([CLIENTE, CLIENTE2]);   // servicio, día de entregas y métricas (D-289, D-290, D-292)
   }
   // borrar el mes y su bandeja: como una mesa que no tiene ese tablero
   const sinMes = async key => { await M.purge(key); await M._test.borrarBandeja(CLIENTE); };
@@ -127,7 +129,9 @@
   const mcElegir = t => { const m = mcAbrir(); ok(m, 'sin el menú de copias'); const b = [...m.querySelectorAll('[role="menuitem"]')].find(x => x.firstChild.textContent.trim() === t); ok(b, 'el menú de copias no tiene ' + t); b.click(); };
   // «Exportar…» del símbolo con la copia ligera (.json, fotos a 1080 px; D-284, antes «Exportar», D-263)
   async function exportarLigera() { mcElegir('Exportar…'); const d = await hasta(() => q('.detail:not([hidden])[data-dlg="exportar"]'), 2000, '«Exportar…»'); d.querySelector('input[value="ligera"]').click(); d.querySelector('form').requestSubmit(); await espera(20); }
-  async function nuevoCliente() { mcElegir('Nuevo cliente'); await hasta(() => q('.detail [data-form="newclient"]'), 2000, '«Nuevo cliente»'); }   // del menú del símbolo (D-284; antes «+ Cliente»)
+  async function nuevoCliente(tipo = 'redes') {   // del menú del símbolo (D-284): primero el tipo en tres tarjetas y después sus datos (D-289)
+    mcElegir('Nuevo cliente'); const f = await hasta(() => q('.detail form.nctipos'), 2000, 'las tarjetas de «Nuevo cliente»');
+    f.querySelector(`input[value="${tipo}"]`).click(); f.requestSubmit(); await hasta(() => q('.detail [data-form="newclient"]'), 2000, '«Nuevo cliente»'); }   // del menú del símbolo (D-284; antes «+ Cliente»)
   // «+ Hueco» desde el clic derecho del feed (D-282; antes, un chip de la barra del mes): con 2, apagado, no hace nada
   async function huecoMas() {
     const g = await hasta(() => q('.feed .grid'), 4000, 'el feed'), r = g.getBoundingClientRect();
@@ -15891,12 +15895,12 @@
       // the fee: saved at once, its formats
       await coFicha(CLIENTE, 'cobros');
       ok(q('.co-mas[data-co="nueva"]').disabled, '«+ Factura» sin cuota se pulsa');
-      const qi = q('[data-co="cuota"][data-k="importe"]'); coCambiar(qi, '1.470,50'); await hasta(() => (M._in.CL.find(c => c.id === CLIENTE).cuota || {}).importe === 1470.5, 3000, 'la cuota «1.470,50»');
+      const qi = q('[data-co="cuota"][data-k="importe"]'); coCambiar(qi, '1.470,50'); await hasta(() => (CB().acuerdo(M._in.CL.find(c => c.id === CLIENTE)) || {}).importe === 1470.5, 3000, 'la cuota «1.470,50»');   // el acuerdo, desde la 4.47 (D-288)
       igual(qi.value, '1470,50 €', 'la cuota no se ve como se guarda');
-      coCambiar(qi, 'mucho'); await espera(60); igual(M._in.CL.find(c => c.id === CLIENTE).cuota.importe, 1470.5, 'una cuota no válida se guarda'); ok(/importe/.test(coToast()), 'sin aviso de una cuota no válida');
+      coCambiar(qi, 'mucho'); await espera(60); igual(CB().acuerdo(M._in.CL.find(c => c.id === CLIENTE)).importe, 1470.5, 'una cuota no válida se guarda'); ok(/importe/.test(coToast()), 'sin aviso de una cuota no válida');
       coCambiar(q('[data-co="cuota"][data-k="importe"]'), '450 €'); coCambiar(q('[data-co="cuota"][data-k="dia"]'), '15'); coCambiar(q('[data-co="cuota"][data-k="plazo"]'), '10');
       await hasta(() => M._in.cob.cuota(M._in.CL.find(c => c.id === CLIENTE)), 3000, 'la cuota entera');
-      igual(M._in.CL.find(c => c.id === CLIENTE).cuota, { importe: 450, dia: 15, plazo: 10 }, 'la cuota guardada');
+      igual(M._in.CL.find(c => c.id === CLIENTE).acuerdo, { pago: 'mensual', importe: 450, dia: 15, plazo: 10, renueva: true }, 'la cuota guardada (el acuerdo mensual, D-288)');
       // «+ Factura de octubre» (none yet: this month, with the clock at 1 Oct), then «noviembre»
       await hasta(() => !q('.co-mas[data-co="nueva"]').disabled, 2000, '«+ Factura» con cuota');
       ok(/Factura de octubre/.test(q('.co-mas[data-co="nueva"]').textContent), '«+ Factura» no es la del mes en curso: ' + q('.co-mas').textContent);
@@ -17052,7 +17056,7 @@
     paginaCerrada(); await espera(20);
     const m = mcAbrir(); ok(m, 'el clic derecho no abre el menú de copias');
     igual(mcItems(m), ['Nuevo cliente', 'Exportar…', 'Importar…'], 'lo que ofrece el menú');   // D-284
-    igual(qa('.cp-copias [role="menuitem"] .sub').map(x => x.textContent), ['Mensual', 'Una copia de toda la Mesa', 'Un .json o los .tar de una copia'], 'su segunda línea');
+    igual(qa('.cp-copias [role="menuitem"] .sub').map(x => x.textContent), ['Mensual o esporádico', 'Una copia de toda la Mesa', 'Un .json o los .tar de una copia'], 'su segunda línea');
     ok(!M.personal.abierta(), 'el clic derecho abrió la página personal');
     ok(!q('.detail:not([hidden])'), 'el clic derecho abrió una ventana');
     igual(D.activeElement && D.activeElement.closest('.cp-copias') && D.activeElement.firstChild.textContent.trim(), 'Nuevo cliente', 'el foco no va a la primera');
@@ -20568,7 +20572,7 @@
     igual(mcLogo().title, 'Clic: tu página · Clic derecho: nuevo cliente y copias', 'el título del botón del símbolo (personal.js)');
     const m = mcAbrir(); ok(m, 'sin el menú del símbolo');
     igual(mcItems(m), ['Nuevo cliente', 'Exportar…', 'Importar…'], 'lo que ofrece');
-    igual(m.querySelector('[role="menuitem"] .sub').textContent, 'Mensual', 'la segunda línea de «Nuevo cliente»');
+    igual(m.querySelector('[role="menuitem"] .sub').textContent, 'Mensual o esporádico', 'la segunda línea de «Nuevo cliente»');
     mcCerrar(); await espera(20);
     mcElegir('Nuevo cliente'); await espera(40);
     const d = dialogo(); ok(d && d.dataset.dlg === 'newclient', '«Nuevo cliente» no abre su ventana');
@@ -20608,8 +20612,8 @@
     try {
       await hasta(() => dia('2026-11-25'), 4000, 'el calendario de noviembre');
       ok(a43Ctx(dia('2026-11-25')), 'el clic derecho en un día es el del navegador');
-      igual(a43Items(), ['Nueva sesión', 'Nueva tarea', 'Nueva historia'], 'lo que ofrece un día del tablero');
-      igual(a43Btns().map(b => (b.querySelector('.kb') || {}).textContent), ['25 nov', '25 nov', '25 nov'], 'la fecha de cada una');
+      igual(a43Items(), ['Nueva sesión', 'Nueva reunión', 'Nueva tarea', 'Nueva historia'], 'lo que ofrece un día del tablero');   // «Nueva reunión» desde la 4.47 (D-291)
+      igual(a43Btns().map(b => (b.querySelector('.kb') || {}).textContent), ['25 nov', '25 nov', '25 nov', '25 nov'], 'la fecha de cada una');
       // una historia por diseñar ese día, y la vista de historias en él
       const n0 = M.hs.lista().length; a43Elige('Nueva historia'); await espera(80);
       ok(M.hs.lista().length === n0 + 1 && M.hs.lista().some(h => M._in.localDay(h.date) === '2026-11-25'), '«Nueva historia» no la añade ese día');
@@ -20910,6 +20914,376 @@
         igual(viejos(), 0, 'queda un punto viejo en Hoy');
       });
     } finally { M._test.reloj(RELOJ_PRUEBAS); }
+  });
+
+
+  // ---------- lote C de los ajustes de la 4.42: clientes (D-288 a D-292) ----------
+  const AU_ACU = { pago: 'semestral', importe: 2700, dia: 1, plazo: 15, desde: '2026-05', meses: 12, renueva: true, renegociar: '2027-04-01' };   // cifras inventadas
+  prueba('AU1', 'El acuerdo, datos (D-288): una cuota de antes se lee como acuerdo mensual; un acuerdo semestral guarda pago, importe, día, plazo, desde, duración, renovación y «Renegociar el», sin la cuota; una factura cubre su tramo (`hasta`) y MESA.cobros.cargar lo acepta y lo valida; un cliente semestral no sale «sin emitir» cada mes, solo cuando empieza un tramo sin factura, y la siguiente es la de su tramo; un pago único y un acuerdo que acaba sin renovarse; su nombre «Mayo – octubre» (o su primer mes para la web); «⇅ Exportar» v20 lo lleva y al importar gana el más reciente, también frente a una cuota de antes; un acuerdo o un tramo mal formados no entran', async () => {
+    await tablero([pub(1)]);
+    const cli = () => M._in.CL.find(c => c.id === CLIENTE);
+    // una cuota de antes
+    await coCliente({ importe: 450, dia: 15, plazo: 10 });
+    igual(CB().acuerdo(cli()), { pago: 'mensual', importe: 450, dia: 15, plazo: 10, desde: '', meses: null, renueva: true, renegociar: '' }, 'la cuota de antes no se lee como acuerdo mensual');
+    ok(CB().cuota(cli()) && CB().cuota(cli()).importe === 450, 'la cuota de antes no hace facturas');
+    // el acuerdo semestral
+    await CB().acuGuardar(CLIENTE, AU_ACU);
+    let rec = await M._in.idbGet('clients', CLIENTE);
+    igual(rec.acuerdo, AU_ACU, 'el acuerdo guardado'); ok(rec.acuerdoAt && !('cuota' in rec) && !('cuotaAt' in rec), 'la cuota sigue junto al acuerdo: ' + json(rec));
+    ok(/Cubre may 2026 – abr 2027/.test(CB().resumen(cli())) && /dos pagos de 2700 €/.test(CB().resumen(cli())) && /se renueva el 1 may 2027/.test(CB().resumen(cli())), 'la línea del acuerdo: ' + CB().resumen(cli()));
+    // la factura de su tramo
+    let r = await M.cobros.cargar([{ id: 'au-1', cliente: CLIENTE, periodo: '2026-05', hasta: '2026-04', importe: 2700 }]); ok(r.error, 'entra un tramo que acaba antes de empezar');
+    r = await M.cobros.cargar([{ id: 'au-1', cliente: CLIENTE, periodo: '2026-05', hasta: 'octubre', importe: 2700 }]); ok(r.error, 'entra un tramo mal escrito');
+    r = await M.cobros.cargar([{ id: 'au-1', cliente: CLIENTE, periodo: '2026-05', hasta: '2026-10', importe: 2700, factura: 'AU-1', emitida: '2026-05-01', vence: '2026-05-16', cobrada: '2026-05-10', at: '2026-05-10T10:00:00.000Z' }]);
+    ok(r.ok, 'cargar no acepta «hasta»: ' + json(r)); igual(M.cobros.ver(CLIENTE)[0].hasta, '2026-10', 'la factura sin su tramo');
+    igual(CB().nombre(CB().get('au-1'), '2026-11-03'), 'Mayo – octubre', 'el nombre de la factura de un tramo');
+    igual(CB().nombre(CB().get('au-1'), '2026-11-03', true), 'Mayo', 'el primer mes, para la web');
+    try {
+      relojEn('2026-08-10T10:00:00+02:00');
+      igual(CB().urgente(CLIENTE).e.k, 'cobrada', 'en agosto, cubierto por su tramo, sale «sin emitir»');
+      const px = CB().proxima(CLIENTE); igual([px.mes, px.hasta, px.importe, px.emitida, px.vence], ['2026-11', '2027-04', 2700, '2026-11-01', '2026-11-16'], 'la siguiente no es la del tramo de noviembre');
+      relojEn('2026-11-03T10:00:00+01:00');
+      const u = CB().urgente(CLIENTE); ok(u.e.k === 'sinemitir' && u.r.virtual && u.r.periodo === '2026-11' && u.r.hasta === '2027-04', 'en noviembre, el tramo nuevo sin factura no sale «sin emitir»: ' + json(u));
+      relojEn('2026-12-03T10:00:00+01:00'); igual(CB().urgente(CLIENTE).r.periodo, '2026-11', 'en diciembre sigue sin emitir el tramo de noviembre');
+      // un pago único y un acuerdo que acaba sin renovarse
+      await CB().acuGuardar(CLIENTE, { pago: 'unico', importe: 900, dia: 5, plazo: 10, desde: '2026-12', meses: 3 });
+      relojEn('2026-11-20T10:00:00+01:00'); const pu = CB().proxima(CLIENTE); igual([pu.mes, pu.hasta, pu.emitida], ['2026-12', '2027-02', '2026-12-05'], 'el pago único');
+      await M.cobros.cargar([{ id: 'au-2', cliente: CLIENTE, periodo: '2026-12', hasta: '2027-02', importe: 900, emitida: '2026-12-05' }]);
+      relojEn('2027-03-02T10:00:00+01:00'); ok(!CB().proxima(CLIENTE) && CB().urgente(CLIENTE).r.id === 'au-2', 'tras el pago único sale otra factura: ' + json(CB().proxima(CLIENTE)));
+      await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 300, dia: 1, plazo: 10, desde: '2026-10', meses: 2, renueva: false });
+      relojEn('2027-01-05T10:00:00+01:00'); ok(!CB().proxima(CLIENTE), 'un acuerdo acabado sin renovar sigue pidiendo facturas');
+      ok(/acaba en nov 2026/.test(CB().resumen(cli())), 'la línea de un acuerdo que acaba: ' + CB().resumen(cli()));
+    } finally { relojVuelve(); }
+    // revisión en frío: un tramo cuyo primer mes ya tiene una factura mensual de antes no se da por pagado entero
+    try {
+      await CB().borrar('au-2');   // el pago único de arriba cubriría dic–feb
+      await M.cobros.cargar([{ id: 'au-m', cliente: CLIENTE, periodo: '2026-11', importe: 450, emitida: '2026-11-01', at: '2026-11-01T10:00:00.000Z' }]);
+      await CB().acuGuardar(CLIENTE, { pago: 'semestral', importe: 2700, dia: 1, plazo: 15, desde: '2026-11' });
+      relojEn('2026-12-03T10:00:00+01:00');
+      const u = CB().urgente(CLIENTE); ok(u.e.k === 'pendiente' || (u.r.periodo === '2026-12' && u.r.hasta === '2027-04'), 'el resto del tramo no sale: ' + json(u));
+      const px = CB().proxima(CLIENTE); igual([px.mes, px.hasta, px.importe], ['2026-12', '2027-04', 2250], 'lo que falta del tramo, con su parte del importe');
+      await M.cobros.cargar([{ id: 'au-m', cliente: CLIENTE, periodo: '2026-11', importe: 450, cobrada: '2026-11-05', emitida: '2026-11-01', at: '2026-11-05T10:00:00.000Z' }]);
+      const u2 = CB().urgente(CLIENTE); ok(u2.e.k === 'sinemitir' && u2.r.periodo === '2026-12' && u2.r.hasta === '2027-04' && u2.r.importe === 2250, '«sin emitir» no es lo que falta del tramo: ' + json(u2));
+      // con duración, tramos dentro de cada ciclo (el último, más corto); sin «desde», sin cuenta de pagos
+      const q10 = { pago: 'trimestral', importe: 900, dia: 1, plazo: 10, desde: '2026-05', meses: 10, renueva: false };
+      igual([CB().tramo(q10, '2027-02'), CB().tramo(q10, '2027-03')], [{ de: '2027-02', hasta: '2027-02' }, null], 'un tramo pasa del final del acuerdo');
+      igual(CB().tramo({ ...q10, renueva: true }, '2027-04'), { de: '2027-03', hasta: '2027-05' }, 'el ciclo renovado no empieza tras el final');
+      await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 500, dia: 1, plazo: 10, meses: 12 });
+      ok(!/pagos/.test(CB().resumen(cli())), 'cuenta pagos sin «desde»: ' + CB().resumen(cli()));
+      // segunda ronda: una factura en medio del tramo no se cobra dos veces; la línea cuenta el último pago con su parte
+      const q6 = { pago: 'semestral', importe: 2700, dia: 1, plazo: 15, desde: '2026-05', meses: null, renueva: true };
+      igual(CB().libre(q6, [{ periodo: '2026-07' }], '2026-08'), { de: '2026-05', hasta: '2026-06', importe: 900 }, 'lo que falta antes de una factura en medio');
+      igual(CB().libre(q6, [{ periodo: '2026-05' }, { periodo: '2026-06' }, { periodo: '2026-07' }], '2026-08'), { de: '2026-08', hasta: '2026-10', importe: 1350 }, 'lo que falta después');
+      await CB().acuGuardar(CLIENTE, q10);
+      ok(/tres pagos de 900 € y un pago de 300 €/.test(CB().resumen(cli())), 'la línea no cuenta el último pago con su parte: ' + CB().resumen(cli()));
+    } finally { relojVuelve(); await CB().borrar('au-m'); }
+    // MESA.cobros.acuerdo: Claude lo pone (con el OK de Kevin) y lo valida
+    let ra = await M.cobros.acuerdo(CLIENTE, { pago: 'cada siglo' }); ok(ra.error, 'la API acepta un acuerdo no válido');
+    ra = await M.cobros.acuerdo('nadie', AU_ACU); ok(ra.error, 'la API acepta un cliente que no existe');
+    ra = await M.cobros.acuerdo(CLIENTE); ok(ra.error, 'sin acuerdo, la API lo borra');
+    ra = await M.cobros.acuerdo(CLIENTE, { pago: 'mensual', importe: 0 }); ok(ra.error, 'la API acepta un importe de 0');
+    ra = await M.cobros.acuerdo(CLIENTE, AU_ACU); ok(ra.ok && ra.acuerdo.pago === 'semestral' && ra.acuerdo.importe === 2700, 'la API no pone el acuerdo: ' + json(ra));
+    // exportar e importar
+    await CB().acuGuardar(CLIENTE, AU_ACU);
+    const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
+    igual(d.v, V_ARCHIVO, 'la versión del archivo'); igual(d.clients.find(c => c.id === CLIENTE).acuerdo, AU_ACU, 'el archivo sin el acuerdo');
+    igual(d.cobros.find(x => x.id === 'au-1').hasta, '2026-10', 'el archivo sin el tramo de la factura');
+    const viejo = JSON.parse(json(d)), cv = viejo.clients.find(c => c.id === CLIENTE); cv.acuerdo = { ...AU_ACU, importe: 1 }; cv.acuerdoAt = '2026-01-01T00:00:00.000Z';
+    await M.importData(viejo, { confirm: false }); igual((await M._in.idbGet('clients', CLIENTE)).acuerdo.importe, 2700, 'un acuerdo más viejo pisa el de aquí');
+    const nuevo = JSON.parse(json(d)), cn = nuevo.clients.find(c => c.id === CLIENTE); cn.acuerdo = { ...AU_ACU, importe: 3000 }; cn.acuerdoAt = new Date(Date.now() + 60000).toISOString();
+    await M.importData(nuevo, { confirm: false }); igual((await M._in.idbGet('clients', CLIENTE)).acuerdo.importe, 3000, 'el acuerdo más reciente no gana');
+    const cuota = JSON.parse(json(d)), cq = cuota.clients.find(c => c.id === CLIENTE); delete cq.acuerdo; delete cq.acuerdoAt; cq.cuota = { importe: 500, dia: 1, plazo: 15 }; cq.cuotaAt = new Date(Date.now() + 120000).toISOString();
+    await M.importData(cuota, { confirm: false }); rec = await M._in.idbGet('clients', CLIENTE);
+    ok(rec.cuota && rec.cuota.importe === 500 && !rec.acuerdo, 'una cuota de antes más reciente no gana al acuerdo: ' + json(rec)); igual(CB().acuerdo(rec).pago, 'mensual', 'la cuota importada no es mensual');
+    for (const [i, f] of [c => { c.acuerdo = { pago: 'cada siglo' }; }, c => { c.acuerdo = { pago: 'mensual', dia: 31 }; }, c => { c.acuerdoAt = 'ayer'; }].entries()) {
+      const m = JSON.parse(json(d)); f(m.clients.find(c => c.id === CLIENTE)); ok((await M.importData(m, { confirm: false })).error, `entra un acuerdo mal formado (${i})`);
+    }
+    const mh = JSON.parse(json(d)); mh.cobros.find(x => x.id === 'au-1').hasta = '2026-01'; ok((await M.importData(mh, { confirm: false })).error, 'entra un tramo que acaba antes de empezar');
+  });
+  prueba('SC1', 'Cliente de solo contenido, datos (D-289, D-290): IndexedDB 25 con «entregas»; MESA.addClient acepta servicio, pago y día de entregas (sin ellos, «Gestión de redes» como siempre) y MESA.clients() da el servicio; con un cliente de solo contenido, plan, revisar, setEstado y startZernio devuelven vacío sin error; las entregas se crean con la fecha que propone su día de entregas, se marcan, se borran con lápida y vuelven; «⇅ Exportar» las lleva y al importar gana la más reciente (también una lápida); el servicio, el día de entregas y el enlace de métricas se unen al importar cada uno con su fecha; una entrega o un enlace mal formados no entran', async () => {
+    await tablero([pub(1)]);
+    const st = await new Promise(res => { const o = W.indexedDB.open('mesa-feed'); o.onsuccess = () => { const x = { v: o.result.version, n: [...o.result.objectStoreNames] }; o.result.close(); res(x); }; o.onerror = () => res({}); });
+    igual(st.v, V_IDB, 'la versión de IndexedDB'); ok((st.n || []).includes('entregas'), 'falta el almacén «entregas»: ' + json(st.n));
+    // MESA.addClient y MESA.clients
+    let r = null; try { await M.addClient({ name: 'Mal servicio', servicio: 'todo' }); } catch (e) { r = e; } ok(r, 'addClient acepta un servicio que no existe');
+    igual((await M.clients()).find(c => c.id === CLIENTE).servicio, 'redes', 'un cliente de siempre no es de gestión de redes');
+    await M.updateClient(CLIENTE, { servicio: 'contenido', entregasDia: 5, cycleDay: 1 });
+    igual((await M.clients()).find(c => c.id === CLIENTE).servicio, 'contenido', 'MESA.clients() no da el servicio');
+    // la API sin feed
+    igual(M.plan(), [], 'plan con feed'); igual(M.setEstado(['r1'], 'aprobado'), [], 'setEstado cambia un estado');
+    igual(M.startZernio([{ slotId: 'r1', fileId: 'x' }]), {}, 'startZernio empieza algo');
+    const rv = await M.revisar(); ok(rv.ok && rv.sinFeed && !rv.puntos.length, 'revisar no dice «sin feed»: ' + json(rv));
+    await hasta(() => M.cargarHistorias, 6000, 'historias.js');
+    const ch = await M.cargarHistorias([{ date: '2026-11-25T10:00:00+01:00', note: 'SC1' }]); ok(ch && ch.error && /sin feed/.test(ch.error), 'entra una historia en un cliente sin feed: ' + json(ch));
+    // las entregas
+    const E = () => M._in.ent;
+    await E().leer(true);
+    igual(E().propuesta(CLIENTE, '2026-11-22'), '2026-12-05', 'la fecha que propone su día de entregas');
+    igual(E().propuesta(CLIENTE, '2026-11-03'), '2026-11-05', 'la fecha que propone su día de entregas a principio de mes');
+    const e1 = await E().nueva({ cliente: CLIENTE, fecha: '2026-11-05', que: 'Fotos de la sesión', cuanto: '40 fotos', enlace: 'https://ejemplo.test/carpeta' });
+    ok(e1 && e1.id && e1.at && e1.entregada === '', 'la entrega nueva: ' + json(e1));
+    const e2 = await E().nueva({ cliente: CLIENTE, fecha: '2026-12-05', que: 'Vídeo', enlace: '/Users/kevin/vídeo.mp4' }); igual(e2.enlace, '', 'una ruta del ordenador entra como enlace');
+    await E().cambiar(e1.id, { entregada: '2026-11-04' }); igual(E().get(e1.id).entregada, '2026-11-04', 'marcar entregada');
+    try { relojEn('2026-12-06T10:00:00+01:00'); igual([E().estado(E().get(e1.id)), E().estado(E().get(e2.id))], ['entregada', 'pasada'], 'los estados de las entregas'); } finally { relojVuelve(); }
+    const b = await E().borrar(e2.id); ok(b && b.rec.id === e2.id && (await M._in.idbGet('entregas', e2.id)).borrado, 'borrar no deja una lápida');
+    await E().devolver(b.rec); ok(E().vivas(CLIENTE).some(x => x.id === e2.id), 'devolver no la devuelve');
+    await E().borrar(e2.id);
+    // exportar → importar
+    await M.updateClient(CLIENTE, { metricas: 'https://zernio.test/m/cliente', cycleDay: 1 });
+    const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
+    ok(d.entregas.length === 2 && d.entregas.find(x => x.id === e2.id).borrado, 'el archivo no lleva las entregas con su lápida: ' + json(d.entregas));
+    const cd = d.clients.find(c => c.id === CLIENTE); ok(cd.servicio === 'contenido' && cd.entregasDia === 5 && cd.metricas && cd.servicioAt && cd.entregasDiaAt && cd.metricasAt, 'el archivo sin los campos nuevos del cliente: ' + json(cd));
+    await M._test.entBorrarTodo(); await M._test.camposBorrar([CLIENTE]);
+    let x = await M.importData(d, { confirm: false }); ok(x && x.ok, 'importar: ' + json(x));
+    const ci = await M._in.idbGet('clients', CLIENTE); ok(ci.servicio === 'contenido' && ci.entregasDia === 5 && ci.metricas === 'https://zernio.test/m/cliente', 'importar no devuelve los campos del cliente: ' + json(ci));
+    ok(E().vivas(CLIENTE).length === 1 && E().vivas(CLIENTE)[0].entregada === '2026-11-04' && (await M._in.idbGet('entregas', e2.id)).borrado, 'importar no devuelve las entregas');
+    // más viejo no gana; más nuevo sí; un campo vaciado más nuevo se vacía
+    const v = JSON.parse(json(d)), cv = v.clients.find(c => c.id === CLIENTE); cv.servicio = undefined; delete cv.servicio; cv.servicioAt = '2026-01-01T00:00:00.000Z'; v.entregas.find(z => z.id === e1.id).que = 'Vieja'; v.entregas.find(z => z.id === e1.id).at = '2026-01-01T00:00:00.000Z';
+    await M.importData(v, { confirm: false }); ok((await M._in.idbGet('clients', CLIENTE)).servicio === 'contenido' && E().get(e1.id).que === 'Fotos de la sesión', 'lo más viejo pisa');
+    const n = JSON.parse(json(d)), cn = n.clients.find(c => c.id === CLIENTE); delete cn.metricas; cn.metricasAt = new Date(Date.now() + 60000).toISOString(); n.entregas.find(z => z.id === e1.id).que = 'Nueva'; n.entregas.find(z => z.id === e1.id).at = new Date(Date.now() + 60000).toISOString();
+    await M.importData(n, { confirm: false }); ok(!('metricas' in (await M._in.idbGet('clients', CLIENTE))) && E().get(e1.id).que === 'Nueva', 'lo más nuevo no gana (el enlace vaciado, la entrega cambiada)');
+    for (const [i, f] of [m => { m.entregas.find(z => !z.borrado).fecha = '5 nov'; }, m => { m.entregas.find(z => !z.borrado).enlace = 'javascript:alert(1)'; }, m => { m.clients.find(c => c.id === CLIENTE).metricas = 'http://zernio.test'; }, m => { m.clients.find(c => c.id === CLIENTE).servicio = 'todo'; }, m => { m.clients.find(c => c.id === CLIENTE).entregasDia = 31; }, m => { m.entregas = {}; }].entries()) {
+      const m = JSON.parse(json(d)); f(m); ok((await M.importData(m, { confirm: false })).error, `entra algo mal formado (${i})`);
+    }
+  });
+
+  prueba('AU2', 'El acuerdo, lo que se ve (D-288): «Editar cliente · Cobros» dice «Acuerdo» con sus ocho campos y su línea (sin «Cuota mensual»); cada campo se guarda al momento y uno no válido avisa y no se guarda; sin duración, «Al acabar» se apaga; «+ Factura de noviembre – abril» hace la factura de su tramo; en Avisos, «Acuerdos» 14 días antes de renegociar, sin cifra nueva, y pasada la fecha en «Se ha pasado»; en la «Vista cliente», sin «al mes» y cada factura por su primer mes, como la web del cliente hasta el lote D; «Web del cliente» no envía la cuota de un pago semestral', async () => {
+    await tablero([pub(1)]);
+    await hasta(() => M.cobrosUI && M.personal, 8000, 'cobros.js y personal.js');
+    await CB().acuGuardar(CLIENTE, { ...AU_ACU, renegociar: '2026-11-30' });
+    await M.cobros.cargar([{ id: 'au-1', cliente: CLIENTE, periodo: '2026-05', hasta: '2026-10', importe: 2700, factura: 'AU-1', emitida: '2026-05-01', vence: '2026-05-16', cobrada: '2026-05-10' }]);
+    const cli = () => M._in.CL.find(c => c.id === CLIENTE), campo = k => q(`.detail [data-co="cuota"][data-k="${k}"]`);
+    relojEn('2026-11-20T10:00:00+01:00');
+    try {
+      await CB().dlgCliente(CLIENTE, 'cobros');
+      await hasta(() => campo('importe'), 4000, 'el acuerdo en «Cobros»');
+      ok(!/Cuota mensual/.test(q('.detail').textContent) && /Acuerdo/.test(q('.detail .co-acu-t').textContent), 'no dice «Acuerdo»');
+      igual(['pago', 'importe', 'dia', 'plazo', 'desde', 'meses', 'renueva', 'renegociar'].map(k => campo(k) && campo(k).value), ['semestral', '2700 €', '1', '15 días', 'may 2026', '12 meses', 'si', '2026-11-30'], 'los campos del acuerdo');
+      ok(/Cubre may 2026 – abr 2027/.test(q('.detail .co-acu-n').textContent), 'la línea del acuerdo: ' + q('.detail .co-acu-n').textContent);
+      // uno no válido avisa y no se guarda; sin duración, «Al acabar» se apaga
+      coCambiar(campo('desde'), 'pronto'); await espera(80); igual(CB().acuerdo(cli()).desde, '2026-05', 'un mes no válido se guarda'); ok(/may 2026/.test(coToast()), 'sin aviso de un mes no válido');
+      igual(campo('desde').value, 'may 2026', 'el campo no vuelve a lo guardado');
+      coCambiar(campo('meses'), ''); await hasta(() => CB().acuerdo(cli()).meses === null, 3000, 'sin duración');
+      ok(campo('renueva').disabled, '«Al acabar» sin duración se puede pulsar'); ok(/Cubre desde may 2026/.test(q('.detail .co-acu-n').textContent), 'la línea no cambia: ' + q('.detail .co-acu-n').textContent);
+      coCambiar(campo('meses'), '12'); await hasta(() => CB().acuerdo(cli()).meses === 12, 3000, 'la duración'); ok(!campo('renueva').disabled, '«Al acabar» sigue apagado');
+      coCambiar(campo('renueva'), 'no'); await hasta(() => CB().acuerdo(cli()).renueva === false, 3000, '«Se acaba»'); ok(/acaba en abr 2027/.test(q('.detail .co-acu-n').textContent), 'la línea de un acuerdo que acaba');
+      coCambiar(campo('renueva'), 'si'); await hasta(() => CB().acuerdo(cli()).renueva === true, 3000, '«Se renueva»');
+      // la factura de su tramo
+      const mas = q('.detail .co-mas[data-co="nueva"]'); ok(mas && !mas.disabled && /Factura de noviembre 2026 – abril 2027/.test(mas.textContent), '«+ Factura» no es la de su tramo: ' + (mas && mas.textContent));
+      mas.click(); await hasta(() => M.cobros.ver(CLIENTE).some(r => r.periodo === '2026-11' && r.hasta === '2027-04' && r.importe === 2700 && r.emitida === '2026-11-01'), 3000, 'la factura del tramo');
+      await hasta(() => /Noviembre 2026 – abril 2027/.test(q('.detail .co-t').textContent), 3000, 'el nombre del tramo en la tabla');
+      M._in.closeDetail(); await espera(40);
+      // Avisos
+      await paginaAbierta();
+      const g = await hasta(() => ppGrupo('acuerdos'), 3000, 'el grupo «Acuerdos»');
+      ok(/Renegociar el acuerdo/.test(g.textContent) && /en 10 días/.test(g.textContent), 'el aviso de renegociar: ' + g.textContent);
+      ok(!('acuerdos' in ppCifras()), 'hay una cifra nueva');
+      ok(qa('.pp-grupo')[0] === g, '«Acuerdos» no va primero');
+      relojEn('2026-12-02T10:00:00+01:00'); await M.personal.render(); await espera(40);
+      ok(!ppGrupo('acuerdos') && /Renegociar el acuerdo/.test((ppGrupo('pasado') || { textContent: '' }).textContent), 'pasada la fecha no va a «Se ha pasado»');
+      ok(ppCifras().pasado >= 1, '«Se ha pasado» no lo cuenta');
+      paginaCerrada();
+      // la «Vista cliente» y la web
+      relojEn('2026-11-20T10:00:00+01:00');
+      await M.open(`${CLIENTE}-${MES}`); await vistaCliente(true); await espera(80);
+      const lado = await hasta(() => q('.main > .vc-lado [data-vc="pagos"]'), 3000, '«Tus pagos»');
+      ok(!/al mes/.test(lado.textContent) && /Mayo · 2700 €/.test(lado.textContent) && !/Mayo – octubre/.test(lado.textContent), '«Tus pagos» de un pago semestral: ' + lado.textContent);
+      await vistaCliente(false);
+      if (M.web && M.web.paquete) { const P = await M.web.paquete(M._in.S); igual(P.cliente.cuota_cent, null, 'la web recibe la cuota de un pago semestral'); ok(P.pagos.find(x => x.id === 'au-1').periodo === '2026-05', 'la web recibe otro mes'); }
+    } finally { relojVuelve(); M._in.closeDetail(); paginaCerrada(); }
+  });
+
+  prueba('NV1', '«Nuevo cliente», variante B (D-289): el menú del símbolo dice «Mensual o esporádico»; primero el tipo en tres tarjetas (Gestión de redes · Solo contenido · Esporádico) y después lo mínimo de cada uno; «Atrás» vuelve a las tarjetas; uno de gestión de redes con su inicio de ciclo y cada cuánto paga; uno de solo contenido con cada cuánto paga y el día de sus entregas, sin inicio de ciclo; un esporádico, solo el nombre, en la página personal como siempre; un nombre repetido, también de un esporádico, no entra', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    await hasta(() => M.personal && M.personal.nuevoEsporadico, 8000, 'personal.js');
+    const hechos = [];
+    try {
+      const m = mcAbrir(); const b = [...m.querySelectorAll('[role="menuitem"]')].find(x => x.firstChild.textContent.trim() === 'Nuevo cliente');
+      ok(b && /Mensual o esporádico/.test(b.textContent), 'el menú no dice «Mensual o esporádico»: ' + (b && b.textContent)); mcCerrar(); await espera(40);
+      mcElegir('Nuevo cliente'); const f = await hasta(() => q('.detail form.nctipos'), 2000, 'las tarjetas');
+      igual(qa('.detail .nctipos .expop b').map(x => x.textContent), ['Gestión de redes', 'Solo contenido', 'Esporádico'], 'las tres tarjetas');
+      ok(f.querySelector('input[value="redes"]').checked, 'no empieza en «Gestión de redes»'); ok(!q('.detail [data-form="newclient"]'), 'pide los datos antes del tipo');
+      // solo contenido
+      f.querySelector('input[value="contenido"]').click(); f.requestSubmit();
+      let fm = await hasta(() => q('.detail [data-form="newclient"]'), 2000, 'los datos');
+      igual(q('.detail h3').textContent, 'Solo contenido', 'el título de los datos'); ok(!fm.elements.cycleDay && fm.elements.pago && fm.elements.entregasDia && fm.elements.handle, 'los campos de solo contenido');
+      q('.detail [data-act="nc-atras"]').click(); const f2 = await hasta(() => q('.detail form.nctipos'), 2000, '«Atrás»');
+      ok(f2.querySelector('input[value="contenido"]').checked, '«Atrás» no recuerda el tipo'); f2.requestSubmit();
+      fm = await hasta(() => q('.detail [data-form="newclient"]'), 2000, 'los datos otra vez');
+      fm.elements.name.value = 'Contenido NV1'; fm.elements.pago.value = 'semestral'; fm.elements.entregasDia.value = '31'; fm.requestSubmit(); await espera(80);
+      ok(!M._in.CL.some(c => c.name === 'Contenido NV1') && (!fm.checkValidity() || /día del 1 al 28/.test(q('.detail .ferr').textContent)), 'un día de entregas no válido entra');
+      fm.elements.entregasDia.value = '5'; fm.requestSubmit();
+      const c1 = await hasta(() => M._in.CL.find(c => c.name === 'Contenido NV1'), 3000, 'el cliente de solo contenido'); hechos.push(c1.id);
+      ok(c1.servicio === 'contenido' && c1.entregasDia === 5 && c1.acuerdo && c1.acuerdo.pago === 'semestral' && c1.cycleDay === 1, 'el cliente de solo contenido: ' + json(c1));
+      // gestión de redes
+      await nuevoCliente('redes'); fm = q('.detail [data-form="newclient"]');
+      igual(q('.detail h3').textContent, 'Gestión de redes', 'el título'); ok(fm.elements.cycleDay && fm.elements.pago && !fm.elements.entregasDia, 'los campos de gestión de redes');
+      fm.elements.name.value = 'Redes NV1'; fm.elements.cycleDay.value = '12'; fm.elements.pago.value = 'trimestral'; fm.requestSubmit();
+      const c2 = await hasta(() => M._in.CL.find(c => c.name === 'Redes NV1'), 3000, 'el cliente de redes'); hechos.push(c2.id);
+      ok(!c2.servicio && c2.cycleDay === 12 && c2.acuerdo && c2.acuerdo.pago === 'trimestral', 'el cliente de redes: ' + json(c2));
+      // esporádico
+      await nuevoCliente('esporadico'); fm = q('.detail [data-form="newclient"]');
+      ok(!fm.elements.handle && !fm.elements.pago && /Crear esporádico/.test(fm.textContent), 'los campos del esporádico');
+      fm.elements.name.value = 'Redes NV1'; fm.requestSubmit(); await espera(120); ok(/Ya existe un cliente/.test(q('.detail .ferr').textContent), 'un esporádico con el nombre de un mensual entra');
+      fm.elements.name.value = 'Boda NV1'; fm.requestSubmit();
+      await hasta(async () => ((await M._in.idbAll('tareas')) || []).some(t => t.tipo === 'esporadico' && t.txt === 'Boda NV1'), 3000, 'el esporádico guardado');
+      ok(M.personal.abierta() && q('.pp-tcv button.on') && /Esporádicos/.test(q('.pp-tcv button.on').textContent), 'no abre la página en «Esporádicos»');
+      // un mensual con el nombre de un esporádico
+      await nuevoCliente('redes'); fm = q('.detail [data-form="newclient"]'); fm.elements.name.value = 'boda nv1'; fm.requestSubmit(); await espera(120);
+      ok(/esporádico con ese nombre/.test(q('.detail .ferr').textContent), 'un mensual con el nombre de un esporádico entra');
+    } finally { M._in.closeDetail(); paginaCerrada(); for (const id of hechos) await M.removeClient(id); await sinTareas(); }
+  });
+
+  // un cliente de solo contenido con su tablero de noviembre abierto (D-290)
+  async function tableroContenido() {
+    await tablero([]); await sinTareas();
+    await M.updateClient(CLIENTE, { servicio: 'contenido', entregasDia: 5, cycleDay: 1 }); M._in.render();
+    await hasta(() => M.entregasUI && q('.main > .cont .cont-izq .en-h'), 8000, 'el tablero de solo contenido');
+    return `${CLIENTE}-${MES}`;
+  }
+  const scCampo = k => q(`.cont-izq .en-ed [data-k="${k}"]`);
+  prueba('SC2', 'Tablero de un cliente de solo contenido (D-290, tablero A): sin feed, bandeja, estados ni Zernio; tres columnas: entregas y sesiones · calendario · acuerdo y pagos; la barra del mes solo con sus meses (sin «Revisar», contexto, «Vista cliente» ni «Web del cliente» hasta el lote D); «+ Entrega» propone la fecha de su día de entregas y abre sus campos; qué, cuánto y un enlace https (nunca otro); «entregada» con su casilla; su chip en el calendario (✓ entregada, en rojo pasada), que la abre; «Borrar entrega» con «Deshacer»; el clic derecho de un día sin «Nueva historia»; el calendario sin pasos, total ni Notion', async () => {
+    const key = await tableroContenido();
+    relojEn('2026-11-03T10:00:00+01:00');
+    try {
+      ok(!q('.main .feed') && !q('.main .tray'), 'el tablero tiene feed o bandeja');
+      ok(q('.main > .cont .cont-izq') && q('.main > .cont > .cont-side > .cal') && q('.main > .cont .cont-der'), 'no están las tres columnas');
+      ok(!q('.bar [data-act="revisar"]') && !q('.bar .clientToggle') && !q('.bar .stats') && q('.bar .mchip.on'), 'la barra del mes de un cliente de solo contenido: ' + q('.bar').textContent);
+      await hasta(() => q('.side > .cal .calhead .ctit'), 4000, 'el calendario');
+      ok(!q('.side > .cal .cfold') && !q('.side > .cal .ctot') && !q('.side > .cal .csync') && !q('.side > .cal .cpaso'), 'el calendario con pliegue, total, Notion o pasos');
+      ok(/Acuerdo/.test(q('.cont-der').textContent) && /Solo contenido/.test(q('.cont-der').textContent), 'la columna del acuerdo: ' + q('.cont-der').textContent);
+      // + Entrega
+      q('.cont-izq [data-en="nueva"]').click();
+      await hasta(() => M._in.ent.vivas(CLIENTE).length === 1 && scCampo('que'), 3000, 'la entrega nueva abierta');
+      const e1 = M._in.ent.vivas(CLIENTE)[0]; igual(e1.fecha, '2026-11-05', 'la fecha que propone su día de entregas');
+      await hasta(() => D.activeElement === scCampo('que'), 2000, 'el foco en «Qué»');
+      coCambiar(scCampo('que'), 'Fotos de la sesión de otoño'); await hasta(() => M._in.ent.get(e1.id).que === 'Fotos de la sesión de otoño', 2000, '«Qué» guardado');
+      coCambiar(scCampo('cuanto'), '42 fotos'); await hasta(() => M._in.ent.get(e1.id).cuanto === '42 fotos', 2000, '«Cuánto» guardado');
+      coCambiar(scCampo('enlace'), 'file:///Users/kevin/fotos'); await espera(80);
+      igual(M._in.ent.get(e1.id).enlace, '', 'entra un enlace que no es https'); ok(/https:\/\//.test(coToast()), 'sin aviso de un enlace no válido');
+      coCambiar(scCampo('enlace'), 'https://ejemplo.test/otono'); await hasta(() => M._in.ent.get(e1.id).enlace === 'https://ejemplo.test/otono', 2000, 'el enlace guardado');
+      q('.cont-izq [data-en="cerrar"]').click(); await hasta(() => !scCampo('que'), 2000, '«Listo» cierra los campos');
+      const a = q('.cont-izq .en-f .en-l'); ok(a && a.getAttribute('href') === 'https://ejemplo.test/otono' && a.target === '_blank' && /noopener/.test(a.rel), 'el enlace de la fila');
+      // entregada
+      const ck = q('.cont-izq .en-f .en-ck'); ck.click(); await hasta(() => M._in.ent.get(e1.id).entregada === '2026-11-03', 2000, 'la casilla no la marca entregada');
+      await hasta(() => /1 de 1 entregada/.test(q('.cont-izq .en-h').textContent), 2000, 'la cuenta de entregadas');
+      // su chip en el calendario, que la abre
+      const chip = await hasta(() => q('.side > .cal .cday[data-day="2026-11-05"] .chip.ty-ent'), 3000, 'el chip de la entrega');
+      ok(chip.classList.contains('entregada'), 'el chip no dice entregada'); chip.click(); await hasta(() => scCampo('que'), 2000, 'el chip no la abre');
+      // borrar y deshacer
+      q('.cont-izq [data-en="borrar"]').click(); await hasta(() => !M._in.ent.vivas(CLIENTE).length, 2000, '«Borrar entrega»');
+      const tb = await hasta(() => qa('.toast').find(t => /Deshacer/.test(t.textContent)), 2000, '«Deshacer»'); tb.querySelector('button').click();
+      await hasta(() => M._in.ent.vivas(CLIENTE).length === 1, 2000, '«Deshacer» no la devuelve');
+      // a final de mes propone el día de entregas del mes siguiente, y la entrega nueva se ve en la columna (lo vio el ratón real)
+      relojEn('2026-11-22T10:00:00+01:00'); q('.cont-izq [data-en="nueva"]').click();
+      await hasta(() => M._in.ent.vivas(CLIENTE).some(r => r.fecha === '2026-12-05') && scCampo('que'), 3000, 'la entrega del 5 dic no se ve en el tablero de noviembre');
+      const e3 = M._in.ent.vivas(CLIENTE).find(r => r.fecha === '2026-12-05');
+      q('.cont-izq [data-en="cerrar"]').click(); await hasta(() => !M._in.ent.get(e3.id) || M._in.ent.get(e3.id).borrado, 2000, 'una entrega nueva sin «Qué» se queda al cerrarla');   // revisión en frío (D-204)
+      await hasta(() => D.activeElement === q('.cont-izq [data-en="nueva"]'), 2000, 'el foco no vuelve a «+ Entrega»');
+      q('.cont-izq [data-en="nueva"]').click(); await hasta(() => scCampo('que'), 2000, 'otra entrega nueva');
+      const e4 = M._in.ent.vivas(CLIENTE).find(r => r.fecha === '2026-12-05' && r.id !== e3.id); coCambiar(scCampo('que'), 'Fotos de Navidad'); await hasta(() => M._in.ent.get(e4.id).que === 'Fotos de Navidad', 2000, '«Qué»');
+      q('.cont-izq [data-en="cerrar"]').click(); await espera(80);
+      ok(q(`.cont-izq .en-f[data-id="${e4.id}"]`) && /Diciembre/.test(q('.cont-izq .en-sub').textContent), 'la del mes siguiente no sale aparte: ' + q('.cont-izq').textContent.slice(0, 200));
+      ok(/noviembre · 1 de 1 entregada/.test(q('.cont-izq .en-h').textContent), 'la del mes siguiente cuenta en el mes del tablero: ' + q('.cont-izq .en-h').textContent);
+      await M._in.ent.borrar(e4.id);
+      // segunda ronda: «Listo» justo después de escribir «Qué» no la borra (el «change» y el clic seguidos)
+      q('.cont-izq [data-en="nueva"]').click(); await hasta(() => scCampo('que'), 2000, 'la entrega nueva');
+      const e5 = M._in.ent.vivas(CLIENTE).find(r => r.fecha === '2026-12-05' && !r.que);
+      const lb = q('.cont-izq [data-en="cerrar"]'); lb.focus(); coCambiar(scCampo('que'), 'Escrita y cerrada'); lb.click(); await espera(250);   // el foco ya en «Listo», como un clic de verdad
+      ok(M._in.ent.get(e5.id) && !M._in.ent.get(e5.id).borrado && M._in.ent.get(e5.id).que === 'Escrita y cerrada', '«Listo» justo después de escribir la borra');
+      await M._in.ent.borrar(e5.id);
+      // otro tablero con una entrega nueva vacía: se va
+      q('.cont-izq [data-en="nueva"]').click(); await hasta(() => scCampo('que'), 2000, 'otra entrega nueva');
+      const e6 = M._in.ent.vivas(CLIENTE).find(r => !r.que);
+      await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [], past: [], force: true }); await espera(250);
+      ok(!M._in.ent.get(e6.id) || M._in.ent.get(e6.id).borrado, 'cambiar de tablero deja la entrega vacía');
+      await M.open(`${CLIENTE}-${MES}`); await hasta(() => q('.main > .cont .cont-izq .en-h'), 4000, 'de vuelta al tablero');
+      ok(!scCampo('que'), 'de vuelta, los campos siguen abiertos');
+      // soltar fotos en un tablero sin bandeja
+      const tr0 = json(((await M._in.idbGet('bandejas', CLIENTE)) || {}).tray || []), dt = new W.DataTransfer(); dt.items.add(await foto('sc2.jpg'));
+      q('.cont-izq').dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt })); await espera(300);
+      ok(/no tiene bandeja/.test(coToast()) && json(((await M._in.idbGet('bandejas', CLIENTE)) || {}).tray || []) === tr0, 'las fotos soltadas entran en una bandeja que no se ve');
+      // el día de entregas, en «Editar cliente · Datos»
+      q('.tabs .tedit').click(); const ie = await hasta(() => q('.detail [data-form="editclient"] #ec-entregas'), 3000, '«Entregas antes del día» en «Editar cliente»');
+      ie.value = '10'; q('.detail [data-form="editclient"]').requestSubmit(); await hasta(() => M._in.CL.find(c => c.id === CLIENTE).entregasDia === 10, 3000, 'el día de entregas no se guarda');
+      await M.updateClient(CLIENTE, { entregasDia: 5, cycleDay: 1 });
+      // pasada
+      const e2 = await M._in.ent.nueva({ cliente: CLIENTE, fecha: '2026-11-04', que: 'Vídeo de la terraza' });
+      relojEn('2026-11-10T10:00:00+01:00'); M._in.render();
+      await hasta(() => q(`.cont-izq .en-f.pasada[data-id="${e2.id}"]`), 3000, 'la entrega pasada en rojo en su columna: ' + q('.cont-izq').innerHTML.slice(0, 400));
+      await hasta(() => q('.side > .cal .cday[data-day="2026-11-04"] .chip.ty-ent.pasada'), 3000, 'la entrega pasada en rojo en el calendario: ' + (q('.side > .cal .cday[data-day="2026-11-04"]') || { outerHTML: '' }).outerHTML.slice(0, 300));
+      // el clic derecho de un día
+      a43Ctx(q('.side > .cal .cday[data-day="2026-11-25"]')); ok(!a43Items().includes('Nueva historia') && a43Items().includes('Nueva sesión'), 'el clic derecho de un día: ' + json(a43Items())); tecla('Escape'); await espera(40);
+    } finally { relojVuelve(); }
+  });
+  prueba('SC3', 'Solo contenido en la página personal y el iPhone (D-290): su bloque cuenta entregas y dice «N de M entregadas» en lugar de pasos; una entrega pasada sin entregar sale en «Se ha pasado» y abre su tablero con ella; en el iPhone, su bloque de «Clientes» cuenta entregas, su mes las lista (el enlace se abre fuera) y la pasada sale en «Hoy»', async () => {
+    await tableroContenido();
+    await M._in.ent.nueva({ cliente: CLIENTE, fecha: '2026-09-25', que: 'Fotos de septiembre' });   // pasada con el reloj de la batería (1 oct)
+    const e2 = await M._in.ent.nueva({ cliente: CLIENTE, fecha: '2026-11-05', que: 'Fotos de otoño', cuanto: '40 fotos', enlace: 'https://ejemplo.test/otono' });
+    await M._in.ent.cambiar(e2.id, { entregada: '2026-10-01' });
+    await paginaAbierta();
+    try {
+      const g = await hasta(() => ppGrupo('pasado'), 3000, '«Se ha pasado»');
+      ok(/Fotos de septiembre/.test(g.textContent) && /Sin entregar/.test(g.textContent), 'la entrega pasada no sale: ' + g.textContent);
+      const blq = q(`.pp-bw[data-c="${CLIENTE}"]`); ok(blq && /1 de 1 entregada/.test(blq.textContent) && !/publicaci/.test(blq.querySelector('.pp-cuentas').textContent), 'el bloque del cliente: ' + (blq && blq.textContent));
+      g.querySelector('[data-pp="entrega"]').click();
+      await hasta(() => !M.personal.abierta() && M._in.S && M._in.S.client === CLIENTE, 4000, 'no abre su tablero');
+    } finally { paginaCerrada(); }
+    await enMovilPagina(async () => {
+      await irMovil('#clientes', '#movil .cli');
+      ok([...W.document.querySelectorAll('#movil .cli')].some(b => /entrega/.test(b.textContent) && /solo contenido/.test(b.textContent)), 'su bloque de «Clientes» no cuenta entregas');
+      await irMovil(`#mes/${CLIENTE}-${MES}/lista`, '#movil .sec-h');
+      const t = W.document.querySelector('#movil main').textContent; ok(/Entregas/.test(t) && /Fotos de otoño/.test(t) && /entregada/.test(t), 'su mes no lista las entregas: ' + t.slice(0, 300));
+      ok(W.document.querySelector('#movil [data-a="enlace"][data-u="https://ejemplo.test/otono"]'), 'la entrega sin su enlace');
+      await irMovil('#hoy', '#movil .sec-h');
+      ok(/Fotos de septiembre/.test(W.document.querySelector('#movil main').textContent), 'la entrega pasada no sale en Hoy');
+    });
+  });
+
+  prueba('RN1', 'La reunión (D-291): un tipo de sesión más, «Reunión», con «Orden del día · Notas · Acuerdos», el ojo tachado de serie y sin cobro; «Nueva reunión» en el clic derecho de un día del calendario, con su día y el cliente; elegir otro tipo devuelve el ojo y el título; su chip dice «Reunión»; en la «Vista cliente», solo con el ojo abierto; «Web del cliente» no la envía (hasta el lote D)', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    const dia = d => q(`.side > .cal .cday[data-day="${d}"]`);
+    await hasta(() => dia('2026-11-25') && M.personal && M.sesiones && M.personal._p && M.personal._p.EXT && M.personal._p.EXT.sesion, 8000, 'el calendario y sesiones.js');   // tras una prueba del iPhone, la página vuelve a cargar sus módulos
+    a43Ctx(dia('2026-11-25')); a43Elige('Nueva reunión');
+    const d = await hasta(() => dialogo() && dialogo().dataset.dlg === 'pp-sesion' && dialogo(), 4000, '«Nueva reunión»');
+    const ojo = () => d.querySelector('[data-ns="ojo"]'), tipo = k => d.querySelector(`[data-ns="clase"][data-k="${k}"]`);
+    igual([d.querySelector('h3').textContent, d.querySelector('#pp-ns-nom').value, ojo().getAttribute('aria-pressed'), tipo('reunion').getAttribute('aria-checked'), d.querySelector('#pp-ns-fecha').value, d.querySelector('[type="submit"]').textContent],
+      ['Nueva reunión', 'Reunión', 'false', 'true', '2026-11-25', 'Crear reunión'], 'el diálogo de «Nueva reunión»');
+    ok(d.querySelector(`.pp-ns-cli [data-c="${CLIENTE}"]`), 'sin el cliente');
+    tipo('foto').click(); igual([d.querySelector('h3').textContent, ojo().getAttribute('aria-pressed')], ['Nueva sesión', 'true'], 'otro tipo no devuelve el ojo ni el título');
+    tipo('reunion').click(); igual(ojo().getAttribute('aria-pressed'), 'false', 'volver a «Reunión» no tacha el ojo');
+    d.querySelector('form.pp-ns').requestSubmit();
+    const r = await hasta(async () => ((await M._in.idbAll('tareas')) || []).find(t => t.tipo === 'sesion' && t.sesion && t.sesion.clase === 'reunion'), 4000, 'la reunión guardada');
+    igual([r.txt, r.fecha, r.sesion.visible, r.sesion.apartados.map(a => [a.id, a.nombre])], ['Reunión', '2026-11-25', false, [['ordendia', 'Orden del día'], ['notas', 'Notas'], ['acuerdos', 'Acuerdos']]], 'la reunión');
+    ppTecla('Escape'); await espera(250); W.document.dispatchEvent(new W.CustomEvent('mesa-tareas'));
+    const chip = await hasta(() => q('.side > .cal .chip[data-ses]'), 4000, 'su chip'); ok(/^Reunión · /.test(chip.title), 'el chip no dice «Reunión»: ' + chip.title);
+    // la vista cliente: solo con el ojo abierto
+    await vistaCliente(true); await espera(120); ok(!q('.side > .cal .chip[data-ses]'), 'se ve en la «Vista cliente» con el ojo tachado'); await vistaCliente(false);
+    await M._in.idbPut('tareas', r.id, { ...r, sesion: { ...r.sesion, visible: true }, at: new Date().toISOString() }); W.document.dispatchEvent(new W.CustomEvent('mesa-tareas'));
+    await vistaCliente(true); await hasta(() => q('.side > .cal .chip[data-ses]'), 3000, 'con el ojo abierto no se ve en la «Vista cliente»'); await vistaCliente(false);
+    if (M.web && M.web.paquete) { const P = await M.web.paquete(M._in.S); ok(!P.sesiones.some(x => x.id === r.id), 'la web recibe la reunión'); }
+    // sin cobro
+    const now = new Date().toISOString();
+    await M._in.idbPut('tareas', 'es-rn1', { id: 'es-rn1', tipo: 'esporadico', txt: 'Esporádico RN1', creada: now, at: now });
+    await M._in.idbPut('tareas', r.id, { ...r, clientes: ['es-rn1'], at: now });
+    const c = await M.cobros.cargar([{ cliente: 'es-rn1', periodo: r.id, importe: 100 }]); ok(c.error && /reunión/.test(json(c.problemas)), 'una reunión acepta un cobro: ' + json(c));
+    await sinTareas();
+  });
+
+  prueba('ZM1', 'El enlace de métricas de Zernio (D-292): en «Editar cliente · Datos», opcional y solo https; «Guardar» lo guarda con su fecha; uno http no entra; vaciado se quita', async () => {
+    await tablero([pub(1)]);
+    const abrir = async () => { q('.tabs .tedit').click(); return hasta(() => q('.detail [data-form="editclient"] #ec-metricas'), 3000, 'el campo de métricas'); };
+    let i = await abrir();
+    ok(/Enlace de métricas \(Zernio\)/.test(q('.detail label[for="ec-metricas"]').textContent) && i.value === '', 'el campo vacío y su etiqueta');
+    i.value = 'http://zernio.test/m/cliente'; q('.detail [data-form="editclient"]').requestSubmit(); await espera(120);
+    ok(/https:\/\//.test(q('.detail .ferr').textContent) && !M._in.CL.find(c => c.id === CLIENTE).metricas, 'entra un enlace http');
+    i.value = 'https://zernio.test/m/cliente'; q('.detail [data-form="editclient"]').requestSubmit();
+    await hasta(() => M._in.CL.find(c => c.id === CLIENTE).metricas === 'https://zernio.test/m/cliente', 3000, 'el enlace guardado');
+    const at = M._in.CL.find(c => c.id === CLIENTE).metricasAt; ok(at, 'sin su fecha');
+    i = await abrir(); igual(i.value, 'https://zernio.test/m/cliente', 'al abrir otra vez no sale');
+    i.value = ''; q('.detail [data-form="editclient"]').requestSubmit();
+    await hasta(() => !('metricas' in M._in.CL.find(c => c.id === CLIENTE)), 3000, 'vaciado no se quita');
+    ok(M._in.CL.find(c => c.id === CLIENTE).metricasAt > at, 'quitarlo no cambia su fecha');
   });
 
 

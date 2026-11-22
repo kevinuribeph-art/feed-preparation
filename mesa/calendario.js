@@ -50,7 +50,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.26';   // 1.26: a right click in the board's calendar — in a day, «Nueva sesión», «Nueva tarea» and «Nueva historia»; on a post, «Abrir»; on a session, «Abrir», «Duplicar sesión» and «Borrar sesión» (D-285). 1.25: in the vista cliente the calendar's panel round on top, the tabs' panel on the parts' edge and the parts 12 px apart at 720 (D-240). 1.24: no Σ, the month's total always in my view (D-229) and never in the vista cliente, no ‹ › there without another month (D-228); the vista cliente's tabs and right column (D-230); square corners where a session goes on, the legend in --mute (D-231). 1.23: a chip for each day of a session of the board's client, which opens its sheet over the board (D-219). 1.22: «Calendario» at 17 px, as «Bandeja» (D-186); No aprobado and Cancelado in the bar only if the month has one (D-189); the new names of two states (D-191); the month's step goes on and back on its own, the next step shows what holds it back (D-192). 1.21: a client without Notion has nothing of Notion: no «N cambios sin subir» / «Igual que Notion», no «muévela en Notion» (D-184). 1.20: the chips' hours without tabular figures (D-175). 1.18: «Notion a fecha de» in a title, a double click on the month's name, no «Cancelar» / «Cerrar» in its dialogs (D-155, D-156, D-159, D-160). 1.17: the days of another month of the board, dimmed as the previous month's, with their chips muted (D-153). 1.16: the look of the date's calendar, with its tokens (D-147); folds with the column, and is a tab with the tray folded (D-148)
+  const VERSION = '1.27';   // 1.27: a «Solo contenido» board's calendar — its deliveries as chips, no steps, total, Notion nor fold, no «Nueva historia» (D-290); «Nueva reunión» in a day's right click and a meeting's chip with its drawing (D-291). 1.26: a right click in the board's calendar — in a day, «Nueva sesión», «Nueva tarea» and «Nueva historia»; on a post, «Abrir»; on a session, «Abrir», «Duplicar sesión» and «Borrar sesión» (D-285). 1.25: in the vista cliente the calendar's panel round on top, the tabs' panel on the parts' edge and the parts 12 px apart at 720 (D-240). 1.24: no Σ, the month's total always in my view (D-229) and never in the vista cliente, no ‹ › there without another month (D-228); the vista cliente's tabs and right column (D-230); square corners where a session goes on, the legend in --mute (D-231). 1.23: a chip for each day of a session of the board's client, which opens its sheet over the board (D-219). 1.22: «Calendario» at 17 px, as «Bandeja» (D-186); No aprobado and Cancelado in the bar only if the month has one (D-189); the new names of two states (D-191); the month's step goes on and back on its own, the next step shows what holds it back (D-192). 1.21: a client without Notion has nothing of Notion: no «N cambios sin subir» / «Igual que Notion», no «muévela en Notion» (D-184). 1.20: the chips' hours without tabular figures (D-175). 1.18: «Notion a fecha de» in a title, a double click on the month's name, no «Cancelar» / «Cerrar» in its dialogs (D-155, D-156, D-159, D-160). 1.17: the days of another month of the board, dimmed as the previous month's, with their chips muted (D-153). 1.16: the look of the date's calendar, with its tokens (D-147); folds with the column, and is a tab with the tray folded (D-148)
   if (M.calendario && M.calendario._off) { try { M.calendario._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const LS_FOLD = 'mesa-cal-plegado';   // the weekly count Σ is gone, and its «mesa-cal-recuento» no longer read (D-229)
   const DOW = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -95,6 +95,7 @@
   // ---------- the personal page's sessions (D-219): what a chip needs, read from 'tareas' ----------
   let SES = null, sesFirma = '', sesLee = null;
   const CLAQ = '<svg class="cses" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.33" stroke-linecap="round" stroke-linejoin="round"><path vector-effect="non-scaling-stroke" d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z"/><path vector-effect="non-scaling-stroke" d="m6.2 5.3 3.1 3.9"/><path vector-effect="non-scaling-stroke" d="m12.4 3.4 3.1 4"/><path vector-effect="non-scaling-stroke" d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>';
+  const REU = '<svg class="cses" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.33" stroke-linecap="round" stroke-linejoin="round"><path vector-effect="non-scaling-stroke" d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle vector-effect="non-scaling-stroke" cx="9" cy="7" r="4"/><path vector-effect="non-scaling-stroke" d="M22 21v-2a4 4 0 0 0-3-3.87"/><path vector-effect="non-scaling-stroke" d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';   // Lucide users (D-291)
   async function leerSes() {
     if (sesLee) { sesLee.otra = true; return; }
     const yo = sesLee = { otra: false };
@@ -113,7 +114,15 @@
   function sesHTML(X, x, d) {
     const P = M.personal && M.personal._p, cu = P && P.tramo ? P.tramo(x.t) : x.fecha + (x.hora ? ' ' + x.hora : ''), t = x.fecha === d ? x.hora : '';
     const sg = x.fin > x.fecha ? `${x.fecha < d ? ' sigue-i' : ''}${d < x.fin ? ' sigue-d' : ''}` : '';   // square where it goes on, by its real days (D-231)
-    return `<button type="button" class="chip ty-ses${sg}" data-ses="${esc(x.id)}" title="${esc(`Sesión · ${x.txt} · ${cu}`)}"><span class="cl">${CLAQ}<span class="cn">${esc(x.txt)}</span></span>${t ? `<span class="ct">${esc(t)}</span>` : ''}</button>`;
+    const reu = x.t && x.t.sesion && x.t.sesion.clase === 'reunion';   // a meeting (D-291): its own word and drawing
+    return `<button type="button" class="chip ty-ses${sg}" data-ses="${esc(x.id)}" title="${esc(`${reu ? 'Reunión' : 'Sesión'} · ${x.txt} · ${cu}`)}"><span class="cl">${reu ? REU : CLAQ}<span class="cn">${esc(x.txt)}</span></span>${t ? `<span class="ct">${esc(t)}</span>` : ''}</button>`;
+  }
+
+  // a delivery (D-290): its «qué» on its deadline; delivered, with a ✓ and in green; gone past without delivering, red
+  const ENT_OK = '<svg class="cent" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.33" stroke-linecap="round" stroke-linejoin="round"><path vector-effect="non-scaling-stroke" d="M20 6 9 17l-5-5"/></svg>';
+  function entHTML(X, r, hoy) {
+    const k = X.ent.estado(r, hoy), tit = `Entrega · ${r.que || 'Sin título'}${r.cuanto ? ' · ' + r.cuanto : ''} · ${k === 'entregada' ? 'entregada' : k === 'pasada' ? 'sin entregar, pasó su fecha' : 'antes del ' + (+r.fecha.slice(8, 10))}`;
+    return `<button type="button" class="chip ty-ent ${k}" data-ent="${esc(r.id)}" title="${esc(tit)}"><span class="cl">${k === 'entregada' ? ENT_OK : ''}<span class="cn">${esc(r.que || 'Sin título')}</span></span></button>`;
   }
 
   // ---------- the vista cliente's structure (D-230) ----------
@@ -166,6 +175,9 @@
       if (!x.clientes.includes(S.client) || (client && !x.visible)) continue;
       for (let d = x.fecha < sp.lo ? sp.lo : x.fecha, i = 0; d <= x.fin && d <= sp.hi && i < 400; d = addDays(d, 1), i++) (sd[d] = sd[d] || []).push({ x, t: x.fecha === d && x.hora ? +x.hora.replace(':', '') : -1 });
     }
+    // a client of «Solo contenido» (D-290): its deliveries, a chip each on its deadline (✓ once delivered), no posts, steps nor Notion
+    const cont = !!(X.esContenido && X.esContenido(S.client));
+    if (cont && X.ent) for (const r of X.ent.vivas(S.client)) { if (r.fecha >= sp.plo && r.fecha <= sp.hi || r.fecha.slice(0, 7) === m) (sd[r.fecha] = sd[r.fecha] || []).push({ e: r, t: -2 }); }
     const live = it => it.p || X.estadoDe(it.s) !== 'cancelado';       // what counts (and what the vista cliente shows)
     const first = `${m}-01`, start = addDays(first, -dow(first)), dim = new Date(Date.UTC(y, mo, 0)).getUTCDate();
     const rows = Math.ceil((dow(first) + dim) / 7);
@@ -180,21 +192,21 @@
         const cls = `cday${inM ? '' : ' out'}${d < sp.plo || d > sp.hi ? ' off' : d < sp.lo ? ' prevc' : inM ? '' : ' otromes'}${d === today ? ' today' : ''}`;
         const num = +d.slice(8) === 1 ? `${+d.slice(8)} ${X.MONTHS[+d.slice(5, 7) - 1].slice(0, 3)}` : String(+d.slice(8));
         body += `<div class="${cls}" data-day="${d}"><div class="dh"><span class="dn">${num}</span>${k > 1 && !client ? `<span class="dmany" title="${k} publicaciones este día">${k}</span>` : ''}</div>`
-          + (sd[d] ? [...items, ...sd[d]].sort((u, v) => u.t - v.t) : items).map(it => it.x ? sesHTML(X, it.x, d) : it.p ? pastHTML(X, it.p) : chipHTML(X, it.s, client)).join('') + '</div>';
+          + (sd[d] ? [...items, ...sd[d]].sort((u, v) => u.t - v.t) : items).map(it => it.e ? entHTML(X, it.e, today) : it.x ? sesHTML(X, it.x, d) : it.p ? pastHTML(X, it.p) : chipHTML(X, it.s, client)).join('') + '</div>';
       }
       total += n;
     }
     // no weekly count (Σ) anywhere; the month's total, always in my view, under the grid (D-229), and never in the vista cliente (D-228)
-    if (!client) body += `<div class="ctot" title="${total} publicaci${total === 1 ? 'ón' : 'ones'} en ${X.MONTHS[mo - 1]}">Total de ${X.MONTHS[mo - 1]} <b>${total}</b></div>`;
+    if (!client && !cont) body += `<div class="ctot" title="${total} publicaci${total === 1 ? 'ón' : 'ones'} en ${X.MONTHS[mo - 1]}">Total de ${X.MONTHS[mo - 1]} <b>${total}</b></div>`;
     const i = sp.list.indexOf(m), pend = M.notionChanges ? M.notionChanges().length : 0, fo = folded();
     // «Notion a fecha de» is no longer a text of its own: it goes in the title of the line that already speaks of Notion (D-160)
     const nat = `Notion a fecha de: ${S.notionAt ? esc(X.fmtDate(S.notionAt)) : '—'}`;
-    const sync = X.sinNotion && X.sinNotion() ? '' : pend ? `<span class="csync c" title="Fecha, hora, tipo o nombre cambiados aquí: se pasan a Notion al subir · ${nat}"><i class="dchg"></i>${pend} cambio${pend === 1 ? '' : 's'} sin subir</span>` : `<span class="csync" title="${nat} · la mesa no lee Notion en directo: es la última vez que este mes se cargó desde Notion o se confirmó una subida">Igual que Notion</span>`;
+    const sync = cont || (X.sinNotion && X.sinNotion()) ? '' : pend ? `<span class="csync c" title="Fecha, hora, tipo o nombre cambiados aquí: se pasan a Notion al subir · ${nat}"><i class="dchg"></i>${pend} cambio${pend === 1 ? '' : 's'} sin subir</span>` : `<span class="csync" title="${nat} · la mesa no lee Notion en directo: es la última vez que este mes se cargó desde Notion o se confirmó una subida">Igual que Notion</span>`;
     // a double click on the month's name goes back to the month the board opens with (D-121), as ‹ › without a step of ⌘Z (D-159)
     const ini = mesInicial(X, sp), mesNom = `${cap(X.MONTHS[mo - 1])} ${y}`;
     const mesTit = `${mesNom} · doble clic: ${ini === today.slice(0, 7) ? 'el mes de hoy' : 'el más cercano a hoy'}`;
-    const leg = pasosHTML(X, mesBarra(X, m));
-    const nv = !client && X.vencidas ? X.vencidas().length : 0;
+    const leg = cont ? '' : pasosHTML(X, mesBarra(X, m));
+    const nv = !client && !cont && X.vencidas ? X.vencidas().length : 0;
     const vh = nv ? `<button type="button" class="cvenc" data-cal="venc" title="Ver las vencidas y resolverlas">${nv} vencida${nv === 1 ? '' : 's'}</button>` : '';
     const bodyEl = sec.querySelector('.calbody'), top = bodyEl ? bodyEl.scrollTop : 0;
     // the vista cliente's parts (D-230): with a tab of its own, «Calendario» is a tab (no title nor fold, also at 720 px)
@@ -204,10 +216,11 @@
     const nav = `<span class="cnav">${flechas ? `<button type="button" data-cal="prev" aria-label="Mes anterior" ${i > 0 ? '' : 'disabled'}>‹</button>` : ''}<span class="cmes" title="${esc(mesTit)}">${esc(mesNom)}</span>${flechas ? `<button type="button" data-cal="next" aria-label="Mes siguiente" ${i < sp.list.length - 1 ? '' : 'disabled'}>›</button>` : ''}</span>`;
     const cab = conTabs
       ? `<div class="calhead vcp"><div class="vcp-tabs" role="tablist" aria-label="Este mes">${tabs.map(t => `<button type="button" class="vcp-tab${t.id === vcTab ? ' on' : ''}" role="tab" id="vcp-t-${esc(t.id)}" data-cal="vctab" data-t="${esc(t.id)}" aria-selected="${t.id === vcTab}" aria-controls="vcp-p" tabindex="${t.id === vcTab ? 0 : -1}">${esc(t.titulo)}</button>`).join('')}</div>${panel ? '' : nav}</div>`
+      : cont ? `<div class="calhead"><b class="ctit">Calendario</b>${nav}</div>`   // its own column, never folded (D-290)
       : `<div class="calhead"><button type="button" class="cfold" data-cal="fold" aria-expanded="${!fo}" title="${fo ? 'Abrir el calendario' : 'Plegar el calendario'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg><b>Calendario</b></button>${vh}${sync}${nav}</div>`;
     const panelEl = sec.querySelector(':scope > .vcp-panel'), mismo = panel && panelEl && panelEl.dataset.t === panel.id && panelEl._h === panel.html, pTop = mismo ? panelEl.scrollTop : 0;
     sec.hidden = false;
-    sec.classList.toggle('fold', fo2); sec.classList.toggle('vctabs', conTabs);
+    sec.classList.toggle('fold', fo2 && !cont); sec.classList.toggle('vctabs', conTabs); sec.classList.toggle('cont', cont);
     sec.innerHTML = cab + (panel ? `<div class="vcp-panel" id="vcp-p" role="tabpanel" aria-labelledby="vcp-t-${esc(panel.id)}" data-t="${esc(panel.id)}" tabindex="0"></div>`
       : `${leg}<div class="calbody"${conTabs ? ' id="vcp-p" role="tabpanel" aria-labelledby="vcp-t-cal"' : ''}><div class="cgrid" style="grid-template-rows:24px repeat(${rows},minmax(58px,auto))${client ? '' : ' auto'}">${body}</div></div>`);
     if (panel) { const ph = sec.querySelector(':scope > .vcp-panel'); if (mismo) { ph.replaceWith(panelEl); if (pTop) panelEl.scrollTop = pTop; } else { ph.innerHTML = panel.html; ph._h = panel.html; } }   // the same panel stays as it is: nothing jumps
@@ -273,6 +286,7 @@
     }
     if (sec.classList.contains('fold') && !client && e.target.closest('.calhead') && sec.parentNode.querySelector(':scope > .tray.fold')) { plegar(X, sec); return; }   // its tab (D-148)
     const ch = e.target.closest('.chip'); if (!ch || Date.now() - noClick < 400) return;   // the click that ends a move opens nothing
+    if (ch.dataset.ent) { if (M.entregasUI && M.entregasUI.abrir) M.entregasUI.abrir(ch.dataset.ent); return; }   // a delivery: open in its column (D-290)
     if (ch.dataset.ses) { if (M.personal && M.personal.abrirSesion) M.personal.abrirSesion(ch.dataset.ses, { de: `.side > .cal .chip[data-ses="${cssq(ch.dataset.ses)}"]`, vc: client, cli: X.S && X.S.client }); return; }   // its sheet over the board (D-219)
     if (ch.dataset.slot) { if (client) X.openIG(ch.dataset.slot, 0); else X.openDetail(ch.dataset.slot, 0); }
     else if (ch.dataset.prev) { const id = ch.dataset.prev; if (client) X.openIG(id, 0); else X.withPrev(() => X.openPast(id), 'open'); }
@@ -600,7 +614,10 @@
 #mesa .chip.ty-foto{--cb:var(--ty-foto);--ci:var(--ty-foto-ink)}
 #mesa .chip.ty-carr{--cb:var(--ty-carr);--ci:var(--ty-carr-ink)}
 #mesa .chip.ty-trial{--cb:var(--ty-trial);--ci:var(--ty-trial-ink)}
-#mesa .chip.ty-ses{--cb:var(--ty-ses);--ci:var(--ty-ses-ink)}#mesa .chip.sigue-i{border-top-left-radius:0;border-bottom-left-radius:0}#mesa .chip.sigue-d{border-top-right-radius:0;border-bottom-right-radius:0}#mesa .chip .cses{flex:none;width:11px;height:11px}
+#mesa .chip.ty-ses{--cb:var(--ty-ses);--ci:var(--ty-ses-ink)}
+#mesa .chip.ty-ent{--cb:var(--acc-soft);--ci:var(--acc-ink)}#mesa .chip.ty-ent.entregada{--cb:var(--ok-soft);--ci:var(--ok)}#mesa .chip.ty-ent.pasada{--cb:var(--red-soft);--ci:var(--red)}
+#mesa .chip .cent{flex:none;width:11px;height:11px;margin-right:3px}
+#mesa .side>.cal.cont .calhead .ctit{font-size:17px;font-weight:800;letter-spacing:-.025em;color:var(--ink)}#mesa .chip.sigue-i{border-top-left-radius:0;border-bottom-left-radius:0}#mesa .chip.sigue-d{border-top-right-radius:0;border-bottom-right-radius:0}#mesa .chip .cses{flex:none;width:11px;height:11px}
 #mesa .cday.otromes .chip:not(.cx):not(.past):not(:hover):not(:focus-visible):not(.calhi){background:color-mix(in srgb,var(--cb) 45%,transparent);color:color-mix(in srgb,var(--ci) 55%,transparent)}
 #mesa .chip.past{background:var(--ty-past);color:var(--faint);cursor:pointer}
 #mesa .chip.cx{background:var(--ty-past);color:var(--faint)}#mesa .chip.cx .cn{text-decoration:line-through}
@@ -660,12 +677,14 @@
       const id = ch.dataset.ses, de = `.side > .cal .chip[data-ses="${cssq(id)}"]`;
       l = [{ t: 'Abrir', hacer: () => P && P.abrirSesion && P.abrirSesion(id, { de, vc: false, cli }) }, { t: 'Duplicar sesión', off: !(P && P.duplicarSesion), hacer: () => P.duplicarSesion(id) }, { t: 'Borrar sesión', off: !(P && P.borrarSesion), hacer: () => P.borrarSesion(id) }];
     } else if (ch && ch.dataset.slot) { const id = ch.dataset.slot; l = [{ t: 'Abrir', hacer: () => X.openDetail(id, 0) }]; }
+    else if (ch && ch.dataset.ent) { const id = ch.dataset.ent; l = [{ t: 'Abrir', off: !(M.entregasUI && M.entregasUI.abrir), hacer: () => M.entregasUI.abrir(id) }]; }   // D-290
     else if (ch && ch.dataset.prev) { const id = ch.dataset.prev; l = [{ t: 'Abrir', hacer: () => X.withPrev(() => X.openPast(id), 'open') }]; }
     else if (dia) {
       const d = dia.dataset.day, sp = span(X), kb = `${+d.slice(8)} ${X.MONTHS[+d.slice(5, 7) - 1].slice(0, 3)}`, de = `.side > .cal .cday[data-day="${d}"]`;
       l = [{ t: 'Nueva sesión', kb, off: !(P && P.nuevaSesion), hacer: () => P.nuevaSesion({ fecha: d, cliente: cli }) },
+        { t: 'Nueva reunión', kb, off: !(P && P.nuevaSesion), hacer: () => P.nuevaSesion({ fecha: d, cliente: cli, clase: 'reunion' }) },   // D-291
         { t: 'Nueva tarea', kb, off: !(P && P.nuevaTarea), hacer: () => P.nuevaTarea({ fecha: d, cliente: cli, de }) }];
-      if (d >= sp.lo && d <= sp.hi && M.hs && M.hs.anadir) l.push('-', { t: 'Nueva historia', kb, hacer: () => nuevaHistoria(d) });
+      if (d >= sp.lo && d <= sp.hi && M.hs && M.hs.anadir && !(X.esContenido && X.esContenido(X.S.client))) l.push('-', { t: 'Nueva historia', kb, hacer: () => nuevaHistoria(d) });   // no stories without a feed (D-290)
     }
     if (!l) return;
     e.preventDefault(); e.stopPropagation();
@@ -679,9 +698,11 @@
   const ON = [['pointerover', onOver], ['click', onClick, false], ['dblclick', onDbl, false], ['contextmenu', onCtx, false], ['pointerdown', onDown], ['pointermove', onMove], ['pointerup', end], ['pointercancel', onCancel], ['keydown', onKey]];
   ON.forEach(([t, f, c]) => document.addEventListener(t, f, c !== false));
   document.addEventListener('mesa-tareas', alTareas);
+  const alEntregas = () => { const X = I(); if (X && X.S && X.esContenido && X.esContenido(X.S.client)) render(); };   // a delivery changed (D-290)
+  document.addEventListener('mesa-entregas', alEntregas);
   M.calendario = {
     version: VERSION, render, vencidas: abrirVencidas, cambios: abrirCambios,
-    _off: () => { ON.forEach(([t, f, c]) => document.removeEventListener(t, f, c !== false)); document.removeEventListener('mesa-tareas', alTareas); if (mv) onCancel(); }
+    _off: () => { ON.forEach(([t, f, c]) => document.removeEventListener(t, f, c !== false)); document.removeEventListener('mesa-tareas', alTareas); document.removeEventListener('mesa-entregas', alEntregas); if (mv) onCancel(); }
   };
   render();                                     // the mesa may have drawn its board before this file arrived
   (window.MESA_CARGA = window.MESA_CARGA || {}).calendario = 'ok';   // it ran to the end: a module that throws while loading is told apart (D-115)

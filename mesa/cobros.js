@@ -7,7 +7,7 @@
 (function cobrosBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
-  const VERSION = '1.1';   // 1.1: a PDF that hasn't come down from the server yet (lot 4 of the traspaso) says so (D-259)
+  const VERSION = '1.2';   // 1.2: «Acuerdo» instead of «Cuota mensual» — how often it pays, from when, for how long, whether it renews and when to renegotiate, with its line; «+ Factura» of its stretch; in «Tus pagos», «al mes» only if it pays each month and each invoice by its first month, as the client's web gets them until lot D (D-288). 1.1: a PDF that hasn't come down from the server yet (lot 4 of the traspaso) says so (D-259)
   const I = () => M._in, C = () => M._in.cob, P = () => (M.personal && M.personal._p) || null;
   if (M.cobrosUI && M.cobrosUI._off) { try { M.cobrosUI._off(); } catch (e) { /* */ } }
   const OFF = [];
@@ -50,11 +50,37 @@
   // ---------- the table (a monthly client in «Editar cliente», a sporadic one in its file) ----------
   const UI = { det: null, ant: new Set() };      // the invoice whose dates are open; the clients whose older payments show
   const cliRec = id => I().CL.find(c => c.id === id) || null;
+  // the agreement (D-288): how often it pays, each payment, the day it's issued and its term; from when, for how long, whether it
+  // renews and when to renegotiate (only Kevin's); a line that sums it up under them
+  const MESC = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  const acuVal = (a, k) => {                     // what each field shows, as it's kept
+    if (!a) return '';
+    if (k === 'importe') return a.importe != null ? eur(a.importe) : '';
+    if (k === 'dia') return a.dia != null ? String(a.dia) : '';
+    if (k === 'plazo') return a.plazo != null ? `${a.plazo} ${a.plazo === 1 ? 'día' : 'días'}` : '';
+    if (k === 'desde') return a.desde ? `${MESC[+a.desde.slice(5, 7) - 1]} ${a.desde.slice(0, 4)}` : '';
+    if (k === 'meses') return a.meses ? `${a.meses} ${a.meses === 1 ? 'mes' : 'meses'}` : '';
+    return '';
+  };
   function cuotaHTML(c) {
-    const q = (c && c.cuota) || {}, pl = q.plazo != null && q.plazo !== '' ? `${q.plazo} ${+q.plazo === 1 ? 'día' : 'días'}` : '';
-    return `<div class="co-cuota"><div><label for="co-q-importe">Cuota mensual</label><input id="co-q-importe" type="text" class="co-q" data-co="cuota" data-k="importe" inputmode="decimal" autocomplete="off" value="${q.importe ? esc(eur(q.importe)) : ''}" placeholder="Importe"></div>`
-      + `<div><label for="co-q-dia">Se emite el día</label><input id="co-q-dia" type="text" class="co-q" data-co="cuota" data-k="dia" inputmode="numeric" autocomplete="off" value="${q.dia || ''}" placeholder="1-28"></div>`
-      + `<div><label for="co-q-plazo">Vence a los</label><input id="co-q-plazo" type="text" class="co-q" data-co="cuota" data-k="plazo" inputmode="numeric" autocomplete="off" value="${esc(pl)}" placeholder="Días"></div></div>`;
+    const a = C().acuerdo ? C().acuerdo(c) : null, pago = a ? a.pago : 'mensual', renueva = !a || a.renueva !== false, sinFin = !a || !a.meses;
+    const campo = (k, l, ph, im) => `<div><label for="co-a-${k}">${l}</label><input id="co-a-${k}" type="text" class="co-q" data-co="cuota" data-k="${k}" inputmode="${im}" autocomplete="off" value="${esc(acuVal(a, k))}" placeholder="${ph}"></div>`;
+    const res = C().resumen ? C().resumen(c) : '';
+    return `<div class="co-acu-t"><h4>Acuerdo</h4><span>«Renegociar el» solo lo ves tú</span></div><div class="co-cuota co-acu">`
+      + `<div><label for="co-a-pago">Pago</label><select id="co-a-pago" class="co-q" data-co="cuota" data-k="pago">${(C().PAGOS || [['mensual', 'Cada mes']]).map(([v, t]) => `<option value="${v}"${v === pago ? ' selected' : ''}>${t}</option>`).join('')}</select></div>`
+      + campo('importe', 'Importe de cada pago', 'Importe', 'decimal') + campo('dia', 'Se emite el día', '1-28', 'numeric') + campo('plazo', 'Vence a los', 'Días', 'numeric')
+      + campo('desde', 'Cubre desde', 'may 2026', 'text') + campo('meses', 'Duración', 'Sin fin', 'numeric')
+      + `<div><label for="co-a-renueva">Al acabar</label><select id="co-a-renueva" class="co-q" data-co="cuota" data-k="renueva"${sinFin ? ' disabled title="Sin duración, no acaba"' : ''}><option value="si"${renueva ? ' selected' : ''}>Se renueva</option><option value="no"${renueva ? '' : ' selected'}>Se acaba</option></select></div>`
+      + `<div><label for="co-a-renegociar">Renegociar el</label><input id="co-a-renegociar" type="date" class="co-q" data-co="cuota" data-k="renegociar" data-sin-fecha value="${esc((a && a.renegociar) || '')}" aria-label="Renegociar el acuerdo el"></div>`
+      + `</div><p class="co-acu-n"${res ? '' : ' hidden'}>${esc(res)}</p>`;
+  }
+  // a month written as «may 2026», «mayo 2026», «05/2026» or «2026-05»; '' empty; undefined, not a month
+  function leerMes(v) {
+    v = String(v || '').trim().toLowerCase(); if (!v) return '';
+    let m = v.match(/^(\d{4})-(\d{1,2})$/); if (m) return +m[2] >= 1 && +m[2] <= 12 ? `${m[1]}-${m[2].padStart(2, '0')}` : undefined;
+    m = v.match(/^(\d{1,2})\s*[/.-]\s*(\d{4})$/); if (m) return +m[1] >= 1 && +m[1] <= 12 ? `${m[2]}-${m[1].padStart(2, '0')}` : undefined;
+    m = v.match(/^([a-záéíóúñ]+)\.?(?:\s+de)?\s+(\d{4})$/); if (m) { const i = MESC.findIndex(x => m[1].startsWith(x) || (x === 'sep' && m[1].startsWith('set'))); return i >= 0 ? `${m[2]}-${String(i + 1).padStart(2, '0')}` : undefined; }
+    return undefined;
   }
   function filaHTML(r, h, esp) {
     const s = estK(r, h), id = esc(r.id), nom = C().nombre(r, h), quien = esc(nom), abierta = UI.det === r.id;
@@ -72,13 +98,19 @@
     const det = abierta ? `<tr class="co-det" data-id="${id}" data-p="det" id="co-d-${id}"><td colspan="7"><div class="co-fs">${fecha('emitida', 'Emitida')}${fecha('vence', 'Vence')}${fecha('cobrada', 'Cobrada')}</div></td></tr>` : '';
     return fila + det;
   }
-  const mesNueva = (cli, h) => { const ms = C().vivos(cli).map(r => r.periodo).filter(p => C().MES.test(p || '')).sort(); return ms.length ? I().addMonths(ms[ms.length - 1], 1) : h.slice(0, 7); };
+  const mesNueva = (cli, h) => { const ms = C().vivos(cli).filter(r => C().MES.test(r.periodo || '')).map(r => C().hasta ? C().hasta(r) : r.periodo).sort(); return ms.length ? I().addMonths(ms[ms.length - 1], 1) : h.slice(0, 7); };   // after its last month (a stretch's, D-288)
   // the sessions of a sporadic client that have no invoice of it yet (one per session and client, D-234)
   function sesSinCobro(cli) {
     const p = P(); if (!p || !p.TK) return [];
     const usadas = new Set(C().vivos(cli).map(r => r.periodo));
-    return [...p.TK.values()].filter(k => k.tipo === 'sesion' && !k._b && (Array.isArray(k.clientes) ? k.clientes : [k.cliente]).includes(cli) && !usadas.has(k.id))
+    return [...p.TK.values()].filter(k => k.tipo === 'sesion' && !k._b && !(k.sesion && k.sesion.clase === 'reunion') && (Array.isArray(k.clientes) ? k.clientes : [k.cliente]).includes(cli) && !usadas.has(k.id))   // a meeting has no payment (D-291)
       .sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')));
+  }
+  // «+ Factura» of a monthly client: the next stretch without an invoice, from the month after the last one invoiced (D-288)
+  function pieMensual(cli, h) {
+    const c = cliRec(cli), q = C().cuota(c), m = mesNueva(cli, h), t = q && C().libre ? C().libre(q, C().vivos(cli), m) : q ? { de: m, hasta: m, importe: q.importe } : null;
+    const n0 = C().nombre({ periodo: t ? t.de : m, ...(t && t.hasta !== t.de ? { hasta: t.hasta } : {}) }, h), nom = n0.charAt(0).toLowerCase() + n0.slice(1);   // as the table names it
+    return `<button type="button" class="co-mas" data-co="nueva" data-m="${t ? t.de : m}" data-h="${t ? t.hasta : m}" data-i="${t ? t.importe : ''}"${t ? '' : q ? ' disabled title="El acuerdo ya acabó"' : ' disabled title="Pon antes el importe, el día en que se emite y a cuántos días vence (y desde cuándo cubre, si no paga cada mes)"'}>${IC.mas}Factura de ${esc(nom)}</button>`;
   }
   // the table of a client's invoices, newest first; o.esp: a sporadic client (a session each, no fee)
   function tabla(cli, o = {}) {
@@ -88,8 +120,7 @@
       const ss = sesSinCobro(cli), n = ss.length;
       pie = `<button type="button" class="pp-cmas" data-co="nuevo-ses"${n ? '' : ` disabled title="${C().vivos(cli).length ? 'Todas sus sesiones tienen su cobro' : 'Aún no tiene sesiones'}"`}>${IC.mas}Cobro</button>`;
     } else {
-      const q = C().cuota(c), m = mesNueva(cli, h);
-      pie = `<button type="button" class="co-mas" data-co="nueva" data-m="${m}"${q ? '' : ' disabled title="Pon antes la cuota, el día en que se emite y a cuántos días vence"'}>${IC.mas}Factura de ${esc(mesTxt(m, h))}</button>`;
+      pie = pieMensual(cli, h);
     }
     const cuerpo = l.length
       ? `<table class="co-t"><thead><tr><th>${o.esp ? 'Sesión' : 'Mes'}</th><th>Factura</th><th class="co-i">Importe</th><th>Estado</th><th>Fecha</th><th>PDF</th><th><span class="co-vh0">Acción</span></th></tr></thead><tbody>${l.map(r => filaHTML(r, h, o.esp)).join('')}</tbody></table>`
@@ -116,24 +147,42 @@
   async function guardar(id, cambio) {               // over the record as it is when written (D-232)
     try { return await C().parche(id, cambio); } catch (e) { fallo(e); return null; }
   }
-  async function cuota(inp) {
+  async function cuota(inp) {                      // a field of the agreement (D-288), saved on its own
     const cid = cliDe(inp), c = cliRec(cid); if (!c) return;
-    const q0 = { importe: null, dia: null, plazo: null, ...(c.cuota || {}) }, k = inp.dataset.k, v = inp.value.trim();
+    const a0 = C().acuerdo(c) || { pago: 'mensual', importe: null, dia: null, plazo: null, desde: '', meses: null, renueva: true, renegociar: '' }, k = inp.dataset.k, v = String(inp.value || '').trim();
     let val = null;
-    if (v) {
-      if (k === 'importe') { val = C().importe(v); if (isNaN(val)) val = undefined; }
+    if (k === 'pago') val = v || 'mensual';
+    else if (k === 'renueva') val = v !== 'no';
+    else if (k === 'renegociar') val = /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : v ? undefined : '';
+    else if (k === 'desde') val = leerMes(v);
+    else if (v) {
+      if (k === 'importe') { val = C().importe(v); if (isNaN(val) || !(val > 0)) val = undefined; }
       else if (k === 'dia') { val = /^\d{1,2}$/.test(v) && +v >= 1 && +v <= 28 ? +v : undefined; }
+      else if (k === 'meses') { const m = v.match(/^(\d{1,3})\s*(mes(es)?)?$/i); val = m && +m[1] >= 1 && +m[1] <= 120 ? +m[1] : undefined; }
       else { const m = v.match(/^(\d{1,3})\s*(d[ií]as?)?$/i); val = m && +m[1] <= 365 ? +m[1] : undefined; }
     }
-    if (val === undefined) { toast(k === 'importe' ? 'La cuota no es un importe (450 o «1.470,50»).' : k === 'dia' ? 'El día en que se emite va del 1 al 28.' : 'El plazo son los días hasta que vence (de 0 a 365).'); pintarCuota(inp, c); return; }
-    if (q0[k] === val) { pintarCuota(inp, c); return; }
-    const q = { ...q0, [k]: val }, vacia = q.importe == null && q.dia == null && q.plazo == null;
-    try { await C().cuotaGuardar(cid, vacia ? null : q); } catch (e) { fallo(e); }
-    pintarCuota(inp, cliRec(cid));
+    if (val === undefined) {
+      toast({ importe: 'El importe no es válido (450 o «1.470,50»).', dia: 'El día en que se emite va del 1 al 28.', plazo: 'El plazo son los días hasta que vence (de 0 a 365).', desde: 'Escribe el mes y el año: «may 2026».', meses: 'La duración son meses, de 1 a 120 (vacía, sin fin).', renegociar: 'No es una fecha.' }[k] || 'No es válido.');
+      pintarCuota(inp, c); return;
+    }
+    const texto = k === 'desde' || k === 'renegociar';
+    if (texto ? (a0[k] || '') === val : (a0[k] ?? null) === val) { pintarCuota(inp, c); return; }
+    const a = { ...a0, [k]: val };
+    const vacia = a.pago === 'mensual' && a.importe == null && a.dia == null && a.plazo == null && !a.desde && !a.meses && !a.renegociar;
+    try { await C().acuGuardar(cid, vacia ? null : a); } catch (e) { fallo(e); }
+    const c2 = cliRec(cid); pintarCuota(inp, c2);
+    const caja = inp.closest('.co'); if (caja) {     // its line, «Al acabar» and «+ Factura» change with it (the fields stay as they are)
+      const n = caja.querySelector('.co-acu-n'), res = C().resumen ? C().resumen(c2) : ''; if (n) { n.textContent = res; n.hidden = !res; }
+      const ren = caja.querySelector('[data-k="renueva"]'), a = C().acuerdo(c2); if (ren) { ren.disabled = !(a && a.meses); ren.title = ren.disabled ? 'Sin duración, no acaba' : ''; }
+      const pie = caja.querySelector('.co-pie'); if (pie) pie.innerHTML = pieMensual(cid, hoy());
+    }
   }
   function pintarCuota(inp, c) {                    // the field as it's kept (also the one with the focus)
-    const q = (c && c.cuota) || {}, k = inp.dataset.k;
-    inp.value = k === 'importe' ? (q.importe ? eur(q.importe) : '') : k === 'dia' ? (q.dia || '') : (q.plazo != null ? `${q.plazo} ${+q.plazo === 1 ? 'día' : 'días'}` : '');
+    const a = C().acuerdo(c), k = inp.dataset.k;
+    if (k === 'pago') inp.value = a ? a.pago : 'mensual';
+    else if (k === 'renueva') inp.value = !a || a.renueva !== false ? 'si' : 'no';
+    else if (k === 'renegociar') inp.value = (a && a.renegociar) || '';
+    else inp.value = acuVal(a, k);
   }
   async function numero(inp) {
     const f = filaDe(inp), r = f && C().get(f.dataset.id); if (!r) return;
@@ -157,8 +206,9 @@
   }
   async function nueva(btn) {
     const cid = cliDe(btn), c = cliRec(cid), q = C().cuota(c); if (!q) return;
-    const m = btn.dataset.m, id = C().nuevoId();
-    try { await C().guardar({ id, cliente: cid, periodo: m, concepto: '', importe: q.importe, factura: '', ...C().fechas(m, q), cobrada: '', pdf: '' }); } catch (e) { fallo(e); return; }
+    const m = btn.dataset.m, h = btn.dataset.h, id = C().nuevoId();   // its stretch (D-288)
+    const imp = +btn.dataset.i > 0 ? +btn.dataset.i : q.importe;   // a part of its stretch, in proportion (D-288)
+    try { await C().guardar({ id, cliente: cid, periodo: m, ...(h && h > m ? { hasta: h } : {}), concepto: '', importe: imp, factura: '', ...C().fechas(m, q), cobrada: '', pdf: '' }); } catch (e) { fallo(e); return; }
     enfocar(`tr.co-f[data-id="${id}"] [data-co="num"]`);
   }
   function nuevoSes(btn) {
@@ -242,7 +292,7 @@
     const venc = deber.filter(x => x.e.k === 'retrasada').length, suma = deber.reduce((n, x) => n + (+x.r.importe || 0), 0);
     const ver = UI.ant.has(cli), N = Math.max(0, pagadas.length - 3);
     const linea = ({ r, e }) => {
-      const nom = C().nombre(r, h), nf = r.factura ? 'la factura ' + r.factura : 'la factura de ' + nom.toLowerCase();
+      const nom = C().nombre(r, h, true), nf = r.factura ? 'la factura ' + r.factura : 'la factura de ' + nom.toLowerCase();
       const t = e.k === 'cobrada' ? 'pagada el ' + corto(r.cobrada, h) : e.k === 'retrasada' ? 'venció el ' + corto(r.vence, h) : r.vence ? 'vence el ' + corto(r.vence, h) : 'emitida el ' + corto(r.emitida, h);
       const chip = e.k === 'cobrada' ? `<span class="co-ce ok">${IC.ok}Pagada</span>` : e.k === 'retrasada' ? `<span class="co-ce rojo">${IC.alerta}Pendiente</span>` : `<span class="co-ce pend">${IC.reloj}Pendiente</span>`;
       const dl = r.pdf ? `<button type="button" class="co-dw" data-co="dl" data-id="${esc(r.id)}" title="Descargar ${esc(nf)} (PDF)" aria-label="Descargar ${esc(nf)} (PDF)">${IC.descarga}</button>` : '<span class="co-dw0"></span>';
@@ -250,7 +300,7 @@
     };
     const lis = [...deber, ...pagadas.slice(0, 3), ...(ver ? pagadas.slice(3) : [])].map(linea).join('');
     const px = prox ? `<p class="co-vprox">${IC.doc}La de ${esc(C().MESES[+prox.mes.slice(5, 7) - 1])} se emite ${prox.emitida >= h ? 'el ' + esc(corto(prox.emitida, h)) : 'en unos días'}</p>` : '';
-    return `<div class="co-pagos"><h2 class="co-vh">Tus pagos${q ? ` <span>${esc(eur(q.importe))} al mes</span>` : ''}</h2>`
+    return `<div class="co-pagos"><h2 class="co-vh">Tus pagos${q && q.pago === 'mensual' ? ` <span>${esc(eur(q.importe))} al mes</span>` : ''}</h2>`
       + (deber.length ? `<p class="co-vp">Pendiente de pago <b>${esc(eur(suma))}</b>${venc ? ` <span class="rojo">· ${venc} vencida${venc === 1 ? '' : 's'}</span>` : ''}</p>` : '')
       + (lis ? `<ul class="co-vl">${lis}</ul>` : '')
       + (N ? `<button type="button" class="co-ver" data-co="ver-ant" data-c="${esc(cli)}" aria-expanded="${ver}">${ver ? 'Ocultar las anteriores' : `Ver las anteriores (${N})`}</button>` : '')
@@ -354,6 +404,10 @@
 #mesa .co svg,#mesa .co-pagos svg,#mesa .co-mf svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:var(--i-trazo);stroke-linecap:round;stroke-linejoin:round}
 #mesa .co svg *,#mesa .co-pagos svg *{vector-effect:non-scaling-stroke}
 #mesa .co-cuota{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 18px}
+#mesa .co-acu-t{display:flex;align-items:baseline;gap:10px;margin:0 0 10px}#mesa .co-acu-t h4{margin:0;font-size:15px;font-weight:800;letter-spacing:-.015em;color:var(--ink)}#mesa .co-acu-t span{font-size:12.5px;color:var(--mute)}
+#mesa .co-cuota.co-acu{grid-template-columns:repeat(4,minmax(0,1fr));margin:0 0 8px}
+#mesa .co-acu-n{margin:0 0 18px;font-size:12.5px;line-height:1.45;color:var(--ink-2)}
+#mesa .co-acu .mx-sel,#mesa .co-acu .mx-f{display:flex;width:100%;border-radius:var(--r-md)}#mesa .co-acu .mx-f .mx-in{flex:1;min-width:0}   /* the Mesa's dropdowns and date as wide as the fields beside them */
 #mesa .co-cuota label{display:block;margin:0 0 6px;font-size:12.5px;font-weight:600}
 #mesa .co-q{width:100%;box-sizing:border-box;height:32px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel-2);padding:0 12px;font:13px var(--font);color:var(--ink);transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}
 #mesa .co-q:hover{border-color:var(--line-strong)}#mesa .co-q:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--ring)}
@@ -405,7 +459,7 @@
   #mesa .co-t .co-n::before,#mesa .co-t .co-i::before{content:attr(data-l);font-size:12.5px;color:var(--mute)}
   #mesa .co-n .co-in{margin-left:0}#mesa .co-pdf{width:auto;max-width:100%;grid-template-columns:auto 28px}
   #mesa .co-t tr.co-det{display:block}#mesa .co-t tr.co-det td{display:block;padding:0 0 10px}
-  #mesa .co-cuota{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}#mesa .co-cuota > div:first-child{grid-column:1 / -1}
+  #mesa .co-cuota{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}#mesa .co-cuota:not(.co-acu) > div:first-child{grid-column:1 / -1}#mesa .co-cuota.co-acu{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 }
 #mesa .co-pagos{color:var(--ink);container-type:inline-size}
 @container (max-width:420px){#mesa .co-vl .co-pt{display:none}#mesa .co-vl .n .co-nw{display:block}}

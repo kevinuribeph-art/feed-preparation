@@ -15,27 +15,29 @@
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;
   const MOVIL = document.documentElement.hasAttribute('data-movil');   // the iPhone (D-275): nothing mounted, only its view and its setters
-  const VERSION = '1.8';   // 1.8: «Nueva sesión» with a day given (the board's calendar, D-285); «/-» a separator in its texts (D-283). 1.7: on the iPhone nothing mounts; M.sesiones.movil (vista, campo, editar) for the whole session (D-275). 1.6: a session's photo that hasn't come down from the server yet (lot 4 of the traspaso) waits instead of breaking the sheet, and is read again when it arrives (D-259). 1.5: with the cloud on, the loose photos are cleaned only once everything came down, and only here (D-256). 1.4: a sporadic client's file has its «Cobros», one per session and client (cobros.js); «Pasar a mensual» takes them (D-234); drawing the file never takes the focus from what is being written in it. 1.3: the sheet changes in place only what changed (D-223); seen as the client, no empty section («Aún sin detalles» if none is left) and the separator still (D-228); the end the same day, its calendar with the pointer over it; --mute for what is read (D-231). 1.2: a chip each client and «+ Cliente» (D-217); «– Fin» (D-218); fixed in «Ver como el cliente» over the board in the vista cliente (D-219); templates of material (D-220); «Duplicar sesión» (D-221). 1.1: a click writes in the sheet and the file (D-209); the sheet widens (D-210); the mood board in columns of a cell of the feed (D-211); the shots' tabs as titles (D-214); the right column 20 px inside (D-216)
+  const VERSION = '1.9';   // 1.9: «Reunión», one kind of session more — «Orden del día · Notas · Acuerdos», no payment, the eye crossed out by default; «Nueva reunión» from the board's calendar (D-291). 1.8: «Nueva sesión» with a day given (the board's calendar, D-285); «/-» a separator in its texts (D-283). 1.7: on the iPhone nothing mounts; M.sesiones.movil (vista, campo, editar) for the whole session (D-275). 1.6: a session's photo that hasn't come down from the server yet (lot 4 of the traspaso) waits instead of breaking the sheet, and is read again when it arrives (D-259). 1.5: with the cloud on, the loose photos are cleaned only once everything came down, and only here (D-256). 1.4: a sporadic client's file has its «Cobros», one per session and client (cobros.js); «Pasar a mensual» takes them (D-234); drawing the file never takes the focus from what is being written in it. 1.3: the sheet changes in place only what changed (D-223); seen as the client, no empty section («Aún sin detalles» if none is left) and the separator still (D-228); the end the same day, its calendar with the pointer over it; --mute for what is read (D-231). 1.2: a chip each client and «+ Cliente» (D-217); «– Fin» (D-218); fixed in «Ver como el cliente» over the board in the vista cliente (D-219); templates of material (D-220); «Duplicar sesión» (D-221). 1.1: a click writes in the sheet and the file (D-209); the sheet widens (D-210); the mood board in columns of a cell of the feed (D-211); the shots' tabs as titles (D-214); the right column 20 px inside (D-216)
   if (M.sesiones && M.sesiones._off) { try { M.sesiones._off(); } catch (e) { /* */ } }
   let P = null;                                // personal.js's own (M.personal._p)
   const OFF = [];
   const on = (t, ty, f, o) => { t.addEventListener(ty, f, o); OFF.push(() => t.removeEventListener(ty, f, o)); };
 
   // ---------- what a session is made of ----------
-  const CLASES = [['foto', 'Foto', 'camara'], ['video', 'Vídeo', 'video'], ['fotovideo', 'Foto y vídeo', 'sesion'], ['libre', 'Libre', 'libre']];
+  // a meeting (D-291): one kind more, with its own template, no payment and only for Kevin by default
+  const CLASES = [['foto', 'Foto', 'camara'], ['video', 'Vídeo', 'video'], ['fotovideo', 'Foto y vídeo', 'sesion'], ['libre', 'Libre', 'libre'], ['reunion', 'Reunión', 'reunion']];
   const claseTxt = k => (CLASES.find(c => c[0] === k) || CLASES[2])[1];
-  const nombreDe = k => k === 'libre' ? 'Sesión libre' : 'Sesión de ' + claseTxt(k).toLowerCase();
+  const nombreDe = k => k === 'reunion' ? 'Reunión' : k === 'libre' ? 'Sesión libre' : 'Sesión de ' + claseTxt(k).toLowerCase();
   // each kind of section; the eye crossed out by default: Material, Notas, Incompletos, Transiciones and Planos recurso
   const APS = {
     orden: { n: 'Orden', t: 'texto' }, fotos: { n: 'Fotos', t: 'texto' }, planos: { n: 'Planos', t: 'planos' }, mood: { n: 'Mood board', t: 'mood' },
     material: { n: 'Material', t: 'material', oculto: true }, referencias: { n: 'Referencias', t: 'texto' }, notas: { n: 'Notas', t: 'texto', oculto: true },
     guion: { n: 'Guion', t: 'texto' }, preguntas: { n: 'Preguntas', t: 'texto' }, objetivo: { n: 'Objetivo', t: 'texto' },
-    incompletos: { n: 'Incompletos', t: 'texto', oculto: true }, transiciones: { n: 'Transiciones', t: 'texto', oculto: true }, recurso: { n: 'Planos recurso', t: 'texto', oculto: true }
+    incompletos: { n: 'Incompletos', t: 'texto', oculto: true }, transiciones: { n: 'Transiciones', t: 'texto', oculto: true }, recurso: { n: 'Planos recurso', t: 'texto', oculto: true },
+    ordendia: { n: 'Orden del día', t: 'texto' }, acuerdos: { n: 'Acuerdos', t: 'texto' }   // a meeting's (D-291)
   };
-  const ORDEN = ['orden', 'planos', 'fotos', 'mood', 'material', 'referencias', 'notas', 'guion', 'preguntas', 'objetivo', 'incompletos', 'transiciones', 'recurso'];
+  const ORDEN = ['ordendia', 'orden', 'planos', 'fotos', 'mood', 'material', 'referencias', 'notas', 'acuerdos', 'guion', 'preguntas', 'objetivo', 'incompletos', 'transiciones', 'recurso'];
   // what each kind brings (Kevin's Notion template of that kind, the sections filled in 4 or more of 30 pages); a session keeps
   // its own copy and the version: changing this never touches the sessions made
-  const PLANTILLA = { v: 1, foto: ['orden', 'fotos', 'mood', 'material'], video: ['orden', 'planos', 'fotos', 'mood', 'material'], fotovideo: ['orden', 'planos', 'fotos', 'mood', 'material'], libre: ['notas'] };
+  const PLANTILLA = { v: 1, foto: ['orden', 'fotos', 'mood', 'material'], video: ['orden', 'planos', 'fotos', 'mood', 'material'], fotovideo: ['orden', 'planos', 'fotos', 'mood', 'material'], libre: ['notas'], reunion: ['ordendia', 'notas', 'acuerdos'] };
   const DEF_DER = ['mood', 'material', 'notas', 'incompletos', 'referencias'];   // the right column, until moved
   function apartado(id) {
     const a = APS[id], o = { id, nombre: a.n, visible: !a.oculto };
@@ -694,23 +696,30 @@
 
   // ---------- «Nueva sesión» (Q2): the mesa's dialog ----------
   let DLG = null;                              // {estado, ctx, campo, desde, cambiando}
-  function nueva({ ctx, campo, desde, fecha }) {   // fecha: a day given (the posts' calendar's right click, D-285)
+  function nueva({ ctx, campo, desde, fecha, clase }) {   // fecha: a day given (the posts' calendar's right click, D-285); clase: 'reunion' (D-291)
     const cli = campo === 'nueva' ? (P.st.tcli || P.st.nueva.cliente || '') : (desde && desde.tipo === 'esporadico' ? desde.id : desde && desde.cliente) || '';
-    DLG = { origen: document.activeElement, estado: { nombre: nombreDe('fotovideo'), tocado: false, clase: 'fotovideo', fecha: /^\d{4}-\d{2}-\d{2}$/.test(fecha || '') ? fecha : '', hora: '', fin: null, clientes: P.cliDe(cli) ? [cli] : [], visible: true }, ctx, campo, desde };
+    const k = CLASES.some(c => c[0] === clase) ? clase : 'fotovideo';
+    DLG = { origen: document.activeElement, estado: { nombre: nombreDe(k), tocado: false, clase: k, ojoTocado: false, fecha: /^\d{4}-\d{2}-\d{2}$/.test(fecha || '') ? fecha : '', hora: '', fin: null, clientes: P.cliDe(cli) ? [cli] : [], visible: k !== 'reunion' }, ctx, campo, desde };   // a meeting, the eye crossed out (D-291)
     dialogo();
   }
   function dialogo() {
     const X = I(), E = DLG.estado;
-    X.showDialog('pp-sesion', `<button class="x" data-act="close" aria-label="Cerrar">×</button><div class="pp-ns-cab"><h3>Nueva sesión</h3>${ojoBtn(E.visible, 'pp-cb', 'data-ns="ojo"')}</div>`
+    X.showDialog('pp-sesion', `<button class="x" data-act="close" aria-label="Cerrar">×</button><div class="pp-ns-cab"><h3>${E.clase === 'reunion' ? 'Nueva reunión' : 'Nueva sesión'}</h3>${ojoBtn(E.visible, 'pp-cb', 'data-ns="ojo"')}</div>`
       + `<form class="form pp-ns" autocomplete="off"><label for="pp-ns-nom">Nombre</label><input id="pp-ns-nom" type="text" maxlength="80" value="${P.esc(E.nombre)}" required>`
       + `<label id="pp-ns-tl">Tipo</label><div class="pp-ns-tipos" role="radiogroup" aria-labelledby="pp-ns-tl">${CLASES.map(([k, l, ic]) => `<button type="button" role="radio" class="pp-ns-t${E.clase === k ? ' on' : ''}" data-ns="clase" data-k="${k}" aria-checked="${E.clase === k}" tabindex="${E.clase === k ? 0 : -1}">${svgI(ic)}<span>${l}</span></button>`).join('')}</div>`
       + `<div class="pp-ns-2"><div><label for="pp-ns-fecha">Fecha y hora</label><span class="pp-ns-fh"><input id="pp-ns-fecha" type="date" data-sin-fecha value="${P.esc(E.fecha)}" aria-label="Fecha de la sesión"><input id="pp-ns-hora" type="time" value="${P.esc(E.hora)}" aria-label="Hora de la sesión"></span><span class="pp-ns-fin${E.fin ? ' confin' : ''}">${finHTML(E, 'data-ns')}</span></div>`
       + `<div><label id="pp-ns-cl">Clientes</label><div class="pp-ns-cli" role="group" aria-labelledby="pp-ns-cl">${clisHTML(E.clientes, 'data-ns')}</div></div></div>`
-      + `<div class="row"><button type="submit" class="btn">Crear sesión</button></div></form>`);
+      + `<div class="row"><button type="submit" class="btn">${E.clase === 'reunion' ? 'Crear reunión' : 'Crear sesión'}</button></div></form>`);
     const det = X.root().querySelector('.detail'), f = det.querySelector('form.pp-ns'), nom = f.querySelector('#pp-ns-nom');
     nom.addEventListener('input', () => { E.nombre = nom.value; E.tocado = true; });
-    det.querySelector('[data-ns="ojo"]').addEventListener('click', ev => { E.visible = !E.visible; const b = ev.currentTarget; b.setAttribute('aria-pressed', String(E.visible)); b.title = b.ariaLabel = E.visible ? 'Lo verá el cliente' : 'Solo para ti'; b.innerHTML = E.visible ? svgI('ojo') : svgI('ojoNo'); });
-    const tipos = [...det.querySelectorAll('[data-ns="clase"]')], elegir = (b, foco) => { E.clase = b.dataset.k; tipos.forEach(x => { const s = x === b; x.classList.toggle('on', s); x.setAttribute('aria-checked', String(s)); x.tabIndex = s ? 0 : -1; }); if (!E.tocado) { E.nombre = nombreDe(E.clase); nom.value = E.nombre; } if (foco) b.focus(); };
+    const ojo = det.querySelector('[data-ns="ojo"]'), pintarOjo = () => { ojo.setAttribute('aria-pressed', String(E.visible)); ojo.title = ojo.ariaLabel = E.visible ? 'Lo verá el cliente' : 'Solo para ti'; ojo.innerHTML = E.visible ? svgI('ojo') : svgI('ojoNo'); };
+    ojo.addEventListener('click', () => { E.visible = !E.visible; E.ojoTocado = true; pintarOjo(); });
+    // a meeting: its title, its button and, unless the eye was touched, the eye crossed out (D-291)
+    const h3 = det.querySelector('.pp-ns-cab h3'), sub = det.querySelector('form.pp-ns [type="submit"]');
+    const tipos = [...det.querySelectorAll('[data-ns="clase"]')], elegir = (b, foco) => { const antes = E.clase; E.clase = b.dataset.k; tipos.forEach(x => { const s = x === b; x.classList.toggle('on', s); x.setAttribute('aria-checked', String(s)); x.tabIndex = s ? 0 : -1; }); if (!E.tocado) { E.nombre = nombreDe(E.clase); nom.value = E.nombre; }
+      const r = E.clase === 'reunion'; h3.textContent = r ? 'Nueva reunión' : 'Nueva sesión'; sub.textContent = r ? 'Crear reunión' : 'Crear sesión';
+      if (!E.ojoTocado && (antes === 'reunion') !== r) { E.visible = !r; pintarOjo(); }
+      if (foco) b.focus(); };
     tipos.forEach((b, i) => { b.addEventListener('click', () => elegir(b)); b.addEventListener('keydown', ev => { const d = ev.key === 'ArrowRight' || ev.key === 'ArrowDown' ? 1 : ev.key === 'ArrowLeft' || ev.key === 'ArrowUp' ? -1 : 0; if (!d) return; ev.preventDefault(); elegir(tipos[(i + d + tipos.length) % tipos.length], true); }); });
     const fe = det.querySelector('#pp-ns-fecha'), ho = det.querySelector('#pp-ns-hora'), cz = det.querySelector('.pp-ns-cli');
     // the end (D-218), under «Fecha y hora»: only its place is drawn again; the start moves it keeping the length
@@ -793,7 +802,7 @@
   function fichaHTML(e) {
     const hoy = I().hoy(), ss = P.sesiones().filter(k => P.conCli(k, e.id)).sort((a, b) => String(b.fecha || '9').localeCompare(String(a.fecha || '9'))), ts = P.tareas().filter(k => k.cliente === e.id).sort((a, b) => String(a.fecha || '9').localeCompare(String(b.fecha || '9'))), ns = P.notas().filter(k => k.cliente === e.id);
     const desde = e.creada ? `${['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'][+e.creada.slice(5, 7) - 1]} ${e.creada.slice(0, 4)}` : '';
-    const ses = k => { const ico = k.sesion && k.sesion.clase === 'foto' ? 'camara' : k.sesion && k.sesion.clase === 'video' ? 'video' : k.sesion && k.sesion.clase === 'libre' ? 'libre' : 'sesion', d = k.fecha ? P.difD(hoy, k.fecha) : null;
+    const ses = k => { const ico = k.sesion && k.sesion.clase === 'foto' ? 'camara' : k.sesion && k.sesion.clase === 'video' ? 'video' : k.sesion && k.sesion.clase === 'libre' ? 'libre' : k.sesion && k.sesion.clase === 'reunion' ? 'reunion' : 'sesion', d = k.fecha ? P.difD(hoy, k.fecha) : null;
       return `<button type="button" class="pp-es-s" data-pp="tver" data-id="${P.esc(k.id)}"><span class="pp-es-d${d != null && d >= 0 ? ' prox' : ''}">${k.fecha ? P.esc(P.tramo(k)) : 'Sin fecha'}</span>${svgI(ico)}<b>${P.esc(k.txt)}</b>${d === 0 ? '<i>hoy</i>' : d === 1 ? '<i>mañana</i>' : ''}</button>`; };
     return `<div class="pp-card pp-es" role="dialog" aria-modal="true" aria-label="Esporádico: ${P.esc(e.txt)}" tabindex="-1"><div class="pp-es-cab">${P.avatar(e.id, 'lg')}<div class="pp-es-t"><h2 class="pp-es-nom" data-campo="nom">${P.esc(e.txt)}</h2>${desde ? `<p>Esporádico desde ${desde}</p>` : ''}</div>${P.botonesCard(`<button type="button" class="ibtn pp-cb pp-hj-mas" data-es="mas" aria-label="Más del esporádico" title="Más">${svgI('mas3')}</button>`, false)}</div>`
       + (ns.length ? `<section class="pp-es-sec"><h3>Notas <span>${ns.length}</span></h3><div class="pp-pn">${ns.map(n => `<div class="pp-pt" data-nid="${P.esc(n.id)}" data-pp="tver" data-id="${P.esc(n.id)}" tabindex="0" role="button" aria-label="Nota: ${P.esc(n.txt)}"><div class="pp-ptx">${P.leerTxt(n.txt, { casillas: 'no' })}</div></div>`).join('')}</div></section>` : '')

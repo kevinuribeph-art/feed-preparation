@@ -20832,20 +20832,24 @@
         await M.movil.releer(); await irMovil('#tareas', `#movil [data-a="tver"][data-id="${nt}"]`);
         clicCara(`#movil [data-a="tver"][data-id="${nt}"]`); await hojaCara('[data-ed="txt"]', 'la hoja de la nota'); await espera(400);
         const h = W.document.querySelector('#movil .hoja.on'), cn = h.querySelector('[data-ed="txt"]'), capa = cn.parentNode.querySelector('.pp-ecapa');
-        // como lo deja iOS al escribir: un trozo de texto por línea (lo que se lee y se guarda es lo mismo)
-        cn.textContent = ''; LN.forEach((t, i) => cn.append(W.document.createTextNode(t + (i < LN.length - 1 ? '\n' : ''))));
-        igual(cn.textContent, LN.join('\n'), 'el texto partido no es el mismo');
-        // y como mide Safari: un rango que empieza al final de un trozo (tras su «\n») da antes una caja al final de la línea de arriba
+        // como mide Safari: un rango que empieza justo tras un «\n» (en el mismo trozo o al final del de arriba) da antes una caja vacía al final
+        // de la línea de arriba (lo vio Kevin en su iPhone: con el texto en trozos, al escribir, y en un solo trozo, al abrir lo guardado)
         const RP = W.Range.prototype, gcr = RP.getClientRects;
-        RP.getClientRects = function () { const n = this.startContainer, l = gcr.call(this); if (n.nodeType === 3 && this.startOffset === n.data.length && !this.collapsed && n.data.endsWith('\n')) { const q = this.cloneRange(); q.setStart(n, n.data.length - 1); q.setEnd(n, n.data.length - 1); const c = gcr.call(q)[0] || q.getBoundingClientRect(); return [c, ...l]; } return l; };
-        try { cn._esc.dibujar(); } finally { RP.getClientRects = gcr; }
-        await espera(60);
-        const linea = i => { const n = cn.childNodes[i], r = W.document.createRange(); r.setStart(n, 0); r.setEnd(n, 1); return r.getBoundingClientRect(); };
+        const tras = r => { const n = r.startContainer, o = r.startOffset; if (n.nodeType !== 3 || r.collapsed) return null; if (o > 0 && n.data[o - 1] === '\n') return [n, o - 1]; if (o === n.data.length && n.data.endsWith('\n')) return [n, o - 1]; return null; };
+        const safari = function () { const l = gcr.call(this), t = tras(this); if (!t) return l; const q = W.document.createRange(); q.setStart(t[0], t[1]); q.setEnd(t[0], t[1]); const c = gcr.call(q)[0] || q.getBoundingClientRect(); return [new W.DOMRect(c.left, c.top, 0, c.height), ...l]; };
+        const linea = i => { let o = i; for (let k = 0; k < i; k++) o += LN[k].length; const T = cn.textContent.split('\n').slice(0, i).join('\n').length + (i ? 1 : 0), w = W.document.createTreeWalker(cn, W.NodeFilter.SHOW_TEXT); let n, a = 0; while ((n = w.nextNode())) { if (T < a + n.data.length) { const r = W.document.createRange(); r.setStart(n, T - a); r.setEnd(n, T - a + 1); const c = gcr.call(r); return c[c.length - 1]; } a += n.data.length; } return null; };
         const mitad = r => (r.top + r.bottom) / 2, en = (m, i, que) => cerca(mitad(m.getBoundingClientRect()), mitad(linea(i)), 4, `${que} no está en su línea (la ${i + 1})`);
-        const vi = [...capa.querySelectorAll('.pp-ecm.vi')]; igual(vi.length, 2, 'las viñetas dibujadas');
-        en(vi[0], 1, 'la primera viñeta'); en(vi[1], 2, 'la segunda viñeta');
-        en(capa.querySelector('.pp-ecm.se'), 6, 'el separador');
-        const ca = [...capa.querySelectorAll('.pp-ecm.ca')]; igual(ca.length, 2, 'las casillas dibujadas'); en(ca[0], 7, 'la casilla');
+        for (const [como, trozos] of [['al escribir (un trozo por línea)', true], ['al abrir lo guardado (un solo trozo)', false]]) {
+          cn.textContent = ''; if (trozos) LN.forEach((t, i) => cn.append(W.document.createTextNode(t + (i < LN.length - 1 ? '\n' : '')))); else cn.append(W.document.createTextNode(LN.join('\n')));
+          igual(cn.textContent, LN.join('\n'), 'el texto no es el mismo ' + como);
+          RP.getClientRects = safari; try { cn._esc.dibujar(); } finally { RP.getClientRects = gcr; }
+          await espera(60);
+          const vi = [...capa.querySelectorAll('.pp-ecm.vi')]; igual(vi.length, 2, 'las viñetas dibujadas ' + como);
+          en(vi[0], 1, 'la primera viñeta ' + como); en(vi[1], 2, 'la segunda viñeta ' + como);
+          en(capa.querySelector('.pp-ecm.se'), 6, 'el separador ' + como);
+          const c0 = [...capa.querySelectorAll('.pp-ecm.ca')]; igual(c0.length, 2, 'las casillas dibujadas ' + como); en(c0[0], 7, 'la casilla ' + como);
+        }
+        const ca = [...capa.querySelectorAll('.pp-ecm.ca')];
         // al deslizar, la última casilla debajo de «Cancelar · Guardar»: el pie la tapa
         const pie = h.querySelector('.pie'), u = ca[1];
         h.scrollTop += mitad(u.getBoundingClientRect()) - mitad(pie.getBoundingClientRect()); await espera(120);

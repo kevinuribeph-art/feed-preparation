@@ -1,4 +1,4 @@
-// Escritura — Mesa de trabajo · v1.3 (D-202, D-203, D-283, D-286)
+// Escritura — Mesa de trabajo · v1.4 (D-202, D-203, D-283, D-286)
 // Quick writing in the personal page's free texts: a note, a task's «Detalles» and a session's texts (never a task's title,
 // a caption, a context, the editor's texts nor any other field). Marks at the start of a line (after its indent of 0, 2,
 // 4… spaces) and followed by a space: «- » a bullet, «1. » a numbered line (1 to 3 digits), «[] » or «[ ] » a checkbox and
@@ -13,7 +13,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.3';   // 1.3: a mark measured from the start of its own line also when the text is in one node per line, as iOS leaves it (the bullets and the separator were drawn at the end of the line above, D-286). 1.2: in the iPhone the «/» menu goes in its face and stays over its keyboard, within what the visual viewport shows (D-286). 1.1: bullets and numbers in terracotta (the number in 600 when read), «/.» a list and «/-» a separator «⸻», Tab 4 spaces and a level against the line above, the numbers written again with Tab, ⇧Tab and Intro (D-283)
+  const VERSION = '1.4';   // 1.4: a mark's box is its first box with some width: WebKit gives first an empty box at the end of the line above when a range starts right after a «\n» (the marks of a saved note opened again were drawn there, D-286). 1.3: a mark measured from the start of its own line also when the text is in one node per line, as iOS leaves it (the bullets and the separator were drawn at the end of the line above, D-286). 1.2: in the iPhone the «/» menu goes in its face and stays over its keyboard, within what the visual viewport shows (D-286). 1.1: bullets and numbers in terracotta (the number in 600 when read), «/.» a list and «/-» a separator «⸻», Tab 4 spaces and a level against the line above, the numbers written again with Tab, ⇧Tab and Intro (D-283)
   if (M.escritura && M.escritura._off) { try { M.escritura._off(); } catch (e) { /* */ } }
 
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -164,6 +164,9 @@
     for (let i = 0; i < L.length; i++) { const t = L[i], fin = t.o + t.n.data.length; if (x < fin || (x === fin && !(alante && L[i + 1]))) return [t.n, Math.max(0, x - t.o)]; }
     const u = L[L.length - 1]; return [u.n, u.n.data.length];
   }
+  // the box of a mark: its first box with some width. A range that starts right after a «\n» (in the same node or at the end of the one
+  // above) gets from WebKit first an empty box at the end of the line above, and the marks were drawn there (D-286, tried in the iPhone)
+  function caja(r) { const l = r.getClientRects(); for (const q of l) if (q.width > 0.5) return q; return l[l.length - 1] || null; }
   function rango(el, a, b, N) { const r = document.createRange(), p = punto(el, a, N, true), q = punto(el, b, N, a === b); r.setStart(p[0], p[1]); r.setEnd(q[0], q[1]); return r; }
   const offDe = (el, node, off) => { const r = document.createRange(); r.setStart(el, 0); r.setEnd(node, off); return r.toString().length; };
   function caret(el) {
@@ -227,9 +230,9 @@
     const c = ctl.capa, b0 = c.getBoundingClientRect(), k = (el.getBoundingClientRect().width / el.offsetWidth) || 1; let h = '';
     const cs = getComputedStyle(el), izq = (el.getBoundingClientRect().left - b0.left) / k + el.clientLeft + parseFloat(cs.paddingLeft), ancho = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     for (const m of marcas) {
-      if (m.se) { const q = m.r.getClientRects()[0] || m.r.getBoundingClientRect(); if (q) h += `<span class="pp-ecm se" style="left:${izq.toFixed(1)}px;top:${((q.top - b0.top) / k).toFixed(1)}px;width:${Math.max(0, ancho).toFixed(1)}px;height:${(q.height / k).toFixed(1)}px"></span>`; continue; }
+      if (m.se) { const q = caja(m.r) || m.r.getBoundingClientRect(); if (q) h += `<span class="pp-ecm se" style="left:${izq.toFixed(1)}px;top:${((q.top - b0.top) / k).toFixed(1)}px;width:${Math.max(0, ancho).toFixed(1)}px;height:${(q.height / k).toFixed(1)}px"></span>`; continue; }
       if (L1 && m.p.tipo === 'nu') continue;
-      const q = m.r.getClientRects()[0]; if (!q) continue;
+      const q = caja(m.r); if (!q) continue;
       const pos = `left:${((q.left - b0.left) / k).toFixed(1)}px;top:${((q.top - b0.top) / k).toFixed(1)}px;width:${(q.width / k).toFixed(1)}px;height:${(q.height / k).toFixed(1)}px`;
       if (!L1) { h += `<span class="pp-ecm gris" style="${pos}"></span>`; continue; }
       h += m.p.tipo === 'vi' ? `<span class="pp-ecm vi" style="${pos}"></span>`
@@ -511,7 +514,7 @@
     const m = ctl.menu, el = ctl.el;
     if (m.ancla) return m.ancla();
     const t = texto(el); if (t.charAt(m.ini) !== '/') return null;
-    const q = rango(el, m.ini, m.ini + 1).getClientRects()[0];
+    const q = caja(rango(el, m.ini, m.ini + 1));
     return q || el.getBoundingClientRect();
   }
   function menuTecla(ctl, e) {

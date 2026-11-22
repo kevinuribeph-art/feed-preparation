@@ -210,7 +210,7 @@
   // ---------- IndexedDB ----------
   // the stores of the mesa's data: all of them travel in «Exportar todo» (copia.js, D-249); and the journal of changes, which is
   // this browser's (D-250)
-  const IDB_V = 24, ALMACENES = ['files', 'boards', 'clients', 'bandejas', 'ubicaciones', 'tareas', 'tfotos', 'cobros', 'cfacturas', 'meses'], DIARIO = 'diario', NUBE_ST = 'nube';
+  const IDB_V = 25, ALMACENES = ['files', 'boards', 'clients', 'bandejas', 'ubicaciones', 'tareas', 'tfotos', 'cobros', 'cfacturas', 'meses', 'entregas'], DIARIO = 'diario', NUBE_ST = 'nube';
   let dbp = null, dbConn = null;
   function db() {
     if (!dbp) dbp = new Promise((res, rej) => {
@@ -254,6 +254,11 @@
       // 24 (mesa 4.33): the photos of the cloud (lot 4, D-259): a photo that came down may be a working copy of 2560 px, marked
       // `copia: {w, h, ref}` (its real size and the original's reference), never sent up; an older tab would take it for the
       // original (sending it up as the original, or to Notion and Zernio without a word). And in 'nube', the record of what is up.
+      // 25 (mesa 4.47): + 'entregas', the deliveries of a client of «Solo contenido» (D-290), with their tombstones; a client keeps
+      // its agreement (`acuerdo`: how often it pays, from when, for how long, when to renegotiate; D-288), what it's done for it
+      // (`servicio`, D-289), the day of its deliveries (D-290) and the link of its metrics (D-292), each with its own date to join on an
+      // import; an invoice may cover several months (`hasta`, D-288); and a session may be a meeting (D-291). An older tab would
+      // drop them on a save or an import of the client, and would count a semestral client «sin emitir» every month.
       const r = indexedDB.open('mesa-feed', IDB_V);   /* idb-crudo: the only opening */
       r.onupgradeneeded = e => {
         const d = r.result; for (const n of [...ALMACENES, DIARIO, NUBE_ST]) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n);
@@ -5316,7 +5321,7 @@ ${TK_FUENTES}
     else if (act === 'prevtotray') { prevToTray(a.dataset.id); openPast(a.dataset.id); }
     else if (act === 'prevrestore') { prevRestore(a.dataset.id); openPast(a.dataset.id); }
     else if (act === 'recargar') location.reload();
-    else if (act === 'takeover') { const k = S && S.key; S = null; PB = null; await claim(); cobLeer(true).then(() => cobAvisar(false)); mesLeer(true).then(() => mesAvisar(false)); if (k && (await idbGet('boards', k))) await M.open(k); else await M.boot(); }
+    else if (act === 'takeover') { const k = S && S.key; S = null; PB = null; await claim(); cobLeer(true).then(() => cobAvisar(false)); mesLeer(true).then(() => mesAvisar(false)); entLeer(true).then(() => entAvisar(false)); if (k && (await idbGet('boards', k))) await M.open(k); else await M.boot(); }
     else if (act === 'delclient') {
       if (a.dataset.confirm !== '1') {   // its tray goes with it (D-072): the button says how much
         a.dataset.confirm = '1'; a.textContent = 'Confirmar: eliminar';
@@ -5336,7 +5341,7 @@ ${TK_FUENTES}
   M.clients = async () => {
     await loadClients();
     const boards = (await idbAll('boards')) || [];
-    return CL.map(c => ({ ...c, months: boards.filter(b => b.client === c.id).map(b => b.month).sort() }));
+    return CL.map(c => ({ ...c, servicio: servicioDe(c), months: boards.filter(b => b.client === c.id).map(b => b.month).sort() }));   // servicio: 'redes' unless it's only content (D-289)
   };
   // ---------- locations: Claude's API (D-124) ----------
   // cargar(clientId, [{nombre, locationId}]) makes the client's list exactly that one (it's closed: it isn't edited in the
@@ -5478,7 +5483,10 @@ ${TK_FUENTES}
   // importe in euros with its cents; factura, its number or ''; emitida, vence and cobrada, 'AAAA-MM-DD' or ''; pdf, the id of
   // its file in 'cfacturas' {id, nombre, tam, tipo, blob}, never inside the record (as a session's photos, D-206). A deleted
   // one stays as a tombstone {id, cliente, borrado: true, at}, so an older file doesn't bring it back. A monthly client may
-  // keep its fee: `cuota` {importe, dia (1-28, the day it's issued), plazo (days until it's due)} with its `cuotaAt`.
+  // keep its fee: `cuota` {importe, dia (1-28, the day it's issued), plazo (days until it's due)} with its `cuotaAt`. Since the
+  // 4.47 it keeps its agreement instead (D-288): `acuerdo` {pago, importe, dia, plazo, desde, meses, renueva, renegociar} with its
+  // `acuerdoAt`; a fee of before is read as a monthly agreement. An invoice may cover a stretch: `periodo` its first month and
+  // `hasta` its last (AAAA-MM; none, one month).
   // Read once per tab and then with each change, here or in another tab ('mesa-cobros'); a change during a reading reads again.
   let COB = null, cobGen = 0, cobLee = null;
   const COB_PDF_MAX = 10 * 1024 * 1024;
@@ -5524,11 +5532,67 @@ ${TK_FUENTES}
     if (r.vence && r.vence < hoy) return { k: 'retrasada', dias: cobDias(r.vence, hoy) };
     return { k: 'pendiente' };
   }
-  // a fee is complete with its amount, its day and its term; only then are invoices made from it
+  // ---------- the agreement (D-288) ----------
+  // pago: how often it pays — 'mensual', 'trimestral', 'semestral', 'anual' or 'unico' (one payment); importe, each payment's;
+  // dia (1-28), the day of the stretch's first month it's issued; plazo, days until it's due; desde (AAAA-MM), the first month
+  // it covers; meses, how long it lasts (null: no end); renueva, whether it goes on when it ends; renegociar (AAAA-MM-DD), only
+  // Kevin's (never to the client). A fee of before (`cuota`) is a monthly agreement with no start.
+  const ACU_PAGOS = [['mensual', 'Cada mes', 1], ['trimestral', 'Cada 3 meses', 3], ['semestral', 'Cada 6 meses', 6], ['anual', 'Una vez al año', 12], ['unico', 'Un solo pago', 0]];
+  const ACU_PAGO = new Set(ACU_PAGOS.map(x => x[0]));
+  const acuNum = (v, a, b) => v != null && v !== '' && Number.isInteger(+v) && +v >= a && +v <= b ? +v : null;
+  // the agreement as it's kept (also an incomplete one: its fields one by one), or null
+  function acuerdoDe(c) {
+    if (!c) return null;
+    const a = c.acuerdo && typeof c.acuerdo === 'object' ? c.acuerdo : c.cuota && typeof c.cuota === 'object' ? { pago: 'mensual', ...c.cuota } : null;
+    if (!a) return null;
+    return { pago: ACU_PAGO.has(a.pago) ? a.pago : 'mensual', importe: +a.importe > 0 ? Math.round(+a.importe * 100) / 100 : null, dia: acuNum(a.dia, 1, 28), plazo: acuNum(a.plazo, 0, 365),
+      desde: COB_MES.test(a.desde || '') ? a.desde : '', meses: acuNum(a.meses, 1, 120), renueva: a.renueva !== false, renegociar: cobDia(a.renegociar) };
+  }
+  // months in each payment (a single payment: the whole agreement, or one month without an end)
+  const acuPaso = a => a.pago === 'unico' ? (a.meses || 1) : (ACU_PAGOS.find(x => x[0] === a.pago) || ACU_PAGOS[0])[2];
+  // complete: its amount, its day and its term (and its start, unless it pays each month); only then are invoices made from it
   function cuotaDe(c) {
-    const q = c && c.cuota; if (!q) return null;
-    const ok = +q.importe > 0 && Number.isInteger(+q.dia) && +q.dia >= 1 && +q.dia <= 28 && Number.isInteger(+q.plazo) && +q.plazo >= 0 && +q.plazo <= 365;
-    return ok ? { importe: +q.importe, dia: +q.dia, plazo: +q.plazo } : null;
+    const a = acuerdoDe(c); if (!a || a.importe == null || a.dia == null || a.plazo == null || (a.pago !== 'mensual' && !a.desde)) return null;
+    return { importe: a.importe, dia: a.dia, plazo: a.plazo, pago: a.pago, desde: a.desde, meses: a.meses, renueva: a.renueva };
+  }
+  const mesesEntre = (a, b) => (+b.slice(0, 4) - +a.slice(0, 4)) * 12 + (+b.slice(5, 7) - +a.slice(5, 7));   // b − a, in months
+  const acuFin = a => a.desde && a.meses ? addMonths(a.desde, a.meses - 1) : '';   // its last month, if it has an end
+  // the stretch a month falls in ({de, hasta}, AAAA-MM), or null (before its start, after its end without renewing, or past a
+  // single payment); a monthly one without a start, the month itself
+  function acuTramo(q, m) {
+    if (!q || !COB_MES.test(m || '')) return null;
+    const n = acuPaso(q);
+    if (!q.desde) return q.pago === 'mensual' ? { de: m, hasta: m } : null;
+    if (m < q.desde) return null;
+    if (q.pago === 'unico') return mesesEntre(q.desde, m) < n ? { de: q.desde, hasta: addMonths(q.desde, n - 1) } : null;
+    const fin = acuFin(q); if (fin && !q.renueva && m > fin) return null;
+    const de = addMonths(q.desde, Math.floor(mesesEntre(q.desde, m) / n) * n);
+    return { de, hasta: addMonths(de, n - 1) };
+  }
+  const cobHasta = r => COB_MES.test(r.hasta || '') && r.hasta > r.periodo ? r.hasta : r.periodo;   // an invoice's last month
+  // whether an invoice of the client covers a month (from its first month to its last)
+  const cobCubre = (l, m) => l.some(r => COB_MES.test(r.periodo || '') && r.periodo <= m && m <= cobHasta(r));
+  // the stretch with no invoice yet from a month on (the first one not covered), within 24 stretches
+  function acuLibre(q, l, m) {
+    let t = acuTramo(q, m) || (q.desde && m < q.desde ? acuTramo(q, q.desde) : null);
+    for (let i = 0; t && i < 24 && cobCubre(l, t.de); i++) t = acuTramo(q, addMonths(t.hasta, 1));
+    return t && !cobCubre(l, t.de) ? t : null;
+  }
+  // what the agreement says in a line, for Kevin: «Cubre may 2026 – abr 2027 · dos pagos de 2700 € · …»
+  const ACU_N = ['', 'un', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve', 'diez', 'once', 'doce'];
+  function acuMes(m, conAno = true) { const n = COB_MESES[+m.slice(5, 7) - 1] || m; return n.slice(0, 3) + (conAno ? ' ' + m.slice(0, 4) : ''); }
+  function acuResumen(c) {
+    const a = acuerdoDe(c); if (!a) return '';
+    const fin = acuFin(a), n = acuPaso(a), out = [];
+    if (a.desde) out.push(fin ? `Cubre ${acuMes(a.desde)} – ${acuMes(fin)}` : `Cubre desde ${acuMes(a.desde)}`);
+    if (a.importe != null) {
+      if (a.pago === 'unico') out.push(`un pago de ${cobEur(a.importe)}`);
+      else if (a.meses) { const k = Math.ceil(a.meses / n); out.push(`${ACU_N[k] || k} ${k === 1 ? 'pago' : 'pagos'} de ${cobEur(a.importe)}`); }
+      else out.push(`${cobEur(a.importe)} ${a.pago === 'mensual' ? 'al mes' : (ACU_PAGOS.find(x => x[0] === a.pago) || [, ''])[1].toLowerCase()}`);
+    }
+    if (fin && a.pago !== 'unico') out.push(a.renueva ? `se renueva el 1 ${acuMes(addMonths(fin, 1))}` : `acaba en ${acuMes(fin)}`);
+    if (a.renegociar) out.push('aviso en tu página 14 días antes de renegociar');
+    return out.join(' · ');
   }
   const cobFechas = (mes, q) => { const emitida = `${mes}-${String(q.dia).padStart(2, '0')}`; return { emitida, vence: cobMasDias(emitida, q.plazo) }; };
   // what goes first in a list: its date of issue, else its month, else when it was written
@@ -5541,12 +5605,11 @@ ${TK_FUENTES}
     const c = CL.find(x => x.id === cli), q = cuotaDe(c), l = cobVivos(cli);
     const guard = l.filter(r => !r.cobrada && r.emitida && r.emitida > hoy).sort((a, b) => a.emitida.localeCompare(b.emitida))[0];
     let virt = null;
-    if (q) {
-      let m = hoy.slice(0, 7);
-      for (let i = 0; i < 24 && l.some(r => r.periodo === m); i++) m = addMonths(m, 1);
-      virt = { mes: m, importe: q.importe, ...cobFechas(m, q), virtual: true };
+    if (q) {                                     // the first stretch from this month on with no invoice that covers it (D-288)
+      const t = acuLibre(q, l, hoy.slice(0, 7));
+      if (t) virt = { mes: t.de, ...(t.hasta !== t.de ? { hasta: t.hasta } : {}), importe: q.importe, ...cobFechas(t.de, q), virtual: true };
     }
-    if (guard && (!virt || guard.emitida <= virt.emitida)) return { mes: COB_MES.test(guard.periodo || '') ? guard.periodo : guard.emitida.slice(0, 7), importe: +guard.importe || 0, emitida: guard.emitida, vence: guard.vence, rec: guard };
+    if (guard && (!virt || guard.emitida <= virt.emitida)) return { mes: COB_MES.test(guard.periodo || '') ? guard.periodo : guard.emitida.slice(0, 7), ...(COB_MES.test(guard.periodo || '') && cobHasta(guard) !== guard.periodo ? { hasta: cobHasta(guard) } : {}), importe: +guard.importe || 0, emitida: guard.emitida, vence: guard.vence, rec: guard };
     return virt;
   }
   // the one that matters most of a client: retrasada (the oldest) before pendiente, pendiente before sin emitir (the month in
@@ -5556,8 +5619,8 @@ ${TK_FUENTES}
     const l = cobVivos(cli).map(r => ({ r, e: cobEstado(r, hoy) })), por = k => l.filter(x => x.e.k === k);
     const asc = (a, b) => cobClave(a.r).localeCompare(cobClave(b.r));
     const t = por('retrasada').sort(asc)[0] || por('pendiente').sort(asc)[0]; if (t) return t;
-    const c = CL.find(x => x.id === cli), q = cuotaDe(c), mes = hoy.slice(0, 7);
-    if (q && !l.some(x => x.r.periodo === mes)) return { r: { cliente: cli, periodo: mes, importe: q.importe, ...cobFechas(mes, q), virtual: true }, e: { k: 'sinemitir' } };
+    const c = CL.find(x => x.id === cli), q = cuotaDe(c), mes = hoy.slice(0, 7), tr = q && acuTramo(q, mes), rs = l.map(x => x.r);   // the stretch of this month (D-288)
+    if (tr && !cobCubre(rs, mes) && !cobCubre(rs, tr.de)) return { r: { cliente: cli, periodo: tr.de, ...(tr.hasta !== tr.de ? { hasta: tr.hasta } : {}), importe: q.importe, ...cobFechas(tr.de, q), virtual: true }, e: { k: 'sinemitir' } };
     const s = por('sinemitir').sort(asc)[0]; if (s) return s;
     const ok = por('cobrada').sort((a, b) => String(b.r.cobrada).localeCompare(String(a.r.cobrada)) || cobOrden(a.r, b.r))[0];
     return ok || null;
@@ -5588,10 +5651,15 @@ ${TK_FUENTES}
   const COB_MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
   const cobCorto = d => { const m = COB_MESES[+String(d || '').slice(5, 7) - 1]; return d ? (m ? `${+d.slice(8, 10)} ${m.slice(0, 3)}` : String(d)) : ''; };
   // what an invoice is called: its month («Noviembre», with its year if it isn't this one's) or its session
-  function cobNombre(r, hoy) {
+  // («Mayo – octubre» a stretch, D-288; primero: only its first month, as the client's web still gets it until lot D)
+  function cobNombre(r, hoy, primero) {
     hoy = hoy || madParts(ahora()).day;
-    const p = r.periodo || '';
-    if (COB_MES.test(p) && COB_MESES[+p.slice(5, 7) - 1]) { const n = COB_MESES[+p.slice(5, 7) - 1]; return n.charAt(0).toUpperCase() + n.slice(1) + (p.slice(0, 4) !== hoy.slice(0, 4) ? ' ' + p.slice(0, 4) : ''); }
+    const p = r.periodo || '', h = !primero && COB_MES.test(p) ? cobHasta(r) : p;
+    const mesN = (m, ano) => { const n = COB_MESES[+m.slice(5, 7) - 1]; return n + (ano ? ' ' + m.slice(0, 4) : ''); };
+    if (COB_MES.test(p) && COB_MESES[+p.slice(5, 7) - 1]) {
+      const t = h !== p ? `${mesN(p, p.slice(0, 4) !== h.slice(0, 4))} – ${mesN(h, h.slice(0, 4) !== hoy.slice(0, 4))}` : mesN(p, p.slice(0, 4) !== hoy.slice(0, 4));
+      return t.charAt(0).toUpperCase() + t.slice(1);
+    }
     return r.concepto || 'Sesión';
   }
   async function cobPdfValido(blob) {
@@ -5673,10 +5741,42 @@ ${TK_FUENTES}
     const out = await editarCliente(cid, o => ({ ...o, cuota: q, cuotaAt: new Date().toISOString() }));
     await loadClients(); cobGen++; cobAvisar(true); return out;
   }
+  // the agreement, as «Editar cliente · Cobros» leaves it (D-288): what's given, field by field; the fee of before goes (an
+  // agreement takes its place, with its date to join on an import). null: none
+  async function acuGuardar(cid, a) {
+    cobNoLocked();
+    const at = new Date().toISOString();
+    const out = await editarCliente(cid, o => { const n = { ...o, acuerdoAt: o.acuerdoAt && o.acuerdoAt >= at ? new Date(Date.parse(o.acuerdoAt) + 1).toISOString() : at }; delete n.cuota; delete n.cuotaAt; if (a) n.acuerdo = acuLimpio(a); else delete n.acuerdo; return n; });
+    await loadClients(); cobGen++; cobAvisar(true); return out;
+  }
+  // only the fields it knows, each valid or out (an import, M.cobros.acuerdo and the dialog keep the same shape)
+  function acuLimpio(a) {
+    const n = { pago: ACU_PAGO.has(a && a.pago) ? a.pago : 'mensual' };   // always in this order (pago, importe, dia, plazo, desde, meses, renueva, renegociar)
+    if (+a.importe > 0 && +a.importe <= 1e9) n.importe = Math.round(+a.importe * 100) / 100;
+    for (const [k, lo, hi] of [['dia', 1, 28], ['plazo', 0, 365]]) { const v = acuNum(a[k], lo, hi); if (v != null) n[k] = v; }
+    if (COB_MES.test(a.desde || '')) n.desde = a.desde;
+    { const v = acuNum(a.meses, 1, 120); if (v != null) n.meses = v; }
+    n.renueva = a.renueva !== false;
+    if (cobDia(a.renegociar)) n.renegociar = a.renegociar;
+    return n;
+  }
+  // an agreement as a file brings it: its shape (each field, when given, valid)
+  function acuValido(a) {
+    if (!a || typeof a !== 'object' || Array.isArray(a)) return false;
+    if (a.pago != null && !ACU_PAGO.has(a.pago)) return false;
+    const n = (v, lo, hi) => v == null || v === '' || (typeof v === 'number' && Number.isInteger(v) && v >= lo && v <= hi);
+    if (!(a.importe == null || a.importe === '' || (typeof a.importe === 'number' && isFinite(a.importe) && a.importe >= 0 && a.importe <= 1e9))) return false;
+    if (!n(a.dia, 1, 28) || !n(a.plazo, 0, 365) || !n(a.meses, 1, 120)) return false;
+    if (a.desde != null && a.desde !== '' && !COB_MES.test(a.desde)) return false;
+    if (a.renueva != null && typeof a.renueva !== 'boolean') return false;
+    if (a.renegociar != null && a.renegociar !== '' && !cobDia(a.renegociar)) return false;
+    return true;
+  }
   // the sporadic clients and the sessions, for the checks (from 'tareas')
   async function cobTareas() { return ((await idbAll('tareas').catch(() => [])) || []).filter(t => t && t.id); }
   // ---------- invoices: Claude's API (D-232) ----------
-  // cargar([{id?, cliente, periodo, concepto?, importe, factura?, emitida?, vence?, cobrada?, at?}]): checks the shape and
+  // cargar([{id?, cliente, periodo, hasta?, concepto?, importe, factura?, emitida?, vence?, cobrada?, at?}]) (hasta, the last month
+  // an invoice of a stretch covers, D-288): checks the shape and
   // joins by id and at (the newest wins; one newer here stays). A sporadic client's invoice is of one of its sessions, one per
   // session and client. All or nothing. ver(cliente?): its invoices (all without a client), newest first, each with its
   // state today. adjuntar(id, blob | base64, nombre?): its PDF (only PDF, up to 10 MB), as «Subir PDF».
@@ -5693,13 +5793,14 @@ ${TK_FUENTES}
         const cli = String(it.cliente || ''), mensual = CL.some(c => c.id === cli);
         if (!mensual && !esp.has(cli)) return mal(`cliente desconocido «${cli}» (los ids, en MESA.clients() o de un esporádico)`);
         if (it.id != null && !/^[\w.-]{1,60}$/.test(String(it.id))) return mal('id no válido (letras, números, guiones; hasta 60)');
-        const per = String(it.periodo || '');
+        const per = String(it.periodo || ''), hasta = it.hasta == null || it.hasta === '' ? '' : String(it.hasta);
         if (COB_MES.test(per)) { if (!mensual) return mal('un esporádico no tiene cuota: su periodo es el id de una sesión'); }
         else if (!ses.has(per)) { const ya = it.id != null && COB.get(String(it.id)); if (!ya || ya.borrado || ya.periodo !== per || ya.cliente !== cli) return mal(`periodo «${per}»: ni un mes AAAA-MM ni una sesión`); }   // one already here keeps its session
         else if (!clisDe(ses.get(per)).includes(cli)) return mal('esa sesión no es de ese cliente');
         const importe = cobImporte(it.importe); if (isNaN(importe)) return mal('importe no válido (euros: 450, «1.470,50»)');
         const f = {}; for (const k of ['emitida', 'vence', 'cobrada']) { const v = it[k] == null ? '' : String(it[k]); if (v && !cobDia(v)) return mal(`${k} no es una fecha AAAA-MM-DD`); f[k] = v; }
         if (f.emitida && f.vence && f.vence < f.emitida) return mal('vence antes de emitirse');
+        if (hasta && (!COB_MES.test(per) || !COB_MES.test(hasta) || hasta < per || mesesEntre(per, hasta) > 119)) return mal('hasta: el último mes que cubre (AAAA-MM), de su periodo en adelante, solo en una factura de un mes');   // D-288
         const factura = it.factura == null ? '' : String(it.factura).trim(); if (factura.length > 40) return mal('el número de factura pasa de 40 caracteres');
         if (it.at != null && isNaN(Date.parse(String(it.at)))) return mal('at no es una fecha');
         const at = it.at == null ? ahoraISO : new Date(Date.parse(String(it.at))).toISOString();   // ISO always: compared as text
@@ -5711,7 +5812,7 @@ ${TK_FUENTES}
         }
         const prev = COB.get(id);
         const concepto = it.concepto != null ? String(it.concepto).slice(0, 120) : prev && !prev.borrado ? prev.concepto || '' : ses.has(per) ? String(ses.get(per).txt || '') : '';
-        plan.push({ id, cliente: cli, periodo: per, concepto, importe, factura, ...f, pdf: prev && !prev.borrado ? prev.pdf || '' : '', at });
+        plan.push({ id, cliente: cli, periodo: per, ...(hasta && hasta !== per ? { hasta } : {}), concepto, importe, factura, ...f, pdf: prev && !prev.borrado ? prev.pdf || '' : '', at });
       });
       if (problemas.length) return { error: 'no se ha cargado nada: hay facturas con problemas', problemas };
       const r = { ok: true, nuevos: 0, actualizados: 0, masRecientesAqui: 0, ids: plan.map(p => p.id) };
@@ -5746,6 +5847,82 @@ ${TK_FUENTES}
       return x.error ? x : { ok: true, id: x.rec.id, pdf: x.rec.pdf };
     }
   };
+  // ---------- what's done for a client (D-289) and its deliveries (D-290) ----------
+  // servicio: 'contenido' (only content: sessions and deliveries, no feed, states nor Zernio) or none ('redes', social media
+  // management, as every client before). entregasDia (1-28): the day of the month its deliveries are due by («antes del día 5»).
+  // metricas: the link of its metrics in Zernio (https, D-292). Each with its own date (…At), to join on an import.
+  const SERVICIOS = ['redes', 'contenido'];
+  const CAMPOS_CLI = [['servicio', 'servicioAt'], ['entregasDia', 'entregasDiaAt'], ['metricas', 'metricasAt']];
+  const servicioDe = c => c && c.servicio === 'contenido' ? 'contenido' : 'redes';
+  const esContenido = cid => servicioDe(CL.find(c => c.id === (cid === undefined ? curClient : cid))) === 'contenido';
+  const urlHttps = (u, max) => { if (typeof u !== 'string' || !u || u.length > max || /\s/.test(u)) return false; try { const x = new URL(u); return x.protocol === 'https:' && !!x.hostname; } catch (e) { return false; } };
+  const metricasOk = u => urlHttps(u, 500);
+  // 'entregas', one record per delivery of a «Solo contenido» client: {id, cliente, fecha (its deadline, AAAA-MM-DD), que (what),
+  // cuanto (how much, free text: it changes every month), enlace (an https link: Drive, WeTransfer…; never a path of this
+  // computer nor a folder of the tray), entregada (the day it was delivered, or ''), at}. A deleted one stays as a tombstone
+  // {id, cliente, borrado: true, at}, as an invoice (lesson 21). Read once per tab and again with each change ('mesa-entregas').
+  let ENT = null, entGen = 0, entLee = null, entOtra = false, entMal = false, entPend = Promise.resolve();
+  const entBC = (() => { try { const b = new BroadcastChannel('mesa-entregas'); b.onmessage = () => { entLeer(true).then(() => entAvisar(false)); }; return b; } catch (e) { return null; } })();
+  function entLeer(otra) {
+    if (otra) entOtra = true;
+    if (entLee) return entLee;
+    if (ENT && !entOtra && !entMal) return Promise.resolve(ENT);
+    const p = entLee = (async () => {
+      try {
+        for (;;) {
+          await entPend;
+          entOtra = false; const g = entGen; let l;
+          try { l = (await idbAll('entregas')) || []; } catch (e) { if (!ENT) { ENT = new Map(); entMal = true; } return ENT; }
+          if (g !== entGen || entOtra) continue;        // a change while reading: read again (lesson 75)
+          ENT = new Map(l.filter(r => r && r.id).map(r => [r.id, r])); entMal = false;
+          return ENT;
+        }
+      } finally { entLee = null; }
+    })();
+    return p;
+  }
+  Promise.resolve().then(() => entLeer()).then(() => entAvisar(false));   // once per tab, at the start
+  function entAvisar(aOtras) {
+    if (aOtras && entBC) try { entBC.postMessage({ t: 'entregas' }); } catch (e) { /* */ }
+    try { document.dispatchEvent(new CustomEvent('mesa-entregas')); } catch (e) { /* */ }
+  }
+  const entVivas = cli => ENT ? [...ENT.values()].filter(r => !r.borrado && (cli == null || r.cliente === cli)).sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)) || String(a.id).localeCompare(String(b.id))) : [];
+  const entUrl = u => u === '' || urlHttps(u, 1000);
+  function entValida(r) {
+    if (!r || typeof r !== 'object' || typeof r.id !== 'string' || !/^[\w.-]{1,60}$/.test(r.id) || typeof r.cliente !== 'string' || !r.cliente || typeof r.at !== 'string' || isNaN(Date.parse(r.at))) return false;
+    if (r.borrado) return r.borrado === true;
+    return !!cobDia(r.fecha) && typeof r.que === 'string' && r.que.length <= 200 && (r.cuanto == null || (typeof r.cuanto === 'string' && r.cuanto.length <= 120))
+      && (r.enlace == null || (typeof r.enlace === 'string' && entUrl(r.enlace))) && (r.entregada == null || r.entregada === '' || !!cobDia(r.entregada));
+  }
+  const entLimpia = r => ({ id: r.id, cliente: r.cliente, fecha: r.fecha, que: String(r.que || ''), cuanto: String(r.cuanto || ''), enlace: String(r.enlace || ''), entregada: cobDia(r.entregada), at: r.at });
+  // its state today (Madrid): entregada; pasada, not delivered after its deadline; pendiente, the rest
+  const entEstado = (r, hoy) => r.entregada ? 'entregada' : r.fecha < (hoy || madParts(ahora()).day) ? 'pasada' : 'pendiente';
+  // the deadline it proposes: the next day of its deliveries from a day on (a client without one: that day)
+  function entPropuesta(cli, desde) {
+    const c = CL.find(x => x.id === cli), d0 = cobDia(desde) || madParts(ahora()).day, dia = c && Number.isInteger(c.entregasDia) ? c.entregasDia : null;
+    if (!dia) return d0;
+    let m = d0.slice(0, 7); for (let i = 0; i < 3; i++, m = addMonths(m, 1)) { const f = `${m}-${String(dia).padStart(2, '0')}`; if (f >= d0) return f; }
+    return d0;
+  }
+  const entId = () => 'en-' + (crypto.randomUUID ? crypto.randomUUID().slice(0, 13) : Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
+  // written over the record as it is now (a change from another tab while this one was being edited stays), one at a time
+  async function entPoner(id, fn) {
+    if (locked) throw new Error('la mesa está abierta en otra pestaña: pulsa «Usar aquí»');
+    if (MOVIL) throw new Error('las entregas se cambian en el ordenador');   // the iPhone only looks at them (lot C)
+    entGen++; let out = null;
+    const pw = tx('entregas', 'readwrite', st => { const g = st.get(id); g.onsuccess = () => { const n = fn(g.result || null); if (n) { n.at = cobAt(g.result && g.result.at); st.put(n, id); out = n; } }; });
+    entPend = entPend.then(() => pw).catch(() => {}); await pw;
+    if (out) { if (!ENT) ENT = new Map(); ENT.set(id, out); }
+    entAvisar(true); return out;
+  }
+  function entNueva(o) {
+    const id = o.id || entId();
+    return entPoner(id, () => entLimpia({ id, cliente: o.cliente, fecha: cobDia(o.fecha) || madParts(ahora()).day, que: String(o.que || '').slice(0, 200), cuanto: String(o.cuanto || '').slice(0, 120), enlace: entUrl(o.enlace || '') ? o.enlace || '' : '', entregada: '', at: '' }));
+  }
+  const entCambiar = (id, cambio) => entPoner(id, r => r && !r.borrado ? entLimpia({ ...r, ...cambio }) : null);
+  async function entBorrar(id) { let prev = null; const n = await entPoner(id, r => { if (!r || r.borrado) return null; prev = r; return { id, cliente: r.cliente, borrado: true }; }); return n && prev ? { rec: prev } : null; }
+  const entDevolver = rec => entPoner(rec.id, () => entLimpia(rec));
+
   // ---------- the month's why and how the month before went (D-238) ----------
   // 'meses', one record per client and month, key 'cliente|AAAA-MM': {cliente, mes, porque, resumen, at}. porque = {partes:
   // [{t, x}]}, 1 to 6 paragraphs with their label, plain text; resumen = {cifras: {alcance, interacciones, guardados,
@@ -5947,9 +6124,14 @@ ${TK_FUENTES}
     try { await pw; } catch (e) { await mesLeer(true); }
     mesAvisar(true);
   }
-  // cycleDay: the day of the month its work cycle starts (1-28, default 1 = calendar month)
-  M.addClient = async ({ id, name, handle, cycleDay } = {}) => {
+  // cycleDay: the day of the month its work cycle starts (1-28, default 1 = calendar month). servicio (optional, D-289):
+  // 'redes' (social media management, by default) or 'contenido' (only content: no feed, states nor Zernio); pago (optional): how
+  // often it pays, the agreement's first field (D-288); entregasDia (optional): the day its deliveries are due by (D-290)
+  M.addClient = async ({ id, name, handle, cycleDay, servicio, pago, entregasDia } = {}) => {
     if (!okCd(cycleDay)) throw new Error('cycleDay debe ser un día del 1 al 28');
+    if (servicio != null && !SERVICIOS.includes(servicio)) throw new Error("servicio debe ser 'redes' o 'contenido'");
+    if (pago != null && !ACU_PAGO.has(pago)) throw new Error('pago debe ser ' + ACU_PAGOS.map(x => x[0]).join(', '));
+    if (entregasDia != null && entregasDia !== '' && !okCd(+entregasDia)) throw new Error('entregasDia debe ser un día del 1 al 28');
     await loadClients();
     name = String(name || '').trim(); if (!name) throw new Error('falta el nombre');
     const existing = CL.find(c => (id && c.id === id) || c.name.toLowerCase() === name.toLowerCase());
@@ -5960,7 +6142,10 @@ ${TK_FUENTES}
     const base = id ? String(id) : slugify(name);
     let cid = base, k = 2;
     while (CL.some(c => c.id === cid)) cid = base + k++;
-    const c = { id: cid, name, handle: normHandle(handle), cycleDay: cdOf(cycleDay), createdAt: new Date().toISOString() };
+    const now = new Date().toISOString(), c = { id: cid, name, handle: normHandle(handle), cycleDay: cdOf(cycleDay), createdAt: now };
+    if (servicio === 'contenido') { c.servicio = 'contenido'; c.servicioAt = now; }
+    if (pago) { c.acuerdo = { pago }; c.acuerdoAt = now; }
+    if (entregasDia != null && entregasDia !== '') { c.entregasDia = +entregasDia; c.entregasDiaAt = now; }
     await idbPut('clients', cid, c);
     await loadClients();
     if (!curClient && !S) curClient = cid;
@@ -5969,6 +6154,9 @@ ${TK_FUENTES}
   };
   M.updateClient = async (id, patch) => {
     if (!okCd(patch.cycleDay)) throw new Error('cycleDay debe ser un día del 1 al 28');
+    if (patch.entregasDia != null && patch.entregasDia !== '' && !okCd(+patch.entregasDia)) throw new Error('entregasDia debe ser un día del 1 al 28');
+    if (patch.metricas && !metricasOk(String(patch.metricas).trim())) throw new Error('el enlace de métricas tiene que empezar por https://');
+    if (patch.servicio != null && patch.servicio !== '' && !SERVICIOS.includes(patch.servicio)) throw new Error("servicio debe ser 'redes' o 'contenido'");
     let gone = null;
     const c = await editarCliente(id, c => {
       if (patch.name != null) c.name = String(patch.name).trim() || c.name;
@@ -5976,6 +6164,11 @@ ${TK_FUENTES}
       if (patch.cycleDay != null && patch.cycleDay !== '') c.cycleDay = cdOf(patch.cycleDay);   // the boards already made keep theirs
       if (patch.notion != null && (patch.notion !== false) !== (c.notion !== false)) { if (patch.notion === false) c.notion = false; else delete c.notion; c.notionAt = new Date().toISOString(); }   // «Usa Notion» (D-184): on unless off
       if (patch.foto !== undefined && (patch.foto || null) !== (c.foto || null)) { gone = c.foto || null; if (patch.foto) c.foto = patch.foto; else delete c.foto; c.fotoAt = new Date().toISOString(); }   // profile photo (vista cliente)
+      // its service, the day of its deliveries and the link of its metrics (D-289, D-290, D-292): each with its date, when it changes
+      const campo = (k, v) => { const ya = c[k] == null ? '' : c[k]; if ((v == null ? '' : v) === ya) return; if (v == null || v === '') delete c[k]; else c[k] = v; c[k + 'At'] = new Date().toISOString(); };
+      if (patch.servicio !== undefined) campo('servicio', patch.servicio === 'contenido' ? 'contenido' : '');
+      if (patch.entregasDia !== undefined) campo('entregasDia', patch.entregasDia === '' || patch.entregasDia == null ? '' : +patch.entregasDia);
+      if (patch.metricas !== undefined) campo('metricas', String(patch.metricas || '').trim());
       return c;
     });
     if (!c) return 'no existe';
@@ -6005,6 +6198,9 @@ ${TK_FUENTES}
     await cobLeer(true); if (cobMal) return 'No se puede eliminar: no se pudieron leer sus facturas.';
     const nf = cobVivos(id).length;
     if (nf) return `No se puede eliminar: tiene ${nf} factura${nf === 1 ? '' : 's'}.`;   // its invoices stay with it (D-232)
+    await entLeer(true); if (entMal) return 'No se puede eliminar: no se pudieron leer sus entregas.';
+    const ne = entVivas(id).length;
+    if (ne) return `No se puede eliminar: tiene ${ne} entrega${ne === 1 ? '' : 's'}.`;   // as its invoices (D-290)
     if (subida && subida.client === id) return 'Espera a que termine la subida de la carpeta.';
     const c0 = await idbGet('clients', id), tr = await idbGet('bandejas', id);
     await idbDel('clients', id);
@@ -6330,6 +6526,7 @@ ${TK_FUENTES}
   async function releerMovil() {   // after what came down (lot 2): every cache this page read, then the board on view again
     await loadClients();
     try { await cobLeer(true); } catch (e) { /* the invoices say it in Hoy */ }
+    try { await entLeer(true); } catch (e) { /* D-290 */ }
     try { await mesLeer(true); } catch (e) { /* */ }
     try { if (M.personal && M.personal._p) await M.personal._p.cargarTK(); } catch (e) { /* */ }
     if (S && S.key) return mirarMovil(S.key);
@@ -6515,6 +6712,7 @@ ${TK_FUENTES}
     if (NUBE.activa) await nubeAbrir();
     await loadClients();
     try { await cobLeer(true); } catch (e) { /* Hoy says it */ }
+    try { await entLeer(true); } catch (e) { /* D-290 */ }
     try { await mesLeer(true); } catch (e) { /* */ }
     return { modo: NUBE.activa ? NUBE.modo || 'local' : 'sin_nube' };
   }
@@ -6551,7 +6749,7 @@ ${TK_FUENTES}
     try { const r = await M.nube._abrir(); NUBE.modo = (r && r.modo) || 'local'; NUBE.alDia = NUBE.modo === 'turno'; if (NUBE.modo === 'pausada' || NUBE.modo === 'vieja' || NUBE.modo === 'mirando') { NUBE.pausa = true; locked = true; } }
     catch (e) { NUBE.modo = 'local'; console.warn('nube:', e); }
     finally { NUBE.bajando = null; fin(); }
-    try { await cobLeer(true); await mesLeer(true); document.dispatchEvent(new CustomEvent('mesa-tareas')); const b = new BroadcastChannel('mesa-personal'); b.postMessage({ t: 'tareas' }); b.close(); } catch (e) { /* */ }
+    try { await cobLeer(true); await mesLeer(true); await entLeer(true); entAvisar(false); document.dispatchEvent(new CustomEvent('mesa-tareas')); const b = new BroadcastChannel('mesa-personal'); b.postMessage({ t: 'tareas' }); b.close(); } catch (e) { /* */ }
   }
   // The cloud pauses this Mesa (D-254): another computer has it, or it is handing it over. Like a tab's pause (lockHere): the
   // designer's edit in flight and the open board go to IndexedDB first (and to the journal), then nothing writes; html, its notice.
@@ -6608,7 +6806,8 @@ ${TK_FUENTES}
     const L = perLista(s), col = (s.colaboradores || []).slice(), mal = col.filter(u => !L.get(u));
     return { etiquetas: (s.etiquetas || []).slice(), colaboradores: col, ...(mal.length ? { colaboradoresNoValidos: mal } : {}) };
   }
-  M.plan = () => S ? S.slots.filter(s => vivo(s) && (s.photos.length || noteOf(s) || s.uploaded)).map(s => {   // a cancelled post is never uploaded
+  // a client of «Solo contenido» has no feed (D-289): nothing to upload nor schedule, and no states: an empty list, never an error
+  M.plan = () => S && !esContenido(S.client) ? S.slots.filter(s => vivo(s) && (s.photos.length || noteOf(s) || s.uploaded)).map(s => {   // a cancelled post is never uploaded
     const st = photoStatus(s), pub = publishList(s);   // photos and contexto only: the caption has its own record (M.captions)
     return {
       slotId: s.id, name: s.name, type: s.type, date: s.date, dateChanged: dateChg(s),
@@ -6647,6 +6846,7 @@ ${TK_FUENTES}
   M.startZernio = (items, conc = M.cfg.uploadConc) => startJobs('zernio', items, conc);
   function startJobs(dn, items, conc) {
     if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; pulsa «Usar aquí» o vuelve a abrirla' };
+    if (S && esContenido(S.client)) return {};   // a client of «Solo contenido» has no feed (D-289): nothing starts, as with no items
     revAuto(dn === 'zernio' ? 'programa' : 'sube', items);
     const D = DEST[dn], U = D.store(), B = S;
     const jobs = []; let soloCopiaN = 0;
@@ -6789,7 +6989,7 @@ ${TK_FUENTES}
   // reason of a cancellation (optional; '' takes it away). Returns each post's state after it.
   M.setEstado = (ids, estado, opts = {}) => {
     if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; no se ha guardado nada' };
-    if (!S) return [];
+    if (!S || esContenido(S.client)) return [];   // a client of «Solo contenido» has no states (D-289)
     const v = estado == null || estado === '' ? null : String(estado).trim().toLowerCase();
     const out = [].concat(ids ?? []).map(id => {
       const why = setEstado(id, v, opts && opts.motivo != null ? { motivo: opts.motivo } : {}), s = S.slots.find(x => x.id === id);
@@ -7095,8 +7295,9 @@ ${TK_FUENTES}
         try { cfacturas.push({ id: pid, nombre: f.nombre || '', tam: f.blob.size, tipo: f.tipo || 'application/pdf', data: await b64of(f.blob) }); } catch (e) { /* a PDF that can't be read stays here */ }
       }
       const meses = ((await idbAll('meses')) || []).filter(r => r && typeof r.cliente === 'string' && COB_MES.test(r.mes || ''));   // each month's why and summary (D-238)
-      const parts = ['{"format":"mesa-feed","v":19,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())   // v19: + meses, each client's month's why and summary (D-238); v18: + cobros (with their tombstones) and cfacturas, their PDFs in base64 (D-232); v3: + bandejas (D-041); v4: the boards may hold stories (D-054), whose images a mesa before 3.53 wouldn't bring; v5: «No aprobado» and the reason of a cancellation (D-082); v6: the month's step of each board (D-084); v7: a post put back by hand (D-085); v8: one step per month of a board (D-119; a file before it has the board's step, which goes to its first month); v9: a Programada keeps the date it was scheduled for (D-120); v10: + ubicaciones, the locations' catalog; the clients carry their lists and the posts the one chosen (D-124); v11: the clients carry their lists of people and the posts their tags and collaborators (D-130); v12: the editor's slides may hold a progress bar, a check or an x (D-179); v13: + tareas, the personal page's tasks and notes with their photos, and since when a post waits for the client (D-180); v14: a task's details and subtasks (D-183); v15: a designed slide's free layers of the editor and slides let go from the kit (D-193); v16: sessions, sporadic clients and the list of material (D-206, D-207); v17: a session's clients, end and template of material, several templates of material (D-217, D-218, D-220)
-        + ',"clients":' + JSON.stringify(clients) + ',"ubicaciones":' + JSON.stringify(ubicaciones) + ',"tareas":' + JSON.stringify(tareas) + ',"cobros":' + JSON.stringify(cobros) + ',"cfacturas":' + JSON.stringify(cfacturas) + ',"meses":' + JSON.stringify(meses) + ',"bandejas":' + JSON.stringify(bandejas) + ',"boards":' + JSON.stringify(boards) + ',"files":{'];
+      const entregas = ((await idbAll('entregas')) || []).filter(r => r && r.id);   // a «Solo contenido» client's deliveries, their tombstones too (D-290)
+      const parts = ['{"format":"mesa-feed","v":20,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())   // v20: + entregas (with their tombstones) and a client's agreement, service, day of deliveries and link of metrics, an invoice's stretch (D-288 to D-292); v19: + meses, each client's month's why and summary (D-238); v18: + cobros (with their tombstones) and cfacturas, their PDFs in base64 (D-232); v3: + bandejas (D-041); v4: the boards may hold stories (D-054), whose images a mesa before 3.53 wouldn't bring; v5: «No aprobado» and the reason of a cancellation (D-082); v6: the month's step of each board (D-084); v7: a post put back by hand (D-085); v8: one step per month of a board (D-119; a file before it has the board's step, which goes to its first month); v9: a Programada keeps the date it was scheduled for (D-120); v10: + ubicaciones, the locations' catalog; the clients carry their lists and the posts the one chosen (D-124); v11: the clients carry their lists of people and the posts their tags and collaborators (D-130); v12: the editor's slides may hold a progress bar, a check or an x (D-179); v13: + tareas, the personal page's tasks and notes with their photos, and since when a post waits for the client (D-180); v14: a task's details and subtasks (D-183); v15: a designed slide's free layers of the editor and slides let go from the kit (D-193); v16: sessions, sporadic clients and the list of material (D-206, D-207); v17: a session's clients, end and template of material, several templates of material (D-217, D-218, D-220)
+        + ',"clients":' + JSON.stringify(clients) + ',"ubicaciones":' + JSON.stringify(ubicaciones) + ',"tareas":' + JSON.stringify(tareas) + ',"cobros":' + JSON.stringify(cobros) + ',"cfacturas":' + JSON.stringify(cfacturas) + ',"meses":' + JSON.stringify(meses) + ',"entregas":' + JSON.stringify(entregas) + ',"bandejas":' + JSON.stringify(bandejas) + ',"boards":' + JSON.stringify(boards) + ',"files":{'];
       let sep = '', n = 0, photos = 0, skipped = 0;
       for (const id of ids) {
         setBusy('imp', `Exportando ${++n}/${ids.length} fotos…`);
@@ -7174,7 +7375,7 @@ ${TK_FUENTES}
   }
   function xferCheck(d) {
     if (!d || typeof d !== 'object' || d.format !== 'mesa-feed') return 'Este archivo no es una exportación de la Mesa de trabajo.';
-    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19].includes(d.v)) return +d.v > 19 ? 'Este archivo viene de una versión más nueva de la mesa: actualízala antes de importarlo.' : 'Versión de archivo desconocida: no se puede importar.';
+    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].includes(d.v)) return +d.v > 20 ? 'Este archivo viene de una versión más nueva de la mesa: actualízala antes de importarlo.' : 'Versión de archivo desconocida: no se puede importar.';
     const bad = 'El archivo está dañado o incompleto: no se puede importar.';
     if (!Array.isArray(d.clients) || !Array.isArray(d.boards) || !d.files || typeof d.files !== 'object' || (d.past != null && typeof d.past !== 'object')) return bad;
     if (d.clients.some(c => !c || typeof c.id !== 'string' || !c.id)) return bad;
@@ -7194,6 +7395,13 @@ ${TK_FUENTES}
     if (d.cfacturas != null && (!Array.isArray(d.cfacturas) || d.cfacturas.some(f => !f || typeof f.id !== 'string' || !f.id || typeof f.data !== 'string' || !f.data))) return bad;
     const qn = (v, a, b) => v == null || v === '' || (typeof v === 'number' && isFinite(v) && v >= a && v <= b && (b === 1e9 || Number.isInteger(v)));
     if (d.clients.some(c => c.cuota != null && (typeof c.cuota !== 'object' || !qn(c.cuota.importe, 0, 1e9) || !qn(c.cuota.dia, 1, 28) || !qn(c.cuota.plazo, 0, 365)))) return bad;
+    // v20 (D-288 to D-292): a client's agreement, its service, the day of its deliveries and the link of its metrics, each with
+    // its date; an invoice's last month; the deliveries (a tombstone, its id, client and date)
+    const atOk = v => v == null || (typeof v === 'string' && !isNaN(Date.parse(v)));
+    if (d.clients.some(c => (c.acuerdo != null && !acuValido(c.acuerdo)) || (c.servicio != null && !SERVICIOS.includes(c.servicio)) || (c.entregasDia != null && !(Number.isInteger(c.entregasDia) && c.entregasDia >= 1 && c.entregasDia <= 28))
+      || (c.metricas != null && !metricasOk(c.metricas)) || ['acuerdoAt', 'servicioAt', 'entregasDiaAt', 'metricasAt', 'cuotaAt'].some(k => !atOk(c[k])))) return bad;
+    if (d.cobros != null && d.cobros.some(r => r && r.hasta != null && r.hasta !== '' && (!COB_MES.test(r.hasta) || !COB_MES.test(r.periodo || '') || r.hasta < r.periodo))) return bad;
+    if (d.entregas != null && (!Array.isArray(d.entregas) || d.entregas.some(r => !entValida(r)))) return bad;
     // v19: each month's why and summary (D-238), with the same checks as M.informe (but whether the month is over)
     if (d.meses != null && (!Array.isArray(d.meses) || d.meses.some(r => { if (!r || typeof r.cliente !== 'string' || !r.cliente || !COB_MES.test(r.mes || '') || typeof r.at !== 'string' || isNaN(Date.parse(r.at)) || !mesAtOk(r.porqueAt) || !mesAtOk(r.resumenAt)) return true;
       let malo = false; const mal = () => { malo = true; };
@@ -7237,7 +7445,14 @@ ${TK_FUENTES}
     const tarAqui = Object.fromEntries(((await idbAll('tareas')) || []).filter(t => t && t.id).map(t => [t.id, t]));
     P.tarPut = (d.tareas || []).filter(t => !tarAqui[t.id] || String(t.at || '') > String(tarAqui[t.id].at || ''));
     P.perLista = d.clients.filter(c => cids.has(c.id) && Array.isArray(c.personas) && String(c.personasAt || '') > String((clients.find(x => x.id === c.id) || {}).personasAt || ''));   // a client's newer list of people (D-130)
-    P.cuotaUpd = d.clients.filter(c => cids.has(c.id) && c.cuotaAt && String(c.cuotaAt) > String((clients.find(x => x.id === c.id) || {}).cuotaAt || ''));   // a client's newer fee (D-232)
+    // a client's newer agreement, or fee of before (D-232, D-288): one field, whichever of the two the file or here has
+    const acuAt = c => String((c && (c.acuerdoAt || c.cuotaAt)) || '');
+    P.cuotaUpd = d.clients.filter(c => cids.has(c.id) && acuAt(c) && acuAt(c) > acuAt(clients.find(x => x.id === c.id)));
+    // its service, the day of its deliveries and the link of its metrics (D-289, D-290, D-292): each one newer there, with its date
+    P.cliCampos = CAMPOS_CLI.map(([k, kAt]) => d.clients.filter(c => cids.has(c.id) && c[kAt] && String(c[kAt]) > String((clients.find(x => x.id === c.id) || {})[kAt] || '')).map(c => ({ id: c.id, k, kAt, v: c[k], at: c[kAt] }))).flat();
+    // the deliveries (D-290): one new here, or changed later on the other Mac (a tombstone too)
+    const entAqui = Object.fromEntries(((await idbAll('entregas').catch(() => [])) || []).filter(r => r && r.id).map(r => [r.id, r]));
+    P.entPut = (d.entregas || []).map(r => ({ ...r, at: new Date(Date.parse(r.at)).toISOString() })).filter(r => !entAqui[r.id] || String(r.at) > String(entAqui[r.id].at || ''));
     // the invoices (D-232): one new here, or changed later on the other Mac (a tombstone too: what was deleted there goes here);
     // the PDFs they name that aren't here yet
     const cobAqui = Object.fromEntries(((await idbAll('cobros')) || []).filter(r => r && r.id).map(r => [r.id, r]));
@@ -7313,7 +7528,7 @@ ${TK_FUENTES}
       }
       C.hay = !!(C.fotos || C.miniaturas || C.sesion || C.pdf || C.mejoran || C.carpetas);
     }
-    P.nothing = !P.put.length && !P.newClients.length && !P.newFiles.length && !P.newPast.length && !P.kitUpd.length && !P.libUpd.length && !P.fotoUpd.length && !P.capKeep.length && !P.trayAdd && !P.ubPut.length && !P.ubLista.length && !P.perLista.length && !P.notUpd.length && !P.tarPut.length && !P.cuotaUpd.length && !P.cobPut.length && !P.pdfPut.length && !P.mesPut.length && !(P.copia && P.copia.hay);
+    P.nothing = !P.put.length && !P.newClients.length && !P.newFiles.length && !P.newPast.length && !P.kitUpd.length && !P.libUpd.length && !P.fotoUpd.length && !P.capKeep.length && !P.trayAdd && !P.ubPut.length && !P.ubLista.length && !P.perLista.length && !P.notUpd.length && !P.tarPut.length && !P.cuotaUpd.length && !P.cliCampos.length && !P.entPut.length && !P.cobPut.length && !P.pdfPut.length && !P.mesPut.length && !(P.copia && P.copia.hay);
     return P;
   }
   // «Exportar todo»'s copy (D-249): the photos here that an import reduced to 1080 px and whose full one the copy brings
@@ -7420,7 +7635,9 @@ ${TK_FUENTES}
       P.notUpd && P.notUpd.length && nOf(P.notUpd.length, 'cliente con «Usa Notion» al día', 'clientes con «Usa Notion» al día'),
       P.capKeep && P.capKeep.length && `${nOf(P.capKeep.length, 'mes recibe', 'meses reciben')} captions que solo estaban en el archivo`,
       P.tarPut && P.tarPut.length && nOf(P.tarPut.length, 'tarea o nota nueva o al día', 'tareas o notas nuevas o al día'),
-      P.cuotaUpd && P.cuotaUpd.length && nOf(P.cuotaUpd.length, 'cliente con su cuota al día', 'clientes con su cuota al día'),
+      P.cuotaUpd && P.cuotaUpd.length && nOf(P.cuotaUpd.length, 'cliente con su acuerdo al día', 'clientes con su acuerdo al día'),
+      P.cliCampos && P.cliCampos.length && nOf(new Set(P.cliCampos.map(x => x.id)).size, 'cliente con sus datos al día', 'clientes con sus datos al día'),
+      P.entPut && P.entPut.length && nOf(P.entPut.length, 'entrega nueva o al día', 'entregas nuevas o al día'),
       P.cobPut && P.cobPut.length && nOf(P.cobPut.length, 'factura nueva o al día', 'facturas nuevas o al día'),
       P.pdfPut && P.pdfPut.length && nOf(P.pdfPut.length, 'PDF de factura', 'PDF de facturas'),
       P.mesPut && P.mesPut.length && nOf(P.mesPut.length, 'mes con su porqué o su resumen al día', 'meses con su porqué o su resumen al día'),
@@ -7608,7 +7825,13 @@ ${TK_FUENTES}
           if (cur) for (const parte of ['porque', 'resumen']) if (mesAtDe(cur, parte) > mesAtDe(r, parte)) { r[parte] = cur[parte] || null; if (cur[parte + 'At']) r[parte + 'At'] = cur[parte + 'At']; else delete r[parte + 'At']; }
           st.put(r, k); }; }));
         res.meses = P.mesPut.length; }
-      for (const c of P.cuotaUpd || []) await editarCliente(c.id, o => { const n = { ...o, cuotaAt: c.cuotaAt }; if (c.cuota && typeof c.cuota === 'object') n.cuota = c.cuota; else delete n.cuota; return n; });   // D-232
+      for (const c of P.cuotaUpd || []) await editarCliente(c.id, o => {   // D-232; the agreement (D-288): the newest of the two, as it came
+        const n = { ...o }; delete n.cuota; delete n.cuotaAt; delete n.acuerdo; delete n.acuerdoAt;
+        if (c.acuerdoAt && (!c.cuotaAt || String(c.acuerdoAt) >= String(c.cuotaAt))) { n.acuerdoAt = c.acuerdoAt; if (c.acuerdo) n.acuerdo = acuLimpio(c.acuerdo); }
+        else { n.cuotaAt = c.cuotaAt; if (c.cuota && typeof c.cuota === 'object') n.cuota = c.cuota; }
+        return n; });
+      for (const x of P.cliCampos || []) await editarCliente(x.id, o => { const n = { ...o, [x.kAt]: x.at }; if (x.v == null || x.v === '') delete n[x.k]; else n[x.k] = x.v; return n; });   // D-289, D-290, D-292
+      if ((P.entPut || []).length) { await tx('entregas', 'readwrite', st => P.entPut.forEach(r => st.put(r.borrado ? { id: r.id, cliente: r.cliente, borrado: true, at: r.at } : entLimpia(r), r.id))); res.entregas = P.entPut.length; }   // D-290
       for (const c of P.perLista || []) await editarCliente(c.id, o => ({ ...o, personas: c.personas.map(x => ({ usuario: perNorm(x.usuario), colaborador: !!x.colaborador })).filter(x => PER_RE.test(x.usuario)), personasAt: c.personasAt }));   // D-130
       for (const c of P.fotoUpd || []) {
         let viejo = null;
@@ -7636,7 +7859,9 @@ ${TK_FUENTES}
       try { const pend = pendienteLS(); if (pend && writes.some(b => b.key === pend.key)) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }
       setBusy('imp', null);
       await reopen();
-      if (d.copia || (P.cobPut || []).length || (P.cuotaUpd || []).length || (P.pdfPut || []).length) { await cobLeer(true); await cobPdfBarrer(); cobAvisar(true); }   // D-232: here and the other tabs (a copy wrote them as they were, D-249)
+      if (d.copia || (P.cobPut || []).length || (P.cuotaUpd || []).length || (P.pdfPut || []).length) { await cobLeer(true); await cobPdfBarrer(); cobAvisar(true); }
+      if (d.copia || (P.entPut || []).length) { await entLeer(true); entAvisar(true); }   // D-290: here and the other tabs
+      if ((P.cliCampos || []).length) { await loadClients(); render(); }   // D-232: here and the other tabs (a copy wrote them as they were, D-249)
       if (d.copia || (P.mesPut || []).length) { await mesLeer(true); mesAvisar(true); }   // D-238: here and the other tabs
       if (d.copia) { try { document.dispatchEvent(new CustomEvent('mesa-tareas')); const b = new BroadcastChannel('mesa-personal'); b.postMessage({ t: 'tareas' }); b.close(); } catch (e) { /* */ } }   // its tasks and sessions
       try { await sweepDesigns(true); } catch (e) { /* only housekeeping */ }   // rendered images the imported months replaced
@@ -8218,7 +8443,12 @@ ${TK_FUENTES}
     cob: { leer: cobLeer, vivos: cobVivos, get: id => COB && COB.get(id), estado: cobEstado, cuota: cuotaDe, fechas: cobFechas, proxima: cobProxima, urgente: cobUrgente, totales: cobTotales, pdfCopia: cobPdfCopia,
       orden: cobOrden, clave: cobClave, eur: cobEur, importe: cobImporte, corto: cobCorto, nombre: cobNombre, MESES: COB_MESES, dia: cobDia, masDias: cobMasDias, difDias: cobDias,
       dlgCliente: async (cid, tab) => { await loadClientPhotos(); return dlgEditClient(cid, tab); },   // «Editar cliente» of any client, in its tab (D-233)
-      guardar: cobGuardar, parche: cobParche, pdfVolver: cobPdfVolver, borrar: cobBorrar, devolver: cobDevolver, pdfPoner: cobPdfPoner, pdfValido: cobPdfValido, pdfLibre: cobPdfLibre, nuevoId: cobId, cuotaGuardar, cuotaTxt, avisar: cobAvisar, MES: COB_MES },
+      guardar: cobGuardar, parche: cobParche, pdfVolver: cobPdfVolver, borrar: cobBorrar, devolver: cobDevolver, pdfPoner: cobPdfPoner, pdfValido: cobPdfValido, pdfLibre: cobPdfLibre, nuevoId: cobId, cuotaGuardar, cuotaTxt, avisar: cobAvisar, MES: COB_MES,
+      // the agreement (D-288): as kept, its stretches, its line, its save; an invoice's last month and whether one covers a month
+      acuerdo: acuerdoDe, tramo: acuTramo, libre: acuLibre, resumen: acuResumen, acuGuardar, acuLimpio, PAGOS: ACU_PAGOS, paso: acuPaso, fin: acuFin, mesCorto: acuMes, hasta: cobHasta, cubre: cobCubre },
+    // a «Solo contenido» client (D-289) and its deliveries (D-290): for entregas.js, personal.js, calendario.js and movil.js
+    servicio: servicioDe, esContenido, metricasOk,
+    ent: { leer: entLeer, listo: () => !!ENT, vivas: entVivas, get: id => ENT && ENT.get(id), estado: entEstado, propuesta: entPropuesta, nueva: entNueva, cambiar: entCambiar, borrar: entBorrar, devolver: entDevolver, avisar: entAvisar, url: entUrl },
     get S() { return S; }, get CL() { return CL; }, get curClient() { return curClient; }, get locked() { return locked; },
     root: () => root, colPliegue, trayFold, shellReady, slot, changed, save, flushNow, render, renderFeed, renderBar, renderTray, refreshDetail, openDetail, closeDetail,
     get trayCarpeta() { return trayCarpeta; }, trayAbrir, pestNueva, pestIr, pestCerrar, pestLista, pestOrdenar, pestArrastrar, pestVisible, dondeGuardar, dondeVolver, trayLote, traySoltar, trayElegir, trayMover, trayCopiar, trayPegar, trayPuedePegar, trayPegaAlgo, get trayFoco() { return trayFoco; }, get trayClip() { return trayClip; }, rutaCarpeta, carpetasDeVista, cuentaCarpeta, minisPerezosas, MINIS_DE_UNA, ICON_CARPETA,
@@ -8244,8 +8474,11 @@ ${TK_FUENTES}
     estadoWeb, capFinal, cropSig, mesOtros   // the client's decisions (D-244); what the client's web gets: the chosen caption, the crops' signature, no other client (web.js, D-241, mesa ≥ 4.28)
   };
   M._test = {
+    entBorrarTodo: async () => { if (NUBE.activa) throw new Error('con la nube encendida no se vacía nada (D-256)'); entGen++; await tx('entregas', 'readwrite', st => st.clear()); ENT = new Map(); entAvisar(false); },   // D-290
     mesBorrarTodo: async () => { if (NUBE.activa) throw new Error('con la nube encendida no se vacía nada (D-256)'); mesGen++; await tx('meses', 'readwrite', st => st.clear()); MES = new Map(); mesAvisar(false); },   // the battery's months (D-238)
-    cobBorrarTodo: async () => { if (NUBE.activa) throw new Error('con la nube encendida no se vacía nada (D-256)'); cobGen++; await tx(['cobros', 'cfacturas'], 'readwrite', o => { o.cobros.clear(); o.cfacturas.clear(); }); COB = new Map(); for (const c of CL) if (c.cuota || c.cuotaAt) await editarCliente(c.id, x => { delete x.cuota; delete x.cuotaAt; return x; }); await loadClients(); cobAvisar(false); },   // the battery's invoices and fees go (D-232)
+    cobBorrarTodo: async () => { if (NUBE.activa) throw new Error('con la nube encendida no se vacía nada (D-256)'); cobGen++; await tx(['cobros', 'cfacturas'], 'readwrite', o => { o.cobros.clear(); o.cfacturas.clear(); }); COB = new Map(); for (const c of CL) if (c.cuota || c.cuotaAt || c.acuerdo || c.acuerdoAt) await editarCliente(c.id, x => { delete x.cuota; delete x.cuotaAt; delete x.acuerdo; delete x.acuerdoAt; return x; }); await loadClients(); cobAvisar(false); },   // the battery's invoices, fees and agreements go (D-232, D-288)
+    // the battery's clients as made: no service, day of deliveries nor link of metrics (D-289, D-290, D-292)
+    camposBorrar: async ids => { for (const id of ids) { const c = CL.find(x => x.id === id); if (c && CAMPOS_CLI.some(([k, kAt]) => k in c || kAt in c)) await editarCliente(id, x => { CAMPOS_CLI.forEach(([k, kAt]) => { delete x[k]; delete x[kAt]; }); return x; }); } await loadClients(); },
     reloj: t => { RELOJ = t == null ? null : +t; }, vencRevisar: abrir => vencRevisar(!!abrir), avisadas: () => new Set(), fueraListo: () => fueraQ,   // a fixed clock for the battery (D-120)
     place, swap, unassign, move, movePhoto, setType, removeFile, setCover, setNote, setMemo, pastList, addToSlot, setPreview, refreshDetail,
     versionNueva, claim, nubeAbrir, escrito: k => ESCRITO.get(k), cuerpoNube: () => S && cuerpoNube(S),
@@ -8275,7 +8508,7 @@ ${TK_FUENTES}
     await tx(ALMACENES, 'readwrite', o => ALMACENES.forEach(n => o[n].clear()));
     try { localStorage.removeItem('mesa-pending'); localStorage.removeItem('mesa-del'); } catch (e) { /* */ }
     for (const id of Object.keys(M.files)) soltarArchivo(id);
-    cobGen++; COB = new Map(); mesGen++; MES = new Map();
+    cobGen++; COB = new Map(); mesGen++; MES = new Map(); entGen++; ENT = new Map();
     await loadClients();
   };
   M._test.vaciarClip = () => { trayClip = null; };

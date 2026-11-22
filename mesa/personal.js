@@ -234,6 +234,12 @@
       const c = cliDe(r.cliente); if (!c) continue;
       items.push({ tipo: 'cobro', r, dias: e.dias, clientes: [r.cliente], dia: r.vence, ts: utc(r.vence), cat: 'pasado' });
     }
+    // an agreement to renegotiate (D-288): 14 days before, in «Acuerdos»; its day gone, in «Se ha pasado»; no figure of its own
+    if (CB && CB.acuerdo) for (const c of D.CL) {
+      const a = CB.acuerdo(c); if (!a || !a.renegociar) continue;
+      const n = difD(hoy, a.renegociar); if (n > 14) continue;
+      items.push({ tipo: 'acuerdo', c, a, n, clientes: [c.id], dia: a.renegociar, ts: utc(a.renegociar), cat: n < 0 ? 'pasado' : 'acuerdos' });
+    }
     items.sort((a, b) => a.ts - b.ts || (a.tipo === 'historias') - (b.tipo === 'historias'));
     const cuenta = c => items.filter(x => x.cat === c && !x.hecha).length;
     const filas = D.CL.map(c => fila(c, D, Q, V, enV, hoy));
@@ -280,7 +286,7 @@
   const avatarN = (l, cls = 'xs') => !l.length ? '' : l.length === 1 ? avatar(l[0], cls) : `<span class="pp-avn" title="${l.map(nombreC).join(' · ')}">${avatar(l[0], cls)}<span>+${l.length - 1}</span></span>`;
   // the figures and the groups go by urgency, in one order (D-180, chosen by Claude): what waits for the client blocks what
   // is left to schedule; «Hoy» and «Mañana», a figure each, and one group, «Hoy» with «Mañana» under it (D-212)
-  const GRUPOS = [['pasado', 'Se ha pasado'], ['hoy', 'Hoy'], ['espera', 'Esperando al cliente'], ['falta', 'Falta programar']];
+  const GRUPOS = [['acuerdos', 'Acuerdos'], ['pasado', 'Se ha pasado'], ['hoy', 'Hoy'], ['espera', 'Esperando al cliente'], ['falta', 'Falta programar']];   // «Acuerdos» first, as drawn (D-288)
   const CIFRAS = [['pasado', 'Se ha pasado'], ['hoy', 'Hoy'], ['man', 'Mañana'], ['espera', 'Esperando al cliente'], ['falta', 'Falta programar']];
   function cifras(R) {
     return `<div class="pp-cifras" role="group" aria-label="Avisos">${CIFRAS.map(([k, l]) => { const n = R.cifras[k];
@@ -307,6 +313,10 @@
     // a session gone past: its checkbox and «Reprogramar» (the mesa's calendar; a step of ⌘Z, D-206)
     const repro = x.tipo === 'sesion' && x.cat === 'pasado' && !x.hecha ? `<button type="button" class="btn2 pp-repro" data-pp="reprog" data-id="${esc(x.k.id)}" title="Otra fecha para la sesión">${ICO.fecha}Reprogramar</button>` : '';
     if (x.tipo === 'tarea' || x.tipo === 'sesion') return `<div class="pp-av tarea${x.hecha ? ' hecha' : ''}${x.tipo === 'sesion' ? ' ses' : ''}${repro ? ' repro sinprog' : ''}" data-tid="${esc(x.k.id)}"><span class="pp-avs"><input type="checkbox" class="pp-ck" data-pp="ck" data-id="${esc(x.k.id)}"${x.hecha ? ' checked' : ''} aria-label="Hecha"></span>${cuando(x, R)}${mini(x)}<span class="pp-nm" data-pp="tver" data-id="${esc(x.k.id)}" tabindex="0" role="button"><b>${esc(x.k.txt)}</b>${x.clientes.length ? ` <i>${quien}</i>` : ''}</span><span class="pp-est"></span>${repro}</div>`;
+    if (x.tipo === 'acuerdo') {                 // renegotiate (D-288): the clock where the photo goes; gone past, tinted red as a late invoice
+      const t = acuerdoCuando(x), pas = x.cat === 'pasado';
+      return `<button type="button" class="pp-av${pas ? ' sinprog' : ''} pp-avco" data-pp="cobro" data-c="${esc(x.c.id)}" title="Renegociar el acuerdo de ${esc(x.c.name)} · ${esc(corto(x.dia))}">${avs}${cuando(x, R)}<span class="pp-afoto vacia">${ICO.reloj}</span><span class="pp-nm"><b>Renegociar el acuerdo</b> <i>${quien}</i></span><span class="pp-est">${esc(t)}</span></button>`;
+    }
     if (x.tipo === 'cobro') {                   // tinted red as what isn't scheduled (D-190), the euro where the photo goes (D-236)
       const C = I().cob, r = x.r, nf = r.factura ? 'Factura ' + r.factura : 'Factura de ' + C.nombre(r).toLowerCase();
       return `<button type="button" class="pp-av sinprog pp-avco" data-pp="cobro" data-c="${esc(r.cliente)}" data-id="${esc(r.id)}" title="${esc(nf)} · ${esc(C.eur(r.importe))} · venció el ${esc(corto(r.vence))}">${avs}${cuando(x, R)}<span class="pp-afoto vacia">${ICO.euro}</span><span class="pp-nm"><b>${esc(nf)} · ${esc(C.eur(r.importe))}</b> <i>${quien}</i></span><span class="pp-est">Retrasada ${x.dias} ${x.dias === 1 ? 'día' : 'días'} · sin cobrar</span></button>`;
@@ -324,6 +334,13 @@
     // today's, louder than tomorrow's: the row tinted amber, its band, time and state in --chg (D-222); by row, as «Hoy» and
     // «Mañana» share the group
     return `<button type="button" class="pp-av${sin ? ' sinprog' : ''}${sin && x.cat === 'hoy' ? ' pp-avhoy' : ''}" data-pp="abrir" data-key="${esc(x.B.key)}" data-slot="${esc(x.s.id)}" title="${esc(x.s.name)} · ${esc(tipoTxt(x.s))} · ${esc(corto(x.dia))}${x.hora ? ' ' + esc(x.hora) : ''}">${avs}${cuando(x, R)}${mini(x)}<span class="pp-nm"><b>${esc(x.s.name)}</b> <i>${quien}</i></span><span class="pp-est">${est}</span></button>`;
+  }
+  // what an agreement to renegotiate says under its title: when, and what it covers (D-288)
+  function acuerdoCuando(x) {
+    const C = I().cob, n = x.n, cu = n === 0 ? 'hoy' : n === 1 ? 'mañana' : n > 1 ? `en ${n} días` : n === -1 ? 'ayer' : `hace ${-n} días`;
+    const fin = C.fin ? C.fin(x.a) : '', ult = C.vivos(x.c.id).filter(r => C.MES.test(r.periodo || '')).map(r => C.hasta(r)).sort().pop();
+    const cubre = fin ? `acaba en ${C.mesCorto(fin)}` : ult ? `cubre hasta ${C.mesCorto(ult)}` : '';
+    return [cu, cubre].filter(Boolean).join(' · ');
   }
   // «Hoy N» the group's title and «Mañana N» under it; nothing today and something tomorrow: «Nada para hoy»; with the figure
   // «Hoy» only today's, with «Mañana» only tomorrow's (D-212)
@@ -1499,7 +1516,7 @@
     for (const L of [H.u, H.r]) { for (let i = L.length - 1; i >= 0; i--) { const paso = L[i]; if (sinId) for (let j = paso.length - 1; j >= 0; j--) if (paso[j].id === sinId) paso.splice(j, 1); if (!paso.length) { L.splice(i, 1); continue; } for (const p of paso) { if (p.antes) f(p.antes); if (p.despues) f(p.despues); } } }
   }
   const _p = {
-    EXT, TK, I, esc, ICO, st, avatar, avatarN, cliDe, clis, conCli, cliOk, esps, sesiones, tareas, notas, vivos, opcionesCli, diaHora, tramo, ultDia, moverInicio, finOk, finNuevo, corto, fechaLarga, addD, dow, difD,
+    EXT, TK, I, esc, ICO, st, avatar, avatarN, cliDe, clis, conCli, cliOk, esps, sesiones, tareas, notas, vivos, opcionesCli, diaHora, tramo, ultDia, moverInicio, finOk, finNuevo, corto, fechaLarga, addD, dow, difD, acuerdoCuando,
     hacer, cambiar, enmendar, escribir, deshacer, copia, hondo, nuevoId, ahoraISO, puede, borrar, marcar, rebajar, esImagen, verFoto, remapH, guardarCard, ampliar, colocarAmplia,
     pintar, refrescar, cargarTK, abrirCard, cerrarCard, quitarCard, pintarCard, editar, borrador, pedirFecha, comando, menuSesion, menuEsp,
     abrirMenu, cerrarMenu, ES, leerTxt, lsGet, lsSet, enCard, pocoMov, DBL, fotosURL, botonesCard, ponerCard, seleccionando, morfar,

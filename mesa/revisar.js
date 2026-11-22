@@ -68,6 +68,7 @@
   async function revisar(opts = {}) {
     const B = I() && I().S, nada = { ok: true, bloquean: 0, avisos: 0, puntos: [], key: B ? B.key : null };
     if (!B || (opts.slots && !opts.slots.length)) return nada;
+    if (I().esContenido && I().esContenido(B.client)) return { ...nada, sinFeed: true };   // a client of «Solo contenido»: no feed (D-289)
     await listos();
     const X = I(), R = M.libre && M.libre.rev;
     let mg = null;                               // the kit is read only when there is a text to measure

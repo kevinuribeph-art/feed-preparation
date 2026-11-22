@@ -6,7 +6,7 @@
 // Mesa cogida un momento (lote 4, más abajo).
 (function () {
   'use strict';
-  const VERSION = '1.4';   // 1.4: «Cancelar · Guardar» tapa las marcas dibujadas al deslizar la hoja (D-286, probado en el iPhone). 1.3: la hoja sigue al teclado (resize y scroll del visualViewport), el campo del ordenador en notas, «Detalles» y textos de una sesión (D-286) y las marcas de estado del Mac (D-287). 1.2: las listas se leen como en el Mac: viñeta y número en terracota y el separador «⸻» como una línea (D-283). 1.1: los ajustes tras probarla en el iPhone (D-271), editar tareas (D-272) y la sesión entera (D-275)
+  const VERSION = '1.5';   // 1.5: «Acuerdos» en Hoy, el aviso de renegociar (D-288). 1.4: «Cancelar · Guardar» tapa las marcas dibujadas al deslizar la hoja (D-286, probado en el iPhone). 1.3: la hoja sigue al teclado (resize y scroll del visualViewport), el campo del ordenador en notas, «Detalles» y textos de una sesión (D-286) y las marcas de estado del Mac (D-287). 1.2: las listas se leen como en el Mac: viñeta y número en terracota y el separador «⸻» como una línea (D-283). 1.1: los ajustes tras probarla en el iPhone (D-271), editar tareas (D-272) y la sesión entera (D-275)
   const M = window.MESA, D = document, W = window;
   const fallo = t => { (W.MESA_CARGA = W.MESA_CARGA || {}).movil = 'fallo'; const p = D.getElementById('arranque'); if (p) p.textContent = t; };
   if (!M || !M._in || !M._in.movil || !M._in.movil.activo) { fallo('No se pudo cargar la Mesa. Cierra la app y vuelve a abrirla.'); return; }
@@ -978,11 +978,15 @@
   }
 
   // ---------- Hoy (D-180, D-212, D-236) ----------
-  const GRUPOS = [['pasado', 'Se ha pasado'], ['hoy', 'Hoy'], ['espera', 'Esperando al cliente'], ['falta', 'Falta programar']];
+  const GRUPOS = [['acuerdos', 'Acuerdos'], ['pasado', 'Se ha pasado'], ['hoy', 'Hoy'], ['espera', 'Esperando al cliente'], ['falta', 'Falta programar']];   // «Acuerdos», as the Mac's (D-288)
   const CIFRAS = [['pasado', 'Se ha pasado'], ['hoy', 'Hoy'], ['man', 'Mañana'], ['espera', 'Esperando al cliente'], ['falta', 'Falta programar']];
   let FILTRO = null, VER_TODO = {}, AVT = false;   // AVT: el interruptor «Tareas» de Hoy, apagado al abrir la app (D-271, punto 2; D-180)
   function lineaAviso(x) {
     const quien = x.clientes.map(nombreCli).join(x.tipo === 'sesion' ? ' · ' : ' × ');
+    if (x.tipo === 'acuerdo') {   // renegociar (D-288): lo dice el núcleo (personal.js); se abre en el escritorio, como una factura
+      const pas = x.cat === 'pasado', cu = M.personal._p && M.personal._p.acuerdoCuando ? M.personal._p.acuerdoCuando(x) : corto(x.dia);
+      return fila({ a: `data-a="cobro"`, izq: icoFila('reloj', pas), t1: 'Renegociar el acuerdo', t2: `${esc(quien)} · ${pas ? `<span class="roja">${esc(cu)}</span>` : esc(cu)}` });
+    }
     if (x.tipo === 'cobro') {
       const C = X().cob, r = x.r, nf = r.factura ? 'Factura ' + r.factura : 'Factura de ' + C.nombre(r).toLowerCase();
       return fila({ a: `data-a="cobro"`, izq: icoFila('euro', true), t1: `${esc(nf)} · ${esc(C.eur(r.importe))}`, t2: `${esc(quien)} · <span class="roja">${esc(x.dias === 1 ? 'retrasada 1 día' : `retrasada ${x.dias} días`)}</span>` });
@@ -1695,7 +1699,7 @@
         if ((x && x.tipo === 'sesion') || (hi && (hi.tipo === 'sesion' || hi.k.tipo === 'sesion'))) return avanzar('ses/' + id);
         return verTarea(id);
       }
-      case 'cobro': return aviso('Las facturas se abren en el escritorio.');
+      case 'cobro': return aviso('Las facturas y los acuerdos se abren en el escritorio.');
       case 'hmov': { const v = L.vista, l = v.historias.filter(h => !h.cancelada).sort((x, y) => String(x.fecha.dia + x.fecha.hora).localeCompare(String(y.fecha.dia + y.fecha.hora))), i = l.findIndex(h => h.id === RUTA.b) + (+b.dataset.d); if (l[i]) ir(`his/${v.key}/${l[i].id}`, 'sustituir'); return; }
       case 'cerrarhoja': if (b && b.classList.contains('velo') && bajarTeclado(b)) return; return pedirCerrar();
       case 'recargar': try { location.reload(); } catch (x) { /* */ } return;

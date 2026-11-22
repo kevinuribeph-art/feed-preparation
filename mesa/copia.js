@@ -15,7 +15,7 @@
 (function copiaBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
-  const VERSION = '1.2';   // 1.2: each file of a copy written with its own bytes, never a piece of the .tar; 200 MB a file at most (D-279)
+  const VERSION = '1.3';   // 1.3: the deliveries of a «Solo contenido» client go with it (D-290). 1.2: each file of a copy written with its own bytes, never a piece of the .tar; 200 MB a file at most (D-279)
   const I = () => M._in, X = () => M._in.xfer;
   if (M.copia && M.copia._off) { try { M.copia._off(); } catch (e) { /* */ } }
   const FORMATO = 'mesa-copia', V = 1;
@@ -166,6 +166,7 @@
     for (const par of R.cobros) { const r = par[1] || {}; poner('cobros', par, [r.cliente]); if (r.pdf) { if (!dePdf.has(r.pdf)) dePdf.set(r.pdf, new Set()); dePdf.get(r.pdf).add(r.cliente); } }
     for (const par of R.cfacturas) poner('cfacturas', par, dePdf.get(String(par[0])) || []);
     for (const par of R.meses) poner('meses', par, [par[1] && par[1].cliente]);
+    for (const par of R.entregas || []) poner('entregas', par, [par[1] && par[1].cliente]);   // a «Solo contenido» client's deliveries (D-290)
     return [...amb.values()].filter(a => a.tipo === 'general' || A.some(n => a.recs[n].length));
   }
 
@@ -459,6 +460,7 @@
         ubicaciones: vals('ubicaciones').filter(u => u && txt(u.id) && typeof u.nombre === 'string' && typeof u.locationId === 'string'),
         tareas: vals('tareas').filter(t => t && txt(t.id) && typeof t.tipo === 'string' && typeof t.txt === 'string'),
         cobros: vals('cobros').filter(r => r && txt(r.id) && txt(r.cliente) && fechaOk(r.at)), meses: vals('meses').filter(r => r && txt(r.cliente) && /^\d{4}-\d{2}$/.test(r.mes || '') && fechaOk(r.at)),
+        entregas: (raw.entregas ? vals('entregas') : []).filter(r => r && txt(r.id) && txt(r.cliente) && fechaOk(r.at)),   // D-290
         cfacturas: vals('cfacturas').map(f => ({ ...f, data: f.blob })),
         files: Object.fromEntries([...raw.files].filter(([k]) => !k.startsWith('past:')).map(([k, v]) => [k, { ...v, data: v && v.blob }])), past: {},
         copia: { raw, info }

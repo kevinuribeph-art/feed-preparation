@@ -20716,9 +20716,11 @@
           await T.desplazar(0);
           // tocar fuera con el teclado y cambios sin guardar: solo baja el teclado, sin preguntar
           await naEscribe(campo, ' y algo más');
-          { const v = W.document.querySelector('#movil .velo.on'); v.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch' })); campo.blur(); v.click(); await espera(120); }   // como un toque de verdad: el campo pierde el foco antes del click (revisión del lote B)
-          ok(hoja() && !preg(), 'tocar fuera con el teclado preguntó o cerró la hoja');
-          ok(W.document.activeElement !== campo, 'tocar fuera con el teclado no lo bajó');
+          for (const pierde of [false, true]) {   // un toque de verdad: el campo pierde el foco antes del clic (Chrome) o no (revisión del lote B)
+            campo.focus(); const v = W.document.querySelector('#movil .velo.on'); v.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch' })); if (pierde) campo.blur(); v.click(); await espera(120);
+            ok(hoja() && !preg(), `tocar fuera con el teclado preguntó o cerró la hoja (${pierde ? 'con' : 'sin'} perder el foco antes)`);
+            ok(W.document.activeElement !== campo, 'tocar fuera con el teclado no lo bajó');
+          }
           await T.cerrar();
           // sin el teclado, cerrar de verdad pregunta, con la pregunta a la vista
           clicCara('#movil .velo.on'); await espera(450);
@@ -20823,7 +20825,10 @@
   prueba('MK1', 'Las marcas de estado del iPhone son las del Mac (D-287): ✓ Programado, ✓✓ Publicado, ✕ Cancelado y un punto del color de su estado para el resto, salidas del núcleo (estIco), en la lista del mes, la cabecera y el campo de la publicación, su hoja de estado y Hoy, y en lo que arma el iPhone sin guardar (lo que tocaría publicarse); ningún punto viejo', async () => {
     const key = await tableroMovil();
     ok(!(M.setEstado('r2', 'publicado')[0] || {}).error, 'no se publicó r2'); ok(!(M.setEstado('r4', 'cancelado')[0] || {}).error, 'no se canceló r4');
-    await hasta(() => M.cargarHistorias, 6000, 'historias.js'); await M.cargarHistorias([{ date: '2026-11-03T13:00:00+01:00', order: 1, slotId: 'r1', note: 'MK1' }]); await M.flush();
+    await hasta(() => M.cargarHistorias, 6000, 'historias.js');
+    await M.cargarHistorias([1, 2, 3].map(n => ({ date: `2026-11-1${n}T13:00:00+01:00`, order: 1, note: 'MK1 ' + n })));
+    const hs = M._in.S.historias.filter(h => /^MK1 /.test(h.note || '')).sort((a, b) => String(a.note).localeCompare(String(b.note)));
+    ok(hs.length === 3, 'las historias de prueba'); hs[0].zernio = 'z-mk1'; hs[1].cancelada = true; M._in.save(); await M.flush();   // una programada, una cancelada y una sin programar
     try {
       await enMovilPagina(async () => {
         const md = W.document.getElementById('movil'), verde = kbTok(md, '--ok'), rojo = kbTok(md, '--red');
@@ -20845,10 +20850,14 @@
         clicCara('#movil [data-a="estado"]'); const h = await hojaCara('.estado-op', 'la hoja del estado');
         const ops = [...h.querySelectorAll('.estado-op .es')].map(marca); ok(ops.length >= 5 && ops.every(x => /^(ico|punto):/.test(x)), 'la hoja del estado: ' + json(ops));
         igual(viejos(), 0, 'queda un punto viejo en la publicación o su hoja');
+        const anchoEn = e => Math.round(h.querySelector(`.estado-op .es > .e-${e} svg`).getBoundingClientRect().width);
+        igual(['programado', 'publicado', 'cancelado'].map(anchoEn), [14, 17, 12], 'en la hoja de estado, cada marca a su tamaño (la caja de 17 px no la agranda)');
         // la rejilla de historias (el iPhone arma su estado): las marcas del Mac, con su trazo blanco sobre la foto (revisión del lote B)
         clicCara('#movil .velo.on'); await espera(450);
         await irMovil(`#mes/${key}/hist`, '#movil .hc .hh');
-        const hh = [...W.document.querySelectorAll('#movil .hc .hh')].map(x => marca(x)); ok(hh.length && hh.every(x => /^(ico|punto):/.test(x)), 'la rejilla de historias: ' + json(hh));
+        const hh = [...W.document.querySelectorAll('#movil .hc .hh')].map(x => marca(x)).sort(); igual(hh, ['ico:cancelado', 'ico:programado', 'punto:empezar'], 'la rejilla de historias');
+        const hp = W.document.querySelector('#movil .hc .hh > .e-programado'), hc = W.document.querySelector('#movil .hc .hh > .e-cancelado'), hd = W.document.querySelector('#movil .hc .hh > .edot');
+        igual([W.getComputedStyle(dibujo(hp)).stroke, W.getComputedStyle(hp.querySelector('path.h')).stroke, W.getComputedStyle(hp.querySelector('path.h')).display !== 'none', W.getComputedStyle(dibujo(hc)).stroke, W.getComputedStyle(hd).backgroundColor === 'rgba(0, 0, 0, 0)'], [verde, 'rgb(255, 255, 255)', true, rojo, false], 'las marcas sobre la foto: su color, el trazo blanco y el punto con color');
         // lo que el iPhone arma sin guardar: la Programada cuya hora pasó, con lo que tocaría (Publicado)
         M._test.reloj(Date.parse('2026-11-20T10:00:00+01:00')); await M.movil.releer();
         await irMovil(`#mes/${key}/lista`, '#movil .mv-pubs');

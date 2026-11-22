@@ -277,7 +277,7 @@
 #movil .estados{display:grid;gap:8px}
 #movil .estado-op{display:flex;align-items:center;gap:12px;min-height:54px;padding:0 14px;border-radius:14px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2);font-size:16px;font-weight:500;text-align:left;width:100%}
 #movil .estado-op .es{font-size:16px;color:var(--ink);font-weight:500;flex:1}
-#movil .estado-op .es>.edot{width:11px;height:11px;margin:0 3px}#movil .estado-op .es>.eico{width:17px}   /* en la hoja, cada marca en una caja de 17 px: el texto de las opciones, alineado */
+#movil .estado-op .es>.edot{width:11px;height:11px;margin:0 3px}#movil .estado-op .es>.eico{width:17px;justify-content:center}#movil .estado-op .es>.eico svg{width:14px}#movil .estado-op .es>.eico.e-publicado svg{width:17px}#movil .estado-op .es>.eico.e-cancelado svg{width:12px}   /* en la hoja, cada marca en una caja de 17 px: el texto de las opciones, alineado */
 #movil .estado-op.on{box-shadow:inset 0 0 0 2px var(--ink)}
 #movil .estado-op .ck{width:22px;height:22px;color:var(--ink)}
 #movil .estado-op .sub{font-size:13px;color:var(--mute);font-weight:400}
@@ -696,7 +696,7 @@
 #movil .cap-t,#movil .op p,#movil .hoja .txt,#movil .decision{max-width:68ch}
 #movil .msg{max-width:min(88%,68ch)}
 #movil .editor{max-width:calc(68ch + 2 * var(--pad))}
-/* el teclado (D-286): la hoja sigue al visualViewport (--vvh su alto, --vvt lo que iOS lo desplazó, --kb el teclado); las hojas donde se
+/* el teclado (D-286): la hoja sigue al visualViewport (--vvh su alto, --kb lo que tapa el teclado, con lo que iOS desplazó la vista); las hojas donde se
    escribe (una nota, una tarea, el texto de una sesión) van de arriba abajo, así el teclado no las mueve: con él, de arriba a encima */
 #movil .hoja{max-height:calc(var(--vvh,100dvh) - var(--sa-t) - 8px)}
 #movil .hoja.mv-grande{display:flex;flex-direction:column;height:calc(var(--vvh,100dvh) - var(--sa-t) - 8px)}
@@ -752,6 +752,7 @@
   // ---------- la raíz ----------
   const raiz = D.createElement('div'); raiz.id = 'movil'; raiz.hidden = true; raiz.setAttribute('aria-live', 'off');
   const capas = D.createElement('div'); capas.className = 'capas';
+  capas.addEventListener('touchstart', () => {}, { passive: true });   // sin un oyente de toque, iOS no pinta :active (el menú «/» va aquí)
   D.body.appendChild(raiz);
 
   // ---------- el estado de la nube, siempre a la vista (D-255, D-268) ----------
@@ -1331,7 +1332,7 @@
     cerrarHojas(true);
     if (!o.permanente) Y_HOJA = y0;
     const velo = D.createElement('div'); velo.className = 'velo'; velo.dataset.a = o.fija || o.pregunta ? '' : 'cerrarhoja';   // una pregunta no la contesta un toque perdido
-    velo.addEventListener('pointerdown', () => { velo._teclado = conTeclado(); });   // con un toque de verdad el campo pierde el foco antes del click (revisión del lote B)
+    velo.addEventListener('pointerdown', e => { velo._teclado = conTeclado() ? e.timeStamp || performance.now() : 0; });   // con un toque de verdad el campo pierde el foco antes del click (revisión del lote B)
     const h = D.createElement('div'); h.className = 'hoja' + (o.grande ? ' mv-grande' : ''); h.setAttribute('role', 'dialog'); h.setAttribute('aria-modal', 'true'); if (o.etiqueta) h.setAttribute('aria-label', o.etiqueta);   // grande: donde se escribe, de arriba abajo (D-286)
     h.innerHTML = `<div class="asa" aria-hidden="true"></div>${html}`;
     if (o.alCerrar) h._alCerrar = o.alCerrar;
@@ -1388,7 +1389,7 @@
   // tocar fuera con el teclado a la vista solo lo baja (como en iOS): «¿Descartar los cambios?» sale al cerrar de verdad (D-286)
   const conTeclado = () => { const a = D.activeElement; return raiz.classList.contains('teclado') && esCampo(a) && capas.contains(a); };
   function bajarTeclado(velo) {
-    const ya = velo && velo._teclado; if (velo) velo._teclado = false;
+    const ya = !!(velo && velo._teclado && performance.now() - velo._teclado < 1000); if (velo) velo._teclado = 0;   // solo el clic de ese toque
     if (!ya && !conTeclado()) return false;
     const a = D.activeElement; if (esCampo(a) && capas.contains(a)) a.blur();
     return true;
@@ -1740,8 +1741,8 @@
   if (D.fonts && D.fonts.ready) D.fonts.ready.then(() => ajustarTitulo(), () => {});   // con la letra cargada, el título se vuelve a medir
   W.addEventListener('orientationchange', () => setTimeout(ajustarTitulo, 120));
   // La hoja sigue al visualViewport cuando cambia de tamaño (sale o se va el teclado) y también cuando iOS lo desplaza sin cambiarlo (al
-  // enfocar un campo: antes la hoja quedaba cortada y sus botones a media pantalla; D-286): --vvh su alto, --vvt lo desplazado y --kb lo que
-  // tapa el teclado. El cursor queda a la vista entre la cabecera de la hoja y su pie, sin animar (un desplazamiento suave en cada cambio lo
+  // enfocar un campo: antes la hoja quedaba cortada y sus botones a media pantalla; D-286): --vvh su alto y --kb lo que tapa el teclado
+  // (con lo desplazado). El cursor queda a la vista entre la cabecera de la hoja y su pie, sin animar (un desplazamiento suave en cada cambio lo
   // hacía saltar); la página de detrás vuelve a donde estaba. Pellizcando (zoom), nada: no es el teclado.
   let VV = { kb: -1, t: -1, h: -1 };
   function cursorALaVista(h, a) {
@@ -1752,9 +1753,9 @@
         const g = s.getRangeAt(0).cloneRange(); g.collapse(false);
         if (g.endContainer.nodeType === 1) { let n = g.endContainer.childNodes[g.endOffset - 1]; while (n && n.nodeType === 1) n = n.lastChild; if (n && n.nodeType === 3) g.setStart(n, n.data.length); }
         r = g.getClientRects()[0] || null;
-        if (!r || !(r.height || r.top)) {   // una línea vacía o un campo vacío: la caja del carácter de al lado
+        if (!r || !(r.height || r.top)) {   // una línea vacía: la caja del carácter de al lado (un campo vacío, la del campo)
           const n = g.endContainer, o = g.endOffset;
-          if (n.nodeType === 3 && (o < n.data.length || o > 0)) { const q = D.createRange(); if (o < n.data.length) q.setStart(n, o), q.setEnd(n, o + 1); else q.setStart(n, o - 1), q.setEnd(n, o); const c = q.getClientRects(); r = c[c.length - 1] || null; }
+          if (n.nodeType === 3 && (o < n.data.length || o > 0)) { const q = D.createRange(); const ade = o < n.data.length; if (ade) q.setStart(n, o), q.setEnd(n, o + 1); else q.setStart(n, o - 1), q.setEnd(n, o); const c = q.getClientRects(); r = (ade ? c[0] : c[c.length - 1]) || null; }
         }
       }
     }

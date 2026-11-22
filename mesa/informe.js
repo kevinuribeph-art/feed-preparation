@@ -7,7 +7,7 @@
 (function informeBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
-  const VERSION = '1.0';
+  const VERSION = '1.1';   // 1.1: «Ver más en Zernio» right under the title of «Cómo fue» (D-294)
   const I = () => M._in, D = () => M._in.mes;
   if (M.informeUI && M.informeUI._off) { try { M.informeUI._off(); } catch (e) { /* */ } }
   const OFF = [];

@@ -22810,6 +22810,110 @@
       igual(px.textContent.replace(/ /g, ' '), 'Próxima factura, el 25 nov', 'la próxima factura');
     } finally { relojVuelve(); M._in.closeDetail(); await vistaCliente(false); }
   });
+
+  // ---------- feed continuo, pieza 1: cada tablero «como abierto», sin nada a la vista ----------
+  // Las reglas que leen el tablero abierto por omisión (S) aceptan otro (B); «como abierto» (MESA._in.armarTablero, y
+  // comoAbierto, que lo lee) arma un tablero guardado sin escribir nada; las copias en memoria de los tableros del cliente
+  // (MESA._in.tablerosMem) se sueltan en cuanto algo escribe su tablero. Nada de esto cambia lo que se ve ni lo que se guarda.
+  // el primer sitio en que dos valores difieren (para no imprimir dos tableros enteros)
+  function fcDifiere(a, b, ruta = '') {
+    if (json(a) === json(b)) return null;
+    if (a && b && typeof a === 'object' && typeof b === 'object' && Array.isArray(a) === Array.isArray(b)) {
+      const ks = [...new Set([...Object.keys(a), ...Object.keys(b)])];
+      if (!Array.isArray(a) && json(Object.keys(a)) !== json(Object.keys(b)) && ks.every(k => json(a[k]) === json(b[k]))) return `${ruta || '·'}: el orden de sus campos (${Object.keys(a).join(',')} / ${Object.keys(b).join(',')})`;
+      for (const k of ks) { const d = fcDifiere(a[k], b[k], ruta + '.' + k); if (d) return d; }
+    }
+    return `${ruta || '·'}: ${json(a)} frente a ${json(b)}`.slice(0, 600);
+  }
+  // cuántas escrituras reales (IndexedDB y localStorage) hace fn, vistas desde los métodos nativos (lección 171)
+  async function fcContar(fn) {
+    const n = { idb: 0, ls: 0, que: [] }, orig = [];
+    const tapa = (proto, m, tipo) => { const f = proto[m]; if (!f) return; orig.push([proto, m, f]);
+      proto[m] = function (...a) { n[tipo]++; n.que.push(`${m} ${tipo === 'idb' ? ((this.source && this.source.name) || this.name || '?') : a[0]}`); return f.apply(this, a); }; };
+    ['put', 'add', 'delete', 'clear'].forEach(m => tapa(W.IDBObjectStore.prototype, m, 'idb'));
+    ['update', 'delete'].forEach(m => tapa(W.IDBCursor.prototype, m, 'idb'));
+    ['setItem', 'removeItem', 'clear'].forEach(m => tapa(W.Storage.prototype, m, 'ls'));
+    try { const r = await fn(); await espera(150); return { ...n, r }; }   // lo que quedara en vuelo también cuenta
+    finally { orig.reverse().forEach(([p, m, f]) => { p[m] = f; }); }
+  }
+  // abre key (lo guarda al abrir) y lo compara con «como abierto» de lo guardado: el mismo tablero, campo a campo
+  async function fcComo(key, que) {
+    await M.flush(); ok(!(await M.open(key)).error, `${que}: no se abrió`); await M.flush();
+    const r = await M._in.comoAbierto(key);
+    ok(r && r.S, `${que}: «como abierto» no armó el tablero: ` + json(r && r.error));
+    ok(r.S !== M._in.S && r.S.slots !== M._in.S.slots, `${que}: «como abierto» dio el tablero abierto, no uno suyo`);
+    const d = fcDifiere(r.S, M._in.S); ok(!d, `${que}: no es el tablero tal como se abre: ${d}`);
+    igual(r.IDX, M._test.idx(), `${que}: sus enlaces con otros tableros`);
+    return r;
+  }
+  const fcSlot = (id, n, dia, mes = MES) => ({ id, name: `Foto ${n}`, type: 'Foto', date: `${mes}-${String(dia).padStart(2, '0')}T12:00:00.000+0${mes < '2026-10-25' ? 2 : 1}:00` });
+
+  prueba('FC3', 'Un mes que no es el abierto se dibuja con su propio tablero (feed continuo, pieza 1, trampa 3): una «Por programar» fijada y con el encuadre movido da, con otro mes abierto, el mismo estado, encuadre, casilla y paso que con su mes abierto; el día de ciclo y los meses, los de su tablero', async () => {
+    const OCT = '2026-10', okey = `${CLIENTE}-${OCT}`, X = M._in;
+    const casilla = (s, B) => X.cellHTML ? X.cellHTML(s, '', B) : 'sin cellHTML en MESA._in';
+    try {
+      await limpiar();
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: OCT, slots: [fcSlot('fc3-o1', '4.1', 20, OCT), fcSlot('fc3-o2', '4.2', 22, OCT)], past: [], force: true });
+      await porAprobar(['fc3-o1'], 'fc3');
+      const fid = slot('fc3-o1').photos[0];
+      M._test.setCrop(fid, 'fc3-o1', { cx: 0.3, cy: 0.35, z: 1.6 });
+      M.setEstado('fc3-o1', 'aprobado');
+      X.S.pins = ['fc3-o1']; X.save(); await M.flush();
+      const S0 = X.S, s0 = S0.slots.find(s => s.id === 'fc3-o1');
+      const antes = { e: X.estadoDe(s0), r: X.gridRect(fid, s0, S0), p: X.pasoDe(S0, OCT), c: casilla(s0, S0) };
+      igual(antes.e, 'aprobado', 'con su mes abierto no está «Por programar»');
+      ok(!X.cellHTML || antes.c.includes('Fijada'), 'la casilla no sale fijada');
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1)], past: [], force: true });
+      igual(X.S.key, `${CLIENTE}-${MES}`, 'no se abrió noviembre');
+      const B = await X.idbGet('boards', okey), s = B.slots.find(x => x.id === 'fc3-o1');
+      const d = fcDifiere({ e: X.estadoDe(s, B), r: X.gridRect(fid, s, B), p: X.pasoDe(B, OCT), c: casilla(s, B) }, antes);
+      ok(!d, 'con noviembre abierto, octubre se ve distinto: ' + d);
+      ok(X.cellHTML, 'no hay cellHTML en MESA._in');
+      // el día de ciclo y los meses, de su tablero (otro cliente, día 15); sin tablero, los del abierto
+      await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 15, slots: [fcSlot('c15a', '1.1', 20)], past: [], force: true });
+      await M.open(okey);
+      const B2 = await X.idbGet('boards', `${CLIENTE2}-${MES}`);
+      igual([X.curCd(B2), X.boardMonths(B2), X.inBoard('2026-12-10', B2), X.inBoard('2026-12-10')], [15, [MES], true, false], 'el día de ciclo y los meses de otro tablero');
+      igual([X.curCd(), X.boardMonths()], [1, [OCT]], 'sin tablero, los del abierto');
+      igual(X.estadoDe(X.S.slots.find(x => x.id === 'fc3-o1')), 'aprobado', 'al volver a octubre');
+    } finally { await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 1, slots: [], past: [], force: true }); await limpiar(); }
+  });
+
+  prueba('FC5', 'Guarda de la trampa 4 (feed continuo, pieza 1): «Ya se publicó» de una vencida de octubre desde noviembre → ir a octubre → editarla → volver a leer: siguen las dos cosas (lo publicado y lo editado)', async () => {
+    const OCT = '2026-10', okey = `${CLIENTE}-${OCT}`, nkey = `${CLIENTE}-${MES}`;
+    try {
+      await limpiar();
+      reloj('2026-10-01', '09:00');
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: OCT, slots: [fcSlot('fc5-o1', '4.1', 20, OCT), fcSlot('fc5-o2', '4.2', 22, OCT)], past: [], force: true });
+      await porAprobar(['fc5-o1'], 'fc5'); M.setEstado('fc5-o1', 'aprobado'); await M.flush();
+      reloj('2026-11-04', '12:00');
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1)], past: [], force: true });
+      await revisarV(); abrirV();
+      await hasta(() => filaV('fc5-o1'), 3000, 'la fila de la vencida de octubre');
+      enFilaV('fc5-o1', 'v-pub'); await M._test.fueraListo(); M._in.closeDetail();
+      await M.open(okey);
+      igual((slot('fc5-o1').estado || {}).v, 'publicado', 'al ir a octubre no está publicada');
+      M._test.setMemo('fc5-o1', 'Nota de octubre'); await M.flush();
+      await M.open(nkey); await M.open(okey);   // «recargar»: se vuelve a leer de lo guardado
+      igual([(slot('fc5-o1').estado || {}).v, slot('fc5-o1').memo], ['publicado', 'Nota de octubre'], 'tras volver a leer octubre');
+      const g = (await M._in.idbGet('boards', okey)).slots.find(s => s.id === 'fc5-o1');
+      igual([(g.estado || {}).v, g.memo], ['publicado', 'Nota de octubre'], 'lo guardado de octubre');
+    } finally { volverReloj(); M._in.closeDetail(); }
+  });
+
+  prueba('FC6', 'Guarda de la pieza 1 del feed continuo: abrir otra vez un tablero da el mismo tablero (S, MESA.board(), plan(), lo que dibuja el feed, la imagen del feed y el calendario) y lo guardado no cambia salvo su hora', async () => {
+    await tablero([pub(1), pub(2), pub(3, 'Carrusel'), pub(4)]);
+    await porAprobar(['r1', 'r2'], 'fc6'); M.setEstado('r1', 'aprobado'); M.setEstado('r4', 'cancelado');
+    M._in.S.fillers = 1; M._in.S.pins = ['r2']; M._in.save();
+    await M.flush();
+    const key = M.status().key, sinHora = o => { const c = JSON.parse(json(o)); delete c.savedAt; return c; };
+    const foto1 = async () => ({ s: sinHora(M._in.S), b: sinHora(M.board()), v: await vistaFeed(), g: sinHora(await M._in.idbGet('boards', key)), st: sinHora(M.status()), cal: qa('.side > .cal [data-slot]').map(e => e.dataset.slot) });
+    await M.open(key); await M.flush();
+    const a = await foto1();
+    await M.open(key); await M.flush();
+    const d = fcDifiere(await foto1(), a); ok(!d, 'abrir otra vez cambió algo: ' + d);
+    igual(json(M.board()), json(M._in.S), 'MESA.board() no es la copia del abierto');
+  });
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;
   $('resumen').textContent = `${T.length} pruebas listas.`;

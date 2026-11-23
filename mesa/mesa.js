@@ -542,7 +542,7 @@
     dias.sort((a, b) => a - b);
     return `<select ${attrs} data-fmt="Día" data-rejilla-t="Día de cada mes" data-rejilla-n="Del 1 al 28: así existe en todos los meses.">${vacio ? `<option value=""${v ? '' : ' selected'}>Sin día</option>` : ''}${dias.map(d => `<option value="${d}"${d === v ? ' selected' : ''}>Día ${d}</option>`).join('')}<option value="otro" data-accion="rejilla">Otro…</option></select>`;
   }
-  const curCd = () => cdOf(S && S.cycleDay);
+  const curCd = (B = S) => cdOf(B && B.cycleDay);   // B: a board (the open one if not given; feed continuo, pieza 1)
   const cycleOfDay = (day, cd) => !day ? null : +day.slice(8, 10) >= cdOf(cd) ? day.slice(0, 7) : prevMonth(day.slice(0, 7));
   const cycleOf = (iso, cd) => cycleOfDay(localDay(iso), cd);
   const cycleStart = (m, cd) => `${m}-${String(cdOf(cd)).padStart(2, '0')}`;
@@ -657,22 +657,23 @@
     save(); renderFeed(); openDetail(slotId, cur.idx);
   }
   // A carousel keeps the format it had when it got its first photo, so reordering never flips it silently.
-  function normalize() {
-    if (!S || MOVIL) return;   // the iPhone writes only what Kevin touches (D-267): no default format (its sizes may not be here), no tray dedup
-    trayUnica(S);
-    S.slots.forEach(s => {
+  // B: the board (the open one if not given); fuera: an array that gets the photos to delete instead of deleting them (armarTablero)
+  function normalize(B = S, fuera = null) {
+    if (!B || MOVIL) return;   // the iPhone writes only what Kevin touches (D-267): no default format (its sizes may not be here), no tray dedup
+    trayUnica(B, fuera);
+    B.slots.forEach(s => {
       if (!isCarousel(s.type)) { delete s.fmt; return; }
       if (!s.photos.length) delete s.fmt;
-      else if (!s.fmt) s.fmt = baseCrop(s.photos[0], S).fmt;
+      else if (!s.fmt) s.fmt = baseCrop(s.photos[0], B).fmt;
     });
-    podarLibre(S);
+    podarLibre(B);
   }
   // a photo once in the tray (D-041): the same id or the same name and size (D-022) twice, the first stays and the other
   // goes (deleted only if nothing uses it, nor a step of ⌘Z)
-  function trayUnica(B) {
-    const ya = new Set(), fuera = [];
+  function trayUnica(B, aparte = null) {
+    const ya = new Set(), fuera = aparte || [];
     B.tray = (B.tray || []).filter(f => { if (ya.has(f)) return false; ya.add(f); const k = fileKey(f); if (!k || ajena(f, B.client)) return true; if (ya.has(k)) { fuera.push(f); return false; } ya.add(k); return true; });   // another client's: on its way to its own tray (guardar)
-    fuera.forEach(f => { deleteIfUnused(f).catch(() => null); });
+    if (!aparte) fuera.forEach(f => { deleteIfUnused(f).catch(() => null); });
   }
   // the free editor's compositions whose image is gone from the board (cover changed, deleted from the tray, replaced):
   // dropped, and the photos behind them go back to the tray (one they were the only use of)
@@ -711,20 +712,21 @@
     const m = nm.match(RX_N); return m ? { c: false, p: m[1], n: +m[3] } : null;
   }
   // group key 'YYYY-MM…' (the cycle's month): a week («YYYY-MM#W») or the collabs of one partner in a cycle («YYYY-MM@PREFIJO»)
-  const grpOf = (k, iso) => { const d = localDay(iso); return !d ? null : k.c ? cycleOfDay(d, curCd()) + '@' + k.p.replace(/\s+/g, ' ').trim().toUpperCase() : weekOf(d, curCd()); };
+  const grpOf = (k, iso, cd = curCd()) => { const d = localDay(iso); return !d ? null : k.c ? cycleOfDay(d, cd) + '@' + k.p.replace(/\s+/g, ' ').trim().toUpperCase() : weekOf(d, cd); };
   // Names from dates: only groups touched by a pending date change (old or new date) — or holding a rename whose
   // cause is already in Notion (s.hold) — get renumbered; every other post keeps its Notion name. A group of a month
   // outside the board is never renumbered (the board doesn't hold all its posts): its posts keep their current name.
-  function kinds() { const K = {}; S.slots.forEach(s => { const k = nameKind(s); if (k) K[s.id] = k; }); return K; }
-  function affected(K, holds) {
-    const aff = new Set();
-    S.slots.forEach(s => { const k = K[s.id]; if (!k) return; if (dateChg(s)) { aff.add(grpOf(k, s.notionDate)); aff.add(grpOf(k, s.date)); } if (holds && s.hold) aff.add(grpOf(k, s.date)); });
+  // B: the board (the open one if not given), idx: its links to other boards (IDX of the open one) — a board not open is named the same way
+  function kinds(B = S) { const K = {}; B.slots.forEach(s => { const k = nameKind(s); if (k) K[s.id] = k; }); return K; }
+  function affected(K, holds, B = S) {
+    const aff = new Set(), cd = curCd(B);
+    B.slots.forEach(s => { const k = K[s.id]; if (!k) return; if (dateChg(s)) { aff.add(grpOf(k, s.notionDate, cd)); aff.add(grpOf(k, s.date, cd)); } if (holds && s.hold) aff.add(grpOf(k, s.date, cd)); });
     return aff;
   }
-  function computeNames() {
-    const out = {}, K = kinds(), aff = affected(K, true), G = {}, bm = boardMonths();
-    S.slots.forEach(s => {
-      const g = K[s.id] && grpOf(K[s.id], s.date), inB = g && bm.includes(g.slice(0, 7)) && !(IDX[s.id] || []).some(x => x.client !== S.client && x.cd !== curCd());   // a collab with a client of other cycles keeps its name
+  function computeNames(B = S, idx = IDX) {
+    const out = {}, K = kinds(B), aff = affected(K, true, B), G = {}, bm = boardMonths(B), cd = curCd(B);
+    B.slots.forEach(s => {
+      const g = K[s.id] && grpOf(K[s.id], s.date, cd), inB = g && bm.includes(g.slice(0, 7)) && !(idx[s.id] || []).some(x => x.client !== B.client && x.cd !== cd);   // a collab with a client of other cycles keeps its name
       out[s.id] = g && !inB ? s.name : s.notionName ?? s.name;
       if (inB && aff.has(g)) (G[g] = G[g] || []).push(s);
     });
@@ -732,7 +734,7 @@
       const k = K[s.id];
       out[s.id] = k.c ? `${k.p}${cap(MONTHS[+g.slice(5, 7) - 1])}${k.sep}${i + 1}` : `${k.p}${g.split('#')[1]}.${i + 1}`;
     });
-    S.slots.forEach(s => { if (typeChg(s)) out[s.id] = reelName(out[s.id], isReel(s.type)); });
+    B.slots.forEach(s => { if (typeChg(s)) out[s.id] = reelName(out[s.id], isReel(s.type)); });
     return out;
   }
   // a type changed here: «X Reel 2.3» ↔ «X 2.3» (the Notion rule «CLIENTE [Reel] Semana.Nº»; a collab keeps its name)
@@ -742,13 +744,13 @@
     const p = reel ? (m[1].trim() ? m[1].replace(/\s*$/, ' ') : '') + 'Reel ' : m[1].replace(/\s*reel\s*$/i, ' ').replace(/^\s+$/, '');
     return `${p}${m[2]}.${m[3]}`;
   }
-  function renumber() { const nm = computeNames(); S.slots.forEach(s => { s.name = nm[s.id]; if (s.hold && !nameChg(s)) delete s.hold; }); }
+  function renumber(B = S, idx = IDX) { const nm = computeNames(B, idx); B.slots.forEach(s => { s.name = nm[s.id]; if (s.hold && !nameChg(s)) delete s.hold; }); }
   // a pending rename that no pending date explains any more (its cause is already in Notion) must not get lost
   // (skip: ids of the posts whose change Notion overrode in init — their own renames go)
-  function holdOrphans(skip) { const K = kinds(), aff = affected(K, false); S.slots.forEach(s => { if (!(skip && skip.has(s.id)) && nameChg(s) && K[s.id] && !aff.has(grpOf(K[s.id], s.date))) s.hold = true; }); }
-  const sortSlots = () => S.slots.sort((a, b) => ts(b.date) - ts(a.date));
-  const boardMonths = () => S ? monthsOf(S.month, S.span) : [];                 // the board's cycles ('YYYY-MM' of their start)
-  const inBoard = day => boardMonths().includes(cycleOfDay(day, curCd()));
+  function holdOrphans(skip, B = S) { const K = kinds(B), aff = affected(K, false, B), cd = curCd(B); B.slots.forEach(s => { if (!(skip && skip.has(s.id)) && nameChg(s) && K[s.id] && !aff.has(grpOf(K[s.id], s.date, cd))) s.hold = true; }); }
+  const sortSlots = (B = S) => B.slots.sort((a, b) => ts(b.date) - ts(a.date));
+  const boardMonths = (B = S) => B ? monthsOf(B.month, B.span) : [];                 // the board's cycles ('YYYY-MM' of their start)
+  const inBoard = (day, B = S) => boardMonths(B).includes(cycleOfDay(day, curCd(B)));
   const outToast = () => toast(`Esa fecha cae fuera de la mesa (${rangeLabel(S.month, S.span, false, curCd()).toLowerCase()}).`);
   // back: return to the Notion date (allowed even outside the board's months); src: the post-view input being typed in
   // A published post doesn't move (back to Notion's date still works); a scheduled one moves and says Zernio keeps the old
@@ -1686,9 +1688,9 @@
   // unpinned it goes back to its place by date. Only how the feed looks (mesa, vista cliente, the feed image): dates,
   // names and what goes to Notion don't change. Kept per board (S.pins: slot ids, newest first).
   const MAX_PINS = 3;
-  const pinsOf = () => (S && S.pins ? S.pins.filter(id => S.slots.some(x => x.id === id && vivo(x))) : []);   // a cancelled post is not in the feed
-  const isPinned = s => !!(s && S && S.pins && S.pins.includes(s.id));
-  function feedOrder() { const p = pinsOf(); return [...p.map(id => S.slots.find(x => x.id === id)), ...S.slots.filter(x => !p.includes(x.id) && vivo(x))]; }
+  const pinsOf = (B = S) => (B && B.pins ? B.pins.filter(id => B.slots.some(x => x.id === id && vivo(x))) : []);   // a cancelled post is not in the feed; B: the board (the open one if not given)
+  const isPinned = (s, B = S) => !!(s && B && B.pins && B.pins.includes(s.id));
+  function feedOrder(B = S) { const p = pinsOf(B); return [...p.map(id => B.slots.find(x => x.id === id)), ...B.slots.filter(x => !p.includes(x.id) && vivo(x))]; }
   function setPin(slotId, on) {
     const s = S && S.slots.find(x => x.id === slotId); if (!s) return false;
     const p = pinsOf().filter(id => id !== slotId);
@@ -1809,15 +1811,15 @@
   // count (S.fillers); old boards have none. Each may hold a preview of next month's first post (S.previews[k], null: none;
   // D-049): a photo from the tray, inside a black border, with its label.
   const MAX_FILLERS = 2;
-  const fillersOf = () => (S && S.fillers > 0 ? Math.min(MAX_FILLERS, Math.floor(S.fillers)) : 0);
+  const fillersOf = (B = S) => (B && B.fillers > 0 ? Math.min(MAX_FILLERS, Math.floor(B.fillers)) : 0);   // B: the board (the open one if not given)
   function setFillers(n) {
     if (!S) return false;
     if (n > MAX_FILLERS) { toast(`Como mucho ${MAX_FILLERS} huecos: con ellos ya cuadran las filas de 3.`, { ms: 6000 }); return false; }
     if (n > 0) S.fillers = n; else delete S.fillers;
     save(); renderFeed(); return true;
   }
-  const previewAt = k => (S && k < fillersOf() && (S.previews || [])[k]) || null;
-  function setPreviews(c) { while (c.length && !c[c.length - 1]) c.pop(); if (c.length) S.previews = c; else delete S.previews; }
+  const previewAt = (k, B = S) => (B && k < fillersOf(B) && (B.previews || [])[k]) || null;
+  function setPreviews(c, B = S) { while (c.length && !c[c.length - 1]) c.pop(); if (c.length) B.previews = c; else delete B.previews; }
   function putPreview(k, f) {
     const c = (S.previews || []).slice(), old = c[k];
     while (c.length < k) c.push(null);
@@ -2390,13 +2392,14 @@
   // From the mesa's own board of that month when it exists; otherwise the posts Claude loaded from Notion.
   // S.prev = the previous month as editable items: {id, name, type, date, src:'mesa'|'notion', base (photo of the
   // previous-month board), own (edited here), photos:[fileId] when own, alt (id whose Notion photo it shows), hidden}.
-  const pastPosts = () => S.past.filter(p => !S.slots.some(s => s.id === p.id));   // a post of this board shows once
-  function buildPrev(oldPrev) {
+  const pastPosts = (B = S) => B.past.filter(p => !B.slots.some(s => s.id === p.id));   // a post of this board shows once
+  // B: the board it is built for and pb its previous month's board (the open ones if not given; feed continuo, pieza 1)
+  function buildPrev(oldPrev, B = S, pb = PB) {
     const oldBy = Object.fromEntries((oldPrev || []).map(p => [p.id, p]));
-    const src = PB && PB.slots.length
-      ? PB.slots.map(s => ({ id: s.id, name: s.name, type: s.type, date: s.date, src: 'mesa', base: publishList(s)[0] || null, fmt: s.fmt || null }))
-      : pastPosts().map(p => ({ id: p.id, name: p.name, type: p.type, date: p.date, src: 'notion', base: null }));
-    S.prev = src.map(p => {
+    const src = pb && pb.slots.length
+      ? pb.slots.map(s => ({ id: s.id, name: s.name, type: s.type, date: s.date, src: 'mesa', base: publishList(s)[0] || null, fmt: s.fmt || null }))
+      : pastPosts(B).map(p => ({ id: p.id, name: p.name, type: p.type, date: p.date, src: 'notion', base: null }));
+    B.prev = src.map(p => {
       const o = oldBy[p.id] || {};
       const it = { ...p, own: !!o.own, photos: o.own ? (o.photos || []).filter(f => M.files[f]) : [], alt: o.own ? (o.alt || null) : null, hidden: !!o.hidden };
       const fmt = (o.own && o.fmt) || p.fmt; if (fmt) it.fmt = fmt; else delete it.fmt;
@@ -3149,10 +3152,10 @@ ${TK_FUENTES}
     const on = nav.querySelector('.tab.on'); if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 
-  function counts() {
-    const L = S.slots.filter(vivo), n = L.length, filled = L.filter(s => s.photos.length).length, notes = L.filter(s => noteOf(s)).length;   // a cancelled post doesn't count
-    if (sinNotion()) return { n, filled, notes, chg: 0, dates: 0, names: 0, cambios: 0 };   // nothing to upload (D-184)
-    return { n, filled, notes, chg: L.map(slotStatus).filter(x => x === 'chg').length, dates: L.filter(dateChg).length, names: L.filter(nameChg).length, cambios: L.filter(s => slotStatus(s) === 'chg' || dateChg(s)).length };   // cambios: each one once, as the list of D-126
+  function counts(B = S) {
+    const L = B.slots.filter(vivo), n = L.length, filled = L.filter(s => s.photos.length).length, notes = L.filter(s => noteOf(s)).length;   // a cancelled post doesn't count
+    if (sinNotion(B)) return { n, filled, notes, chg: 0, dates: 0, names: 0, cambios: 0 };   // nothing to upload (D-184)
+    return { n, filled, notes, chg: L.map(s => slotStatus(s, B)).filter(x => x === 'chg').length, dates: L.filter(dateChg).length, names: L.filter(nameChg).length, cambios: L.filter(s => slotStatus(s, B) === 'chg' || dateChg(s)).length };   // cambios: each one once, as the list of D-126
   }
   function renderBar() {
     if (!shellReady()) return;
@@ -3224,25 +3227,26 @@ ${TK_FUENTES}
   }
 
   function nextMonthName(cd) { const m = cycleOf(new Date().toISOString(), cd); let [y, mo] = m.split('-').map(Number); mo++; if (mo > 12) { mo = 1; y++; } return MONTHS[mo - 1]; }   // the next cycle to load
-  function photoParts(s) {                    // what changed of its photos and of its contexto since the upload (null: never uploaded)
+  // B (in these and in the post's state below): its board, the open one if not given (feed continuo, pieza 1); its crops decide
+  function photoParts(s, B = S) {                    // what changed of its photos and of its contexto since the upload (null: never uploaded)
     const u = s.uploaded; if (!u) return null;
     const asRendered = publishList(s).length && publishList(s).every(f => (M.files[f] || {}).design);   // a design's images go up as rendered: a new render is new files
-    return { foto: !(same(u.fileIds || [], publishList(s)) && (u.crop == null || asRendered || u.crop === cropSig(s) || (isReel(s.type) && u.crop === cropSig34(s)))), contexto: (u.note || '') !== noteOf(s) };
+    return { foto: !(same(u.fileIds || [], publishList(s)) && (u.crop == null || asRendered || u.crop === cropSig(s, B) || (isReel(s.type) && u.crop === cropSig34(s, B)))), contexto: (u.note || '') !== noteOf(s) };
   }
-  function photoStatus(s) { const p = photoParts(s); return !p ? null : p.foto || p.contexto ? 'chg' : 'ok'; }   // its photos and contexto as uploaded (what plan() reports)
+  function photoStatus(s, B = S) { const p = photoParts(s, B); return !p ? null : p.foto || p.contexto ? 'chg' : 'ok'; }   // its photos and contexto as uploaded (what plan() reports)
   // the post as a whole: «cambiada» when its photo, crop or contexto — or its uploaded caption — changed after the upload;
   // «en Notion» only when its photos and contexto are (an uploaded caption alone never makes it so)
-  function slotStatus(s) { const a = photoStatus(s), b = capStatus(s); return a === 'chg' || b === 'chg' ? 'chg' : a; }
+  function slotStatus(s, B = S) { const a = photoStatus(s, B), b = capStatus(s); return a === 'chg' || b === 'chg' ? 'chg' : a; }
   // what changed since the last upload, in this order (D-081): the cell's one mark of changes says it on hover
-  const CAMBIOS = [['caption', s => capStatus(s) === 'chg'], ['foto o encuadre', s => !!(photoParts(s) || {}).foto], ['fecha u hora', s => dateChg(s)],
-    ['contexto', s => !!(photoParts(s) || {}).contexto], ['nombre o tipo', s => nameChg(s) || typeChg(s)]];
-  const cambiosDe = s => CAMBIOS.filter(([, f]) => f(s)).map(([l]) => l);
+  const CAMBIOS = [['caption', s => capStatus(s) === 'chg'], ['foto o encuadre', (s, B) => !!(photoParts(s, B) || {}).foto], ['fecha u hora', s => dateChg(s)],
+    ['contexto', (s, B) => !!(photoParts(s, B) || {}).contexto], ['nombre o tipo', s => nameChg(s) || typeChg(s)]];
+  const cambiosDe = (s, B = S) => CAMBIOS.filter(([, f]) => f(s, B)).map(([l]) => l);
   // what a Programada keeps of itself (D-184): its photos with their crops and its caption (its date is estado.fecha, D-120);
   // marked Programado again, it keeps them again. For a client without Notion, what changed since is its mark of changes
-  const progFoto = s => JSON.stringify([publishList(s), cropSig(s)]);
+  const progFoto = (s, B = S) => JSON.stringify([publishList(s), cropSig(s, B)]);
   const progSig = s => ({ foto: progFoto(s), cap: capFinal(s) });
-  const CAMBIOS_PROG = [['caption', (s, f) => (f.cap ?? null) !== capFinal(s)], ['foto o encuadre', (s, f) => f.foto !== progFoto(s)], ['fecha u hora', s => !programadaAlDia(s)]];
-  const cambiosProg = s => { const e = s.estado; if (!e || e.v !== 'programado' || !e.firma || estadoDe(s) !== 'programado') return []; return CAMBIOS_PROG.filter(([, f]) => f(s, e.firma)).map(([l]) => l); };
+  const CAMBIOS_PROG = [['caption', (s, f) => (f.cap ?? null) !== capFinal(s)], ['foto o encuadre', (s, f, B) => f.foto !== progFoto(s, B)], ['fecha u hora', s => !programadaAlDia(s)]];
+  const cambiosProg = (s, B = S) => { const e = s.estado; if (!e || e.v !== 'programado' || !e.firma || estadoDe(s, B) !== 'programado') return []; return CAMBIOS_PROG.filter(([, f]) => f(s, e.firma, B)).map(([l]) => l); };
   const listaY = a => a.length > 1 ? a.slice(0, -1).join(', ') + ' y ' + a[a.length - 1] : a[0] || '';
   // the post's state (3.32), one at a time and the same everywhere. The first three follow from its data: «Por empezar»
   // (no photo; the contexto doesn't count since 3.70, D-086), «Captions» (none chosen yet), «Por aprobar» (one chosen, the
@@ -3263,10 +3267,10 @@ ${TK_FUENTES}
   // a chosen caption that is empty doesn't count: the post stays in Captions (D-192)
   const capVacio = s => capFinal(s) === '';
   const estadoAuto = s => !s.photos.length ? 'empezar' : !capFinal(s) ? 'captions' : 'aprobar';
-  const aprobSig = s => JSON.stringify([cropSig(s), noteOf(s), capFinal(s)]);
-  function estadoDe(s) {
+  const aprobSig = (s, B = S) => JSON.stringify([cropSig(s, B), noteOf(s), capFinal(s)]);
+  function estadoDe(s, B = S) {
     const v = s.estado && s.estado.v, a = estadoAuto(s);
-    return !v ? a : RETRASO.includes(v) ? (ORD_AUTO[v] < ORD_AUTO[a] ? v : a) : FIRMADO.includes(v) ? (a === 'aprobar' && s.estado.sig === aprobSig(s) ? v : a) : v;
+    return !v ? a : RETRASO.includes(v) ? (ORD_AUTO[v] < ORD_AUTO[a] ? v : a) : FIRMADO.includes(v) ? (a === 'aprobar' && s.estado.sig === aprobSig(s, B) ? v : a) : v;
   }
   const retrasada = s => !!(s && s.estado && RETRASO.includes(s.estado.v));                       // put back by hand
   const retenida = s => retrasada(s) && ORD_AUTO[s.estado.v] <= ORD_AUTO[estadoAuto(s)];          // ... and that is what holds it now
@@ -3289,7 +3293,7 @@ ${TK_FUENTES}
     if (!B) return null;
     const ms = mesesDe(B); if (!ms.includes(m)) m = ms[0];
     const vivas = (B.slots || []).filter(s => vivo(s) && (!m || mesDe(s, B) === m));
-    return vivas.length ? PASOS[Math.min(...vivas.map(s => PASO_DE[estadoDe(s)] ?? 0))][0] : 'empezar';
+    return vivas.length ? PASOS[Math.min(...vivas.map(s => PASO_DE[estadoDe(s, B)] ?? 0))][0] : 'empezar';
   }
   const motivoDe = s => s && s.estado && s.estado.v === 'cancelado' ? String(s.estado.motivo || '').trim() : '';   // why it was cancelled (optional)
   // v: one of MANUAL, or null (back to the one its data gives). Returns why it can't be, or ''. A cancelled post cancelled
@@ -3329,8 +3333,8 @@ ${TK_FUENTES}
   const programadaAlDia = s => !!(s && s.estado && s.estado.v === 'programado') && (!('fecha' in s.estado) || sameDate(s.estado.fecha, s.date));
   // it passes once: one marked Programada once its moment had passed, or brought back to Programado after passing (by hand or
   // with ⌘Z), keeps estado.tarde and is a vencida
-  const publicaSola = (s, t) => estadoDe(s) === 'programado' && programadaAlDia(s) && !s.estado.tarde && yaPaso(s, t);
-  const vencida = (s, t) => { const e = estadoDe(s); return e !== 'cancelado' && e !== 'publicado' && yaPaso(s, t) && !publicaSola(s, t); };
+  const publicaSola = (s, t, B = S) => estadoDe(s, B) === 'programado' && programadaAlDia(s) && !s.estado.tarde && yaPaso(s, t);
+  const vencida = (s, t, B = S) => { const e = estadoDe(s, B); return e !== 'cancelado' && e !== 'publicado' && yaPaso(s, t) && !publicaSola(s, t, B); };
   const estadoVisto = s => { const v = s.estado && s.estado.v; return v && (MANUAL.includes(v) || RETRASO.includes(v)) ? v : estadoAuto(s); };   // another board's (its crops are not here)
   // posts of the client's other boards changed from here: 'key|id' -> {key, id, estado}; every step of ⌘Z keeps them
   // (editState: fuera), so going back writes them back. A new history (another board, a reload) starts without any.
@@ -3342,11 +3346,11 @@ ${TK_FUENTES}
     return all.filter(b => b && b.key !== B.key && boardClient(b) === B.client && b.month && String(b.month) < String(B.month))
       .sort((a, b) => String(b.month).localeCompare(String(a.month)));
   }
-  async function deFuera(B, que) {     // [{b, s}] of the earlier boards that que(s) picks; a post the open board has is its own
+  async function deFuera(B, que) {     // [{b, s}] of the earlier boards that que(s, b) picks; a post the open board has is its own
     const visto = new Set(B.slots.map(s => s.id)), out = [];
     for (const b of await anteriores(B)) for (const s0 of b.slots || []) {
       if (visto.has(s0.id)) continue; visto.add(s0.id);
-      const s = conFuera(b.key, s0); if (que(s)) out.push({ b, s });
+      const s = conFuera(b.key, s0); if (que(s, b)) out.push({ b, s });
     }
     return out;
   }
@@ -3401,7 +3405,7 @@ ${TK_FUENTES}
     if (quieta() || pubBusy) return 0;
     pubBusy = true;
     try {
-      const B = S, t = ahora(), fuera = await deFuera(B, s => publicaSola(s, t));
+      const B = S, t = ahora(), fuera = await deFuera(B, (s, b) => publicaSola(s, t, b));
       if (B !== S || quieta()) return 0;
       const mias = S.slots.filter(s => publicaSola(s, t));
       if (!mias.length && !fuera.length) return 0;
@@ -3421,7 +3425,7 @@ ${TK_FUENTES}
   let vencFuera = [], vencDe = null;
   async function vencRefrescar() {
     const B = S; if (!B) { vencFuera = []; vencDe = null; return []; }
-    const t = ahora(), l = await deFuera(B, s => vencida(s, t));
+    const t = ahora(), l = await deFuera(B, (s, b) => vencida(s, t, b));
     if (B !== S) return [];
     vencFuera = l.map(({ b, s }) => ({ key: b.key, s: JSON.parse(JSON.stringify(s)), cd: cdOf(b.cycleDay), month: b.month, span: b.span || 1 })); vencDe = B.key;
     calRender();
@@ -3478,16 +3482,16 @@ ${TK_FUENTES}
   const estIco = (e, at = '') => SVG_EST[e] ? `<i class="eico e-${e}"${at}>${SVG_EST[e]}</i>` : `<i class="edot e-${e}"${at}></i>`;
   // the mark of changes since the last upload: a yellow ring, a blue disc and a red dot, the size of the old date dot
   const CAMBIO_SVG = '<svg viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="5"/><circle cx="5" cy="5" r="3.4"/><circle cx="5" cy="5" r="1.45"/></svg>';
-  function cambiosIco(s, cls = 'mk') {
-    const sn = sinNotion(), c = sn ? cambiosProg(s) : cambiosDe(s); if (!c.length) return '';
+  function cambiosIco(s, cls = 'mk', B = S) {
+    const sn = sinNotion(B), c = sn ? cambiosProg(s, B) : cambiosDe(s, B); if (!c.length) return '';
     const t = (sn ? 'Cambió después de programarla: ' : 'Cambió desde la última subida: ') + listaY(c);
     return `<i class="${cls} mk-cambios"${cls === 'mk' ? ` title="" data-tip="${esc((sn ? 'Cambió después de programarla: ' : 'Cambió: ') + listaY(c))}"` : ` title="${esc(t)}"`} aria-label="${esc(t)}">${CAMBIO_SVG}</i>`;   // the grid's own tip; elsewhere, the browser's
   }
   // the cell's marks (D-081), in one row before its date: Programado, Publicado, No aprobado and the changes
   const MARCA_GRID = { programado: 'Programado', publicado: 'Publicado', noaprobado: 'No aprobado' };
-  function marcasHTML(s) {
-    const e = estadoDe(s), m = MARCA_GRID[e] ? estIco(e, ` title="" data-tip="${MARCA_GRID[e]}" aria-label="${MARCA_GRID[e]}"`).replace(/class="e(ico|dot) /, 'class="mk e$1 ') : '';
-    const c = cambiosIco(s);
+  function marcasHTML(s, B = S) {
+    const e = estadoDe(s, B), m = MARCA_GRID[e] ? estIco(e, ` title="" data-tip="${MARCA_GRID[e]}" aria-label="${MARCA_GRID[e]}"`).replace(/class="e(ico|dot) /, 'class="mk e$1 ') : '';
+    const c = cambiosIco(s, 'mk', B);
     return m || c ? `<span class="mks">${m}${c}</span>` : '';
   }
   function pickEstado(id, v) {               // from the post view
@@ -3533,14 +3537,14 @@ ${TK_FUENTES}
     if (memoEdit === s.id) return `<span class="pit edit" data-memo="${esc(s.id)}" title="">${POSTIT}<textarea class="pitin" data-slot="${esc(s.id)}" rows="1" aria-label="Nota (solo para ti, no se sube)">${esc(s.memo || '')}</textarea></span>`;
     const m = memoOf(s); return m ? `<span class="pit" data-memo="${esc(s.id)}" title="" aria-label="Nota: ${esc(m)} (doble clic para editarla; arrástrala a otra publicación para moverla)">${POSTIT}<span class="pt">${esc(m)}</span></span>` : '';
   };
-  function cellHTML(s, pill) {
-    const lab = shortLabel(s.name, s.type), fd = esc(fmtDate(s.date)), when = marcasHTML(s) + (vencida(s) ? `<span class="vdate" title="Vencida: su fecha ya pasó">${fd}</span>` : fd);   // a vencida's date in a red pill (D-120)
-    const icon = typeIcon(s.type, s.photos.length), pin = isPinned(s);
+  function cellHTML(s, pill, B = S) {   // B: the post's board, the open one if not given (feed continuo, pieza 1)
+    const lab = shortLabel(s.name, s.type), fd = esc(fmtDate(s.date)), when = marcasHTML(s, B) + (vencida(s, undefined, B) ? `<span class="vdate" title="Vencida: su fecha ya pasó">${fd}</span>` : fd);   // a vencida's date in a red pill (D-120)
+    const icon = typeIcon(s.type, s.photos.length), pin = isPinned(s, B);
     if (!s.photos.length) {
       return `<div class="cell empty" data-slot="${esc(s.id)}" title="${esc(s.name)}">${pin ? `<span class="ico pinned" title="Fijada">${IC.pin}</span>` : ''}${badgesHTML(s, pill)}${M.web && M.web.marca ? M.web.marca(s) : ''}<div class="ph"><span class="pico">${icon || ICON.photo}</span><b>${esc(lab)}</b><span>${when}</span></div>${postit(s)}</div>`;
     }
     const f = M.files[s.photos[0]] || {};
-    const imgStyle = f.w ? rectStyle(f, gridRect(s.photos[0], s)) : '';
+    const imgStyle = f.w ? rectStyle(f, gridRect(s.photos[0], s, B)) : '';
     const n = s.photos.length;
     const cnt = isCarousel(s.type) && (n > 1 || s.type === 'Carrusel') ? `<span class="cnt" title="${n} foto${n === 1 ? '' : 's'}">${n}<span class="cw"> foto${n === 1 ? '' : 's'}</span></span>` : '';
     return `<div class="cell full" data-slot="${esc(s.id)}" title="${esc(s.name)}"><img class="crop" src="${f.thumbUrl || ''}" style="${imgStyle}" alt="">${pin ? `<span class="ico" title="Fijada">${IC.pin}</span>` : icon ? `<span class="ico">${icon}</span>` : ''}${badgesHTML(s, pill)}${M.web && M.web.marca ? M.web.marca(s) : ''}${cnt}<div class="lab">${postit(s)}<b>${esc(lab)}</b>${when}</div></div>`;
@@ -8938,7 +8942,8 @@ ${TK_FUENTES}
     nombreDistinto, nombreAviso,   // the carousel's name against its cover (D-129, mesa ≥ 4.00)
     elegirYa, ELIGE_MS,   // a question «1 / 2» answered: the chosen button in the accent, then it closes (D-194, mesa ≥ 4.20)
     hsDe, hNorm, adelantos, hProblemas, usoHistoria, askModoHistoria, tipoPost, hFecha, ts, isoDe, sameDate, inBoard, pick: () => sel, pickOff: () => { sel = null; render(); },   // for the stories (historias.js, mesa ≥ 3.53)
-    estadoWeb, capFinal, cropSig, mesOtros   // the client's decisions (D-244); what the client's web gets: the chosen caption, the crops' signature, no other client (web.js, D-241, mesa ≥ 4.28)
+    estadoWeb, capFinal, cropSig, mesOtros,   // the client's decisions (D-244); what the client's web gets: the chosen caption, the crops' signature, no other client (web.js, D-241, mesa ≥ 4.28)
+    cellHTML   // a post's cell drawn with its own board (feed continuo, pieza 1): cellHTML(s, pill, B)
   };
   M._test = {
     entBorrarTodo: async () => { if (NUBE.activa) throw new Error('con la nube encendida no se vacía nada (D-256)'); entGen++; await tx('entregas', 'readwrite', st => st.clear()); ENT = new Map(); entAvisar(false); },   // D-290

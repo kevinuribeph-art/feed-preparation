@@ -843,6 +843,18 @@
     return out;
   }
   const enCarpetas = l => { const r = new Set(); (l || []).forEach(c => (c.files || []).forEach(f => r.add(f))); return r; };
+  // The open client's tray and folders in memory (feed continuo, pieza 2): ONE object, CLI = {c, tray, carpetas}, whatever month is
+  // open. B.tray and B.carpetas of the open board are accessors to it (atarBandeja), in their place among its fields: JSON.stringify,
+  // {...B}, boardBody and the destructuring of guardar see the same as before, and every writer of the tray (guardar, entrarFoto,
+  // pushShared, takeFromTray, the folders) writes this one object, never a copy of a board. Made by M.init from what it read; a
+  // board copied in memory (MEM) has no tray. The accessor keeps the object it was tied to (a board of another client never sees this one).
+  let CLI = null;
+  function atarBandeja(B, o = CLI) {
+    if (!B || !o) return B;
+    for (const k of ['tray', 'carpetas']) Object.defineProperty(B, k, { get: () => o[k], set: v => { o[k] = v; }, enumerable: true, configurable: true });
+    return B;
+  }
+  const conBandeja = B => !!B && Object.prototype.hasOwnProperty.call(B, 'tray');   // a board that holds its client's tray (not a copy)
   function subCarpetas(l, id) {        // a folder and everything under it
     const r = new Set([id]);
     for (let mas = true; mas;) { mas = false; l.forEach(c => { if (c.parent && r.has(c.parent) && !r.has(c.id)) { r.add(c.id); mas = true; } }); }
@@ -866,7 +878,7 @@
     };
     // while a month opens, the list of boards it read gets this one as written instead of being read again (A4)
     const p0 = tablerosVivo ? tablerosP : null, parchea = v => { if (p0 && tablerosVivo) tablerosP = (tablerosP || p0).then(l => (l.some(x => x.key === B.key) ? l.map(x => x.key === B.key ? b : x) : [...l, b].sort((x, y) => (x.key < y.key ? -1 : x.key > y.key ? 1 : 0)))); return v; };
-    if (!c || MOVIL) return idbPut('boards', B.key, b).then(parchea).then(yaEscrito);   // the iPhone never writes a tray (D-267)
+    if (!c || MOVIL || !conBandeja(B)) return idbPut('boards', B.key, b).then(parchea).then(yaEscrito);   // the iPhone never writes a tray (D-267); a copy has none (pieza 2)
     const tray = (B.tray || []).filter(f => { if (!ajena(f, c)) return true; (fuera[deDe(f)] = fuera[deDe(f)] || []).push(f); return false; });
     return tx(['boards', 'bandejas'], 'readwrite', st => {
       st.boards.put(b, B.key);
@@ -6906,7 +6918,8 @@ ${TK_FUENTES}
     // the board as it opens (armarTablero, pure: feed continuo, pieza 1), from what is read here; then what opening it does
     const A = await armarTablero(saved, { cfg, key, client, month, span, cd, mirar: MIRA, bandeja, recCarp, todos: (await idbAll('boards')) || [], pend: pendienteLS(), refsBandejas: await trayRefs(), cargar: loadThumbs });
     const { faltan: missing, retyped, won, deadRenders } = A;
-    S = A.S; PB = A.PB; IDX = A.IDX;
+    CLI = { c: client, tray: A.S.tray, carpetas: A.S.carpetas };   // the client's tray, one object for all its months (pieza 2)
+    S = atarBandeja(A.S); PB = A.PB; IDX = A.IDX;
     if (A.aDel.length) delList(l => [...new Set([...l, ...A.aDel])]);   // images the editor drew that were in the tray (D-101): deleted once nothing uses them
     A.borrar.forEach(id => { deleteIfUnused(id).catch(() => null); });   // a photo twice in the tray: the copy left out (D-041)
     if (PB && !MIRA) await loadThumbs([...new Set(PB.slots.flatMap(s => publishList(s)))]);

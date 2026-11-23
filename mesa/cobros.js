@@ -7,7 +7,7 @@
 (function cobrosBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
-  const VERSION = '1.3';   // 1.3: «Tus pagos» of the vista cliente with its stretch — «Pago semestral · 2700 €», «Cubre may – oct 2026 · el siguiente, el 1 nov» and each invoice «Mayo – octubre» (D-297). 1.2: «Acuerdo» instead of «Cuota mensual» — how often it pays, from when, for how long, whether it renews and when to renegotiate, with its line; «+ Factura» of its stretch; in «Tus pagos», «al mes» only if it pays each month and each invoice by its first month, as the client's web gets them until lot D (D-288). 1.1: a PDF that hasn't come down from the server yet (lot 4 of the traspaso) says so (D-259)
+  const VERSION = '1.4';   // 1.4: the agreement's fields with options (D-304); the list of agreements, each with its invoices, «Nuevo acuerdo», «Termina en» and the packages' catalog (D-305 to D-307); «Tus pagos» from when to when and what it includes (D-308); «Se factura» (D-309). 1.3: «Tus pagos» of the vista cliente with its stretch — «Pago semestral · 2700 €», «Cubre may – oct 2026 · el siguiente, el 1 nov» and each invoice «Mayo – octubre» (D-297). 1.2: «Acuerdo» instead of «Cuota mensual» — how often it pays, from when, for how long, whether it renews and when to renegotiate, with its line; «+ Factura» of its stretch; in «Tus pagos», «al mes» only if it pays each month and each invoice by its first month, as the client's web gets them until lot D (D-288). 1.1: a PDF that hasn't come down from the server yet (lot 4 of the traspaso) says so (D-259)
   const I = () => M._in, C = () => M._in.cob, P = () => (M.personal && M.personal._p) || null;
   if (M.cobrosUI && M.cobrosUI._off) { try { M.cobrosUI._off(); } catch (e) { /* */ } }
   const OFF = [];

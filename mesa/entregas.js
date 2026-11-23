@@ -7,7 +7,7 @@
 (function entregasBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
-  const VERSION = '1.1';   // 1.1: the vista cliente — its deliveries as the client's web shows them, only to look (D-297)
+  const VERSION = '1.2';   // 1.2: an invoice not issued whose day passed, «con retraso» (D-304). 1.1: the vista cliente — its deliveries as the client's web shows them, only to look (D-297)
   const I = () => M._in, E = () => M._in.ent, C = () => M._in.cob;
   if (M.entregasUI && M.entregasUI._off) { try { M.entregasUI._off(); } catch (e) { /* */ } }
   const OFF = [];

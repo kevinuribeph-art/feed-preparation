@@ -5,7 +5,7 @@
 (function webBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
-  const VERSION = '1.7';   // 1.7: el acuerdo de hoy de cuándo a cuándo, si se renueva, su paquete y lo que incluye (D-308). 1.6: el enlace de métricas (D-294); el acuerdo, el tramo de cada factura, la reunión con el ojo abierto y las entregas de un cliente de solo contenido (D-297); M.web.hilo, lo ya leído de una publicación para su ventana en la «Vista cliente» (D-295). 1.5: la cuota solo si paga cada mes y cada factura por su primer mes (D-288); una reunión no se envía (D-291). 1.4: en el iPhone (D-267) no arranca solo; conversacion(B), contestar(B, slot, texto) y leido(pid, hora) para su cara, nunca estadoWeb ni lecturas (R2); «desde el escritorio». 1.3: con la entrada de la Mesa (D-262) no hay código por correo aquí: sin sesión, la Mesa vuelve a su entrada
+  const VERSION = '1.8';   // 1.8: un cliente de solo contenido se envía por cliente, desde su página: todas sus sesiones y su huella por cliente (D-312). 1.7: el acuerdo de hoy de cuándo a cuándo, si se renueva, su paquete y lo que incluye (D-308). 1.6: el enlace de métricas (D-294); el acuerdo, el tramo de cada factura, la reunión con el ojo abierto y las entregas de un cliente de solo contenido (D-297); M.web.hilo, lo ya leído de una publicación para su ventana en la «Vista cliente» (D-295). 1.5: la cuota solo si paga cada mes y cada factura por su primer mes (D-288); una reunión no se envía (D-291). 1.4: en el iPhone (D-267) no arranca solo; conversacion(B), contestar(B, slot, texto) y leido(pid, hora) para su cara, nunca estadoWeb ni lecturas (R2); «desde el escritorio». 1.3: con la entrada de la Mesa (D-262) no hay código por correo aquí: sin sesión, la Mesa vuelve a su entrada
   const I = () => M._in;
   if (M.web && M.web._off) { try { M.web._off(); } catch (e) { /* una versión anterior ya no está */ } }
   const OFF = [];
@@ -89,24 +89,36 @@
     return out;
   }
 
+  // ---------- Lo que se envía: el tablero abierto o la página de un cliente de solo contenido ----------
+  // Un cliente de solo contenido no tiene meses (D-312): lo suyo va por cliente, como un tablero sin publicaciones con su propia
+  // clave (su huella y lo que se quita, por cliente). Es siempre el mismo objeto mientras su página está abierta.
+  const PAG = new Map();
+  function tablero() {
+    const X = I(); if (!X) return null;
+    if (X.S) return X.S;
+    const cli = X.contCli ? X.contCli() : null; if (!cli) return null;
+    if (!PAG.has(cli)) PAG.set(cli, { key: 'cliente:' + cli, client: cli, slots: [], pins: [], contenido: true });
+    return PAG.get(cli);
+  }
+
   // ---------- El paquete del tablero abierto ----------
   // { cliente, publicaciones, sesiones, meses, pagos, problemas }. Sin imágenes; `enviar` las saca de lo que cambió.
   // La cuenta de la agencia no es «otro cliente»: sus créditos (@uribe.visuals) pueden salir en un caption (lección 84).
   const AGENCIA = ['uribe'];
   async function paquete(B0) {
-    const X = I(), B = B0 || X.S;
+    const X = I(), B = B0 || tablero();
     if (!B) return { error: 'sin tablero abierto' };
     const cli = B.client, c = X.CL.find(x => x.id === cli) || {};
-    const pubs = await filas(B);
-    const meses = [...new Set([...pubs.map(p => p.fila.mes), ...X.boardMonths ? (X.boardMonths(B) || []) : []].filter(Boolean))].sort();
+    const pubs = B.contenido ? [] : await filas(B);
+    const meses = B.contenido ? [] : [...new Set([...pubs.map(p => p.fila.mes), ...X.boardMonths ? (X.boardMonths(B) || []) : []].filter(Boolean))].sort();
     const previo = meses.length ? X.addMonths(meses[0], -1) : null;
     const tareas = await X.idbAll('tareas');   // si falla, no se envía (una lectura fallida no es «sin sesiones»: lección 94)
     // una reunión con el ojo abierto va como «reunion» (D-297); con el ojo tachado, nada (como cualquier sesión)
     const ses = tareas.filter(t => t.tipo === 'sesion' && !(t.sesion && t.sesion.visible === false) && /^\d{4}-\d{2}-\d{2}$/.test(t.fecha || '')
-      && (Array.isArray(t.clientes) ? t.clientes : t.cliente ? [t.cliente] : []).includes(cli) && meses.includes(t.fecha.slice(0, 7)))
+      && (Array.isArray(t.clientes) ? t.clientes : t.cliente ? [t.cliente] : []).includes(cli) && (B.contenido || meses.includes(t.fecha.slice(0, 7))))   // de solo contenido, todas las suyas (D-312)
       .map(t => {
         const fin = t.fin && /^\d{4}-\d{2}-\d{2}$/.test(t.fin.fecha || '') && t.fin.fecha >= t.fecha ? t.fin.fecha : null;
-        return { cliente_id: cli, id: String(t.id).slice(0, 60), mes: t.fecha.slice(0, 7), nombre: String(t.txt || 'Sesión').slice(0, 80),
+        return { cliente_id: cli, id: String(t.id).slice(0, 60), mes: t.fecha.slice(0, 7), nombre: String(t.txt || (t.sesion && t.sesion.clase === 'reunion' ? 'Reunión' : 'Sesión')).slice(0, 80),
           inicio: X.madridISO(t.fecha, /^\d\d:\d\d$/.test(t.hora || '') ? t.hora : '00:00'), fin: fin ? X.madridISO(fin, '23:59') : null, sin_hora: !/^\d\d:\d\d$/.test(t.hora || ''),
           clase: t.sesion && t.sesion.clase === 'reunion' ? 'reunion' : 'sesion' };
       });
@@ -161,7 +173,7 @@
   const IMG = new Map();   // «pid|firma de sus fotos» → sus imágenes ya enviadas en esta pestaña: un cambio de caption no las rehace
   async function leerServidor(cli, B) {
     const c = sb(); if (!c || !c.usuario()) return null;
-    const ms = B ? [...new Set([...(I().boardMonths ? I().boardMonths(B) || [] : []), ...B.slots.map(s => mesNatural(s.date)).filter(Boolean)])] : [];
+    const ms = B && !B.contenido ? [...new Set([...(I().boardMonths ? I().boardMonths(B) || [] : []), ...B.slots.map(s => mesNatural(s.date)).filter(Boolean)])] : [];   // de solo contenido, todas (D-312)
     const l = await c.leer(`publicaciones?cliente_id=eq.${encodeURIComponent(cli)}&select=pid,version,estado,orden,visible,mes,nombre,fecha,sin_hora,caption,tipo,imagenes` + (ms.length ? `&mes=in.(${ms.map(m => `"${m}"`).join(',')})` : ''));
     return new Map((l || []).map(r => [r.pid, r]));
   }
@@ -180,7 +192,7 @@
   const claveHuella = B => { const c = sb(); return 'mesa-web-huella:' + (c ? c._url : '') + ':' + B.key; };
   const huellaExtra = P => sha(JSON.stringify([P.cliente, P.sesiones, P.meses, P.mesesQuitar, P.pagos, P.entregas || []]));
   async function repaso(todo) {
-    const X = I(), B = X && X.S, c = sb();
+    const X = I(), B = tablero(), c = sb();
     if (MOVIL || !B || !c || !c.usuario() || st.enviando || X.locked) return;
     if (st.clave !== B.key) { st.clave = B.key; st.servidor = null; st.cambios = null; st.firma = ''; st.extra = null; leerConversacion().catch(() => null); }
     try {
@@ -191,17 +203,17 @@
         st.servidor = await leerServidor(B.client, B); st.firma = '';
         const d = X.root().querySelector('.detail'); if (d && !d.hidden && d.querySelector('.webdel[data-sin-serv]')) pintarDetalle(d);
       }
-      if (I().S !== B) return;
+      if (tablero() !== B) return;
       if (todo || st.extra == null || Date.now() - st.extraT > 30000) {   // leer tareas, informe y cobros, cada 30 s como mucho
         st.extraT = Date.now();
-        const P = await paquete(B); if (I().S !== B) return;
+        const P = await paquete(B); if (tablero() !== B) return;
         if (P.error) throw new Error(P.error);   // sin poder leer, nunca «al día» (revisión del lote B)
         const e = (await huellaExtra(P)) === lsG(claveHuella(B)) ? 0 : 1;
         if (e !== st.extra) { st.extra = e; st.firma = ''; }
       }
       const errorAntes = st.error; st.error = '';
       if (firma === st.firma && st.cambios != null) { if (errorAntes) X.renderBar(); return; }
-      const sobran = await sobranDe(B, pubs, st.servidor); if (I().S !== B) return;
+      const sobran = await sobranDe(B, pubs, st.servidor); if (tablero() !== B) return;
       st.firma = firma;
       const n = pubs.filter(p => !igual(p, st.servidor.get(p.pid))).length + sobran.length + st.extra;
       if (n !== st.cambios || errorAntes) { st.cambios = n; X.renderBar(); }
@@ -212,7 +224,7 @@
 
   function barra() {
     const c = sb(), X = I();
-    if (!c || !X || !X.S || X.root().classList.contains('client')) return '';   // sin proyecto, o en «Vista cliente» (D-154)
+    if (!c || !X || !tablero() || X.root().classList.contains('client')) return '';   // sin proyecto, o en «Vista cliente» (D-154)
     if (!c.usuario()) return '<button type="button" class="mchip webbtn" data-web="entrar" title="Entra con tu correo para enviar a la web lo que ve el cliente"><span>Web del cliente</span></button>';
     if (st.dueno === false) return '<button type="button" class="mchip webbtn mal" data-web="salir" title="Has entrado con una cuenta que no es la de Kevin en el servidor. Pulsa para salir"><span>Web: otra cuenta</span></button>';
     if (st.enviando) return `<span class="mchip webbtn quieto" aria-live="polite" aria-busy="true"><span><span class="w2">Enviando a la web…</span><span class="w2n">Web…</span>${st.enviando.total ? ` ${st.enviando.hechos}/${st.enviando.total}` : ''}</span></span>`;
@@ -229,7 +241,7 @@
     return st.dueno;
   }
   async function enviar() {
-    const X = I(), B = X && X.S, c = sb();
+    const X = I(), B = tablero(), c = sb();
     if (!B) return { error: 'sin tablero abierto' };
     if (!c) return { error: 'sin proyecto de la web' };
     if (!c.usuario()) { entrar(); return { error: 'sin sesión' }; }
@@ -237,7 +249,7 @@
     if (X.locked) { toast('Esta pestaña está en pausa: recárgala para enviar a la web', { error: true }); return { error: 'esta pestaña está en pausa' }; }
     const cli = B.client, ce = encodeURIComponent(cli);
     // Todo va al tablero con el que se pulsó «Enviar»: si se abre otro a mitad, se para (lo ya enviado queda bien enviado).
-    const sigue = () => { if (I().S !== B) throw new Error('cambiaste de tablero mientras se enviaba: vuelve a enviar este'); };
+    const sigue = () => { if (tablero() !== B) throw new Error('cambiaste de tablero mientras se enviaba: vuelve a enviar este'); };
     st.enviando = { hechos: 0, total: 0 }; X.renderBar();   // un envío a la vez desde el primer clic
     try {
       if (!(await esDueno(c))) throw new Error('esta cuenta no es la de Kevin en el servidor');
@@ -285,7 +297,7 @@
       // Sesiones: primero las de ahora y después se quitan las que ya no están (si algo falla a medias, no se queda sin ninguna).
       const enMeses = m => m.length ? `&mes=in.(${m.map(x => `"${x}"`).join(',')})` : '';
       if (P.sesiones.length) await c.insertar('sesiones', P.sesiones, { upsert: true, conflicto: 'cliente_id,id' });
-      if (P.mesesTablero.length) await c.borrar(`sesiones?cliente_id=eq.${ce}${enMeses(P.mesesTablero)}` + (P.sesiones.length ? `&id=not.in.(${P.sesiones.map(x => `"${x.id.replace(/"/g, '')}"`).join(',')})` : ''));
+      if (P.mesesTablero.length || P.contenido) await c.borrar(`sesiones?cliente_id=eq.${ce}${P.contenido ? '' : enMeses(P.mesesTablero)}` + (P.sesiones.length ? `&id=not.in.(${P.sesiones.map(x => `"${x.id.replace(/"/g, '')}"`).join(',')})` : ''));   // de solo contenido, por cliente (D-312)
       if (P.meses.length) await c.insertar('meses', P.meses, { upsert: true, conflicto: 'cliente_id,mes' });
       if (P.mesesQuitar.length) await c.borrar(`meses?cliente_id=eq.${ce}${enMeses(P.mesesQuitar)}`);
       // Las facturas en PDF (D-237), en su carpeta privada y nombradas por su huella: un PDF cambiado es otro archivo.
@@ -645,7 +657,7 @@
     on(document, 'visibilitychange', () => { if (!document.hidden) { st.servidor = null; st.firma = ''; st.extra = null; pedirRepaso(); leerConversacion().catch(() => null); leerRespuestas().catch(() => null); } });
     I().estilo('mesa-web-css', ESTILO);
     // Cada 3 s con la pestaña a la vista: si el tablero cambió, se vuelve a contar (solo huellas, sin imágenes).
-    tic = setInterval(() => { if (!document.hidden && sb() && I().S) repaso().catch(() => { /* st.error */ }); }, 3000);
+    tic = setInterval(() => { if (!document.hidden && sb() && tablero()) repaso().catch(() => { /* st.error */ }); }, 3000);
     tic2 = setInterval(() => { if (document.hidden || !sb()) return; if (I().S) leerConversacion().catch(() => { /* el siguiente */ }); leerRespuestas().catch(() => { /* el siguiente */ }); }, 120000);
     I().renderBar(); pedirRepaso(); leerRespuestas().catch(() => null);
   }).catch(() => { (window.MESA_CARGA = window.MESA_CARGA || {}).web = 'fallo'; });

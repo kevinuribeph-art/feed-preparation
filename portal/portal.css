@@ -9,11 +9,11 @@
 --chg:#8A5A14;--chg-soft:#F3E8D4;--st-aprobar:#5E86B8;--st-aprobar-soft:#E3ECF6;--on-ink:#F4EFE8;--on-acc:#FFFFFF;--barra:#998F85;--barra-top:var(--acc);--sep:var(--line2);
 --ty-reel:#DDE8D8;--ty-reel-ink:#1E3A26;--ty-collab:#BFD6C2;--ty-collab-ink:#12321C;--ty-foto:#F6DFD7;--ty-foto-ink:#5E2418;--ty-carr:#E6DDEA;--ty-carr-ink:#42284E;--ty-ses:#DCE4EE;--ty-ses-ink:#24385A;--ty-trial:#E7E1D9;--ty-trial-ink:#3A322B;
 --shadow-sm:0 1px 3px rgba(22,17,14,.08),0 1px 2px rgba(22,17,14,.06);--shadow-lg:0 24px 60px -18px rgba(22,17,14,.32),0 8px 18px -8px rgba(22,17,14,.18);--veil:rgba(22,17,14,.42);
---r-sm:8px;--r-md:12px;--r-lg:16px;--r-xl:22px;--r-pill:999px;--ease:cubic-bezier(.22,1,.36,1);--d2:.2s}
+--r-sm:8px;--r-md:12px;--r-lg:16px;--r-xl:22px;--r-pill:999px;--ease:cubic-bezier(.22,1,.36,1);--d1:.12s;--d2:.2s;--cx-hov:var(--bg-2)}
 @media (prefers-color-scheme:dark){:root{color-scheme:dark;--ink:#F1EBE3;--ink-2:#D3C9BD;--mute:#A89C8F;--faint:#7A6F64;--bg:#15110E;--bg-2:#29221D;--bg-3:#352D26;--panel:#1E1915;--panel-2:#2F2822;
 --line:#3D352E;--line2:#2F2822;--line-strong:#574C42;--acc-ink:#D9805F;--acc-soft:#3B241B;--focus:#D9805F;--ok:#6FBF85;--ok-soft:#1F2E22;--red:#F0727A;--red-soft:#3A1E21;
 --chg:#E0B25C;--chg-soft:#33291A;--st-aprobar:#8FB4E0;--st-aprobar-soft:#22303F;--on-ink:#16110E;--barra:#726960;--barra-top:var(--acc-ink);--sep:var(--line);
---ty-reel:#23352A;--ty-reel-ink:#CFE6D3;--ty-collab:#2D4834;--ty-collab-ink:#DDF0E1;--ty-foto:#46271F;--ty-foto-ink:#F5D7CC;--ty-carr:#392C42;--ty-carr-ink:#E6DAEE;--ty-ses:#27323F;--ty-ses-ink:#D2DDEB;--ty-trial:#2E2823;--ty-trial-ink:#E2D9CE;--veil:rgba(0,0,0,.6)}}
+--ty-reel:#23352A;--ty-reel-ink:#CFE6D3;--ty-collab:#2D4834;--ty-collab-ink:#DDF0E1;--ty-foto:#46271F;--ty-foto-ink:#F5D7CC;--ty-carr:#392C42;--ty-carr-ink:#E6DAEE;--ty-ses:#27323F;--ty-ses-ink:#D2DDEB;--ty-trial:#2E2823;--ty-trial-ink:#E2D9CE;--veil:rgba(0,0,0,.6);--cx-hov:var(--bg-2)}}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html{-webkit-text-size-adjust:100%}
@@ -87,6 +87,7 @@ svg.i *{vector-effect:non-scaling-stroke}
 .dot{width:12px;height:12px;border-radius:50%;background:var(--st-aprobar);box-shadow:0 0 0 3px color-mix(in srgb,var(--st-aprobar) 28%,transparent);flex:none}
 .cols{display:grid;grid-template-columns:min(480px,58vw) minmax(0,1fr);gap:12px;align-items:start}
 .cols.con-lado{grid-template-columns:min(440px,32vw) minmax(0,1fr) 360px}
+.cols.cont{grid-template-columns:minmax(0,1fr)}.cols.cont.con-lado{grid-template-columns:minmax(0,1.6fr) minmax(320px,1fr)}   /* solo contenido (D-312): su lista y «Tus pagos», como la «Vista cliente» */
 .card{background:var(--panel);border-radius:var(--r-lg);padding:16px 20px}
 .lado .card{padding:18px 20px 20px}
 .card.cent{padding:12px 10px 10px}
@@ -119,6 +120,8 @@ svg.i *{vector-effect:non-scaling-stroke}
 .dia.fuera .n{color:var(--faint)}
 .dia.hoy{box-shadow:inset 0 0 0 1px var(--line-strong)}
 .dia.hoy .n{font-weight:600}
+@media (hover:hover){.dia:hover{background:var(--cx-hov);transition:background-color var(--d1) var(--ease)}}   /* each day under the mouse, as the vista cliente (D-313); not on a phone */
+@media (hover:hover) and (prefers-reduced-motion:reduce){.dia:hover{transition:none}}
 .chip{display:flex;align-items:center;flex-wrap:wrap;column-gap:4px;width:100%;min-width:0;border:0;border-radius:6px;padding:2px 6px;text-align:left;font-size:11px;line-height:15px;transition:filter var(--d2)}
 .chip:hover{filter:brightness(.97)}
 .chip .cl{flex:1 1 auto;min-width:0;max-width:100%;display:flex;align-items:center;gap:4px}
@@ -157,7 +160,7 @@ svg.i *{vector-effect:non-scaling-stroke}
 .incluye{margin:-4px 0 10px;font-size:13px;line-height:1.45;color:var(--mute)}   /* lo que incluye su paquete (D-307, D-308) */
 /* las entregas de un cliente de solo contenido, en el sitio del feed (D-297) */
 .ents{list-style:none;margin:0;padding:0}
-.ent-f{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;min-height:56px;padding:8px 0;border-top:1px solid var(--sep)}
+.ent-f{display:grid;grid-template-columns:64px minmax(0,1fr) auto;align-items:center;gap:12px;min-height:56px;padding:8px 0;border-top:1px solid var(--sep)}
 .ent-f:first-child{border-top:0}
 .ent-f .d{font-size:13px;color:var(--ink-2);white-space:nowrap;min-width:44px}
 .ent-f .t{display:flex;flex-direction:column;gap:1px;min-width:0}
@@ -165,6 +168,7 @@ svg.i *{vector-effect:non-scaling-stroke}
 .ent-f .t span{font-size:12.5px;color:var(--mute)}
 .ent-l{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 12px;border-radius:var(--r-pill);background:var(--acc-soft);color:var(--acc-ink);font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap}
 .ent-l svg{width:14px;height:14px}
+.entw .h3{color:var(--ink-2)}.ent-f.ent-ses{grid-template-columns:64px minmax(0,1fr)}.ent-f.ent-ses .d{display:inline-flex;align-items:center;gap:6px}.ent-f.ent-ses .d svg{color:var(--mute)}   /* ent-ses: .ses es el chip azul (lección 295) */   /* una sesión o una reunión que viene (D-312) */
 .ent-cam{font-size:12.5px;font-weight:600;padding:3px 10px;border-radius:var(--r-pill);background:var(--bg-2);color:var(--ink-2);white-space:nowrap}
 @media (pointer:coarse){.ent-l{min-height:44px;padding:0 14px}}
 .camino{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:var(--r-md);background:var(--bg);color:var(--ink-2);font-size:14px;line-height:1.5}
@@ -305,7 +309,7 @@ svg.i *{vector-effect:non-scaling-stroke}
   .pv-marca{margin-right:8px}
   .lado .card{padding:18px 16px 20px}
   .pv-obs{padding:8px 12px}
-  .cols,.cols.con-lado{grid-template-columns:1fr}
+  .cols,.cols.con-lado,.cols.cont.con-lado{grid-template-columns:1fr}
   .feedw .feed{max-width:420px;margin:0 auto}   /* el panel a todo el ancho, la cuadrícula ceñida (D-264) */
 }
 /* de 560 a 800 px (D-295): la foto arriba, a un 46 % del alto y entera; lo demás debajo, que se desliza dentro (con menos de 820 px de

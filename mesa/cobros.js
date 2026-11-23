@@ -7,7 +7,7 @@
 (function cobrosBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
-  const VERSION = '1.4';   // 1.4: the agreement's fields with options (D-304); the list of agreements, each with its invoices, «Nuevo acuerdo», «Termina en» and the packages' catalog (D-305 to D-307); «Tus pagos» from when to when and what it includes (D-308); «Se factura» (D-309). 1.3: «Tus pagos» of the vista cliente with its stretch — «Pago semestral · 2700 €», «Cubre may – oct 2026 · el siguiente, el 1 nov» and each invoice «Mayo – octubre» (D-297). 1.2: «Acuerdo» instead of «Cuota mensual» — how often it pays, from when, for how long, whether it renews and when to renegotiate, with its line; «+ Factura» of its stretch; in «Tus pagos», «al mes» only if it pays each month and each invoice by its first month, as the client's web gets them until lot D (D-288). 1.1: a PDF that hasn't come down from the server yet (lot 4 of the traspaso) says so (D-259)
+  const VERSION = '1.5';   // 1.5: the agreement's head goes on below at 280–340 px, its chip on the right (D-314). 1.4: the agreement's fields with options (D-304); the list of agreements, each with its invoices, «Nuevo acuerdo», «Termina en» and the packages' catalog (D-305 to D-307); «Tus pagos» from when to when and what it includes (D-308); «Se factura» (D-309). 1.3: «Tus pagos» of the vista cliente with its stretch — «Pago semestral · 2700 €», «Cubre may – oct 2026 · el siguiente, el 1 nov» and each invoice «Mayo – octubre» (D-297). 1.2: «Acuerdo» instead of «Cuota mensual» — how often it pays, from when, for how long, whether it renews and when to renegotiate, with its line; «+ Factura» of its stretch; in «Tus pagos», «al mes» only if it pays each month and each invoice by its first month, as the client's web gets them until lot D (D-288). 1.1: a PDF that hasn't come down from the server yet (lot 4 of the traspaso) says so (D-259)
   const I = () => M._in, C = () => M._in.cob, P = () => (M.personal && M.personal._p) || null;
   if (M.cobrosUI && M.cobrosUI._off) { try { M.cobrosUI._off(); } catch (e) { /* */ } }
   const OFF = [];
@@ -180,7 +180,9 @@
     : `<p class="co-vacio">Aún sin ${esp ? 'cobros' : 'facturas'}</p>`;
   // one agreement: its head, and open, its fields, what its package includes, its line, its invoices and «+ Factura» (D-305)
   function cardHTML(cli, a, rows, h, abierta, est, i, varios) {
-    const hd = a ? cabeza(a, est) : null, aid = a ? esc(a.id) : '';
+    const hd0 = a ? cabeza(a, est) : null, aid = a ? esc(a.id) : '';
+    const nb = t => String(t || '').replace(/(\d) (?=(meses|mes|años|año)\b|€)/g, '$1\u00a0').replace(/\b(cada|de) (\d)/g, '$1\u00a0$2').replace(/\b(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic) (\d{4})/g, '$1\u00a0$2');   // «€» is no word: no \b after it (second round)   // «cada 3 meses», «900 €», «may 2026» never split (D-314)
+    const hd = hd0 && { ...hd0, t: nb(hd0.t), sub: nb(hd0.sub) };
     const hh = hd ? `<b>${esc(hd.t)}</b>${!abierta && hd.sub ? `<span class="co-acs">· ${esc(hd.sub)}</span>` : ''}<span class="co-sp"></span>${hd.chip}` : '<b>Acuerdo</b><span class="co-acs">sin rellenar</span>';
     const cab = varios && a ? `<button type="button" class="co-ac-h" data-co="acu-pleg" aria-expanded="${abierta}" title="${abierta ? 'Plegar' : 'Ver este acuerdo'}">${IC.chev}${hh}</button>` : `<div class="co-ac-h"${a ? ' tabindex="0" title="Clic derecho o ⇧F10: borrar el acuerdo"' : ''}>${hh}</div>`;
     if (!abierta) return `<section class="co-ac pleg" data-acu="${aid}">${cab}</section>`;
@@ -634,7 +636,7 @@
 #mesa .co svg,#mesa .co-pagos svg,#mesa .co-mf svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:var(--i-trazo);stroke-linecap:round;stroke-linejoin:round}
 #mesa .co svg *,#mesa .co-pagos svg *{vector-effect:non-scaling-stroke}
 #mesa .co-cuota{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 18px}
-#mesa .co-acu-t{display:flex;align-items:baseline;gap:10px;margin:0 0 10px}#mesa .co-acu-t h4{margin:0;font-size:15px;font-weight:800;letter-spacing:-.015em;color:var(--ink)}#mesa .co-acu-t span{font-size:12.5px;color:var(--mute)}
+#mesa .co-acu-t{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;margin:0 0 10px}#mesa .co-acu-t h4{margin:0;font-size:15px;font-weight:800;letter-spacing:-.015em;color:var(--ink)}#mesa .co-acu-t span{font-size:12.5px;color:var(--mute)}
 #mesa .co-cuota.co-acu{grid-template-columns:repeat(4,minmax(0,1fr));margin:0 0 8px}
 #mesa .co-acu-n{margin:0 0 18px;font-size:12.5px;line-height:1.45;color:var(--ink-2)}
 #mesa .co-acu .mx-sel,#mesa .co-acu .mx-f{display:flex;width:100%;border-radius:var(--r-md)}#mesa .co-acu .mx-f .mx-in{flex:1;min-width:0}   /* the Mesa's dropdowns and date as wide as the fields beside them */
@@ -717,7 +719,9 @@
 #mesa .co-ac.pleg,#mesa .co-ac.co-ac-sin{background:none}
 #mesa .co-ac-h{display:flex;align-items:center;gap:8px;width:100%;box-sizing:border-box;min-height:44px;padding:10px 14px;border:0;border-radius:var(--r-md);background:none;font:inherit;font-size:13px;color:var(--ink);text-align:left}
 #mesa button.co-ac-h{cursor:pointer;transition:background var(--d1) ease-out}#mesa button.co-ac-h:hover{background:var(--co-hov,var(--bg-2))}
-#mesa .co-ac-h b{flex:none;font-size:14px;font-weight:600}
+#mesa .co-ac-h b{flex:0 1 auto;min-width:0;font-size:14px;font-weight:600;overflow-wrap:anywhere}   /* narrow (280–340 px): it goes on below, never cut; its chip stays on the right (D-314) */
+#mesa .co-ac-h .co-ach{align-self:center}
+@container (max-width:560px){#mesa .co-ac-h{flex-wrap:wrap}#mesa .co-ac-h b{flex:1 1 0}#mesa .co-ac-h .co-sp{display:none}#mesa .co-ac-h .co-acs{order:9;flex:1 1 100%;padding-left:24px;white-space:normal}}   /* folded, its summary below the title, whole (D-314) */
 #mesa .co-ac-h svg{flex:none;width:16px;height:16px;color:var(--mute);transition:transform var(--d-m) var(--ease-m)}#mesa .co-ac-h[aria-expanded="true"] svg{transform:rotate(90deg)}
 #mesa .co-acs{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;color:var(--mute)}
 #mesa .co-ach{flex:none;padding:2px 8px;border-radius:var(--r-xs);font-size:12.5px;font-weight:600;line-height:18px}

@@ -4,7 +4,7 @@
 // hace: aprobar, pedir cambios con motivo y comentar.
 (function portal() {
   'use strict';
-  const V = '1.7';   // 1.7: «Tus pagos» con el acuerdo de cuándo a cuándo, lo que incluye su paquete y la siguiente por su fecha (D-308). 1.6: a pantalla completa (D-293), «Ver más en Zernio» (D-294), la ventana de una publicación como Instagram (D-295), las flechas del carrusel (D-296), «Tus pagos» con su tramo, las entregas de un cliente de solo contenido y la reunión (D-297). 1.5: el aviso de demasiados intentos ya no promete un minuto (D-280). 1.4: la cuenta que solo mira: ve cada cliente como lo ve él, sin aprobar, pedir cambios ni comentar (D-266). 1.3: el monograma a la izquierda de la barra, sin pulsar, y la página con las medidas de la «Vista cliente» (D-264)
+  const V = '1.8';   // 1.8: un cliente de solo contenido sin meses: su lista entera y sus sesiones que vienen, sin calendario, como la «Vista cliente» (D-312). 1.7: «Tus pagos» con el acuerdo de cuándo a cuándo, lo que incluye su paquete y la siguiente por su fecha (D-308). 1.6: a pantalla completa (D-293), «Ver más en Zernio» (D-294), la ventana de una publicación como Instagram (D-295), las flechas del carrusel (D-296), «Tus pagos» con su tramo, las entregas de un cliente de solo contenido y la reunión (D-297). 1.5: el aviso de demasiados intentos ya no promete un minuto (D-280). 1.4: la cuenta que solo mira: ve cada cliente como lo ve él, sin aprobar, pedir cambios ni comentar (D-266). 1.3: el monograma a la izquierda de la barra, sin pulsar, y la página con las medidas de la «Vista cliente» (D-264)
   const app = document.getElementById('app');
   const CFG = window.PORTAL_CONFIG || {};
   const TZ = 'Europe/Madrid';
@@ -202,7 +202,7 @@
   }
 
   function pintar() {
-    const cli = st.clientes.find(c => c.id === st.cli), meses = mesesDisponibles();
+    const cli = st.clientes.find(c => c.id === st.cli), cont = !!(cli && cli.servicio === 'contenido'), meses = cont ? [] : mesesDisponibles();   // de solo contenido, sin meses (D-312)
     const top = h('header', { class: 'pv-top' },
       h('img', { class: 'pv-marca', src: 'marca/monograma.svg', alt: 'Uribe Visuals', width: '24', height: '24' }),   // la marca, sin pulsar (D-264)
       // la cuenta que solo mira ve, como el cliente, solo su nombre; cambia de cliente en la tira (D-266)
@@ -217,7 +217,8 @@
       h('button', { type: 'button', class: 'btn p', text: pend.length === 1 ? 'Revisarla' : 'Revisarlas', onclick: () => abrir(pend[0].pid) })) : null;
     // la columna derecha solo si tiene algo; sin ella, el calendario ocupa su sitio (como la «Vista cliente» de la Mesa, D-230, D-246)
     const lado = [seguro(() => pintarPagos(cli)), seguro(() => pintarComoFue(cli))].filter(Boolean);
-    const cols = h('div', { class: 'cols' + (lado.length ? ' con-lado' : '') }, cli && cli.servicio === 'contenido' ? seguro(pintarEntregas) : pintarFeed(), seguro(pintarCentro), lado.length ? h('div', { class: 'lado' }, lado) : null);
+    // de solo contenido (D-312): su lista entera, sin calendario ni meses, y «Tus pagos» a la derecha, como la «Vista cliente»
+    const cols = h('div', { class: 'cols' + (cont ? ' cont' : '') + (lado.length ? ' con-lado' : '') }, cont ? seguro(pintarEntregas) : pintarFeed(), cont ? null : seguro(pintarCentro), lado.length ? h('div', { class: 'lado' }, lado) : null);
     const pie = h('footer', { class: 'pie' }, h('a', { href: 'privacidad.html', text: 'Privacidad' }), h('a', { href: 'aviso-legal.html', text: 'Aviso legal' }), h('span', { text: 'Uribe Visuals' }));
     const tira = st.todoMira ? h('div', { class: 'pv-obs', role: 'region', 'aria-label': 'Cuenta que solo mira' },
       h('span', { class: 'pv-obs-t' }, h('b', { text: 'Solo mirar' }), ' · ves cada calendario como lo ve su cliente'),
@@ -285,14 +286,22 @@
       : hecha ? null : h('span', { class: 'ent-cam', text: 'En camino' });
     return h('li', { class: 'ent-f' + (hecha ? ' hecha' : ''), 'data-ent': e.id }, h('span', { class: 'd', text: diaCorto(e.fecha) }), h('span', { class: 't' }, h('b', { text: e.que }), h('span', { text: sub })), der);
   }
+  // Todas, sin meses (D-312): lo que viene por fecha («En camino»); aparte, las entregadas de la más nueva a la más vieja por el mes
+  // de su fecha; debajo, las sesiones y reuniones que vienen. La misma lista que la «Vista cliente» de la Mesa (entregas.js)
+  const filaSes = x => h('li', { class: 'ent-f ent-ses' }, h('span', { class: 'd' }, ico(reu(x) ? 'users' : 'clap'), diaCorto(diaDe(x.inicio))),
+    h('span', { class: 't' }, h('b', { text: x.nombre }), h('span', { text: [reu(x) ? 'Reunión' : 'Sesión', x.sin_hora ? '' : horaDe(x.inicio)].filter(Boolean).join(' · ') })));
   function pintarEntregas() {
-    const E = st.d.ents || [], m = st.mes, sigM = mesDespues(m);
-    const del = E.filter(e => e.fecha.slice(0, 7) === m), sig = E.filter(e => e.fecha.slice(0, 7) === sigM), n = del.filter(e => e.entregada).length;
+    const E = (st.d.ents || []).slice().sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id.localeCompare(b.id)), H = hoy();
+    const pend = E.filter(e => !e.entregada), hechas = E.filter(e => e.entregada).sort((a, b) => b.fecha.localeCompare(a.fecha) || String(b.entregada).localeCompare(String(a.entregada)) || a.id.localeCompare(b.id));
+    const grupos = []; for (const e of hechas) { const m = e.fecha.slice(0, 7), g = grupos[grupos.length - 1]; if (g && g.m === m) g.l.push(e); else grupos.push({ m, l: [e] }); }
+    const ses = (st.d.ses || []).filter(x => x.inicio && diaDe(x.fin || x.inicio) >= H).sort((a, b) => a.inicio.localeCompare(b.inicio) || a.id.localeCompare(b.id));
+    const cuenta = [pend.length ? `${pend.length} en camino` : '', hechas.length ? `${hechas.length} entregada${hechas.length === 1 ? '' : 's'}` : ''].filter(Boolean).join(' · ');
     return h('section', { class: 'card entw', 'aria-labelledby': 'h-ent' },
-      h('div', { class: 'ti' }, h('h2', { id: 'h-ent', text: 'Tus entregas' }), h('span', { text: may(MESES[+m.slice(5, 7) - 1]) + (del.length ? ` · ${n} de ${del.length} entregada${del.length === 1 ? '' : 's'}` : '') })),
+      h('div', { class: 'ti' }, h('h2', { id: 'h-ent', text: 'Tus entregas' }), cuenta ? h('span', { text: cuenta }) : null),
       st.d.entsMal ? h('p', { class: 'vacio', text: 'No se pudieron cargar tus entregas: vuelve a abrir la página en un momento.' })
-        : del.length ? h('ol', { class: 'ents' }, del.map(filaEnt)) : h('p', { class: 'vacio', text: 'Este mes aún no tiene entregas.' }),
-      sig.length ? [h('p', { class: 'h3', text: may(MESES[+sigM.slice(5, 7) - 1]) }), h('ol', { class: 'ents' }, sig.map(filaEnt))] : null);
+        : [pend.length ? h('ol', { class: 'ents' }, pend.map(filaEnt)) : hechas.length ? null : h('p', { class: 'vacio', text: 'Aún no hay entregas.' }),
+          grupos.map(g => [h('p', { class: 'h3', text: may(MESES[+g.m.slice(5, 7) - 1]) + ' ' + g.m.slice(0, 4) }), h('ol', { class: 'ents' }, g.l.map(filaEnt))])],
+      ses.length ? [h('p', { class: 'h3', text: 'Sesiones y reuniones' }), h('ol', { class: 'ents' }, ses.map(filaSes))] : null);
   }
   async function otraVez(e) {   // una URL firmada que caducó antes de verse (perezosa): se pide de nuevo, una vez
     const i = e.currentTarget, r = i.dataset.ruta || i.dataset.grande; if (!r || i.dataset.otra) return;

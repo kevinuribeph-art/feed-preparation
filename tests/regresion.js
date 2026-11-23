@@ -21291,6 +21291,7 @@
       ok(b && /Mensual o esporádico/.test(b.textContent), 'el menú no dice «Mensual o esporádico»: ' + (b && b.textContent)); mcCerrar(); await espera(40);
       mcElegir('Nuevo cliente'); const f = await hasta(() => q('.detail form.nctipos'), 2000, 'las tarjetas');
       igual(qa('.detail .nctipos .expop b').map(x => x.textContent), ['Gestión de redes', 'Solo contenido', 'Esporádico'], 'las tres tarjetas');
+      { const l = f.querySelector('input[value="contenido"]').closest('label'), t = l.textContent, cs = W.getComputedStyle(l.querySelector('.expd span')); ok(/sin feed ni meses/.test(t) && !/Cada mes/.test(t), 'la tarjeta de solo contenido promete meses: ' + t); ok(/pretty/.test(cs.textWrapStyle || cs.textWrap || ''), 'la tarjeta deja una palabra sola (text-wrap)'); }   // al día a propósito (D-312)
       ok(f.querySelector('input[value="redes"]').checked, 'no empieza en «Gestión de redes»'); ok(!q('.detail [data-form="newclient"]'), 'pide los datos antes del tipo');
       // solo contenido
       f.querySelector('input[value="contenido"]').click(); f.requestSubmit();
@@ -21322,24 +21323,26 @@
     } finally { M._in.closeDetail(); paginaCerrada(); for (const id of hechos) await M.removeClient(id); await sinTareas(); }
   });
 
-  // un cliente de solo contenido con su tablero de noviembre abierto (D-290)
+  // un cliente de solo contenido con su página abierta (D-290; sin meses desde D-312: su tablero de noviembre, de antes, se queda
+  // guardado sin verse, y su clave se devuelve)
   async function tableroContenido() {
     await tablero([]); await sinTareas();
     await M.updateClient(CLIENTE, { servicio: 'contenido', entregasDia: 5, cycleDay: 1 }); M._in.render();
-    await hasta(() => M.entregasUI && q('.main > .cont .cont-izq .en-h'), 8000, 'el tablero de solo contenido');
+    await hasta(() => M.entregasUI && q('.main > .cont .cont-izq .en-h'), 8000, 'la página de solo contenido');
     return `${CLIENTE}-${MES}`;
   }
   const scCampo = k => q(`.cont-izq .en-ed [data-k="${k}"]`);
   prueba('SC2', 'Tablero de un cliente de solo contenido (D-290, tablero A): sin feed, bandeja, estados ni Zernio; tres columnas: entregas y sesiones · calendario · acuerdo y pagos; la barra del mes solo con sus meses (sin «Revisar», contexto, «Vista cliente» ni «Web del cliente» hasta el lote D); «+ Entrega» propone la fecha de su día de entregas y abre sus campos; qué, cuánto y un enlace https (nunca otro); «entregada» con su casilla; su chip en el calendario (✓ entregada, en rojo pasada), que la abre; «Borrar entrega» con «Deshacer»; el clic derecho de un día sin «Nueva historia»; el calendario sin pasos, total ni Notion', async () => {
     const key = await tableroContenido();
     relojEn('2026-11-03T10:00:00+01:00');
+    q('.side > .cal .cmes').dispatchEvent(new W.MouseEvent('dblclick', { bubbles: true }));   // el mes de hoy, con el reloj de la prueba (D-312: la página abre en el de hoy)
     try {
       ok(!q('.main .feed') && !q('.main .tray'), 'el tablero tiene feed o bandeja');
       ok(q('.main > .cont .cont-izq') && q('.main > .cont > .cont-side > .cal') && q('.main > .cont .cont-der'), 'no están las tres columnas');
-      ok(!q('.bar [data-act="revisar"]') && q('.bar .clientToggle') && !q('.bar .stats') && q('.bar .mchip.on'), 'la barra del mes de un cliente de solo contenido: ' + q('.bar').textContent);   // al día a propósito: «Vista cliente» desde el lote D (D-297)
+      ok(!q('.bar [data-act="revisar"]') && q('.bar .clientToggle') && !q('.bar .stats') && !q('.bar .mchip[data-act="month"]'), 'la barra de un cliente de solo contenido: ' + q('.bar').textContent);   // al día a propósito: «Vista cliente» desde el lote D (D-297); sin chips de mes (D-312)
       await hasta(() => q('.side > .cal .calhead .ctit'), 4000, 'el calendario');
       ok(!q('.side > .cal .cfold') && !q('.side > .cal .ctot') && !q('.side > .cal .csync') && !q('.side > .cal .cpaso'), 'el calendario con pliegue, total, Notion o pasos');
-      ok(/Acuerdo/.test(q('.cont-der').textContent) && /Solo contenido/.test(q('.cont-der').textContent), 'la columna del acuerdo: ' + q('.cont-der').textContent);
+      igual(q('.cont-der .en-h').textContent, 'Acuerdo y pagos', 'la columna del acuerdo');   // al día a propósito: su título (D-312)
       // + Entrega
       q('.cont-izq [data-en="nueva"]').click();
       await hasta(() => M._in.ent.vivas(CLIENTE).length === 1 && scCampo('que'), 3000, 'la entrega nueva abierta');
@@ -21354,7 +21357,7 @@
       const a = q('.cont-izq .en-f .en-l'); ok(a && a.getAttribute('href') === 'https://ejemplo.test/otono' && a.target === '_blank' && /noopener/.test(a.rel), 'el enlace de la fila');
       // entregada
       const ck = q('.cont-izq .en-f .en-ck'); ck.click(); await hasta(() => M._in.ent.get(e1.id).entregada === '2026-11-03', 2000, 'la casilla no la marca entregada');
-      await hasta(() => /1 de 1 entregada/.test(q('.cont-izq .en-h').textContent), 2000, 'la cuenta de entregadas');
+      await hasta(() => /^Entregas 1 entregada$/.test(q('.cont-izq .en-h').textContent.trim()), 2000, 'la cuenta de entregadas');   // al día a propósito: sin «N de M» del mes (D-312)
       // su chip en el calendario, que la abre
       const chip = await hasta(() => q('.side > .cal .cday[data-day="2026-11-05"] .chip.ty-ent'), 3000, 'el chip de la entrega');
       ok(chip.classList.contains('entregada'), 'el chip no dice entregada'); chip.click(); await hasta(() => scCampo('que'), 2000, 'el chip no la abre');
@@ -21371,8 +21374,8 @@
       q('.cont-izq [data-en="nueva"]').click(); await hasta(() => scCampo('que'), 2000, 'otra entrega nueva');
       const e4 = M._in.ent.vivas(CLIENTE).find(r => r.fecha === '2026-12-05' && r.id !== e3.id); coCambiar(scCampo('que'), 'Fotos de Navidad'); await hasta(() => M._in.ent.get(e4.id).que === 'Fotos de Navidad', 2000, '«Qué»');
       q('.cont-izq [data-en="cerrar"]').click(); await espera(80);
-      ok(q(`.cont-izq .en-f[data-id="${e4.id}"]`) && /Diciembre/.test(q('.cont-izq .en-sub').textContent), 'la del mes siguiente no sale aparte: ' + q('.cont-izq').textContent.slice(0, 200));
-      ok(/noviembre · 1 de 1 entregada/.test(q('.cont-izq .en-h').textContent), 'la del mes siguiente cuenta en el mes del tablero: ' + q('.cont-izq .en-h').textContent);
+      ok(q(`.cont-izq > .en-lista:first-of-type .en-f[data-id="${e4.id}"]`), 'la de diciembre no sale entre las pendientes: ' + q('.cont-izq').textContent.slice(0, 200));   // al día a propósito: sin meses, una sola lista (D-312)
+      ok(/1 pendiente · 1 entregada/.test(q('.cont-izq .en-h').textContent), 'la cuenta: ' + q('.cont-izq .en-h').textContent);
       await M._in.ent.borrar(e4.id);
       // segunda ronda: «Listo» justo después de escribir «Qué» no la borra (el «change» y el clic seguidos)
       q('.cont-izq [data-en="nueva"]').click(); await hasta(() => scCampo('que'), 2000, 'la entrega nueva');
@@ -21385,7 +21388,7 @@
       const e6 = M._in.ent.vivas(CLIENTE).find(r => !r.que);
       await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [], past: [], force: true }); await espera(250);
       ok(!M._in.ent.get(e6.id) || M._in.ent.get(e6.id).borrado, 'cambiar de tablero deja la entrega vacía');
-      await M.open(`${CLIENTE}-${MES}`); await hasta(() => q('.main > .cont .cont-izq .en-h'), 4000, 'de vuelta al tablero');
+      await M.open(`${CLIENTE}-${MES}`); await hasta(() => q('.main > .cont .cont-izq .en-h'), 4000, 'de vuelta a su página');   // su tablero viejo abre su página (D-312)
       ok(!scCampo('que'), 'de vuelta, los campos siguen abiertos');
       // soltar fotos en un tablero sin bandeja
       const tr0 = json(((await M._in.idbGet('bandejas', CLIENTE)) || {}).tray || []), dt = new W.DataTransfer(); dt.items.add(await foto('sc2.jpg'));
@@ -21414,14 +21417,16 @@
       const g = await hasta(() => ppGrupo('pasado'), 3000, '«Se ha pasado»');
       ok(/Fotos de septiembre/.test(g.textContent) && /Sin entregar/.test(g.textContent), 'la entrega pasada no sale: ' + g.textContent);
       const blq = q(`.pp-bw[data-c="${CLIENTE}"]`); ok(blq && /1 de 1 entregada/.test(blq.textContent) && !/publicaci/.test(blq.querySelector('.pp-cuentas').textContent), 'el bloque del cliente: ' + (blq && blq.textContent));
-      g.querySelector('[data-pp="entrega"]').click();
-      await hasta(() => !M.personal.abierta() && M._in.S && M._in.S.client === CLIENTE, 4000, 'no abre su tablero');
+      ok(!blq.querySelector('[data-key]'), 'su bloque abre un tablero');   // su página (D-312)
+      const ab = g.querySelector('[data-pp="entrega"]'); ok(!ab.dataset.key, 'la entrega pasada abre un tablero'); ab.click();
+      await hasta(() => !M.personal.abierta() && !M._in.S && M._in.contCli() === CLIENTE && M.entregasUI._test.UI.abierta, 4000, 'no abre su página con ella');   // al día a propósito: su página, no su tablero (D-312)
+      M.entregasUI.salir();
     } finally { paginaCerrada(); }
     await enMovilPagina(async () => {
       await irMovil('#clientes', '#movil .cli');
       ok([...W.document.querySelectorAll('#movil .cli')].some(b => /entrega/.test(b.textContent) && /solo contenido/.test(b.textContent)), 'su bloque de «Clientes» no cuenta entregas');
-      await irMovil(`#mes/${CLIENTE}-${MES}/lista`, '#movil .sec-h');
-      const t = W.document.querySelector('#movil main').textContent; ok(/Entregas/.test(t) && /Fotos de otoño/.test(t) && /entregada/.test(t), 'su mes no lista las entregas: ' + t.slice(0, 300));
+      await irMovil(`#cli/${CLIENTE}`, '#movil .titulo h1');   // al día a propósito: su página, sin meses (D-312)
+      const t = W.document.querySelector('#movil main').textContent; ok(/Entregas/.test(t) && /Fotos de otoño/.test(t) && /entregada/.test(t), 'su página no lista las entregas: ' + t.slice(0, 300));
       ok(W.document.querySelector('#movil [data-a="enlace"][data-u="https://ejemplo.test/otono"]'), 'la entrega sin su enlace');
       await irMovil('#hoy', '#movil .sec-h');
       ok(/Fotos de septiembre/.test(W.document.querySelector('#movil main').textContent), 'la entrega pasada no sale en Hoy');
@@ -21681,7 +21686,7 @@
       ok(!q('#mesa a[href="https://ejemplo.test/vd6-aun"]'), 'se ve el enlace de una sin entregar');
       ok(/Fotos de otoño/.test(izq.textContent) && /Vídeo de la cata/.test(izq.textContent) && /Retratos del equipo/.test(izq.textContent), 'faltan entregas: ' + izq.textContent);
       ok(!/sin entregar|Borrar|Acuerdo|Renegociar|sin emitir/i.test(q('.main').innerText), 'se ve algo de Kevin: ' + q('.main').innerText.slice(0, 300));
-      ok(qa('.main > .cont .cal .chip[data-ent]').length >= 3, 'el calendario sin las entregas');
+      ok(!qa('.main > .cont .cal').some(c => c.getClientRects().length), 'se ve un calendario');   // al día a propósito: la lista, sin calendario (D-312)
       ok(q('.main > .cont > .vc-lado [data-vc="pagos"]') && !q('.main > .cont > .cont-der').getClientRects().length, 'sin «Tus pagos» a la derecha (o se ve el acuerdo de Kevin)');
       await vistaCliente(false); ok(q('.main > .cont .cont-izq .en-h') && !q('.main > .cont .en-vc'), 'mi vista no vuelve');
     } finally { relojVuelve(); await vistaCliente(false); }
@@ -21722,7 +21727,262 @@
       });
     } finally { relojVuelve(); }
   });
-  prueba('VD7', 'La ventana de la «Vista cliente», tras la revisión en frío (D-295): sin nada leído de su web no dice «Aún no hay comentarios» (no sale «Comentarios»); con una foto horizontal en una ventana mediana, nunca menos de 520 px de alto, la foto entera dentro; en un cliente de solo contenido, la columna derecha mide 360 px como la del portal', async () => {
+  // ---------- un cliente de solo contenido, sin meses (D-312) ----------
+  prueba('SM1', 'Un cliente de solo contenido no tiene meses (D-312): MESA.init no crea nada y devuelve sin error con sinMeses; MESA.open de un tablero viejo suyo abre su página; con ella abierta MESA.board() da null, MESA.status() lo dice y MESA.clients() no lista meses; plan, setEstado, startZernio, revisar y las historias, vacíos; cambiar su servicio con la API lleva a sus tableros o a su página', async () => {
+    const key = await tableroContenido();
+    ok(await M._in.idbGet('boards', key), 'su tablero viejo no se queda guardado');
+    ok(M._in.contCli() === CLIENTE && !M._in.S, 'no abre su página: ' + json(M.status()));
+    igual(M.board(), null, 'MESA.board() con su página abierta');
+    igual((await M.clients()).find(c => c.id === CLIENTE).months, [], 'MESA.clients() lista meses');
+    const st = M.status(); ok(st.sinMeses === true && st.client === CLIENTE && st.board === null, 'MESA.status(): ' + json(st));
+    const r = await M.init({ client: CLIENTE, clientName: NOMBRE, month: '2026-12', slots: [{ id: 'sm1', name: 'SM1', type: 'Foto', date: '2026-12-05T10:00:00+01:00' }], past: [] });
+    ok(r && r.sinMeses === true && !r.error && r.client === CLIENTE, 'MESA.init: ' + json(r));
+    ok(!(await M._in.idbGet('boards', `${CLIENTE}-2026-12`)), 'MESA.init crea un tablero');
+    ok(M._in.contCli() === CLIENTE && !M._in.S, 'MESA.init cambia lo que está abierto');
+    await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [], past: [], force: true });   // el tablero de otro cliente
+    const o = await M.open(key); ok(o && o.sinMeses === true && M._in.contCli() === CLIENTE && !M._in.S, 'MESA.open de su tablero viejo: ' + json(o));
+    await hasta(() => q('.main > .cont .cont-izq .en-h'), 4000, 'su página');
+    ok(!q('.bar .mchip[data-act="month"]') && q('.bar .clientToggle'), 'la barra con meses: ' + q('.bar').textContent);
+    igual(M.plan(), [], 'plan'); igual(M.setEstado(['x'], 'aprobado'), [], 'setEstado'); igual(M.startZernio([{ slotId: 'x', fileId: 'y' }]), {}, 'startZernio');
+    const rv = await M.revisar(); ok(rv.ok && rv.sinFeed === true, 'revisar: ' + json(rv));
+    await hasta(() => M.cargarHistorias, 6000, 'historias.js');
+    const ch = await M.cargarHistorias([{ date: '2026-11-25T10:00:00+01:00', note: 'SM1' }]); ok(ch && /sin feed/.test(ch.error || ''), 'historias: ' + json(ch));
+    await M.updateClient(CLIENTE, { servicio: 'redes' }); await hasta(() => M._in.S && M._in.S.key === key, 4000, 'de gestión de redes, su tablero');
+    await M.updateClient(CLIENTE, { servicio: 'contenido' }); await hasta(() => !M._in.S && M._in.contCli() === CLIENTE && q('.main > .cont .cont-izq .en-h'), 4000, 'de solo contenido otra vez, su página');
+  });
+  prueba('SM2', 'Su página (D-312, opción 2): a la izquierda todas sus entregas —las pendientes por fecha, la pasada en rojo, con «+ Entrega»; aparte, «Entregadas» de la más nueva a la más vieja por meses, con todo su historial—; en el medio, el calendario a media altura en el mes de hoy, con ‹ › por cualquier mes sin cambiar la lista, y debajo sus sesiones, próximas y «Pasadas», con «+ Sesión» y «+ Reunión»; a la derecha, «Acuerdo y pagos»; a 720 px, una sola columna', async () => {
+    await tableroContenido();
+    relojEn('2026-11-24T10:00:00+01:00');
+    await M.addClient({ id: CLIENTE2, name: NOMBRE2 }); await M.openClient(CLIENTE2); await M.openClient(CLIENTE);   // abrir otra vez su página: con el reloj de la prueba
+    const marco = W.frameElement, ancho0 = marco.style.width;
+    try {
+      const E = M._in.ent, mk = async (fecha, que, entregada) => { const r = await E.nueva({ cliente: CLIENTE, fecha, que }); if (entregada) await E.cambiar(r.id, { entregada }); return r; };
+      await mk('2026-03-05', 'Fotos de marzo', '2026-03-04'); await mk('2026-08-05', 'Fotos de agosto', '2026-08-05'); await mk('2026-10-24', 'Reels de octubre', '2026-10-24'); await mk('2026-10-05', 'Fotos de octubre', '2026-10-03');
+      const pasada = await mk('2026-11-20', 'Vídeo pasado'), ene = await mk('2027-01-15', 'Fotos de enero'), dic = await mk('2026-12-05', 'Reels de diciembre');
+      await hasta(() => M.sesiones && M.sesiones._test, 8000, 'sesiones.js');
+      await M.sesiones._test.crear({ txt: 'Reunión de temporada', clase: 'reunion', fecha: '2026-12-03', hora: '11:00', clientes: [CLIENTE] });
+      await M.sesiones._test.crear({ txt: 'Sesión vieja', clase: 'foto', fecha: '2026-11-12', hora: '10:00', clientes: [CLIENTE] });
+      await M.sesiones._test.crear({ txt: 'Sesión sin fecha', clase: 'foto', clientes: [CLIENTE] });   // su fecha es opcional: no puede desaparecer (lo vio el ratón real)
+      M._in.render();
+      const iz = () => q('.main > .cont > .cont-izq');
+      await hasta(() => /Reels de diciembre/.test(iz().textContent) && /Fotos de marzo/.test(iz().textContent), 3000, 'todas sus entregas en su columna: ' + iz().textContent.slice(0, 200));
+      igual(qa('.cont-izq > .en-lista:first-of-type .en-f').map(f => f.dataset.id), [pasada.id, dic.id, ene.id], 'las pendientes, por fecha');
+      ok(q(`.cont-izq .en-f.pasada[data-id="${pasada.id}"]`), 'la pasada sin su rojo');
+      ok(/3 pendientes · 4 entregadas/.test(iz().querySelector('.en-h').textContent), 'la cuenta: ' + iz().querySelector('.en-h').textContent);
+      igual(qa('.cont-izq > .en-mh').map(x => x.textContent), ['Octubre 2026', 'Agosto 2026', 'Marzo 2026'], 'lo entregado, por meses de la más nueva a la más vieja');
+      ok(q('.cont-izq [data-en="nueva"]') && q('.cont-izq [data-en="nueva"]').compareDocumentPosition(q('.cont-izq > .en-mh')) & 4, '«+ Entrega» no va bajo las pendientes');
+      // el calendario, en el mes de hoy; ‹ › por cualquier mes sin cambiar la lista; doble clic: el mes de hoy
+      const mes = () => q('.side > .cal .cmes').textContent, h0 = iz().innerHTML;
+      await hasta(() => q('.side > .cal .cmes'), 3000, 'el calendario'); igual(mes(), 'Noviembre 2026', 'el mes con el que abre');
+      for (let i = 0; i < 8; i++) q('.side > .cal [data-cal="prev"]').click();
+      igual(mes(), 'Marzo 2026', '‹ no llega a cualquier mes'); ok(q('.side > .cal .cday[data-day="2026-03-05"] .chip[data-ent]'), 'el calendario de marzo sin su entrega');
+      igual(iz().innerHTML, h0, 'mover el calendario cambia la lista');
+      q('.side > .cal .cmes').dispatchEvent(new W.MouseEvent('dblclick', { bubbles: true })); igual(mes(), 'Noviembre 2026', 'el doble clic no vuelve al mes de hoy');
+      q('.side > .cal [data-cal="next"]').click(); q('.side > .cal [data-cal="next"]').click(); igual(mes(), 'Enero 2027', '› no pasa del tablero'); ok(q('.side > .cal .cday[data-day="2027-01-15"] .chip[data-ent]'), 'enero sin su entrega');
+      ok(!q('.side > .cal .cfold') && !q('.side > .cal .ctot') && !q('.side > .cal .csync') && !q('.side > .cal .cpaso'), 'el calendario con pliegue, total, Notion o pasos');
+      // sus sesiones, debajo
+      const se = q('.main > .cont > .cont-side > .cont-ses');
+      await hasta(() => /Sesión vieja/.test(se.textContent) && /Sesión sin fecha/.test(se.textContent), 3000, 'sus sesiones leídas: ' + se.textContent);
+      ok(se && /Sesiones 2 próximas/.test(se.querySelector('.en-h').textContent) && /Reunión de temporada/.test(se.textContent) && /Pasadas/.test(se.textContent) && /Sesión vieja/.test(se.textContent), 'sus sesiones: ' + (se && se.textContent));
+      igual([...se.querySelector('.en-lista').querySelectorAll('.en-s')].map(x => x.querySelector('.en-d').textContent + ' ' + x.querySelector('b').textContent), ['Sin fecha Sesión sin fecha', '3 dic Reunión de temporada'], 'las próximas, la sin fecha arriba');
+      ok(se.querySelector('[data-en="nueva-sesion"]') && se.querySelector('[data-en="nueva-reunion"]'), 'sin «+ Sesión» o «+ Reunión»');
+      se.querySelector('[data-en="nueva-reunion"]').click();
+      const d = await hasta(() => dialogo() && dialogo().dataset.dlg === 'pp-sesion' && dialogo(), 4000, '«+ Reunión»');
+      ok(d.querySelector('h3').textContent === 'Nueva reunión' && d.querySelector(`.pp-ns-cli [data-c="${CLIENTE}"]`), '«+ Reunión» sin reunión o sin su cliente: ' + d.querySelector('h3').textContent);
+      M._in.closeDetail(); await espera(60);
+      const cal = q('.main > .cont > .cont-side > .cal').getBoundingClientRect(), rs = se.getBoundingClientRect(), cs = q('.main > .cont > .cont-side').getBoundingClientRect();
+      if (W.innerWidth > 980) ok(cal.bottom <= rs.top && cal.height > cs.height * .35 && cal.height < cs.height * .65, 'el calendario no va a media altura: ' + json([cal.height, cs.height]));
+      igual(q('.cont-der .en-h').textContent, 'Acuerdo y pagos', 'el título de su columna derecha');
+      // el clic derecho de un día: sesión o reunión, sin historias
+      a43Ctx(q('.side > .cal .cday[data-day="2027-01-20"]')); ok(a43Items().includes('Nueva sesión') && a43Items().includes('Nueva reunión') && !a43Items().includes('Nueva historia'), 'el clic derecho de un día: ' + json(a43Items())); tecla('Escape'); await espera(40);
+      // a 720 px, una columna: entregas, calendario, sesiones, acuerdo
+      marco.style.width = '720px'; W.dispatchEvent(new W.Event('resize')); await espera(150);
+      const tops = ['.main > .cont > .cont-izq', '.main > .cont > .cont-side > .cal', '.main > .cont > .cont-side > .cont-ses', '.main > .cont > .cont-der'].map(x => q(x).getBoundingClientRect());
+      ok(tops.every((r, i) => !i || (r.top >= tops[i - 1].bottom - 1 && Math.abs(r.left - tops[0].left) < 14)), 'a 720 no va en una columna en su orden: ' + json(tops.map(r => [Math.round(r.left), Math.round(r.top), Math.round(r.bottom)])));
+    } finally { marco.style.width = ancho0; W.dispatchEvent(new W.Event('resize')); relojVuelve(); }
+  });
+  prueba('SM3', 'Un cliente de solo contenido recién creado se usa al momento (D-312): «Nuevo cliente · Solo contenido» abre su página, sin pedir un mes a Claude, y «+ Entrega» apunta la primera', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    const hechos = [];
+    try {
+      await nuevoCliente('contenido'); const fm = q('.detail [data-form="newclient"]');
+      fm.elements.name.value = 'Contenido SM3'; fm.requestSubmit();
+      const c = await hasta(() => M._in.CL.find(x => x.name === 'Contenido SM3'), 3000, 'el cliente'); hechos.push(c.id);
+      await hasta(() => M._in.contCli && M._in.contCli() === c.id && q('.main > .cont .cont-izq [data-en="nueva"]'), 4000, 'su página, al momento: ' + q('.main').textContent.slice(0, 160));
+      ok(!q('.main .empty') && !/Pídeselo|en la mesa»/.test(q('.main').textContent), 'pide un mes: ' + q('.main').textContent.slice(0, 200));
+      q('.cont-izq [data-en="nueva"]').click(); await hasta(() => scCampo('que'), 3000, '«+ Entrega»');
+      coCambiar(scCampo('que'), 'Primera entrega'); await hasta(() => M._in.ent.vivas(c.id).some(r => r.que === 'Primera entrega'), 2000, 'la primera entrega');
+      q('.cont-izq [data-en="cerrar"]').click(); await espera(80);
+    } finally { M._in.closeDetail(); if (M._test.entBorrarTodo) await M._test.entBorrarTodo(); for (const id of hechos) await M.removeClient(id); }
+  });
+  prueba('SM4', 'Solo contenido en el iPhone (D-312): su página en #cli/<cliente> —sus entregas sin entregar (la pasada en rojo), sus sesiones que vienen y lo entregado por meses—; una ruta vieja #mes/<su tablero>/… lleva a ella; su bloque de «Clientes» y su entrega pasada de «Hoy» la abren', async () => {
+    // cada icono que dibuja el iPhone existe en su tabla (un comentario se tragó «subir» y el botón de contestar salió vacío; segunda ronda)
+    { const src = await (await W.fetch('movil.js?sm4=' + Date.now(), { cache: 'no-store' })).text(), i0 = src.indexOf('const P = {'), i1 = src.indexOf('\n  };', i0);
+      const hay = new Set([...src.slice(i0, i1).split('\n').map(l => l.replace(/\s\/\/.*$/, '')).join('\n').matchAll(/(\w+):\s*'</g)].map(m => m[1]));
+      igual([...new Set([...src.matchAll(/\b(?:ic|icoFila)\('([a-z0-9]+)'/g)].map(m => m[1]))].filter(n => !hay.has(n)), [], 'iconos del iPhone que no existen'); }
+    const key = await tableroContenido();
+    const E = M._in.ent;
+    await E.nueva({ cliente: CLIENTE, fecha: '2026-09-25', que: 'Fotos de septiembre' });   // pasada con el reloj de la batería (1 oct)
+    const p2 = await E.nueva({ cliente: CLIENTE, fecha: '2026-09-28', que: 'Fotos de otoño', cuanto: '40 fotos', enlace: 'https://ejemplo.test/otono' }); await E.cambiar(p2.id, { entregada: '2026-09-27' });
+    await hasta(() => M.sesiones && M.sesiones._test, 8000, 'sesiones.js');
+    await M.sesiones._test.crear({ txt: 'Reunión SM4', clase: 'reunion', fecha: '2026-10-08', hora: '11:00', clientes: [CLIENTE] });
+    await enMovilPagina(async () => {
+      W.location.hash = `#mes/${key}/lista`;
+      await hasta(() => W.location.hash === '#cli/' + CLIENTE, 6000, 'la ruta vieja no lleva a su página: ' + W.location.hash);
+      const t = () => (W.document.querySelector('#movil main') || { textContent: '' }).textContent;
+      await hasta(() => /Fotos de septiembre/.test(t()) && W.document.querySelector('#movil .titulo h1'), 6000, 'su página: ' + t().slice(0, 200));
+      ok(/Entregas/.test(t()) && /Reunión SM4/.test(t()) && /Fotos de otoño/.test(t()) && /entregada el 27 sep/.test(t()) && /Septiembre/.test(t()), 'su página: ' + t().slice(0, 400));
+      ok(W.document.querySelector('#movil .fila.mk-pasado'), 'la pasada sin su rojo');
+      ok(W.document.querySelector('#movil [data-a="enlace"][data-u="https://ejemplo.test/otono"]'), 'la entregada sin su enlace');
+      ok((W.document.querySelector('#movil [data-a="enlace"] .chev') || { innerHTML: '' }).innerHTML.includes('M15 3h6v6'), 'su enlace, que se abre fuera, lleva «›» (revisión en frío)');
+      ok(W.document.querySelector('#movil [data-ir^="ses/"]'), 'su sesión no se abre');
+      W.location.hash = '#hoy'; await espera(200); W.location.hash = `#mes/${CLIENTE}-2025-01/lista`;   // un tablero suyo que ya no está: por su clave
+      await hasta(() => W.location.hash === '#cli/' + CLIENTE, 6000, 'la ruta de un tablero que ya no está no lleva a su página: ' + W.location.hash);
+      await irMovil('#clientes', '#movil .cli');
+      ok(W.document.querySelector(`#movil .cli[data-ir="cli/${CLIENTE}"]`), 'su bloque de «Clientes» no abre su página');
+      await irMovil('#hoy', '#movil .sec-h');
+      ok(W.document.querySelector(`#movil .fila[data-ir="cli/${CLIENTE}"]`), 'la entrega pasada de «Hoy» no abre su página');
+    });
+  });
+  prueba('SM5', 'Borrar un cliente de solo contenido con tableros viejos (D-312): sin publicaciones ni fotos, avisa de ellos y, con su pregunta, se van con él; con una publicación, lo dice y no borra nada', async () => {
+    await limpiar(); await sinTareas();
+    await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [], past: [], force: true });
+    for (const m of ['2026-09', '2026-10']) await M.init({ client: CLIENTE, clientName: NOMBRE, month: m, slots: [], past: [], force: true });
+    await M.updateClient(CLIENTE, { servicio: 'contenido' });
+    await hasta(() => M._in.contCli && M._in.contCli() === CLIENTE, 4000, 'su página');
+    const n = async () => (await M.boards()).filter(b => b.client === CLIENTE).length;
+    const r0 = await M.removeClient(CLIENTE);
+    ok(typeof r0 === 'string' && /2 tableros viejos/.test(r0) && (await n()) === 2 && M._in.CL.find(c => c.id === CLIENTE), 'sin preguntar borra, o no avisa: ' + json(r0));
+    q('.tabs .tedit').click(); const del = await hasta(() => q('.detail [data-act="delclient"]'), 3000, '«Eliminar»');
+    del.click(); await hasta(() => /2 tableros viejos, vacíos/.test(del.textContent), 3000, 'el botón no avisa de sus tableros: ' + del.textContent);
+    del.click(); await hasta(() => !M._in.CL.find(c => c.id === CLIENTE), 4000, 'con su pregunta no se borra');
+    igual(await n(), 0, 'sus tableros viejos se quedan');
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1)], past: [], force: true });
+    await M.updateClient(CLIENTE, { servicio: 'contenido' });
+    const r1 = await M.removeClient(CLIENTE, { tableros: true });
+    ok(typeof r1 === 'string' && /publicaciones o fotos/.test(r1) && M._in.CL.find(c => c.id === CLIENTE) && (await n()) === 1, 'borra un tablero con una publicación: ' + json(r1));
+  });
+  prueba('SM6', 'Un enlace de WeTransfer lleva «caduca» junto a su entrega (D-312): sin bloquear, con su porqué en el título; la regla es su dirección (we.tl o wetransfer.com); solo lo ve Kevin, nunca en la «Vista cliente»', async () => {
+    await tableroContenido();
+    const E = M._in.ent;
+    igual(['https://we.tl/t-abc', 'https://wetransfer.com/downloads/x', 'https://acme.wetransfer.com/x', 'https://drive.google.com/x', 'https://wetransfer.com.ejemplo.test/x', 'http://we.tl/x', ''].map(u => E.caduca(u)), [true, true, true, false, false, false, false], 'la regla');
+    const a = await E.nueva({ cliente: CLIENTE, fecha: '2026-11-05', que: 'Con WeTransfer', enlace: 'https://we.tl/t-sm6' }); await E.cambiar(a.id, { entregada: '2026-11-04' });
+    const b = await E.nueva({ cliente: CLIENTE, fecha: '2026-11-06', que: 'Con Drive', enlace: 'https://drive.google.com/sm6' }); await E.cambiar(b.id, { entregada: '2026-11-04' });
+    const c = await E.nueva({ cliente: CLIENTE, fecha: '2026-11-25', que: 'Aún sin entregar', enlace: 'https://wetransfer.com/downloads/sm6' });
+    M._in.render();
+    const fa = await hasta(() => q(`.cont-izq .en-f[data-id="${a.id}"]`), 3000, 'su fila'), cad = fa.querySelector('.en-cad');
+    ok(cad && cad.textContent === 'caduca' && /WeTransfer/.test(cad.title) && /caducan/.test(cad.title), 'sin «caduca» o sin su porqué: ' + (cad && cad.outerHTML));
+    ok(q(`.cont-izq .en-f[data-id="${c.id}"] .en-cad`), 'una sin entregar con WeTransfer, sin «caduca»');
+    ok(!q(`.cont-izq .en-f[data-id="${b.id}"] .en-cad`), 'un enlace de Drive dice «caduca»');
+    ok(fa.querySelector('.en-ck') && !fa.querySelector('.en-ck').disabled && fa.querySelector('a.en-l[href="https://we.tl/t-sm6"]'), 'bloquea la entrega o su enlace');
+    await vistaCliente(true);
+    try { await hasta(() => q('.cont-izq .en-vc'), 3000, 'la «Vista cliente»'); ok(!/caduca/.test(q('.main').innerText) && !q('.main .en-cad'), 'el cliente ve «caduca»'); }
+    finally { await vistaCliente(false); }
+  });
+  prueba('SM7', 'La «Vista cliente» de un cliente de solo contenido (D-312, cambia D-297): la lista de su web, sin calendario ni meses —lo que viene, «En camino», por fecha y, aparte, lo entregado por meses con su enlace— y debajo sus sesiones y reuniones que vienen con el ojo abierto; «Tus pagos» a la derecha; nada de Kevin', async () => {
+    await tableroContenido();
+    relojEn('2026-11-24T10:00:00+01:00');
+    try {
+      const E = M._in.ent;
+      const h1 = await E.nueva({ cliente: CLIENTE, fecha: '2026-08-05', que: 'Fotos de agosto', enlace: 'https://ejemplo.test/ago' }); await E.cambiar(h1.id, { entregada: '2026-08-04' });
+      const h2 = await E.nueva({ cliente: CLIENTE, fecha: '2026-11-05', que: 'Fotos de la tienda', enlace: 'https://we.tl/t-sm7' }); await E.cambiar(h2.id, { entregada: '2026-11-05' });
+      await E.nueva({ cliente: CLIENTE, fecha: '2026-11-20', que: 'Vídeo pasado' }); await E.nueva({ cliente: CLIENTE, fecha: '2026-12-05', que: 'Reels de diciembre' });
+      await hasta(() => M.sesiones && M.sesiones._test, 8000, 'sesiones.js');
+      await M.sesiones._test.crear({ txt: 'Reunión que viene', clase: 'reunion', fecha: '2026-12-03', hora: '11:00', clientes: [CLIENTE], visible: true });
+      await M.sesiones._test.crear({ txt: 'Sesión oculta', clase: 'foto', fecha: '2026-12-10', clientes: [CLIENTE], visible: false });
+      await M.sesiones._test.crear({ txt: 'Sesión pasada', clase: 'foto', fecha: '2026-11-12', clientes: [CLIENTE], visible: true });
+      await coCliente({ importe: 500, dia: 1, plazo: 15 });
+      await vistaCliente(true);
+      const v = await hasta(() => q('.main > .cont .cont-izq .en-vc'), 3000, 'su lista');
+      await hasta(() => /Reunión que viene/.test(v.textContent), 3000, 'sus sesiones: ' + v.textContent.slice(0, 300));
+      ok(!qa('.main .cal').some(c => c.getClientRects().length), 'se ve el calendario');
+      igual(qa('.en-vc > .en-mh').map(x => x.textContent), ['Noviembre 2026', 'Agosto 2026', 'Sesiones y reuniones'], 'lo entregado por meses y sus sesiones');
+      ok(/2 en camino · 2 entregadas/.test(v.querySelector('.en-h').textContent), 'la cuenta: ' + v.querySelector('.en-h').textContent);
+      ok(!/Sesión oculta|Sesión pasada|sin entregar|caduca|sin enlace/.test(v.innerText), 'se ve algo que no: ' + v.innerText.slice(0, 400));
+      ok(v.querySelector('a[href="https://ejemplo.test/ago"]') && /En camino/.test(v.innerText), 'lo entregado sin su enlace o lo que viene sin «En camino»');
+      const s1 = v.querySelector('.en-lista .en-s.ro'); ok(s1 && W.getComputedStyle(s1).borderTopWidth === '0px', 'su primera sesión lleva la raya de arriba (el portal no)');
+      const lado = q('.main > .cont > .vc-lado'); ok(lado && lado.querySelector('[data-vc="pagos"]') && lado.getBoundingClientRect().left >= v.getBoundingClientRect().right - 1, 'sin «Tus pagos» a la derecha');
+      ok(!q('.main > .cont > .cont-der').getClientRects().length && !q('.main > .cont > .cont-side').getClientRects().length, 'se ve lo de Kevin');
+    } finally { relojVuelve(); await vistaCliente(false); }
+  });
+  prueba('SM8', '«Web del cliente» de un cliente de solo contenido, por cliente (D-312): desde su página, sin tablero; viajan todas sus sesiones con el ojo abierto, de cualquier mes, y se quitan las que ya no están; su huella, por cliente', async () => {
+    await tableroContenido();
+    await hasta(() => M.sesiones && M.sesiones._test, 8000, 'sesiones.js');
+    await M.sesiones._test.crear({ txt: 'Sesión de marzo', clase: 'foto', fecha: '2027-03-10', clientes: [CLIENTE] });
+    await M.sesiones._test.crear({ txt: 'Sesión de agosto', clase: 'foto', fecha: '2026-08-10', clientes: [CLIENTE] });
+    await M.sesiones._test.crear({ txt: 'Oculta', clase: 'foto', fecha: '2026-11-10', clientes: [CLIENTE], visible: false });
+    await M.sesiones._test.crear({ txt: 'Sin nombre', clase: 'reunion', fecha: '2026-12-01', clientes: [CLIENTE], visible: true });
+    { const r = (await M.personal.tareas()).find(x => x.txt === 'Sin nombre'), raw = await M._in.idbGet('tareas', r.id); raw.txt = ''; await M._in.idbPut('tareas', r.id, raw); }   // una reunión sin nombre: «Reunión», como la «Vista cliente» (revisión en frío)
+    await conWeb(async sv => {
+      wbSesion(); M._in.renderBar(); await espera(60);
+      ok(q('.bar .webbtn'), 'sin «Web del cliente» en su página');
+      const P = await M.web.paquete(); ok(P && !P.error, 'el paquete sin tablero: ' + json(P && P.error));
+      igual((P.sesiones || []).map(x => x.nombre).sort(), ['Reunión', 'Sesión de agosto', 'Sesión de marzo'], 'las sesiones de cualquier mes (la reunión sin nombre, «Reunión»)');
+      const r = await M.web.enviar(); ok(r.ok, 'no se envió: ' + json(r));
+      igual((sv.db.sesiones || []).map(x => x.nombre).sort(), ['Reunión', 'Sesión de agosto', 'Sesión de marzo'], 'las sesiones en la web');
+      ok(Object.keys(W.localStorage).some(k => /^mesa-web-huella:/.test(k) && k.endsWith(':cliente:' + CLIENTE)), 'la huella no es por cliente: ' + Object.keys(W.localStorage).filter(k => /huella/.test(k)).join(' '));
+      const ag = (await M.personal.tareas()).find(x => x.txt === 'Sesión de agosto'); await M.personal.borrarSesion(ag.id); await espera(120);
+      const r2 = await M.web.enviar(); ok(r2.ok, 'no se envió otra vez: ' + json(r2));
+      igual((sv.db.sesiones || []).map(x => x.nombre).sort(), ['Reunión', 'Sesión de marzo'], 'la sesión quitada sigue en la web');
+    });
+  });
+  prueba('SM9', 'Arreglos de las revisiones en frío del lote C (D-312): su calendario vuelve tras la «Vista cliente» y sin «Feed · Historias» en su barra; «+ Sesión» y «+ Reunión» bajo las próximas, antes de «Pasadas»; una lectura fallida de sus sesiones o de sus acuerdos no se toma por «ninguna»; el calendario a su alto, sin cortarse; el interruptor a la derecha a 720; «caduca» en el ámbar de aviso; las filas sin estela; su «Vista cliente» en una columna bajo 1100 px, como el portal; borrar el cliente, un clic cada vez', async () => {
+    await tableroContenido();
+    relojEn('2026-11-24T10:00:00+01:00');
+    const marco = W.frameElement, ancho0 = marco.style.width;
+    try {
+      const E = M._in.ent, a = await E.nueva({ cliente: CLIENTE, fecha: '2026-11-05', que: 'Con WeTransfer', enlace: 'https://we.tl/t-sm9' }); await E.cambiar(a.id, { entregada: '2026-11-04' });
+      await hasta(() => M.sesiones && M.sesiones._test, 8000, 'sesiones.js');
+      await M.sesiones._test.crear({ txt: 'Reunión con hora', clase: 'reunion', fecha: '2026-11-11', hora: '11:00', clientes: [CLIENTE] });
+      await M.sesiones._test.crear({ txt: 'Vieja', clase: 'foto', fecha: '2026-10-02', clientes: [CLIENTE] });
+      await M.sesiones._test.crear({ txt: 'Próxima', clase: 'foto', fecha: '2026-12-02', clientes: [CLIENTE] });
+      await coCliente({ importe: 500, dia: 1, plazo: 15 });   // «Tus pagos» en su «Vista cliente»
+      await M.addClient({ id: CLIENTE2, name: NOMBRE2 }); await M.openClient(CLIENTE2); await M.openClient(CLIENTE);   // its page again, with the test's clock
+      const se = () => q('.main > .cont > .cont-side > .cont-ses'), cal = () => q('.main > .cont > .cont-side > .cal');
+      await hasta(() => /Próxima/.test(se().textContent) && /Vieja/.test(se().textContent), 3000, 'sus sesiones');
+      // the buttons under the next ones, before «Pasadas» (lesson 247)
+      const pas = [...se().querySelectorAll('.en-mh')].find(x => x.textContent === 'Pasadas'), bt = se().querySelector('[data-en="nueva-sesion"]');
+      ok(pas && bt && bt.compareDocumentPosition(pas) & 4, '«+ Sesión» va al pie de «Pasadas»');
+      // the calendar at its own height: nothing cut (November, six weeks, a chip with its time)
+      const cb = cal().querySelector('.calbody'); if (q('.main > .cont > .cont-side').clientHeight > 560) ok(cb.scrollHeight <= cb.clientHeight + 1, 'el calendario se corta: ' + json([cb.scrollHeight, cb.clientHeight]));
+      // the rows: their background only in the state on (no trail, A49-10)
+      igual(msDe(W.getComputedStyle(q('.cont-izq .en-q')).transitionDuration.split(',')[0]), 0, 'una fila deja estela');
+      // «caduca», in the amber of a notice (--chg), never the terracotta of an action
+      const cad = q('.cont-izq .en-cad'); ok(cad && rgbDe(W.getComputedStyle(cad).color).join() === rgbDe(W.getComputedStyle(q('#mesa')).getPropertyValue('--chg')).join(), '«caduca» no va en --chg: ' + (cad && W.getComputedStyle(cad).color));
+      ok(W.getComputedStyle(cad.parentElement).whiteSpace === 'normal', '«caduca» se puede perder tras los «…» (segunda ronda)');
+      // the vista cliente and back: its calendar drawn again, no «Feed · Historias» in its bar
+      await vistaCliente(true); await espera(150); await vistaCliente(false); await espera(200);
+      await hasta(() => cal().querySelectorAll('.cday[data-day]').length >= 28 && !cal().hidden, 3000, 'su calendario no vuelve tras la «Vista cliente»: ' + cal().querySelectorAll('.cday').length);
+      ok(!q('.bar .hvsw'), '«Feed · Historias» en su barra');
+      // a failed reading of its sessions, never «Ninguna próxima»; of its agreements, never «Sin acuerdo»
+      const idbAll0 = M._in.idbAll, mal0 = M._in.cob.mal;
+      try {
+        M._in.idbAll = st => st === 'tareas' ? Promise.reject(new Error('fallo SM9')) : idbAll0(st);
+        W.document.dispatchEvent(new W.CustomEvent('mesa-tareas'));
+        await hasta(() => /No se pudieron leer sus sesiones/.test(se().textContent), 3000, 'una lectura fallida de las sesiones: ' + se().textContent);
+        ok(!/Ninguna próxima|Pasadas/.test(se().textContent), 'con la lectura fallida dice «ninguna» o enseña las de antes');
+        M._in.cob.mal = () => true; M._in.render(); await espera(80);
+        ok(/No se pudieron leer sus acuerdos/.test(q('.cont-der').textContent) && !/Sin acuerdo/.test(q('.cont-der').textContent), 'con los acuerdos sin leer: ' + q('.cont-der').textContent);
+      } finally { M._in.idbAll = idbAll0; M._in.cob.mal = mal0; W.document.dispatchEvent(new W.CustomEvent('mesa-tareas')); M._in.render(); }
+      await hasta(() => /Próxima/.test(se().textContent), 3000, 'las sesiones de vuelta');
+      // its vista cliente below 1100 px, in one column, as the portal (lesson 178)
+      marco.style.width = '1050px'; W.dispatchEvent(new W.Event('resize')); await vistaCliente(true); await espera(200);
+      const iz = q('.main > .cont > .cont-izq').getBoundingClientRect(), la = q('.main > .cont > .vc-lado').getBoundingClientRect();
+      ok(la.top >= iz.bottom - 1, 'a 1050 px la «Vista cliente» no va en una columna: ' + json([iz.bottom, la.top]));
+      await vistaCliente(false);
+      // at 720 px the switch on the right, as at 1440
+      marco.style.width = '720px'; W.dispatchEvent(new W.Event('resize')); await espera(150);
+      const sw = q('.bar .sw').getBoundingClientRect(), br = q('.bar').getBoundingClientRect();
+      ok(br.right - sw.right < 40, 'a 720 el interruptor no va a la derecha: ' + json([sw.right, br.right]));
+    } finally { marco.style.width = ancho0; W.dispatchEvent(new W.Event('resize')); relojVuelve(); await vistaCliente(false); }
+    // deleting the client: a second click while it finds out what goes with it waits (no message of the API to Kevin)
+    q('.tabs .tedit').click(); const del = await hasta(() => q('.detail [data-act="delclient"]'), 3000, '«Eliminar»');
+    del.click(); del.click(); await espera(250);
+    ok(M._in.CL.find(c => c.id === CLIENTE) && q('.detail [data-act="delclient"]') && !/tableros: true/.test(coToast() || ''), 'un segundo clic borra antes de tiempo o enseña el mensaje de la API');
+    await hasta(() => /tablero viejo, vacío/.test(del.textContent), 3000, 'el botón no avisa de su tablero: ' + del.textContent);
+    M._in.closeDetail();
+  });
+  prueba('VD7', 'La ventana de la «Vista cliente», tras la revisión en frío (D-295): sin nada leído de su web no dice «Aún no hay comentarios» (no sale «Comentarios»); con una foto horizontal en una ventana mediana, nunca menos de 520 px de alto, la foto entera dentro; en un cliente de solo contenido, la columna derecha va como la del portal (360 px; sin calendario desde D-312, la lista y «Tus pagos» en 1,6 : 1)', async () => {
     await tablero([pub(1), pub(2)]);
     await poner('r1', [await foto('vd7.jpg', 1910, 1000)]);
     await vistaCliente(true);
@@ -21742,7 +22002,8 @@
     try {
       M._in.render(); await espera(120); await vistaCliente(true); await espera(150);
       const col = await hasta(() => q('.main > .cont > .vc-lado'), 3000, '«Tus pagos» a la derecha');
-      cerca(vdR(col).width, 360, 1, 'la columna derecha no mide 360 px');
+      const iz = vdR(q('.main > .cont > .cont-izq')), de = vdR(col);   // al día a propósito (D-312): sin calendario, la lista y «Tus pagos» en 1,6 : 1, como el portal
+      ok(de.width >= 320 && Math.abs(iz.width / de.width - 1.6) < 0.05, 'la lista y «Tus pagos» no van en 1,6 : 1: ' + json([iz.width, de.width]));
     } finally { await vistaCliente(false); }
   });
 
@@ -21888,7 +22149,7 @@
       const rh = reglasDe(/\.cell\.filler:not\(\.over\):hover::after/);
       ok(rh.length && rh.every(r => r.style.opacity === '1' && /#mesa:not\(\.client\)/.test(r.selectorText)), 'el hueco: sin su anillo al pasar, o también en «Vista cliente»: ' + rh.map(r => r.cssText).join(' | '));
       const rd = reglasDe(/\.cday\[data-day\]:not\(\.cover\):not\(\.cno\):hover/);
-      ok(rd.length && rd.every(r => /#mesa:not\(\.client\)/.test(r.selectorText) && /--cx-hov/.test(r.style.getPropertyValue('background') || r.style.getPropertyValue('background-color'))), 'el día: sin el fondo de pasar el ratón, o también en «Vista cliente»: ' + rd.map(r => r.cssText).join(' | '));
+      ok(rd.length && rd.every(r => !/:not\(\.client\)/.test(r.selectorText) && /--cx-hov/.test(r.style.getPropertyValue('background') || r.style.getPropertyValue('background-color'))), 'el día: sin el fondo de pasar el ratón, o sin él en «Vista cliente»: ' + rd.map(r => r.cssText).join(' | '));   // al día a propósito: también en «Vista cliente» (D-313)
       ok(rd.some(r => /background-color/.test(r.style.getPropertyValue('transition')) && /--d1/.test(r.style.getPropertyValue('transition'))), 'el día no aparece con --d1: ' + rd.map(r => r.cssText).join(' | '));
       const dia = q('.side > .cal .cday[data-day]');
       igual(msDe(cs(dia).transitionDuration.split(',')[0]), 0, 'el fondo del día no se va al instante (deja estela al soltar)');
@@ -21898,6 +22159,87 @@
     } finally { if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes); }
   });
 
+  prueba('HV1', 'El ratón en todos los calendarios (D-313, sustituye en parte D-302): cada día toma el fondo --cx-hov al pasar el ratón, que aparece con --d1 y se va al instante, también los que no responden al clic: el calendario del tablero también en la «Vista cliente», el de la página de solo contenido, Semana y Mes de Tareas, la tira de días de cada cliente y el calendario del portal; con «reducir movimiento», al instante; el cursor no promete un clic', async () => {
+    const sin = t => t.replace(/:hover/g, '');
+    const conFondo = (re, n) => { const rs = reglasDe(re); ok(rs.length && rs.every(r => /--cx-hov/.test(r.style.getPropertyValue('background') || r.style.getPropertyValue('background-color')) && /background-color/.test(r.style.getPropertyValue('transition')) && /--d1/.test(r.style.getPropertyValue('transition'))), `${n}: sin el fondo al pasar o sin --d1: ` + rs.map(r => r.cssText).join(' | ')); return rs; };
+    const reposo0 = (el, n) => igual(msDe(W.getComputedStyle(el).transitionDuration.split(',')[0]), 0, `${n}: el fondo no se va al instante`);
+    const cursor = (el, n) => ok(['auto', 'default'].includes(W.getComputedStyle(el).cursor), `${n}: el cursor promete un clic: ` + W.getComputedStyle(el).cursor);
+    const LS = 'mesa-cal-plegado', antes = W.localStorage.getItem(LS); W.localStorage.setItem(LS, '0');
+    try {
+      await tablero([pub(1)]); M._in.render();
+      await hasta(() => q('.side > .cal .cday[data-day]'), 4000, 'el calendario del tablero');
+      const rd = conFondo(/\.cday\[data-day\]:not\(\.cover\):not\(\.cno\):hover/, 'el día del tablero');
+      ok(rd.every(r => !/:not\(\.client\)/.test(r.selectorText)), 'sin el fondo en la «Vista cliente»: ' + rd.map(r => r.selectorText).join(' | '));
+      ok(reglasReduce(/\.cday\[data-day\]:not\(\.cover\):not\(\.cno\):hover/).some(r => r.style.transition === 'none' && !/:not\(\.client\)/.test(r.selectorText)), 'el día con «reducir movimiento», con otro selector');
+      await vistaCliente(true);
+      try {
+        const d = await hasta(() => q('.side > .cal .cday[data-day]'), 3000, 'el calendario en la «Vista cliente»');
+        ok(rd.some(r => d.matches(sin(r.selectorText))), 'en la «Vista cliente» el fondo no llega al día'); reposo0(d, 'la «Vista cliente»'); cursor(d, 'un día en la «Vista cliente»');
+        const otro = q('.side > .cal .cday.off[data-day], .side > .cal .cday.prevc[data-day], .side > .cal .cday.otromes[data-day]'); if (otro) ok(rd.some(r => otro.matches(sin(r.selectorText))), 'un día de otro mes, sin el fondo');
+      } finally { await vistaCliente(false); }
+      // la página de un cliente de solo contenido
+      await tableroContenido();
+      const dc = await hasta(() => q('.side > .cal .cday[data-day]'), 3000, 'su calendario');
+      ok(rd.some(r => dc.matches(sin(r.selectorText))), 'en su página el fondo no llega al día'); reposo0(dc, 'su página'); cursor(dc, 'un día de su página');
+    } finally { if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes); }
+    // la página personal: la tira de días de cada cliente, Semana y Mes de Tareas
+    const rp = reglasDe(/\.pp-(sd|md|dia):hover/), fondo = r => r.style.getPropertyValue('background') || r.style.getPropertyValue('background-color');
+    ok(['sd', 'md', 'dia'].every(k => rp.some(r => new RegExp(`\\.pp-${k}:hover`).test(r.selectorText) && /background-color/.test(r.style.getPropertyValue('transition')) && /--d1/.test(r.style.getPropertyValue('transition')))), 'la página personal: un día sin aparecer con --d1');
+    ok(['sd', 'md', 'dia'].every(k => rp.some(r => new RegExp(`\\.pp-${k}:hover`).test(r.selectorText) && /--bg-3/.test(fondo(r)))), 'la página personal: un día sin su tono propio (va sobre un fondo del tono de --cx-hov: la tarjeta de Tareas, el bloque al pasar)');
+    ok(reglasReduce(/\.pp-(sd|md|dia):hover/).some(r => r.style.transition === 'none' && ['sd', 'md', 'dia'].every(k => new RegExp(`\\.pp-${k}:hover`).test(r.selectorText))), 'la página personal con «reducir movimiento» sigue animando');
+    await paginaAbierta();
+    try {
+      const tira = await hasta(() => q('.pp-blq .pp-dia'), 3000, 'la tira de un cliente'); ok(rp.some(r => tira.matches(sin(r.selectorText))), 'la tira sin el fondo'); reposo0(tira, 'la tira');
+      await ppClic('[data-pp="plegar"][data-p="tareas"]');
+      // el fondo al pasar se distingue del día y de lo que hay detrás: si no, el día se funde y no «hace algo»
+      const hondo = M._in.root() && W.getComputedStyle(q('#mesa')).getPropertyValue('--bg-3').trim(), tarjeta = W.getComputedStyle(q('.pp-tareas')).backgroundColor;
+      ok(rgbDe(tarjeta).join() !== rgbDe(hondo).join(), 'Semana y Mes: su fondo al pasar es el de su tarjeta');
+      await ppClic('.pp-tvs [data-v="semana"]'); const sd = await hasta(() => q('.pp-sd'), 3000, 'Semana');
+      ok(rgbDe(W.getComputedStyle(q('.pp-sd:not(.pas):not(.hoy)') || sd).backgroundColor).join() !== rgbDe(hondo).join(), 'Semana: su fondo al pasar es el de reposo'); ok(rp.some(r => sd.matches(sin(r.selectorText))), 'Semana sin el fondo'); reposo0(sd, 'Semana'); cursor(sd, 'un día de Semana');
+      await ppClic('.pp-tvs [data-v="mes"]'); const md = await hasta(() => q('.pp-md'), 3000, 'Mes'); ok(rp.some(r => md.matches(sin(r.selectorText))), 'Mes sin el fondo'); reposo0(md, 'Mes'); cursor(md, 'un día de Mes');
+      const fuera = q('.pp-md.fuera'); if (fuera) ok(rp.some(r => fuera.matches(sin(r.selectorText))), 'un día de otro mes, sin el fondo');
+      await ppClic('.pp-tvs [data-v="lista"]');
+    } finally { paginaCerrada(); }
+    // el portal: sus dos tokens con los valores de la Mesa, en claro y en oscuro, y la regla, solo con ratón
+    const css = await (await W.fetch('../portal/portal.css?hv1=' + Date.now(), { cache: 'no-store' })).text();
+    const claro = (css.match(/:root\{color-scheme:light;[^}]*\}/) || [''])[0], oscuro = (css.match(/prefers-color-scheme:dark\)\{:root\{[^}]*\}/) || [''])[0];
+    ok(/--d1:\.12s/.test(claro) && /--cx-hov:var\(--bg-2\)/.test(claro) && /--cx-hov:var\(--bg-2\)/.test(oscuro), 'el portal sin --d1 o --cx-hov en claro y oscuro');
+    ok(/@media \(hover:hover\)\{\.dia:hover\{background:var\(--cx-hov\);transition:background-color var\(--d1\) var\(--ease\)\}\}/.test(css) && /prefers-reduced-motion:reduce\)\{\.dia:hover\{transition:none\}\}/.test(css), 'el portal sin el fondo de sus días al pasar el ratón');
+    ok(!/style=/.test(css), 'estilos en línea en el portal');
+  });
+  prueba('CB1', 'La cabecera del acuerdo, entera a 280 px (D-314): en «Editar cliente · Cobros», el acuerdo de cuándo a cuándo y cada cuánto baja de línea y «Ahora» se queda dentro, a la derecha, y el título con «+ Nuevo acuerdo» también baja; en «Acuerdo y pagos» de la página de solo contenido, su línea y cada factura, enteras', async () => {
+    await tableroContenido();
+    await hasta(() => M.cobrosUI, 8000, 'cobros.js');
+    await CB().acuGuardar(CLIENTE, AU_ACU);
+    const n2 = await CB().acuNuevo(CLIENTE, '2027-01'); await CB().acuCambiar(CLIENTE, n2.id, { importe: 3000, dia: 1, meses: 3, renueva: true });   // two: the old one folded, with its summary
+    ok((await M.cobros.cargar([{ id: 'cb1-1', cliente: CLIENTE, periodo: '2026-05', hasta: '2026-10', importe: 2700, factura: 'CB1-1', emitida: '2026-05-01', vence: '2026-05-16', cobrada: '2026-05-10' }])).ok, 'cargar');
+    const dentro = (cont, els, n, tol = .5) => { const c = cont.getBoundingClientRect(); for (const e of els) { const r = e.getBoundingClientRect(); ok(r.right <= c.right + tol && r.left >= c.left - tol, `${n}: «${e.textContent.trim().slice(0, 40)}» se sale (${Math.round(r.left)}–${Math.round(r.right)} de ${Math.round(c.left)}–${Math.round(c.right)})`); } };
+    const entero = (els, n) => { for (const e of els) ok(e.scrollWidth <= e.clientWidth + 1, `${n}: «${e.textContent.trim().slice(0, 40)}» se corta`); };
+    try {
+      await coFicha(CLIENTE, 'cobros');
+      const pane = await hasta(() => q('.detail[data-dlg="editclient"] .co-pane .co-ac-h'), 3000, '«Cobros»') && q('.detail[data-dlg="editclient"] .co-pane');
+      for (const ancho of [280, 440]) {
+      pane.style.width = ancho + 'px'; pane.style.maxWidth = ancho + 'px'; await espera(60);
+      for (const h of qa('.co-pane .co-ac-h')) {
+        const b = h.querySelector('b'), ch = h.querySelector('.co-ach'), sub = h.querySelector('.co-acs');
+        if (!ch) continue;
+        dentro(h, [b, ch, ...(sub ? [sub] : [])], 'la cabecera de un acuerdo'); entero([b, ...(sub ? [sub] : [])], 'la cabecera de un acuerdo');
+        ok(ch.getBoundingClientRect().left >= b.getBoundingClientRect().right - 1, '«Ahora» o «Terminado» no van a la derecha');
+        ok(!/\d (meses|mes|año|años)\b|\d €|cada \d/.test(b.textContent + (sub ? sub.textContent : '')) && !/\b(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic) \d{4}/.test(b.textContent), 'una cifra se puede separar de su unidad: ' + JSON.stringify(b.textContent + (sub ? sub.textContent : '')));
+        ok(b.getBoundingClientRect().width >= (h.clientWidth - ch.getBoundingClientRect().width) * .6, `a ${ancho} px el título solo tiene la mitad del ancho (segunda ronda)`);
+      }
+      }
+      ok(qa('.co-pane .co-ac-h .co-acs').length, 'sin un acuerdo plegado con su resumen');
+      dentro(pane, [...q('.co-pane .co-acu-t').children].filter(e => e.getClientRects().length), 'el título', 4.5);   // «+ Nuevo acuerdo» lleva −4 px a la derecha a propósito (su fondo, alineado con el borde)
+    } finally { M._in.closeDetail(); }
+    // «Acuerdo y pagos» de su página, a 280 px
+    const de = q('.main > .cont > .cont-der'); de.style.width = '280px'; de.style.justifySelf = 'start'; M._in.render(); await espera(80);
+    try {
+      const ls = [...de.querySelectorAll('.en-acu, .en-p .en-t b, .en-p .en-t span, .en-p .en-e')];
+      ok(ls.length >= 3, 'sin su línea o sus facturas: ' + de.textContent);
+      dentro(de, ls, '«Acuerdo y pagos»'); entero(ls, '«Acuerdo y pagos»');
+    } finally { de.style.width = ''; de.style.justifySelf = ''; }
+  });
   prueba('AN5', 'Los avisos de abajo en la terracota de la marca (D-303): fondo --acc y texto blanco (5,12:1) en claro y en oscuro; su botón, blanco y subrayado, con el foco blanco; en el iPhone igual, el de error con su triángulo rojo en un disco blanco; el portal, como la «Vista cliente»', async () => {
     await tablero([pub(1)]);
     const cs = e => W.getComputedStyle(e);
@@ -22150,15 +22492,15 @@
       await hasta(() => cards().length === 2, 4000, 'las dos tarjetas');
       ok(/Acuerdos/.test(q('.detail .co-acu-t h4').textContent), 'el título no es «Acuerdos»');
       const [c0, c1] = cards(); igual([c0.dataset.acu, c1.dataset.acu], [n2.id, CLIENTE + '-a1'], 'el orden, del más nuevo al más viejo');
-      ok(/Desde may 2026 · cada mes · se renueva cada 6 meses/.test(c0.textContent) && /Ahora/.test(c0.querySelector('.co-ach').textContent) && !c0.classList.contains('pleg'), 'el de hoy: ' + c0.textContent.slice(0, 120));
+      ok(/Desde may 2026 · cada mes · se renueva cada 6 meses/.test(c0.textContent.replace(/\u00a0/g, ' ')) && /Ahora/.test(c0.querySelector('.co-ach').textContent) && !c0.classList.contains('pleg'), 'el de hoy: ' + c0.textContent.slice(0, 120));
       ok(c0.querySelector('tr.co-f[data-id="al2-nov"]') && !c0.querySelector('tr.co-f[data-id="al2-feb"]'), 'las facturas del de hoy');
-      ok(c1.classList.contains('pleg') && /ene 2026 – abr 2026/.test(c1.textContent) && /Personalizado/.test(c1.textContent) && /cuatro pagos de 380 €/.test(c1.textContent) && /Terminado/.test(c1.textContent), 'el terminado: ' + c1.textContent);
+      { const t1 = c1.textContent.replace(/\u00a0/g, ' '); ok(c1.classList.contains('pleg') && /ene 2026 – abr 2026/.test(t1) && /Personalizado/.test(t1) && /cuatro pagos de 380 €/.test(t1) && /Terminado/.test(t1), 'el terminado: ' + c1.textContent); }   // al día a propósito: espacios duros (D-315)
       ok(/Incluye 12 fotos al mes/.test(c0.querySelector('.co-acu-inc').textContent), 'lo que incluye el paquete');   // en una línea de texto (D-311), a propósito
       c1.querySelector('[data-co="acu-pleg"]').click(); await hasta(() => !cards()[1].classList.contains('pleg') && cards()[1].querySelector('tr.co-f[data-id="al2-feb"]'), 3000, 'desplegar el terminado');
       // «Nuevo acuerdo»: empieza el mes que viene, abierto, con «Cubre desde» listo
       q('.detail [data-co="acu-nuevo"]').click();
       await hasta(() => cards().length === 3, 3000, 'el acuerdo nuevo'); const nv = cards()[0];
-      ok(/Desde dic 2026/.test(nv.textContent) && /Empieza/.test(nv.querySelector('.co-ach').textContent), 'el nuevo: ' + nv.textContent.slice(0, 80));
+      ok(/Desde dic 2026/.test(nv.textContent.replace(/\u00a0/g, ' ')) && /Empieza/.test(nv.querySelector('.co-ach').textContent), 'el nuevo: ' + nv.textContent.slice(0, 80));
       await hasta(() => D.activeElement && D.activeElement.closest && D.activeElement.closest(`[data-acu="${nv.dataset.acu}"]`) && D.activeElement.classList.contains('mx-in'), 2000, 'el foco en «Cubre desde»');
       ok(nv.querySelector('[data-k="termina"]') && nv.querySelector('[data-k="termina"]').type === 'month', 'sin «Termina en»');
       const idN = nv.dataset.acu;
@@ -22283,12 +22625,12 @@
       await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 450, dia: 10, plazo: 15, desde: '2026-05', meses: 6, renueva: true });
       const hoy = () => CB().acuerdos(CLIENTE).find(a => a.desde === '2026-05');
       await CB().dlgCliente(CLIENTE, 'cobros'); let h = await hasta(() => q('.detail .co-ac:not(.pleg) .co-ac-h'), 3000, 'la cabecera');
-      ok(/cada mes · se renueva cada 6 meses/.test(h.textContent), 'la cabecera de uno que se renueva: ' + h.textContent);
+      ok(/cada mes · se renueva cada 6 meses/.test(h.textContent.replace(/\u00a0/g, ' ')), 'la cabecera de uno que se renueva: ' + h.textContent);   // al día a propósito: las unidades con espacio duro (D-315)
       M._in.closeDetail(); await espera(40);
       await CB().acuNuevo(CLIENTE, '2026-12');
       const l = CB().resumenA(hoy()); ok(/Ahora cubre nov 2026 ·/.test(l) && !/nov 2026 – nov 2026/.test(l) && /un pago de 450 €/.test(l) && !/seis pagos/.test(l), 'la línea del cortado: ' + l);
-      await CB().dlgCliente(CLIENTE, 'cobros'); h = await hasta(() => qa('.detail .co-ac-h').find(x => /may 2026/.test(x.textContent)), 3000, 'la cabecera del cortado');
-      ok(/hasta nov 2026/.test(h.textContent) && !/se renueva/.test(h.textContent), 'la cabecera del cortado: ' + h.textContent);
+      await CB().dlgCliente(CLIENTE, 'cobros'); h = await hasta(() => qa('.detail .co-ac-h').find(x => /may 2026/.test(x.textContent.replace(/\u00a0/g, ' '))), 3000, 'la cabecera del cortado');
+      ok(/hasta nov 2026/.test(h.textContent.replace(/\u00a0/g, ' ')) && !/se renueva/.test(h.textContent), 'la cabecera del cortado: ' + h.textContent);
       M._in.closeDetail(); await espera(40);
       await vistaCliente(true); M._in.render(); await espera(120);
       const p = await hasta(() => q('.main > .vc-lado [data-vc="pagos"] .co-vh'), 3000, '«Tus pagos»');
@@ -22303,7 +22645,7 @@
       ok(/ago 2026 – nov 2026/.test(sm) && /un pago de 1800 €/.test(sm) && !/dos pagos/.test(sm) && /se factura el día 1/.test(sm), 'el semestral cortado: ' + sm);
       await M._test.cobBorrarTodo(); await CB().acuGuardar(CLIENTE, { pago: 'semestral', importe: 2700, dia: 1, plazo: 15, desde: '2026-05', meses: 6, renueva: true });
       await CB().dlgCliente(CLIENTE, 'cobros'); h = await hasta(() => q('.detail .co-ac:not(.pleg) .co-ac-h'), 3000, 'la cabecera del semestral');
-      ok(/cada 6 meses · se renueva/.test(h.textContent) && !/se renueva cada/.test(h.textContent), 'la cabecera repite el ciclo: ' + h.textContent);
+      ok(/cada 6 meses · se renueva/.test(h.textContent.replace(/\u00a0/g, ' ')) && !/se renueva cada/.test(h.textContent), 'la cabecera repite el ciclo: ' + h.textContent);
     } finally { relojVuelve(); M._in.closeDetail(); await vistaCliente(false); }
   });
   prueba('AR2', '«+ Factura» de un acuerdo busca su hueco entre sus facturas (revisión del lote B, D-305): con la factura de diciembre del acuerdo nuevo ya hecha, el de ahora sigue ofreciendo «Factura de noviembre»', async () => {

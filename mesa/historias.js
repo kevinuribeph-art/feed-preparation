@@ -35,7 +35,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.20';   // 1.20: a client of «Solo contenido» has no stories: cargarHistorias refuses them (D-289). 1.19: without the notes' icon of the bar (D-282), the switch goes back next to «Descargar», «Revisar» or «Vista cliente». 1.18: the story's photo big through getBlob: in another computer it comes down if it hasn't yet (lot 4 of the traspaso, D-259). 1.17: in the vista cliente, no «Feed / Historias» in a month without a story it sees, and back to «Feed» (D-228). 1.16: the posts' hours without tabular figures (D-175). 1.14: no «N historias en este mes» when there are some (D-156)
+  const VERSION = '1.21';   // 1.21: the page of a «Solo contenido» client: no stories (D-312). 1.20: a client of «Solo contenido» has no stories: cargarHistorias refuses them (D-289). 1.19: without the notes' icon of the bar (D-282), the switch goes back next to «Descargar», «Revisar» or «Vista cliente». 1.18: the story's photo big through getBlob: in another computer it comes down if it hasn't yet (lot 4 of the traspaso, D-259). 1.17: in the vista cliente, no «Feed / Historias» in a month without a story it sees, and back to «Feed» (D-228). 1.16: the posts' hours without tabular figures (D-175). 1.14: no «N historias en este mes» when there are some (D-156)
   if (M.hs && M.hs._off) { try { M.hs._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const { esc, cssq, utc } = M._in;   // the mesa's own helpers
   const DOW = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
@@ -156,7 +156,8 @@
     });
   }
   async function cargarHistorias(items, opts = {}) {
-    let X = I(); if (!X || !X.S) return { error: 'no hay mesa abierta' };
+    let X = I(); if (X && !X.S && X.contCli && X.contCli()) return { error: 'sin feed: es un cliente de solo contenido, no tiene historias (D-289, D-312)' };
+    if (!X || !X.S) return { error: 'no hay mesa abierta' };
     if (X.locked) return { error: 'locked: la mesa está abierta en otra pestaña; no se ha guardado nada' };
     if (X.esContenido && X.esContenido(X.S.client)) return { error: 'sin feed: es un cliente de solo contenido, no tiene historias (D-289)' };
     const S = X.S, list = [].concat(items ?? []);
@@ -372,7 +373,8 @@
 
   // ---------- the view ----------
   // in the vista cliente, a month without a story it can see has no «Feed / Historias»; seeing «Historias», back to «Feed» (D-228)
-  const barra = () => { const cl = cliente(), n = lista().filter(cl ? paraCliente : h => !h.cancelada).length; if (cl && !n) { if (ON) { ON = false; queueMicrotask(render); } return ''; } return `<div class="hvsw" role="group" aria-label="Qué se ve"><button type="button" data-hv="ver" data-v="0" aria-pressed="${!ON}"${ON ? '' : ' class="on"'}>Feed</button><button type="button" data-hv="ver" data-v="1" aria-pressed="${ON}"${ON ? ' class="on"' : ''}>Historias${n ? ` <i>${n}</i>` : ''}</button></div>`; };
+  const barra = () => { if (!I() || !I().S) return ''; const cl = cliente(),   // no board (the page of a client of «Solo contenido», D-312): no switch
+     n = lista().filter(cl ? paraCliente : h => !h.cancelada).length; if (cl && !n) { if (ON) { ON = false; queueMicrotask(render); } return ''; } return `<div class="hvsw" role="group" aria-label="Qué se ve"><button type="button" data-hv="ver" data-v="0" aria-pressed="${!ON}"${ON ? '' : ' class="on"'}>Feed</button><button type="button" data-hv="ver" data-v="1" aria-pressed="${ON}"${ON ? ' class="on"' : ''}>Historias${n ? ` <i>${n}</i>` : ''}</button></div>`; };
   function ver(on) { ON = !!on; const X = I(); if (!X) return; render(); X.renderBar(); }
   function dias() {                            // the board's days, and any a story has moved beyond them (with its post)
     const X = I(), ms = X.boardMonths(), cd = X.curCd(), lo = X.cycleStart(ms[0], cd), hi = X.cycleEnd(ms[ms.length - 1], cd), out = new Set();

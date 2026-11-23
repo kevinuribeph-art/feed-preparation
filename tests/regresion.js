@@ -22136,6 +22136,31 @@
     ok(/@media \(hover:hover\)\{\.dia:hover\{background:var\(--cx-hov\);transition:background-color var\(--d1\) var\(--ease\)\}\}/.test(css) && /prefers-reduced-motion:reduce\)\{\.dia:hover\{transition:none\}\}/.test(css), 'el portal sin el fondo de sus días al pasar el ratón');
     ok(!/style=/.test(css), 'estilos en línea en el portal');
   });
+  prueba('CB1', 'La cabecera del acuerdo, entera a 280 px (D-314): en «Editar cliente · Cobros», el acuerdo de cuándo a cuándo y cada cuánto baja de línea y «Ahora» se queda dentro, a la derecha, y el título con «+ Nuevo acuerdo» también baja; en «Acuerdo y pagos» de la página de solo contenido, su línea y cada factura, enteras', async () => {
+    await tableroContenido();
+    await hasta(() => M.cobrosUI, 8000, 'cobros.js');
+    await CB().acuGuardar(CLIENTE, AU_ACU);
+    ok((await M.cobros.cargar([{ id: 'cb1-1', cliente: CLIENTE, periodo: '2026-05', hasta: '2026-10', importe: 2700, factura: 'CB1-1', emitida: '2026-05-01', vence: '2026-05-16', cobrada: '2026-05-10' }])).ok, 'cargar');
+    const dentro = (cont, els, n) => { const c = cont.getBoundingClientRect(); for (const e of els) { const r = e.getBoundingClientRect(); ok(r.right <= c.right + .5 && r.left >= c.left - .5, `${n}: «${e.textContent.trim().slice(0, 40)}» se sale (${Math.round(r.left)}–${Math.round(r.right)} de ${Math.round(c.left)}–${Math.round(c.right)})`); } };
+    const entero = (els, n) => { for (const e of els) ok(e.scrollWidth <= e.clientWidth + 1, `${n}: «${e.textContent.trim().slice(0, 40)}» se corta`); };
+    try {
+      await coFicha(CLIENTE, 'cobros');
+      const pane = await hasta(() => q('.detail[data-dlg="editclient"] .co-pane .co-ac-h'), 3000, '«Cobros»') && q('.detail[data-dlg="editclient"] .co-pane');
+      pane.style.width = '280px'; pane.style.maxWidth = '280px'; await espera(60);
+      const h = q('.co-pane .co-ac-h'), b = h.querySelector('b'), ch = h.querySelector('.co-ach');
+      ok(/Desde/.test(b.textContent) && ch, 'la cabecera: ' + h.textContent);
+      dentro(h, [b, ch], 'la cabecera del acuerdo'); entero([b], 'la cabecera del acuerdo');
+      ok(ch.getBoundingClientRect().left >= b.getBoundingClientRect().right - 1, '«Ahora» no va a la derecha');
+      dentro(pane, [...q('.co-pane .co-acu-t').children].filter(e => e.getClientRects().length), 'el título');
+    } finally { M._in.closeDetail(); }
+    // «Acuerdo y pagos» de su página, a 280 px
+    const de = q('.main > .cont > .cont-der'); de.style.width = '280px'; de.style.justifySelf = 'start'; M._in.render(); await espera(80);
+    try {
+      const ls = [...de.querySelectorAll('.en-acu, .en-p .en-t b, .en-p .en-t span, .en-p .en-e')];
+      ok(ls.length >= 3, 'sin su línea o sus facturas: ' + de.textContent);
+      dentro(de, ls, '«Acuerdo y pagos»'); entero(ls, '«Acuerdo y pagos»');
+    } finally { de.style.width = ''; de.style.justifySelf = ''; }
+  });
   prueba('AN5', 'Los avisos de abajo en la terracota de la marca (D-303): fondo --acc y texto blanco (5,12:1) en claro y en oscuro; su botón, blanco y subrayado, con el foco blanco; en el iPhone igual, el de error con su triángulo rojo en un disco blanco; el portal, como la «Vista cliente»', async () => {
     await tablero([pub(1)]);
     const cs = e => W.getComputedStyle(e);

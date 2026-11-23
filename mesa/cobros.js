@@ -634,7 +634,7 @@
 #mesa .co svg,#mesa .co-pagos svg,#mesa .co-mf svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:var(--i-trazo);stroke-linecap:round;stroke-linejoin:round}
 #mesa .co svg *,#mesa .co-pagos svg *{vector-effect:non-scaling-stroke}
 #mesa .co-cuota{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 18px}
-#mesa .co-acu-t{display:flex;align-items:baseline;gap:10px;margin:0 0 10px}#mesa .co-acu-t h4{margin:0;font-size:15px;font-weight:800;letter-spacing:-.015em;color:var(--ink)}#mesa .co-acu-t span{font-size:12.5px;color:var(--mute)}
+#mesa .co-acu-t{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;margin:0 0 10px}#mesa .co-acu-t h4{margin:0;font-size:15px;font-weight:800;letter-spacing:-.015em;color:var(--ink)}#mesa .co-acu-t span{font-size:12.5px;color:var(--mute)}
 #mesa .co-cuota.co-acu{grid-template-columns:repeat(4,minmax(0,1fr));margin:0 0 8px}
 #mesa .co-acu-n{margin:0 0 18px;font-size:12.5px;line-height:1.45;color:var(--ink-2)}
 #mesa .co-acu .mx-sel,#mesa .co-acu .mx-f{display:flex;width:100%;border-radius:var(--r-md)}#mesa .co-acu .mx-f .mx-in{flex:1;min-width:0}   /* the Mesa's dropdowns and date as wide as the fields beside them */
@@ -717,7 +717,8 @@
 #mesa .co-ac.pleg,#mesa .co-ac.co-ac-sin{background:none}
 #mesa .co-ac-h{display:flex;align-items:center;gap:8px;width:100%;box-sizing:border-box;min-height:44px;padding:10px 14px;border:0;border-radius:var(--r-md);background:none;font:inherit;font-size:13px;color:var(--ink);text-align:left}
 #mesa button.co-ac-h{cursor:pointer;transition:background var(--d1) ease-out}#mesa button.co-ac-h:hover{background:var(--co-hov,var(--bg-2))}
-#mesa .co-ac-h b{flex:none;font-size:14px;font-weight:600}
+#mesa .co-ac-h b{flex:0 1 auto;min-width:0;font-size:14px;font-weight:600;overflow-wrap:anywhere}   /* narrow (280–340 px): it goes on below, never cut; its chip stays on the right (D-314) */
+#mesa .co-ac-h .co-ach{align-self:center}
 #mesa .co-ac-h svg{flex:none;width:16px;height:16px;color:var(--mute);transition:transform var(--d-m) var(--ease-m)}#mesa .co-ac-h[aria-expanded="true"] svg{transform:rotate(90deg)}
 #mesa .co-acs{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;color:var(--mute)}
 #mesa .co-ach{flex:none;padding:2px 8px;border-radius:var(--r-xs);font-size:12.5px;font-weight:600;line-height:18px}

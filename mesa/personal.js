@@ -379,7 +379,8 @@
     const C = I().cob, n = x.n, cu = n === 0 ? 'hoy' : n === 1 ? 'mañana' : n > 1 ? `en ${n} días` : n === -1 ? 'ayer' : `hace ${-n} días`;
     const fin = C.fin ? C.fin(x.a) : '', ult = C.vivos(x.c.id).filter(r => C.MES.test(r.periodo || '')).map(r => C.hasta(r)).sort().pop();
     const fc = C.finCiclo ? C.finCiclo(x.a, I().hoy().slice(0, 7)) : fin;   // the cycle in course (a renewed one, too)
-    const cubre = fin ? (x.a.renueva && x.a.pago !== 'unico' ? `se renueva el 1 ${C.mesCorto(I().addMonths(fc, 1))}` : `acaba en ${C.mesCorto(fin)}`) : ult ? `cubre hasta ${C.mesCorto(ult)}` : '';
+    const ch = x.a.cubreHasta || '';   // «Termina en» or the next agreement first: it ends there, it doesn't renew (revisión del lote B)
+    const cubre = ch && (!fin || ch <= fc || !x.a.renueva) ? `acaba en ${C.mesCorto(ch)}` : fin ? (x.a.renueva && x.a.pago !== 'unico' ? `se renueva el 1 ${C.mesCorto(I().addMonths(fc, 1))}` : `acaba en ${C.mesCorto(fin)}`) : ult ? `cubre hasta ${C.mesCorto(ult)}` : '';
     return [cu, cubre].filter(Boolean).join(' · ');
   }
   // «Hoy N» the group's title and «Mañana N» under it; nothing today and something tomorrow: «Nada para hoy»; with the figure

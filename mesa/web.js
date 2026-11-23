@@ -116,6 +116,7 @@
       if (r && !r.error && (r.porque || r.resumen)) mesesInfo.push({ cliente_id: cli, mes: m, porque: r.porque || null, resumen: r.resumen || null });
     }
     if (X.cob && X.cob.leer) await X.cob.leer();
+    if (X.cob && X.cob.mal && X.cob.mal()) return { error: 'no se pudieron leer las facturas o los acuerdos: recarga la página' };   // nunca «sin acuerdo» por una lectura fallida (lección 94)
     const cob = X.cob, H = X.hoy(), vivos = cob ? cob.vivos(cli) : [];
     // solo lo que enseña «Tus pagos»: pendientes, retrasados y cobrados; nunca un borrador sin emitir (D-237)
     const pagos = vivos.filter(r => +r.importe >= 0 && ['pendiente', 'retrasada', 'cobrada'].includes(cob.estado(r, H).k)).map(r => ({ cliente_id: cli, id: String(r.id).slice(0, 80), periodo: /^\d{4}-\d{2}$/.test(r.periodo || '') ? r.periodo : null,
@@ -194,7 +195,8 @@
       if (todo || st.extra == null || Date.now() - st.extraT > 30000) {   // leer tareas, informe y cobros, cada 30 s como mucho
         st.extraT = Date.now();
         const P = await paquete(B); if (I().S !== B) return;
-        const e = P.error ? 0 : (await huellaExtra(P)) === lsG(claveHuella(B)) ? 0 : 1;
+        if (P.error) throw new Error(P.error);   // sin poder leer, nunca «al día» (revisión del lote B)
+        const e = (await huellaExtra(P)) === lsG(claveHuella(B)) ? 0 : 1;
         if (e !== st.extra) { st.extra = e; st.firma = ''; }
       }
       const errorAntes = st.error; st.error = '';

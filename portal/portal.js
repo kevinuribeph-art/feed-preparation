@@ -392,14 +392,17 @@
         h('span', { class: 'est ' + k }, ico(i), t));
     };
     // la siguiente por su fecha, sin nombrar el mes: se emite el mes de antes (D-308); el acuerdo, de cuándo a cuándo
-    const dia = d => diaCorto(d) + (d.slice(0, 4) !== H.slice(0, 4) ? ' ' + d.slice(0, 4) : ''), sig = prox ? (prox >= H ? 'el ' + dia(prox) : 'en unos días') : '';
-    const mesA = m => `${mesC(m)} ${m.slice(0, 4)}`, rg = cli && /^\d{4}-\d{2}$/.test(cli.acuerdo_de || '') ? (/^\d{4}-\d{2}$/.test(cli.acuerdo_hasta || '') ? `${mesA(cli.acuerdo_de)} – ${mesA(cli.acuerdo_hasta)}` : `desde ${mesA(cli.acuerdo_de)}`) : '';
-    const emite = prox && !tramo ? h('p', { class: 'emite' }, ico('file'), `El siguiente, ${sig}`) : null;   // con tramo, va en «Cubre …»
+    // una fecha ya pasada, «en unos días» solo si es de hace poco: el portal tiene lo del último envío (revisión del lote B); sin partir
+    // «1 abr 2027» ni «nov 2026», y un solo mes una vez
+    const dia = d => diaCorto(d).replace(' ', '\u00a0') + (d.slice(0, 4) !== H.slice(0, 4) ? '\u00a0' + d.slice(0, 4) : ''), reciente = prox && prox < H && (Date.parse(H) - Date.parse(prox)) / 864e5 <= 10;
+    const sig = prox ? (prox >= H ? 'el ' + dia(prox) : reciente ? 'en unos días' : '') : '';
+    const mesA = m => `${mesC(m)}\u00a0${m.slice(0, 4)}`, rg = cli && /^\d{4}-\d{2}$/.test(cli.acuerdo_de || '') ? (/^\d{4}-\d{2}$/.test(cli.acuerdo_hasta || '') ? (cli.acuerdo_hasta === cli.acuerdo_de ? mesA(cli.acuerdo_de) : `${mesA(cli.acuerdo_de)} – ${mesA(cli.acuerdo_hasta)}`) : `desde ${mesA(cli.acuerdo_de)}`) : '';
+    const emite = sig && !tramo ? h('p', { class: 'emite' }, ico('file'), `El siguiente, ${sig}`) : null;   // con tramo, va en «Cubre …»
     const cubre = tramo && cli.cubre_de && cli.cubre_hasta ? h('p', { class: 'cubre' }, 'Cubre ', h('b', { text: tramoTxt(cli.cubre_de, cli.cubre_hasta) }), cli.pago !== 'unico' && prox && prox >= H ? ` · el siguiente, ${sig}` : '') : null;
     const inc = cli && Array.isArray(cli.incluye) && cli.incluye.length ? h('p', { class: 'incluye', text: 'Incluye ' + cli.incluye.join(' · ') }) : null;   // lo que incluye su paquete (D-307)
     const mas = N ? h('button', { type: 'button', class: 'lnk ver-ant', 'aria-expanded': String(ver), text: ver ? 'Ocultar las anteriores' : `Ver las anteriores (${N})`, onclick: () => { st.verAnt = ver ? null : st.cli; pintar(); } }) : null;
     return h('section', { class: 'card', 'aria-labelledby': 'h-pagos' },
-      h('div', { class: 'ti pagos-ti' }, h('h2', { id: 'h-pagos', text: 'Tus pagos' }), tramo ? h('span', { text: `${PAGO[cli.pago] || 'Pago'} · ${eur(cli.pago_cent)}${rg ? ' · ' + rg + (cli.acuerdo_renueva ? ', se renueva' : '') : ''}` }) : cli && cli.cuota_cent ? h('span', { text: eur(cli.cuota_cent) + ' al mes' + (rg ? ' · ' + rg : '') }) : null), inc, cubre,
+      h('div', { class: 'ti pagos-ti' }, h('h2', { id: 'h-pagos', text: 'Tus pagos' }), tramo ? h('span', { text: `${PAGO[cli.pago] || 'Pago'} · ${eur(cli.pago_cent)}${rg ? ' · ' + rg + (cli.acuerdo_renueva ? ', se\u00a0renueva' : '') : ''}` }) : cli && cli.cuota_cent ? h('span', { text: eur(cli.cuota_cent) + ' al mes' + (rg ? ' · ' + rg : '') }) : null), inc, cubre,
       deber.length ? h('p', { class: 'pend-pago' }, 'Pendiente de pago ', h('b', { text: eur(deber.reduce((s, r) => s + r.importe_cent, 0)) }), venc ? h('em', { text: `· ${venc === 1 ? '1 vencida' : venc + ' vencidas'}` }) : null) : null,
       filas.map(fila), mas, emite);
   }

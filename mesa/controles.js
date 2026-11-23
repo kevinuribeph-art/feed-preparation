@@ -174,7 +174,7 @@
     const txt = fmtDe(g, v);
     if (!(document.activeElement === inp && inp.value !== inp._sync)) { inp.value = txt; inp._sync = txt; }
     inp.disabled = bt.disabled = dis; g.classList.toggle('mx-dis', dis);
-    inp.placeholder = hora ? '--:--' : mes ? 'mes y año' : 'dd/mm/aaaa';
+    inp.placeholder = n.getAttribute('placeholder') || (hora ? '--:--' : mes ? 'mes y año' : 'dd/mm/aaaa');   // the native's, if it says what empty means («Sigue»)
     inp.setAttribute('aria-label', lab || (hora ? 'Hora' : mes ? 'Mes' : 'Fecha'));
     g.title = [n.title, hora ? 'Escribe la hora o usa ↑ ↓ (15 min; ⇧, una hora)' : mes ? 'Escribe el mes («may 2026») o usa ↑ ↓ (un mes; ⇧, un año)' : 'Escribe la fecha o usa ↑ ↓ (un día; ⇧, una semana)'].filter(Boolean).join(' · ');
     if (abierto && abierto.g === g && !hora && abierto.marca !== (leerDe(g, inp.value, v) || v)) seguir();
@@ -238,7 +238,8 @@
     const abajo = vh - a.bottom - sep - m, arriba = a.top - sep - m, sube = h > abajo && arriba > abajo;
     const alto = Math.min(h, Math.max(120, sube ? arriba : abajo));
     if (alto < h) pop.style.maxHeight = alto + 'px';
-    const x = Math.round(Math.min(Math.max(m, a.left), vw - m - w));
+    const caja = cal && g.closest ? g.closest('.dlg') : null, cr = caja ? caja.getBoundingClientRect() : null;   // a calendar in a dialog stays in it: by the edge, its right on its field's (revisión del lote B)
+    const x = Math.round(Math.min(Math.max(m, cr && a.left + w > cr.right ? a.right - w : a.left), vw - m - w));
     pop.style.left = x + 'px';
     pop.style.transformOrigin = x < a.left - 1 ? `${Math.round(Math.min(w, a.left - x + a.width / 2))}px ${sube ? '100%' : '0'}` : '';   // moved to the left: it grows from its field (D-301)
     pop.style.top = Math.round(sube ? a.top - sep - alto : a.bottom + sep) + 'px';
@@ -274,7 +275,7 @@
     cerrar(false);
     const pop = crearPop('mx-list', 'listbox'), lab = b.getAttribute('aria-label');
     if (lab) pop.setAttribute('aria-label', lab);
-    const fila = o => o.hidden ? '' : `<div class="mx-o${o.dataset.accion ? ' mx-acc' : ''}" role="option" id="${pop.id}-${o.index}" data-i="${o.index}" aria-selected="${o.dataset.accion ? 'false' : o.selected}"${o.disabled ? ' aria-disabled="true"' : ''}>${esc(o.label || o.textContent)}${o.dataset.dest ? `<span class="mx-dest">${FLECHA}${esc(o.dataset.dest)}</span>` : ''}</div>`;   // data-dest: where it takes it, in grey (D-191); data-accion: it acts (D-207)
+    const fila = o => o.hidden ? '' : `<div class="mx-o${o.dataset.accion ? ' mx-acc' : ''}${o.dataset.icono === 'no' ? ' mx-sin' : ''}" role="option" id="${pop.id}-${o.index}" data-i="${o.index}" aria-selected="${o.dataset.accion ? 'false' : o.selected}"${o.disabled ? ' aria-disabled="true"' : ''}>${esc(o.label || o.textContent)}${o.dataset.dest ? `<span class="mx-dest">${FLECHA}${esc(o.dataset.dest)}</span>` : ''}</div>`;   // data-dest: where it takes it, in grey (D-191); data-accion: it acts (D-207)
     pop.innerHTML = [...n.children].map(c => c.tagName === 'OPTGROUP' ? `<div role="group" aria-label="${esc(c.label)}"><div class="mx-gl" aria-hidden="true">${esc(c.label)}</div>${[...c.children].map(fila).join('')}</div>` : c.tagName === 'OPTION' ? fila(c) : '').join('');
     pop.style.minWidth = b.offsetWidth + 'px';
     abierto = { g: b, pop, tipo: 'sel', act: -1 };
@@ -482,8 +483,9 @@
       filas += '</div>';
     }
     const hoyNo = (min && hoy < min) || (max && hoy > max);
-    a.pop.innerHTML = `<div class="mx-ch"><button type="button" class="mx-nav ant" data-d="-1" aria-label="Año anterior"${min && `${y - 1}-12` < min ? ' disabled' : ''}></button><b aria-live="polite">${y}</b><button type="button" class="mx-nav sig" data-d="1" aria-label="Año siguiente"${max && `${y + 1}-01` > max ? ' disabled' : ''}></button></div>`
+    a.pop.innerHTML = (a.tipo === 'mesel' && a.t ? `<div class="mx-ch mx-ch1 mx-cht"><b>${esc(a.t)}</b></div>` : '') + `<div class="mx-ch"><button type="button" class="mx-nav ant" data-d="-1" aria-label="Año anterior"${min && `${y - 1}-12` < min ? ' disabled' : ''}></button><b aria-live="polite">${y}</b><button type="button" class="mx-nav sig" data-d="1" aria-label="Año siguiente"${max && `${y + 1}-01` > max ? ' disabled' : ''}></button></div>`
       + `<div class="mx-days mx-meses${dir ? (dir > 0 ? ' mx-de' : ' mx-iz') : ''}" role="grid" aria-label="${y}">${filas}</div>`
+      + (a.tipo === 'mesel' && a.nota ? `<p class="mx-nota">${esc(a.nota)}</p>` : '')
       + `<div class="mx-cf${a.sinMes ? ' mx-cf2' : ''}">${a.sinMes ? `<button type="button" class="mx-hoy mx-sinf"${sel ? '' : ' disabled'}>Sin mes</button>` : ''}<button type="button" class="mx-hoy mx-estemes"${hoyNo ? ' disabled' : ''}>Este mes</button></div>`;
   }
   function irAno(dir) { const a = abierto; a.vista = { y: a.vista.y + dir }; a.foco = `${a.vista.y}-${a.foco.slice(5, 7)}`; calPintarMes(dir); }
@@ -495,7 +497,7 @@
     const M7 = /^\d{4}-\d{2}$/, min = M7.test(n.dataset.min || '') ? n.dataset.min : '', v0 = M7.test(n.dataset.mes || '') ? n.dataset.mes : (min || hoyISO().slice(0, 7));
     const pop = crearPop('mx-calpop mx-mespop', 'dialog');
     pop.setAttribute('aria-modal', 'false'); pop.setAttribute('aria-label', n.dataset.mesT || 'Mes');
-    abierto = { g: b, pop, tipo: 'mesel', ctl: b, vista: { y: +v0.slice(0, 4) }, foco: v0 < min ? min : v0, marca: '', min, max: '', sinMes: false, sel: () => (M7.test(n.dataset.mes || '') ? n.dataset.mes : ''),
+    abierto = { g: b, pop, tipo: 'mesel', ctl: b, vista: { y: +v0.slice(0, 4) }, foco: v0 < min ? min : v0, marca: '', min, max: '', sinMes: false, t: n.dataset.mesT || '', nota: n.dataset.mesN || '', sel: () => (M7.test(n.dataset.mes || '') ? n.dataset.mes : ''),
       alElegir: v => { if (v) n.dispatchEvent(new CustomEvent('mx-accion', { bubbles: true, detail: { accion: 'mes', valor: v } })); } };
     b.setAttribute('aria-expanded', 'true'); b.setAttribute('aria-controls', pop.id); b.classList.add('mx-abierto');
     pop.addEventListener('click', calClic);
@@ -673,6 +675,7 @@
 #mesa .mx-o[aria-disabled="true"]{color:var(--faint);cursor:default;background:none}
 #mesa .mx-o.mx-acc{margin-top:5px;padding-left:27px;color:var(--acc-ink);font-weight:600;overflow:visible}
 #mesa .mx-o.mx-acc::before{content:'';position:absolute;left:7px;top:50%;width:14px;height:14px;margin-top:-7px;background:currentColor;-webkit-mask:var(--i-plus) center/contain no-repeat;mask:var(--i-plus) center/contain no-repeat}
+#mesa .mx-o.mx-acc.mx-sin{padding-left:7px}#mesa .mx-o.mx-acc.mx-sin::before{display:none}
 #mesa .mx-o.mx-acc::after{content:'';position:absolute;left:-2px;right:-2px;top:-3px;height:1px;background:var(--line2)}
 #mesa .mx-dest{margin-left:8px;font-weight:400;color:var(--mute)}#mesa .mx-dest svg{width:12px;height:12px;margin-right:3px;vertical-align:-1px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 #mesa .mx-gl{padding:8px 12px 4px 5px;font-size:11px;font-weight:600;color:var(--mute)}#mesa [role="group"]+[role="group"] .mx-gl{margin-top:4px;border-top:1px solid var(--line2);padding-top:10px}

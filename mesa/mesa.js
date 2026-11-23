@@ -5641,13 +5641,13 @@ ${TK_FUENTES}
   function cobLeer(otra) {
     if (otra) cobOtra = true;
     if (cobLee) return cobLee;
-    if (COB && !cobOtra && !cobMal) return Promise.resolve(COB);
+    if (COB && !cobOtra && !cobMal && !acuMal) return Promise.resolve(COB);   // the agreements unread: read again too (revisión del lote B)
     const p = cobLee = (async () => {
       try {
         for (;;) {
           await cobPend;                                // the writes in course first: never a reading older than the cache
           cobOtra = false; const g = cobGen; let l;
-          try { l = (await idbAll('cobros')) || []; } catch (e) { if (!COB) { COB = new Map(); cobMal = true; } return COB; }   // a failed reading keeps what was read
+          try { l = (await idbAll('cobros')) || []; } catch (e) { if (!COB) { COB = new Map(); cobMal = true; } await acuLeer(true).catch(() => {}); return COB; }   // a failed reading keeps what was read; the agreements are read all the same
           if (g !== cobGen || cobOtra) continue;        // a change while reading: read again (lesson 75)
           COB = new Map(l.filter(r => r && r.id).map(r => [r.id, r])); cobMal = false;
           await loadClients().catch(() => {});          // a fee changed in another tab
@@ -5702,7 +5702,8 @@ ${TK_FUENTES}
     const suyos = ACU ? [...ACU.values()].filter(r => r.cliente === cli) : [], ids = new Set(suyos.map(r => r.id));
     const l = suyos.filter(r => !r.borrado).map(r => ({ ...acuDe(r), id: r.id, cliente: cli, at: r.at || '' }));
     const leg = c.acuerdo && typeof c.acuerdo === 'object' ? c.acuerdo : c.cuota && typeof c.cuota === 'object' ? { pago: 'mensual', ...c.cuota } : null, lid = acuIdLegado(cli);
-    if (leg && !ids.has(lid)) l.push({ ...acuDe(leg), id: lid, cliente: cli, at: String(c.acuerdoAt || c.cuotaAt || ''), legado: true });
+    const rl = ACU && ACU.get(lid), legAt = String(c.acuerdoAt || c.cuotaAt || '');
+    if (leg && !(rl && (!rl.borrado || String(rl.at || '') >= legAt))) l.push({ ...acuDe(leg), id: lid, cliente: cli, at: String(c.acuerdoAt || c.cuotaAt || ''), legado: true });
     l.sort((a, b) => (a.desde || '').localeCompare(b.desde || '') || String(a.at).localeCompare(String(b.at)) || a.id.localeCompare(b.id));
     l.forEach((a, i) => {
       const sig = l.slice(i + 1).find(x => x.desde && (!a.desde || x.desde > a.desde)), hs = [];
@@ -5805,18 +5806,19 @@ ${TK_FUENTES}
     if (!a) return '';
     hoyM = hoyM || madParts(ahora()).day.slice(0, 7);
     const n = acuPaso(a), out = [];
-    const rg = acuRango(a, hoyM), de = rg ? rg.de : '', fin = rg ? rg.hasta : '';   // the cycle in course (A49-1), never past what it covers (D-305)
-    if (a.desde) out.push(fin ? `${de <= hoyM && hoyM <= fin ? 'Ahora cubre' : 'Cubre'} ${acuMes(de)} – ${acuMes(fin)}` : `Cubre desde ${acuMes(a.desde)}`);
+    const rg = acuRango(a, hoyM), de = rg ? rg.de : '', fin = rg ? rg.hasta : '', mm = fin && de ? mesesEntre(de, fin) + 1 : 0;   // the cycle in course (A49-1), never past what it covers (D-305)
+    if (a.desde) out.push(fin ? `${de <= hoyM && hoyM <= fin ? 'Ahora cubre' : 'Cubre'} ${acuMes(de)}${fin !== de ? ' – ' + acuMes(fin) : ''}` : `Cubre desde ${acuMes(a.desde)}`);   // one month, once (revisión del lote B)
     else if (a.cubreHasta) out.push(`Hasta ${acuMes(a.cubreHasta)}`);
     if (a.importe != null) {
       if (a.pago === 'unico') out.push(`un pago de ${cobEur(a.importe)}`);
-      else if (fin && a.meses && a.desde) {   // whole payments and, if its length isn't a multiple, a last one in proportion (as its invoices)
-        const k = Math.floor(a.meses / n), r = a.meses % n, ult = Math.round(a.importe * r / n * 100) / 100;
+      else if (fin && a.meses && a.desde) {   // whole payments and, if its length isn't a multiple, a last one in proportion (as its invoices);
+        // the months it really covers, also when the next agreement cuts it (revisión del lote B)
+        const k = Math.floor(mm / n), r = mm % n, ult = Math.round(a.importe * r / n * 100) / 100;
         out.push([k ? `${ACU_N[k] || k} ${k === 1 ? 'pago' : 'pagos'} de ${cobEur(a.importe)}` : '', r ? `${k ? 'y ' : ''}un pago de ${cobEur(ult)}` : ''].filter(Boolean).join(' '));
       }
       else out.push(`${cobEur(a.importe)} ${a.pago === 'mensual' ? 'al mes' : (ACU_PAGOS.find(x => x[0] === a.pago) || [, ''])[1].toLowerCase()}`);
     }
-    if (a.dia != null) { const una = a.pago === 'unico' || (fin && a.meses && a.meses <= n); out.push(`${una ? 'se factura' : 'se facturan'} el día ${a.dia} ${a.adelanto ? 'del mes anterior' : a.pago === 'mensual' ? 'de cada mes' : una ? 'de su primer mes' : 'del primer mes de cada pago'}`); }   // D-309
+    if (a.dia != null) { const una = a.pago === 'unico' || (fin && a.meses && mm <= n); out.push(`${una ? 'se factura' : 'se facturan'} el día ${a.dia} ${a.adelanto ? 'del mes anterior' : a.pago === 'mensual' ? 'de cada mes' : una ? 'de su primer mes' : 'del primer mes de cada pago'}`); }   // D-309
     if (fin && a.pago !== 'unico' && (!a.renueva || a.cubreHasta === fin)) out.push(`acaba en ${acuMes(fin)}`);
     return out.join(' · ');
   }
@@ -6024,19 +6026,19 @@ ${TK_FUENTES}
   // as a tombstone {id, cliente, borrado: true, at}, as an invoice (lesson 21). 'paquetes', Kevin's catalog: {id, nombre, precio
   // (each month's, or null), incluye[], at}, tombstones too. Each agreement keeps a copy of what its package included: changing the
   // package later never rewrites it. Read with the invoices (cobLeer) and again with each change, here or in another tab.
-  let ACU = null, PAQ = null, acuGen = 0, acuLee = null, acuOtra = false, acuPend = Promise.resolve();
+  let ACU = null, PAQ = null, acuGen = 0, acuLee = null, acuOtra = false, acuPend = Promise.resolve(), acuMal = false;   // acuMal: couldn't be read (as cobMal, lesson 94)
   function acuLeer(otra) {
     if (otra) acuOtra = true;
     if (acuLee) return acuLee;
-    if (ACU && PAQ && !acuOtra) return Promise.resolve(ACU);
+    if (ACU && PAQ && !acuOtra && !acuMal) return Promise.resolve(ACU);
     const p = acuLee = (async () => {
       try {
         for (;;) {
           await acuPend;
           acuOtra = false; const g = acuGen; let a, k;
-          try { a = (await idbAll('acuerdos')) || []; k = (await idbAll('paquetes')) || []; } catch (e) { if (!ACU) ACU = new Map(); if (!PAQ) PAQ = new Map(); return ACU; }   // a failed reading keeps what was read
+          try { a = (await idbAll('acuerdos')) || []; k = (await idbAll('paquetes')) || []; } catch (e) { if (!ACU || !PAQ || acuMal) { ACU = ACU || new Map(); PAQ = PAQ || new Map(); acuMal = true; } return ACU; }   // a failed reading keeps what was read; never read, it says so (acuMal: nothing is written on it)
           if (g !== acuGen || acuOtra) continue;        // a change while reading: read again (lesson 75)
-          ACU = new Map(a.filter(r => r && r.id).map(r => [r.id, r])); PAQ = new Map(k.filter(r => r && r.id).map(r => [r.id, r]));
+          ACU = new Map(a.filter(r => r && r.id).map(r => [r.id, r])); PAQ = new Map(k.filter(r => r && r.id).map(r => [r.id, r])); acuMal = false;
           return ACU;
         }
       } finally { acuLee = null; }
@@ -6051,13 +6053,15 @@ ${TK_FUENTES}
     return r.borrado ? r.borrado === true : acuValido(r) && ACU_PAGO.has(r.pago);
   }
   // one agreement written over its record as it is now (the client's one of before, moved here on its first change, D-305), one at a time
+  const acuNoMal = () => { if (acuMal) throw new Error('No se pudieron leer los acuerdos: recarga la página antes de cambiarlos.'); };   // never over what couldn't be read (lesson 94)
   async function acuPoner(cli, id, fn) {
     cobNoLocked(); if (MOVIL) throw new Error('los acuerdos se cambian en el ordenador');
-    await acuLeer();
+    await acuLeer(); acuNoMal();
     const c = CL.find(x => x.id === cli), leg = c && id === acuIdLegado(cli) ? acuerdosDe(cli, c).find(a => a.id === id && a.legado) : null;
     acuGen++; let out = null;
     const pw = tx('acuerdos', 'readwrite', st => { const g = st.get(id); g.onsuccess = () => {
-      const prev = g.result || (leg ? { ...acuLimpio(leg), id, cliente: cli, at: leg.at } : null), n = fn(prev);
+      const viejo = leg && g.result && g.result.borrado && String(g.result.at || '') < String(leg.at || '');   // a tombstone older than the client's one of now: that one (as acuerdosDe)
+      const prev = (g.result && !viejo ? g.result : null) || (leg ? { ...acuLimpio(leg), id, cliente: cli, at: leg.at } : null), n = fn(prev);
       if (n) { n.at = cobAt(prev && prev.at); st.put(n, id); out = n; } }; });
     acuPend = acuPend.then(() => pw).catch(() => {}); await pw;
     if (out) (ACU || (ACU = new Map())).set(id, out);
@@ -6095,7 +6099,7 @@ ${TK_FUENTES}
   }
   async function paqPoner(id, fn) {
     cobNoLocked(); if (MOVIL) throw new Error('los paquetes se cambian en el ordenador');
-    await acuLeer(); acuGen++; let out = null;
+    await acuLeer(); acuNoMal(); acuGen++; let out = null;
     const pw = tx('paquetes', 'readwrite', st => { const g = st.get(id); g.onsuccess = () => { const n = fn(g.result || null); if (n) { n.at = cobAt(g.result && g.result.at); st.put(n, id); out = n; } }; });
     acuPend = acuPend.then(() => pw).catch(() => {}); await pw;
     if (out) (PAQ || (PAQ = new Map())).set(id, out);
@@ -6558,6 +6562,7 @@ ${TK_FUENTES}
     const n = boards.filter(b => b.client === id).length;
     if (n) return `No se puede eliminar: tiene ${n} mes(es) guardados.`;
     await cobLeer(true); if (cobMal) return 'No se puede eliminar: no se pudieron leer sus facturas.';
+    if (acuMal) return 'No se puede eliminar: no se pudieron leer sus acuerdos.';   // a client made again with its id would take them (revisión del lote B)
     const nf = cobVivos(id).length;
     if (nf) return `No se puede eliminar: tiene ${nf} factura${nf === 1 ? '' : 's'}.`;   // its invoices stay with it (D-232)
     await entLeer(true); if (entMal) return 'No se puede eliminar: no se pudieron leer sus entregas.';
@@ -6565,7 +6570,7 @@ ${TK_FUENTES}
     if (ne) return `No se puede eliminar: tiene ${ne} entrega${ne === 1 ? '' : 's'}.`;   // as its invoices (D-290)
     if (subida && subida.client === id) return 'Espera a que termine la subida de la carpeta.';
     const c0 = await idbGet('clients', id), tr = await idbGet('bandejas', id);
-    try { await acuBorrarCliente(id); } catch (e) { /* */ }   // its agreements (D-305)
+    try { await acuBorrarCliente(id); } catch (e) { return 'No se puede eliminar: no se pudieron borrar sus acuerdos.'; }   // its agreements (D-305), or nothing: another client with its id would take them
     await idbDel('clients', id);
     try { await mesBorrarCliente(id); } catch (e) { /* */ }   // its months' why and summary (D-238)
     if (tr) { await idbDel('bandejas', id); try { await borrarSiNadie([...new Set([...(tr.tray || []), ...enCarpetas(tr.carpetas)])]); } catch (e) { /* */ } }   // its tray and folders, with no month left (D-041, D-072)
@@ -8833,7 +8838,7 @@ ${TK_FUENTES}
       dlgCliente: async (cid, tab) => { await loadClientPhotos(); return dlgEditClient(cid, tab); },   // «Editar cliente» of any client, in its tab (D-233)
       guardar: cobGuardar, parche: cobParche, pdfVolver: cobPdfVolver, borrar: cobBorrar, devolver: cobDevolver, pdfPoner: cobPdfPoner, pdfValido: cobPdfValido, pdfLibre: cobPdfLibre, nuevoId: cobId, cuotaGuardar, cuotaTxt, avisar: cobAvisar, MES: COB_MES,
       // the agreement (D-288): as kept, its stretches, its line, its save; an invoice's last month and whether one covers a month
-      acuerdo: acuerdoDe, tramo: acuTramo, libre: acuLibre, falta: acuFalta, importeDe: acuImporte, resumen: acuResumen, titulo: acuTitulo, rango: acuRango, acuGuardar, acuerdos: acuerdosDe, delMes: (cli, m) => acuDelMes(acuerdosDe(cli), m), resumenA: acuResumenA, tituloA: acuTituloA, completo: acuCompleto, acuLeer, acuNuevo, acuBorrar, acuDevolver, acuCambiar, idLegado: acuIdLegado, paquetes: () => paqVivos(), paqGet: id => PAQ && PAQ.get(id), paqNuevo, paqCambiar, paqBorrar, paqDevolver, paqIncluye, acuLimpio, PAGOS: ACU_PAGOS, paso: acuPaso, fin: acuFin, finCiclo: acuFinCiclo, mesCorto: acuMes, hasta: cobHasta, cubre: cobCubre },
+      acuerdo: acuerdoDe, tramo: acuTramo, libre: acuLibre, falta: acuFalta, importeDe: acuImporte, resumen: acuResumen, titulo: acuTitulo, rango: acuRango, mal: () => cobMal || acuMal, acuGuardar, acuerdos: acuerdosDe, delMes: (cli, m) => acuDelMes(acuerdosDe(cli), m), resumenA: acuResumenA, tituloA: acuTituloA, completo: acuCompleto, acuLeer, acuNuevo, acuBorrar, acuDevolver, acuCambiar, idLegado: acuIdLegado, paquetes: () => paqVivos(), paqGet: id => PAQ && PAQ.get(id), paqNuevo, paqCambiar, paqBorrar, paqDevolver, paqIncluye, acuLimpio, PAGOS: ACU_PAGOS, paso: acuPaso, fin: acuFin, finCiclo: acuFinCiclo, mesCorto: acuMes, hasta: cobHasta, cubre: cobCubre },
     // a «Solo contenido» client (D-289) and its deliveries (D-290): for entregas.js, personal.js, calendario.js and movil.js
     servicio: servicioDe, esContenido, metricasOk, diaSel, acuRecValido, paqRecValido,
     ent: { leer: entLeer, esperar: () => entPend, listo: () => !!ENT, vivas: entVivas, get: id => ENT && ENT.get(id), estado: entEstado, propuesta: entPropuesta, nueva: entNueva, cambiar: entCambiar, borrar: entBorrar, devolver: entDevolver, avisar: entAvisar, url: entUrl },
@@ -8864,6 +8869,7 @@ ${TK_FUENTES}
   M._test = {
     entBorrarTodo: async () => { if (NUBE.activa) throw new Error('con la nube encendida no se vacía nada (D-256)'); entGen++; await tx('entregas', 'readwrite', st => st.clear()); ENT = new Map(); entAvisar(false); },   // D-290
     mesBorrarTodo: async () => { if (NUBE.activa) throw new Error('con la nube encendida no se vacía nada (D-256)'); mesGen++; await tx('meses', 'readwrite', st => st.clear()); MES = new Map(); mesAvisar(false); },   // the battery's months (D-238)
+    acuOlvidar: () => { ACU = null; PAQ = null; },   // the battery: as if the agreements had never been read (AR3)
     cobBorrarTodo: async () => { if (NUBE.activa) throw new Error('con la nube encendida no se vacía nada (D-256)'); cobGen++; acuGen++; await tx(['cobros', 'cfacturas', 'acuerdos', 'paquetes'], 'readwrite', o => { o.cobros.clear(); o.cfacturas.clear(); o.acuerdos.clear(); o.paquetes.clear(); }); COB = new Map(); ACU = new Map(); PAQ = new Map(); for (const c of CL) if (c.cuota || c.cuotaAt || c.acuerdo || c.acuerdoAt) await editarCliente(c.id, x => { delete x.cuota; delete x.cuotaAt; delete x.acuerdo; delete x.acuerdoAt; return x; }); await loadClients(); cobAvisar(false); },   // the battery's invoices, fees and agreements go (D-232, D-288)
     // the battery's clients as made: no service, day of deliveries nor link of metrics (D-289, D-290, D-292)
     camposBorrar: async ids => { for (const id of ids) { const c = CL.find(x => x.id === id); if (c && CAMPOS_CLI.some(([k, kAt]) => k in c || kAt in c)) await editarCliente(id, x => { CAMPOS_CLI.forEach(([k, kAt]) => { delete x[k]; delete x[kAt]; }); return x; }); } await loadClients(); },

@@ -75,13 +75,13 @@
   function mesesSel(a, sx) {
     const v = a && a.meses ? a.meses : null, l = [[1, '1 mes'], [3, '3 meses'], [6, '6 meses'], [12, '1 año']];
     if (v && !l.some(x => x[0] === v)) l.push([v, v % 12 === 0 ? `${v / 12} años` : `${v} meses`]); l.sort((x, y) => x[0] - y[0]);
-    const desde = a && a.desde ? a.desde : '', marca = desde && v ? I().addMonths(desde, v - 1) : '';
-    return `<select id="co-a-meses${sx}" class="co-q" data-co="cuota" data-k="meses" data-mes-t="Último mes de cada ciclo"${desde ? ` data-min="${desde}"` : ''}${marca ? ` data-mes="${marca}"` : ''}>${l.map(([n, t]) => `<option value="${n}"${n === v ? ' selected' : ''}>${t}</option>`).join('')}<option value=""${v ? '' : ' selected'}>Sin fin</option><option value="otra" data-accion="mes"${desde ? '' : ' disabled'}>Otra…</option></select>`;
+    const desde = a && a.desde ? a.desde : '', marca = desde && v ? I().addMonths(desde, v - 1) : '', ren = !a || a.renueva !== false;
+    return `<select id="co-a-meses${sx}" class="co-q" data-co="cuota" data-k="meses" data-mes-t="${ren ? 'Último mes del primer ciclo' : 'Último mes del acuerdo'}"${desde ? ` data-mes-n="${ren ? `El ciclo empieza en ${esc(mesC0(desde))}; se repite igual.` : `Empieza en ${esc(mesC0(desde))}.`}" data-min="${desde}"` : ''}${marca ? ` data-mes="${marca}"` : ''}>${l.map(([n, t]) => `<option value="${n}"${n === v ? ' selected' : ''}>${t}</option>`).join('')}<option value=""${v ? '' : ' selected'}>Sin fin</option><option value="otra" data-accion="mes"${desde ? '' : ' disabled'}>Otra…</option></select>`;
   }
   // «Paquete» (D-307): the catalog's, «Personalizado» and «Editar paquetes…»; one no longer in the catalog, by the name it kept
   function paqueteSel(a, sx) {
     const p = a && a.paquete, cat = C().paquetes ? C().paquetes() : [], v = !p ? '' : p.id === 'personalizado' ? 'personalizado' : cat.some(x => x.id === p.id) ? p.id : 'copia';
-    return `<select id="co-a-paquete${sx}" class="co-q" data-co="cuota" data-k="paquete">${v ? '' : '<option value="" selected hidden>Elige</option>'}${cat.map(x => `<option value="${esc(x.id)}"${x.id === v ? ' selected' : ''}>${esc(x.nombre)}</option>`).join('')}${v === 'copia' ? `<option value="copia" selected>${esc(p.nombre)}</option>` : ''}<option value="personalizado"${v === 'personalizado' ? ' selected' : ''}>Personalizado</option><option value="editar" data-accion="paquetes">Editar paquetes…</option></select>`;
+    return `<select id="co-a-paquete${sx}" class="co-q" data-co="cuota" data-k="paquete">${v ? '' : '<option value="" selected hidden>Elige</option>'}${cat.map(x => `<option value="${esc(x.id)}"${x.id === v ? ' selected' : ''}>${esc(x.nombre)}</option>`).join('')}${v === 'copia' ? `<option value="copia" selected>${esc(p.nombre)}</option>` : ''}<option value="personalizado"${v === 'personalizado' ? ' selected' : ''}>Personalizado</option><option value="editar" data-accion="paquetes" data-icono="no">Editar paquetes…</option></select>`;
   }
   // what a package includes, as chips; editable (a «Personalizado» agreement, a package of the catalog) with × and «Añadir…»
   function incluyeHTML(l, ed, de, id) {
@@ -106,7 +106,7 @@
       + `<div><label for="co-a-meses${sx}">Duración</label>${mesesSel(a, sx)}</div>`
       + `<div><label for="co-a-renueva${sx}">Al acabar</label><select id="co-a-renueva${sx}" class="co-q" data-co="cuota" data-k="renueva"${sinFin ? ' disabled title="Sin duración, no acaba"' : ''}><option value="si"${renueva ? ' selected' : ''}>Se renueva</option><option value="no"${renueva ? '' : ' selected'}>Se acaba</option></select></div>`
       + `<div><label for="co-a-renegociar${sx}">Renegociar el</label><input id="co-a-renegociar${sx}" type="date" class="co-q" data-co="cuota" data-k="renegociar" data-sin-fecha value="${esc((a && a.renegociar) || '')}" aria-label="Renegociar el acuerdo el"></div>`
-      + `<div><label for="co-a-termina${sx}">Termina en</label><input id="co-a-termina${sx}" type="month" class="co-q" data-co="cuota" data-k="termina" data-sin-fecha value="${esc((a && a.termina) || '')}"${a && a.desde ? ` min="${a.desde}"` : ''} aria-label="Termina en" title="Vacío: sigue. Manda sobre «Duración» y «Al acabar»"></div>`
+      + `<div><label for="co-a-termina${sx}">Termina en</label><input id="co-a-termina${sx}" type="month" class="co-q" data-co="cuota" data-k="termina" data-sin-fecha placeholder="Sigue" value="${esc((a && a.termina) || '')}"${a && a.desde ? ` min="${a.desde}"` : ''} aria-label="Termina en" title="Vacío: sigue. Manda sobre «Duración» y «Al acabar»"></div>`
       + `</div>${p ? incluyeHTML(p.incluye, p.id === 'personalizado', 'acu', a.id) : ''}<p class="co-acu-n"${res ? '' : ' hidden'}${tit ? ` title="${esc(tit)}"` : ''}>${esc(res)}</p>`;
   }
   // a month written as «may 2026», «mayo 2026», «05/2026» or «2026-05»; '' empty; undefined, not a month
@@ -133,7 +133,13 @@
     const det = abierta ? `<tr class="co-det" data-id="${id}" data-p="det" id="co-d-${id}"><td colspan="7"><div class="co-fs">${fecha('emitida', 'Emitida')}${fecha('vence', 'Vence')}${fecha('cobrada', 'Cobrada')}</div></td></tr>` : '';
     return fila + det;
   }
-  const mesNueva = (cli, h) => { const ms = C().vivos(cli).filter(r => C().MES.test(r.periodo || '')).map(r => C().hasta ? C().hasta(r) : r.periodo).sort(); return ms.length ? I().addMonths(ms[ms.length - 1], 1) : h.slice(0, 7); };   // after its last month (a stretch's, D-288)
+  // after its last month (a stretch's, D-288); of an agreement, after the last of its own invoices (one of the next agreement
+  // made first doesn't leave it without its month: revisión del lote B), or with none of its own, after the client's last
+  const mesNueva = (cli, h, a) => {
+    const todas = C().vivos(cli).filter(r => C().MES.test(r.periodo || '')), suyas = a && C().delMes ? todas.filter(r => { const q = C().delMes(cli, r.periodo); return q && q.id === a.id; }) : [];
+    const ms = (suyas.length ? suyas : todas.filter(r => !a || !a.cubreHasta || r.periodo <= a.cubreHasta)).map(r => C().hasta ? C().hasta(r) : r.periodo).sort();
+    return ms.length ? I().addMonths(ms[ms.length - 1], 1) : h.slice(0, 7);
+  };
   // the sessions of a sporadic client that have no invoice of it yet (one per session and client, D-234)
   function sesSinCobro(cli) {
     const p = P(); if (!p || !p.TK) return [];
@@ -146,7 +152,9 @@
   function pieMensual(cli, h, a) {
     const q = a && C().completo(a) ? a : null, hm = h.slice(0, 7);
     if (a && a.cubreHasta && a.cubreHasta < hm) return '';
-    let m = mesNueva(cli, h); if (a && a.desde && m < a.desde) m = a.desde;
+    let m = mesNueva(cli, h, a); if (a && a.desde && m < a.desde) m = a.desde;
+    // this month without its invoice while a later one is made (the month before, D-309): this one first (revisión del lote B)
+    if (m > hm && (!a || ((!a.desde || a.desde <= hm) && (!a.cubreHasta || hm <= a.cubreHasta))) && C().cubre && !C().cubre(C().vivos(cli), hm)) m = hm;
     const t = q ? C().libre(q, C().vivos(cli), m) : null;
     const n0 = C().nombre({ periodo: t ? t.de : m, ...(t && t.hasta !== t.de ? { hasta: t.hasta } : {}) }, h), nom = n0.charAt(0).toLowerCase() + n0.slice(1);   // as the table names it
     return `<button type="button" class="co-mas" data-co="nueva" data-acu="${a ? esc(a.id) : ''}" data-m="${t ? t.de : m}" data-h="${t ? t.hasta : m}" data-i="${t ? t.importe : ''}"${t ? '' : q ? ' disabled title="El acuerdo ya acabó"' : ' disabled title="Pon antes el importe, el día en que se emite y a cuántos días vence (y desde cuándo cubre, si no paga cada mes)"'}>${IC.mas}Factura de ${esc(nom)}</button>`;
@@ -156,7 +164,10 @@
   const estadoA = (a, hm) => a.cubreHasta && a.cubreHasta < hm ? 'fin' : a.desde && a.desde > hm ? 'prox' : 'ahora';
   // a card's head (D-305): «Desde may 2026 · cada 6 meses, se renueva · Ahora»; an ended one, its months; one to come, «Empieza»
   function cabeza(a, est) {
-    const pago = (PAGO_K[a.pago] || '') + (a.meses && a.pago !== 'unico' ? (a.renueva ? ', se renueva' : ', se acaba') : '');
+    // «cada mes · se renueva cada 6 meses»; cut by «Termina en», the next agreement or a cycle that doesn't renew, «· hasta nov 2026»
+    // (revisión del lote B: «cada mes, se renueva» read as «renews each month»)
+    const ciclo = n => n === 1 ? 'cada mes' : n === 12 ? 'cada año' : n % 12 === 0 ? `cada ${n / 12} años` : `cada ${n} meses`;
+    const pago = (PAGO_K[a.pago] || '') + (a.pago === 'unico' ? '' : a.cubreHasta && est !== 'fin' ? ` · hasta ${mesC0(a.cubreHasta)}` : a.meses && a.renueva ? (C().paso && a.meses === C().paso(a) ? ' · se renueva' : ` · se renueva ${ciclo(a.meses)}`) : '');   // «cada 6 meses · se renueva», not twice
     const pagos = (C().resumenA(a).split(' · ').find(x => /€/.test(x)) || '');
     const t = est === 'fin' ? (a.desde ? `${mesC0(a.desde)} – ${mesC0(a.cubreHasta)}` : `Hasta ${mesC0(a.cubreHasta)}`) : a.desde ? `Desde ${mesC0(a.desde)} · ${pago}` : may(pago);
     const chip = est === 'fin' ? '<span class="co-ach fin">Terminado</span>' : est === 'prox' ? '<span class="co-ach prox">Empieza</span>' : '<span class="co-ach ok">Ahora</span>';
@@ -169,7 +180,7 @@
   function cardHTML(cli, a, rows, h, abierta, est, i, varios) {
     const hd = a ? cabeza(a, est) : null, aid = a ? esc(a.id) : '';
     const hh = hd ? `<b>${esc(hd.t)}</b>${!abierta && hd.sub ? `<span class="co-acs">· ${esc(hd.sub)}</span>` : ''}<span class="co-sp"></span>${hd.chip}` : '<b>Acuerdo</b><span class="co-acs">sin rellenar</span>';
-    const cab = varios && a ? `<button type="button" class="co-ac-h" data-co="acu-pleg" aria-expanded="${abierta}" title="${abierta ? 'Plegar' : 'Ver este acuerdo'}">${IC.chev}${hh}</button>` : `<div class="co-ac-h">${hh}</div>`;
+    const cab = varios && a ? `<button type="button" class="co-ac-h" data-co="acu-pleg" aria-expanded="${abierta}" title="${abierta ? 'Plegar' : 'Ver este acuerdo'}">${IC.chev}${hh}</button>` : `<div class="co-ac-h"${a ? ' tabindex="0" title="Clic derecho o ⇧F10: borrar el acuerdo"' : ''}>${hh}</div>`;
     if (!abierta) return `<section class="co-ac pleg" data-acu="${aid}">${cab}</section>`;
     return `<section class="co-ac" data-acu="${aid}">${cab}<div class="co-ac-b">${camposHTML(a, '-' + i)}${tablaFilas(rows, h)}${est === 'fin' ? '' : `<div class="co-pie">${pieMensual(cli, h, a)}</div>`}</div></section>`;
   }
@@ -192,6 +203,7 @@
       return `<div class="co co-esp" data-co-cli="${esc(cli)}">${tablaFilas(l, h, true)}<div class="co-pie">${pie}</div></div>`;
     }
     if (UI.vista.get(cli) === 'paquetes') return paquetesHTML(cli);
+    if (C().mal && C().mal()) return `<div class="co" data-co-cli="${esc(cli)}"><p class="co-vacio">No se pudieron leer sus acuerdos o sus facturas: recarga la página antes de cambiar nada.</p></div>`;   // never an empty card over what couldn't be read (revisión del lote B)
     const acus = C().acuerdos ? C().acuerdos(cli) : [], hm = h.slice(0, 7);
     const delMes = m => { let out = null; for (const a of acus) if ((!a.desde || a.desde <= m) && (!a.cubreHasta || m <= a.cubreHasta)) out = a; return out; };
     const de = new Map(acus.map(a => [a.id, []])), sin = [];
@@ -230,7 +242,12 @@
   // in the page)
   async function cuota(inp, ctx) {                 // a field of an agreement (D-288; of the list, D-305), saved on its own
     const cid = (ctx && ctx.cid) || cliDe(inp), c = cliRec(cid); if (!c) return;
-    const aid = ctx && ctx.aid != null ? ctx.aid : aidDe(inp), a1 = acuPor(cid, aid), k = inp.dataset.k, v = String((ctx && ctx.v != null ? ctx.v : inp.value) || '').trim();
+    const aid = ctx && ctx.aid != null ? ctx.aid : aidDe(inp), k = inp.dataset.k, v = String((ctx && ctx.v != null ? ctx.v : inp.value) || '').trim();
+    if (C().acuLeer) await C().acuLeer().catch(() => {});
+    if (C().mal && C().mal()) { toast('No se pudieron leer los acuerdos: recarga la página antes de cambiarlos.'); pintar(); return; }   // nothing over what couldn't be read (revisión del lote B)
+    let a1 = acuPor(cid, aid);
+    if (!a1 && aid) return;                        // its agreement went meanwhile: nothing written (revisión del lote B)
+    if (!a1) { const hoy = C().acuerdo ? C().acuerdo(c) : null; a1 = hoy ? acuPor(cid, hoy.id) : null; }   // an empty card: the field before in the queue may have made it; then only this field
     const a0 = a1 || { pago: 'mensual', importe: null, dia: null, plazo: null, desde: '', meses: null, renueva: true, renegociar: '', termina: '', paquete: null, adelanto: false };
     if (k === 'paquete') return cambiarPaquete(cid, a1, v);
     let val = null;
@@ -245,15 +262,15 @@
       else if (k === 'meses') { const m = v.match(/^(\d{1,3})\s*(mes(es)?)?$/i); val = m && +m[1] >= 1 && +m[1] <= 120 ? +m[1] : undefined; }
       else { const m = v.match(/^(\d{1,3})\s*(d[ií]as?)?$/i); val = m && +m[1] <= 365 ? +m[1] : undefined; }
     }
-    if (val === undefined || (k === 'termina' && val && a0.desde && val < a0.desde)) {
-      toast(val !== undefined ? '«Termina en» no puede ir antes de «Cubre desde».' : { importe: 'El importe no es válido (450 o «1.470,50»).', dia: 'El día en que se emite va del 1 al 28.', plazo: 'El plazo son los días hasta que vence (de 0 a 365).', desde: 'Escribe el mes y el año: «may 2026».', termina: 'Escribe el mes y el año: «mar 2027».', meses: 'La duración son meses, de 1 a 120 (vacía, sin fin).', renegociar: 'No es una fecha.' }[k] || 'No es válido.');
+    if (val === undefined || (k === 'termina' && val && a0.desde && val < a0.desde) || (k === 'desde' && val && a0.termina && val > a0.termina)) {   // D-306, both ways (revisión del lote B)
+      toast(val !== undefined ? (k === 'desde' ? '«Cubre desde» no puede ir después de «Termina en».' : '«Termina en» no puede ir antes de «Cubre desde».') : { importe: 'El importe no es válido (450 o «1.470,50»).', dia: 'El día en que se emite va del 1 al 28.', plazo: 'El plazo son los días hasta que vence (de 0 a 365).', desde: 'Escribe el mes y el año: «may 2026».', termina: 'Escribe el mes y el año: «mar 2027».', meses: 'La duración son meses, de 1 a 120 (vacía, sin fin).', renegociar: 'No es una fecha.' }[k] || 'No es válido.');
       pintarCuota(inp, cid, aid); return;
     }
     const texto = k === 'desde' || k === 'renegociar' || k === 'termina';
     if (texto ? (a0[k] || '') === val : (a0[k] ?? null) === val) { pintarCuota(inp, cid, aid); return; }
     try {
       if (a1) await C().acuCambiar(cid, a1.id, { [k]: val });
-      else { const a = { ...a0, [k]: val }, vacia = a.pago === 'mensual' && a.importe == null && a.dia == null && a.plazo == null && !a.desde && !a.meses && !a.renegociar && !a.termina; if (!vacia) await C().acuGuardar(cid, a); }
+      else { const a = { ...a0, [k]: val }, vacia = a.pago === 'mensual' && a.importe == null && a.dia == null && a.plazo == null && !a.desde && !a.meses && !a.renegociar && !a.termina && !a.adelanto; if (!vacia) await C().acuGuardar(cid, a); }
     } catch (e) { fallo(e); pintar(); }
   }
   // «Paquete» (D-307): a package of the catalog (a copy of what it includes and, paying each month, its price when the amount was
@@ -462,13 +479,13 @@
     const tramo = q && q.pago !== 'mensual', tr = tramo && C().tramo ? C().tramo(q, h.slice(0, 7)) : null;
     // the agreement from when to when (D-308): a monthly one in its title; one of stretches too, whether it renews, and «Cubre» its
     // stretch of today (D-297); the next one by its date, never its month: it's issued the month before (D-304)
-    const rg = q && C().rango ? C().rango(q, h.slice(0, 7)) : null, rgT = rg ? (rg.hasta ? `${mesC0(rg.de)} – ${mesC0(rg.hasta)}` : `desde ${mesC0(rg.de)}`) : '';
+    const rg = q && C().rango ? C().rango(q, h.slice(0, 7)) : null, nb = m => mesC0(m).replace(' ', '\u00a0'), rgT = rg ? (rg.hasta ? (rg.hasta === rg.de ? nb(rg.de) : `${nb(rg.de)} – ${nb(rg.hasta)}`) : `desde ${nb(rg.de)}`) : '';   // one month once, never split (revisión del lote B)
     const sig = prox ? (prox.emitida >= h ? 'el ' + corto(prox.emitida, h) : 'en unos días') : '';
     const sigue = tramo && q.pago !== 'unico' && prox && prox.emitida >= h ? ` · el siguiente, ${esc(sig)}` : '';
     const cubre = tr ? `<p class="co-vcubre">Cubre <b>${esc(tramoTxt(tr.de, tr.hasta))}</b>${sigue}</p>` : '';
     const px = prox && !tramo ? `<p class="co-vprox">${IC.doc}El siguiente, ${esc(sig)}</p>` : '';   // with a stretch, it's in «Cubre …»
     const inc = q && q.paquete && q.paquete.incluye && q.paquete.incluye.length ? `<p class="co-vinc">Incluye ${esc(q.paquete.incluye.join(' · '))}</p>` : '';   // what its package includes (D-307)
-    const sub = q && q.pago === 'mensual' ? `${eur(q.importe)} al mes${rgT ? ' · ' + rgT : ''}` : tramo ? `${PAGO_VC[q.pago] || 'Pago'} · ${eur(q.importe)}${rgT ? ' · ' + rgT + (q.pago !== 'unico' && q.renueva && !q.cubreHasta ? ', se renueva' : '') : ''}` : '';
+    const sub = q && q.pago === 'mensual' ? `${eur(q.importe)} al mes${rgT ? ' · ' + rgT : ''}` : tramo ? `${PAGO_VC[q.pago] || 'Pago'} · ${eur(q.importe)}${rgT ? ' · ' + rgT + (q.pago !== 'unico' && q.renueva && !q.cubreHasta ? ', se\u00a0renueva' : '') : ''}` : '';
     return `<div class="co-pagos"><h2 class="co-vh">Tus pagos${sub ? ` <span>${esc(sub)}</span>` : ''}</h2>${inc}${cubre}`
       + (deber.length ? `<p class="co-vp">Pendiente de pago <b>${esc(eur(suma))}</b>${venc ? ` <span class="rojo">· ${venc} vencida${venc === 1 ? '' : 's'}</span>` : ''}</p>` : '')
       + (lis ? `<ul class="co-vl">${lis}</ul>` : '')
@@ -701,8 +718,10 @@
 #mesa .co-ac-h b{flex:none;font-size:14px;font-weight:600}
 #mesa .co-ac-h svg{flex:none;width:16px;height:16px;color:var(--mute);transition:transform var(--d-m) var(--ease-m)}#mesa .co-ac-h[aria-expanded="true"] svg{transform:rotate(90deg)}
 #mesa .co-acs{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;color:var(--mute)}
-#mesa .co-ach{flex:none;padding:1px 8px;border-radius:var(--r-pill);font-size:12px;font-weight:600;line-height:18px}
-#mesa .co-ach.ok{background:var(--ok-soft);color:var(--ok)}#mesa .co-ach.fin{background:var(--bg-2);color:var(--mute)}#mesa .co-ach.prox{background:var(--chg-soft);color:var(--chg)}
+#mesa .co-ach{flex:none;padding:2px 8px;border-radius:var(--r-xs);font-size:12.5px;font-weight:600;line-height:18px}
+#mesa .co-ach.ok{background:var(--ok-soft);color:var(--ok)}#mesa .co-ach.fin{background:var(--bg-2);color:var(--mute)}#mesa .co-ach.prox{background:var(--bg-2);color:var(--ink-2)}
+#mesa .co-acu .co-q:not(select){padding:0 10px;font-size:12.5px}
+:root[data-theme="dark"] #mesa button.co-ac-h:hover,#mesa[data-theme="dark"] button.co-ac-h:hover{background:var(--bg-3)}
 #mesa .co-ac-b{padding:0 14px 12px}#mesa .co-ac .co-cuota.co-acu{margin:2px 0 10px}#mesa .co-ac .co-acu-n{margin:0 0 12px}#mesa .co-ac .co-pie{margin:8px 0 0}
 #mesa .co-inc{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px;padding:0;list-style:none}
 #mesa .co-inc li{display:inline-flex;align-items:center;gap:2px;min-height:24px;box-sizing:border-box;padding:0 3px 0 10px;border-radius:var(--r-pill);background:var(--bg-2);font-size:12.5px;color:var(--ink-2)}

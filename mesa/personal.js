@@ -252,11 +252,26 @@
       const n = difD(hoy, a.renegociar); if (n > 14) continue;
       items.push({ tipo: 'acuerdo', c, a, n, clientes: [c.id], dia: a.renegociar, ts: utc(a.renegociar), cat: n < 0 ? 'pasado' : 'acuerdos' });
     }
+    for (const x of items) x.marca = marcaDe(x);   // the Mac and the iPhone only put its class (D-287, D-300)
     items.sort((a, b) => a.ts - b.ts || (a.tipo === 'historias') - (b.tipo === 'historias'));
     const cuenta = c => items.filter(x => x.cat === c && !x.hecha).length;
     const filas = D.CL.map(c => fila(c, D, Q, V, enV, hoy));
     return { items, filas, V, hoy, man, cifras: { pasado: cuenta('pasado'), hoy: cuenta('hoy'), man: cuenta('man'), espera: cuenta('espera'), falta: cuenta('falta') } };
   }
+  // a notice's mark (D-190, D-222, D-300): what isn't scheduled or isn't done, today amber, tomorrow its band, gone past red; a
+  // task as a post; a session only once it went past (one of today, as it is); the stories, none; an invoice, a delivery or an
+  // agreement gone past, red
+  function marcaDe(x) {
+    if (x.cat !== 'hoy' && x.cat !== 'man' && x.cat !== 'pasado') return '';
+    if (x.tipo === 'post') return x.e !== 'programado' && x.e !== 'publicado' ? x.cat : '';
+    if (x.tipo === 'tarea') return x.hecha ? '' : x.cat;
+    if (x.tipo === 'sesion') return !x.hecha && x.cat === 'pasado' ? 'pasado' : '';
+    if (x.tipo === 'historias') return '';
+    return x.cat === 'pasado' ? 'pasado' : '';
+  }
+  // a task's mark in Tareas (D-300): not done, today, tomorrow or gone past; a session and a note, none (as they are)
+  const marcaT = (k, hoy) => k.tipo !== 'tarea' || k.hecha || !k.fecha ? '' : k.fecha < hoy ? 'pasado' : k.fecha === hoy ? 'hoy' : k.fecha === addD(hoy, 1) ? 'man' : '';
+  const mkCls = m => m ? ' pp-mk-' + m : '';
   function fila(c, D, Q, V, enV, hoy) {        // a client's block
     const X = I(), bs = D.boards.filter(b => b.client === c.id), cd = +c.cycleDay || 1;
     const m1 = X.cycleOfDay(V.a0, cd) || V.a0.slice(0, 7);
@@ -330,18 +345,19 @@
     const avs = `<span class="pp-avs">${x.clientes.slice(0, 2).map(c => avatar(c, 'xs')).join('')}</span>`, quien = x.clientes.map(nombreC).join(x.tipo === 'sesion' ? ' · ' : ' × ');   // a collab's two clients; a session's, as a list (D-217)
     // a session gone past: its checkbox and «Reprogramar» (the mesa's calendar; a step of ⌘Z, D-206)
     const repro = x.tipo === 'sesion' && x.cat === 'pasado' && !x.hecha ? `<button type="button" class="btn2 pp-repro" data-pp="reprog" data-id="${esc(x.k.id)}" title="Otra fecha para la sesión">${ICO.fecha}Reprogramar</button>` : '';
-    if (x.tipo === 'tarea' || x.tipo === 'sesion') return `<div class="pp-av tarea${x.hecha ? ' hecha' : ''}${x.tipo === 'sesion' ? ' ses' : ''}${repro ? ' repro sinprog' : ''}" data-tid="${esc(x.k.id)}"><span class="pp-avs"><input type="checkbox" class="pp-ck" data-pp="ck" data-id="${esc(x.k.id)}"${x.hecha ? ' checked' : ''} aria-label="Hecha"></span>${cuando(x, R)}${mini(x)}<span class="pp-nm" data-pp="tver" data-id="${esc(x.k.id)}" tabindex="0" role="button"><b>${esc(x.k.txt)}</b>${x.clientes.length ? ` <i>${quien}</i>` : ''}</span><span class="pp-est"></span>${repro}</div>`;
+    const mk = `${x.marca ? ' sinprog' : ''}${x.marca === 'hoy' ? ' pp-avhoy' : ''}`;   // the core's mark (D-300)
+    if (x.tipo === 'tarea' || x.tipo === 'sesion') return `<div class="pp-av tarea${x.hecha ? ' hecha' : ''}${x.tipo === 'sesion' ? ' ses' : ''}${repro ? ' repro' : ''}${mk}" data-tid="${esc(x.k.id)}"><span class="pp-avs"><input type="checkbox" class="pp-ck" data-pp="ck" data-id="${esc(x.k.id)}"${x.hecha ? ' checked' : ''} aria-label="Hecha"></span>${cuando(x, R)}${mini(x)}<span class="pp-nm" data-pp="tver" data-id="${esc(x.k.id)}" tabindex="0" role="button"><b>${esc(x.k.txt)}</b>${x.clientes.length ? ` <i>${quien}</i>` : ''}</span><span class="pp-est"></span>${repro}</div>`;
     if (x.tipo === 'entrega') {                 // a delivery gone past (D-290): its board on its row, as a late invoice
       const r = x.r, n = -difD(R.hoy, r.fecha);
-      return `<button type="button" class="pp-av sinprog" data-pp="entrega" data-c="${esc(r.cliente)}" data-id="${esc(r.id)}"${x.B ? ` data-key="${esc(x.B.key)}"` : ''} title="${esc(r.que || 'Entrega')} · venció el ${esc(corto(r.fecha))}">${avs}${cuando(x, R)}<span class="pp-afoto vacia">${ICO.entrega}</span><span class="pp-nm"><b>${esc(r.que || 'Entrega sin título')}</b> <i>${quien}</i></span><span class="pp-est">Sin entregar · hace ${n} ${n === 1 ? 'día' : 'días'}</span></button>`;
+      return `<button type="button" class="pp-av${mk}" data-pp="entrega" data-c="${esc(r.cliente)}" data-id="${esc(r.id)}"${x.B ? ` data-key="${esc(x.B.key)}"` : ''} title="${esc(r.que || 'Entrega')} · venció el ${esc(corto(r.fecha))}">${avs}${cuando(x, R)}<span class="pp-afoto vacia">${ICO.entrega}</span><span class="pp-nm"><b>${esc(r.que || 'Entrega sin título')}</b> <i>${quien}</i></span><span class="pp-est">Sin entregar · hace ${n} ${n === 1 ? 'día' : 'días'}</span></button>`;
     }
     if (x.tipo === 'acuerdo') {                 // renegotiate (D-288): the clock where the photo goes; gone past, tinted red as a late invoice
-      const t = acuerdoCuando(x), pas = x.cat === 'pasado';
-      return `<button type="button" class="pp-av${pas ? ' sinprog' : ''} pp-avco" data-pp="cobro" data-c="${esc(x.c.id)}" title="Renegociar el acuerdo de ${esc(x.c.name)} · ${esc(corto(x.dia))}">${avs}${cuando(x, R)}<span class="pp-afoto vacia">${ICO.reloj}</span><span class="pp-nm"><b>Renegociar el acuerdo</b> <i>${quien}</i></span><span class="pp-est">${esc(t)}</span></button>`;
+      const t = acuerdoCuando(x);
+      return `<button type="button" class="pp-av${mk} pp-avco" data-pp="cobro" data-c="${esc(x.c.id)}" title="Renegociar el acuerdo de ${esc(x.c.name)} · ${esc(corto(x.dia))}">${avs}${cuando(x, R)}<span class="pp-afoto vacia">${ICO.reloj}</span><span class="pp-nm"><b>Renegociar el acuerdo</b> <i>${quien}</i></span><span class="pp-est">${esc(t)}</span></button>`;
     }
     if (x.tipo === 'cobro') {                   // tinted red as what isn't scheduled (D-190), the euro where the photo goes (D-236)
       const C = I().cob, r = x.r, nf = r.factura ? 'Factura ' + r.factura : 'Factura de ' + C.nombre(r).toLowerCase();
-      return `<button type="button" class="pp-av sinprog pp-avco" data-pp="cobro" data-c="${esc(r.cliente)}" data-id="${esc(r.id)}" title="${esc(nf)} · ${esc(C.eur(r.importe))} · venció el ${esc(corto(r.vence))}">${avs}${cuando(x, R)}<span class="pp-afoto vacia">${ICO.euro}</span><span class="pp-nm"><b>${esc(nf)} · ${esc(C.eur(r.importe))}</b> <i>${quien}</i></span><span class="pp-est">Retrasada ${x.dias} ${x.dias === 1 ? 'día' : 'días'} · sin cobrar</span></button>`;
+      return `<button type="button" class="pp-av${mk} pp-avco" data-pp="cobro" data-c="${esc(r.cliente)}" data-id="${esc(r.id)}" title="${esc(nf)} · ${esc(C.eur(r.importe))} · venció el ${esc(corto(r.vence))}">${avs}${cuando(x, R)}<span class="pp-afoto vacia">${ICO.euro}</span><span class="pp-nm"><b>${esc(nf)} · ${esc(C.eur(r.importe))}</b> <i>${quien}</i></span><span class="pp-est">Retrasada ${x.dias} ${x.dias === 1 ? 'día' : 'días'} · sin cobrar</span></button>`;
     }
     if (x.tipo === 'historias') {
       const cu = x.dia === R.hoy ? 'hoy' : x.dia === R.man ? 'mañana' : 'el ' + corto(x.dia);
@@ -351,11 +367,10 @@
     if (x.mano) est = `<span class="pp-mano">publicar a mano</span>`;
     if (x.aMano) est += ` <span class="pp-por">· se programa a mano</span>`;   // D-181: its state stays, as the reasons of a wait
     if (x.cat === 'espera') { const r = [], w = M.web && M.web.contestado ? M.web.contestado(x.B.client, x.s.id) : ''; if (w) r.push(`<b class="pp-web">${esc(w)} en su web</b>`); if (x.pronto) { const n = difD(R.hoy, x.dia); r.push(n === 1 ? 'sale mañana' : `sale en ${n} días`); } if (x.lleva) r.push(`lleva ${x.lleva} días`); est += ` <span class="pp-por">· ${r.join(' · ')}</span>`; }
-    // not scheduled yet in «Hoy y mañana» or «Se ha pasado»: a mark that stands out, louder once it passed (D-190); reels too
-    const sin = (x.cat === 'hoy' || x.cat === 'man' || x.cat === 'pasado') && x.e !== 'programado' && x.e !== 'publicado';
+    // not scheduled yet in «Hoy y mañana» or «Se ha pasado»: a mark that stands out, louder once it passed (D-190); reels too;
     // today's, louder than tomorrow's: the row tinted amber, its band, time and state in --chg (D-222); by row, as «Hoy» and
-    // «Mañana» share the group
-    return `<button type="button" class="pp-av${sin ? ' sinprog' : ''}${sin && x.cat === 'hoy' ? ' pp-avhoy' : ''}" data-pp="abrir" data-key="${esc(x.B.key)}" data-slot="${esc(x.s.id)}" title="${esc(x.s.name)} · ${esc(tipoTxt(x.s))} · ${esc(corto(x.dia))}${x.hora ? ' ' + esc(x.hora) : ''}">${avs}${cuando(x, R)}${mini(x)}<span class="pp-nm"><b>${esc(x.s.name)}</b> <i>${quien}</i></span><span class="pp-est">${est}</span></button>`;
+    // «Mañana» share the group. The rule is the core's (marcaDe, D-300)
+    return `<button type="button" class="pp-av${mk}" data-pp="abrir" data-key="${esc(x.B.key)}" data-slot="${esc(x.s.id)}" title="${esc(x.s.name)} · ${esc(tipoTxt(x.s))} · ${esc(corto(x.dia))}${x.hora ? ' ' + esc(x.hora) : ''}">${avs}${cuando(x, R)}${mini(x)}<span class="pp-nm"><b>${esc(x.s.name)}</b> <i>${quien}</i></span><span class="pp-est">${est}</span></button>`;
   }
   const esReunion = k => !!(k && k.sesion && k.sesion.clase === 'reunion');   // a meeting (D-291): its own drawing
   // what an agreement to renegotiate says under its title: when, and what it covers (D-288)
@@ -479,11 +494,11 @@
     // a session: as a task, with the clapperboard and its time (never tabular figures, D-175)
     const ses = k => k.tipo === 'sesion' ? (esReunion(k) ? `<span class="pp-tses" title="Reunión">${ICO.reunion}</span>` : `<span class="pp-tses" title="Sesión">${ICO.sesion}</span>`) : '';
     const hora = k => k.tipo === 'sesion' && k.hora ? ` · ${esc(k.hora)}` : '';
-    const linea = (k, fecha = true) => `<div class="pp-tk${k.hecha ? ' hecha' : ''}${k.tipo === 'sesion' ? ' ses' : ''}" data-tid="${esc(k.id)}">${ck(k)}${ses(k)}${mas(k, `<span class="pp-tt" ${ver(k)}>${esc(k.txt)}</span>`)}${k.tipo === 'sesion' ? '' : fotos(k)}${fecha && k.fecha ? `<span class="pp-tf${venc(k) ? ' rojo' : ''}">${k.tipo === 'sesion' && k.fin ? esc(tramo(k, diaTxt)) : diaTxt(k.fecha) + hora(k)}</span>` : !fecha && k.hora ? `<span class="pp-tf">${esc(k.hora)}</span>` : ''}${av(k)}</div>`;
+    const linea = (k, fecha = true) => `<div class="pp-tk${k.hecha ? ' hecha' : ''}${k.tipo === 'sesion' ? ' ses' : ''}${mkCls(marcaT(k, hoy))}" data-tid="${esc(k.id)}">${ck(k)}${ses(k)}${mas(k, `<span class="pp-tt" ${ver(k)}>${esc(k.txt)}</span>`)}${k.tipo === 'sesion' ? '' : fotos(k)}${fecha && k.fecha ? `<span class="pp-tf${venc(k) ? ' rojo' : ''}">${k.tipo === 'sesion' && k.fin ? esc(tramo(k, diaTxt)) : diaTxt(k.fecha) + hora(k)}</span>` : !fecha && k.hora ? `<span class="pp-tf">${esc(k.hora)}</span>` : ''}${av(k)}</div>`;
     let celda = null;                          // the day being drawn (Semana): an overdue task from before says its date
     // a session of several days goes on: square corners where it continues, by its real days (D-231)
     const sigue = (k, d) => k.tipo === 'sesion' && d && enTramo(k, d) && ultDia(k) > k.fecha ? `${k.fecha < d ? ' sigue-i' : ''}${d < ultDia(k) ? ' sigue-d' : ''}` : '';
-    const ficha = k => `<div class="pp-fi${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}${k.tipo === 'sesion' ? ' ses' : ''}${sigue(k, celda)}" data-tid="${esc(k.id)}">${ck(k)}${ses(k)}${mas(k, `<span class="pp-tt" ${ver(k)}>${k.tipo === 'sesion' && k.hora && (!celda || celda === k.fecha) ? `<em>${esc(k.hora)}</em> ` : ''}${esc(k.txt)}${venc(k) && k.fecha !== celda ? ` <i>${esc(corto(k.fecha))}</i>` : ''}</span>`)}${k.tipo === 'sesion' ? '' : fotos(k, 'mini')}${av(k)}</div>`;
+    const ficha = k => `<div class="pp-fi${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}${k.tipo === 'sesion' ? ' ses' : ''}${sigue(k, celda)}${mkCls(marcaT(k, hoy))}" data-tid="${esc(k.id)}">${ck(k)}${ses(k)}${mas(k, `<span class="pp-tt" ${ver(k)}>${k.tipo === 'sesion' && k.hora && (!celda || celda === k.fecha) ? `<em>${esc(k.hora)}</em> ` : ''}${esc(k.txt)}${venc(k) && k.fecha !== celda ? ` <i>${esc(corto(k.fecha))}</i>` : ''}</span>`)}${k.tipo === 'sesion' ? '' : fotos(k, 'mini')}${av(k)}</div>`;
     const cli = st.tcli ? cliDe(st.tcli) : null, N = st.nueva;
     const pend = N.fotos.length ? `<span class="pp-tfo pp-npend"><img src="${fotosURL(N.fotos[0])}" alt="">${N.fotos.length > 1 ? `<b>${N.fotos.length}</b>` : ''}</span>` : '';
     const nfecha = `<span class="pp-ncampo${N.fecha ? '' : ' vacio'}" data-k="fecha"><input type="date" class="pp-nfecha" data-sin-fecha value="${esc(N.fecha)}" aria-label="Fecha de la tarea"></span>`;
@@ -520,7 +535,7 @@
         barra = `<span class="pp-tsw">${nav(t, 'Mes anterior', 'Mes siguiente', 'este mes')}${sw}</span>`;
         izq = `<div class="pp-mesg"><div class="pp-mcab" aria-hidden="true">${['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(x => `<span>${x}</span>`).join('')}</div><div class="pp-mgrid">${Array.from({ length: n }, (_, i) => addD(ini, i)).map(d => {
           const fuera = d.slice(0, 7) !== m, ks = fuera ? [] : enDia(d, d === hoy ? d0 : null);
-          return `<div class="pp-md${d === hoy ? ' hoy' : ''}${fuera ? ' fuera' : ''}"><span class="pp-mn">${+d.slice(8, 10)}</span>${ks.slice(0, 2).map(k => `<span class="pp-mt${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}${k.tipo === 'sesion' ? ' ses' : ''}${sigue(k, d)}" data-tid="${esc(k.id)}" ${ver(k)} title="${k.tipo === 'sesion' ? 'Sesión: ' : ''}${esc(k.txt)}${k.tipo === 'sesion' && k.fin ? ' · ' + esc(tramo(k)) : k.hora ? ' · ' + esc(k.hora) : ''}${venc(k) ? ' · ' + esc(corto(k.fecha)) : ''}">${k.tipo === 'sesion' ? ICO.sesion + (k.hora && k.fecha === d ? `<span class="pp-mh">${esc(k.hora)}</span> ` : '') : (k.fotos || []).length ? `<img src="${fotosURL(k.fotos[0])}" alt="">` : ''}${esc(k.txt)}${(k.subtareas || []).length ? ` · ${k.subtareas.filter(x => x.hecha).length}/${k.subtareas.length}` : ''}</span>`).join('')}${ks.length > 2 ? `<span class="pp-mm">${ks.length - 2} más</span>` : ''}</div>`; }).join('')}</div></div>`;
+          return `<div class="pp-md${d === hoy ? ' hoy' : ''}${fuera ? ' fuera' : ''}"><span class="pp-mn">${+d.slice(8, 10)}</span>${ks.slice(0, 2).map(k => `<span class="pp-mt${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}${k.tipo === 'sesion' ? ' ses' : ''}${sigue(k, d)}${mkCls(marcaT(k, hoy))}" data-tid="${esc(k.id)}" ${ver(k)} title="${k.tipo === 'sesion' ? 'Sesión: ' : ''}${esc(k.txt)}${k.tipo === 'sesion' && k.fin ? ' · ' + esc(tramo(k)) : k.hora ? ' · ' + esc(k.hora) : ''}${venc(k) ? ' · ' + esc(corto(k.fecha)) : ''}">${k.tipo === 'sesion' ? ICO.sesion + (k.hora && k.fecha === d ? `<span class="pp-mh">${esc(k.hora)}</span> ` : '') : (k.fotos || []).length ? `<img src="${fotosURL(k.fotos[0])}" alt="">` : ''}${esc(k.txt)}${(k.subtareas || []).length ? ` · ${k.subtareas.filter(x => x.hecha).length}/${k.subtareas.length}` : ''}</span>`).join('')}${ks.length > 2 ? `<span class="pp-mm">${ks.length - 2} más</span>` : ''}</div>`; }).join('')}</div></div>`;
       }
     }
     const ns = st.vista === 'lista' ? notas().filter(n => st.tcli ? n.cliente === st.tcli : !n.cliente) : [];
@@ -716,7 +731,7 @@
       const g = k.tipo === 'nota' || !k.fecha ? 'sinfecha' : venc(k) ? 'pasado' : k.fecha <= hoy ? 'hoy' : k.fecha === man ? 'man' : 'despues';
       const n = (k.subtareas || []).length;
       return { id: k.id, tipo: k.tipo, txt: String(k.txt || ''), fecha: k.fecha || null, hora: k.tipo === 'sesion' ? k.hora || '' : '', fin: k.fecha ? ultDia(k) : null,
-        clientes: clis(k).filter(cliOk), hecha: k.hecha || null, venc: venc(k), grupo: g, detalles: String(k.detalles || ''), subtareas: n ? { n, hechas: k.subtareas.filter(x => x.hecha).length } : null,
+        clientes: clis(k).filter(cliOk), hecha: k.hecha || null, venc: venc(k), grupo: g, marca: marcaT(k, hoy), detalles: String(k.detalles || ''), subtareas: n ? { n, hechas: k.subtareas.filter(x => x.hecha).length } : null,
         fotos: (k.fotos || []).length, creada: k.creada || null };
     }).sort((a, b) => ORD[a.grupo] - ORD[b.grupo] || String(a.fecha || '').localeCompare(String(b.fecha || '')) || String(a.hora).localeCompare(String(b.hora)) || (a.tipo === 'nota') - (b.tipo === 'nota') || String(a.creada || '').localeCompare(String(b.creada || '')));
   }
@@ -1686,9 +1701,9 @@
 #mesa .pp-av.tarea{cursor:default}
 #mesa button.pp-av:hover{background:var(--bg-2)}
 #mesa .pp-grupo[data-cat="hoy"] .pp-av.sinprog{box-shadow:inset 3px 0 0 var(--chg)}#mesa .pp-grupo[data-cat="hoy"] .pp-av.sinprog .pp-cu{color:var(--chg);font-weight:600}
-#mesa .pp-grupo[data-cat="hoy"] .pp-av.pp-avhoy{background:var(--chg-soft)}#mesa .pp-grupo[data-cat="hoy"] button.pp-av.pp-avhoy:hover{background:color-mix(in oklab,var(--chg-soft) 95%,var(--chg))}   /* D-222: 4.56:1 light, 6.65:1 dark at hover */
+#mesa .pp-grupo[data-cat="hoy"] .pp-av.pp-avhoy{background:var(--chg-soft)}#mesa .pp-grupo[data-cat="hoy"] button.pp-av.pp-avhoy:hover{background:var(--chg-soft);box-shadow:inset 3px 0 0 var(--chg),inset 0 0 0 1px var(--chg)}   /* D-300: at hover the row keeps its tint (4.87:1 light, 7.26:1 dark) and a thin ring of its colour */
 #mesa .pp-grupo[data-cat="hoy"] .pp-av.pp-avhoy :is(.pp-est,.pp-mano){color:var(--chg);font-weight:600}
-#mesa .pp-grupo[data-cat="pasado"] .pp-av.sinprog{background:var(--red-soft);box-shadow:inset 3px 0 0 var(--red)}#mesa .pp-grupo[data-cat="pasado"] button.pp-av.sinprog:hover{background:color-mix(in oklab,var(--red-soft) 88%,var(--red))}
+#mesa .pp-grupo[data-cat="pasado"] .pp-av.sinprog{background:var(--red-soft);box-shadow:inset 3px 0 0 var(--red)}#mesa .pp-grupo[data-cat="pasado"] button.pp-av.sinprog:hover{background:var(--red-soft);box-shadow:inset 3px 0 0 var(--red),inset 0 0 0 1px var(--red)}   /* D-300: the red no longer darkens (it fell to 3.96:1) */
 #mesa .pp-grupo[data-cat="pasado"] .pp-av.sinprog .pp-est,#mesa .pp-grupo[data-cat="pasado"] .pp-av.sinprog .pp-mano{color:var(--red);font-weight:600}
 #mesa .pp-avs{display:inline-flex;align-items:center}
 #mesa .pp-avs .pp-ava:first-child{position:relative;z-index:1;box-shadow:0 0 0 2px var(--panel)}#mesa .pp-avs .pp-ava + .pp-ava{margin-left:-7px}
@@ -1784,6 +1799,9 @@
 #mesa .pp-tv.dos{display:grid;grid-template-columns:minmax(0,1fr) 268px;gap:10px;align-items:start}
 #mesa .pp-tk{display:flex;align-items:center;gap:10px;min-height:32px;padding:4px 10px;border-radius:var(--r-sm);font-size:13px}
 #mesa .pp-tk:hover{background:var(--bg-3)}
+#mesa .pp-tk.pp-mk-hoy{background:var(--chg-soft);box-shadow:inset 3px 0 0 var(--chg)}#mesa .pp-tk.pp-mk-hoy .pp-tf{color:var(--chg);font-weight:600}#mesa .pp-tk.pp-mk-man{box-shadow:inset 3px 0 0 var(--chg)}
+#mesa .pp-tk.pp-mk-pasado{background:var(--red-soft);box-shadow:inset 3px 0 0 var(--red)}   /* D-300: a task not done, as a post not scheduled */
+#mesa .pp-tk.pp-mk-hoy:hover{background:var(--chg-soft);box-shadow:inset 3px 0 0 var(--chg),inset 0 0 0 1px var(--chg)}#mesa .pp-tk.pp-mk-pasado:hover{background:var(--red-soft);box-shadow:inset 3px 0 0 var(--red),inset 0 0 0 1px var(--red)}
 #mesa .pp-tt{flex:1;min-width:0}
 #mesa .pp-tf{font-size:12px;color:var(--mute);white-space:nowrap}#mesa .pp-tf.rojo{color:var(--red);font-weight:600}
 #mesa .pp-ck{appearance:none;-webkit-appearance:none;flex:none;width:15px;height:15px;margin:0;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--mute);background:none;cursor:pointer;position:relative;transition:background var(--d1) var(--ease),box-shadow var(--d1) var(--ease)}
@@ -1808,7 +1826,7 @@
 #mesa .pp-fi .pp-tt{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;text-wrap-style:pretty}
 #mesa .pp-fi .pp-tt i{font-style:normal;color:var(--red);font-weight:600}
 #mesa .pp-fi .pp-ck{margin-top:1px;width:13px;height:13px}#mesa .pp-fi .pp-ava.xs{width:16px;height:16px;font-size:9.5px;margin-left:auto}#mesa .pp-fi .pp-avn{margin-left:auto}#mesa .pp-fi .pp-avn .pp-ava.xs{margin-left:0}
-#mesa .pp-fi.venc .pp-tt{color:var(--red)}
+#mesa .pp-fi.venc .pp-tt{color:var(--red)}#mesa .pp-fi.pp-mk-hoy{background:var(--chg-soft)}#mesa .pp-fi.pp-mk-pasado{background:var(--red-soft)}   /* D-300: in Semana and Mes, only the tint (the cell already says today) */
 #mesa .pp-mcab,#mesa .pp-mgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--cx-gap)}
 #mesa .pp-mcab span{font-size:10.5px;color:var(--cx-wk-c);padding:0 4px 4px}
 #mesa .pp-md{display:flex;flex-direction:column;gap:2px;min-width:0;min-height:68px;padding:4px;border-radius:var(--cx-r);background:var(--panel)}
@@ -1816,7 +1834,7 @@
 #mesa .pp-mn{font-size:10.5px;color:var(--mute);line-height:1.2}#mesa .pp-md.hoy .pp-mn{color:var(--ink);font-weight:600}#mesa .pp-md.fuera .pp-mn{color:var(--cx-otro)}
 #mesa .pp-mt{display:block;min-width:0;padding:2px 5px;border-radius:var(--r-xs);background:var(--panel-2);box-shadow:var(--shadow-xs);font-size:11.5px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #mesa .pp-mt img{width:14px;height:14px;border-radius:3px;object-fit:cover;vertical-align:-3px;margin-right:4px}
-#mesa .pp-mt.venc{color:var(--red)}#mesa .pp-mt.hecha{text-decoration:line-through;color:var(--mute)}
+#mesa .pp-mt.venc{color:var(--red)}#mesa .pp-mt.pp-mk-hoy{background:var(--chg-soft)}#mesa .pp-mt.pp-mk-pasado{background:var(--red-soft)}#mesa .pp-mt.hecha{text-decoration:line-through;color:var(--mute)}
 #mesa .pp-mm{font-size:10.5px;color:var(--mute);padding:0 4px}
 /* the notes: small post-its in a row above the list */
 #mesa .pp-pn{display:flex;gap:8px;margin:0 0 12px;overflow-x:auto;padding:2px 2px 4px;margin-left:-2px}

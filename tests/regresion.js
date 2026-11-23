@@ -15360,7 +15360,7 @@
   }
   async function enTema(t, fn) { const h = D.documentElement, t0 = h.dataset.theme; if (t === 'dark') h.dataset.theme = 'dark'; else delete h.dataset.theme; try { await espera(400); return await fn(); } finally { if (t0) h.dataset.theme = t0; else delete h.dataset.theme; } }
 
-  prueba('AV1', 'Hoy, más marcado (D-222): en Avisos, cada fila de hoy que no está Programada ni Publicada (reels también) va tintada en --chg-soft con su franja de 3 px y la hora y el estado en --chg a 600; al pasar se oscurece sin bajar de 4,5:1, en claro y en oscuro; «Mañana», las tareas y lo programado, como estaban (D-190)', async () => {
+  prueba('AV1', 'Hoy, más marcado (D-222): en Avisos, cada fila de hoy que no está Programada ni Publicada (reels también) va tintada en --chg-soft con su franja de 3 px y la hora y el estado en --chg a 600; al pasar conserva su tinte sin bajar de 4,5:1, en claro y en oscuro (D-300); «Mañana» y lo programado, como estaban (D-190); una tarea de hoy sin hacer, como una publicación (D-300)', async () => {
     relojEn('2026-11-01T10:00:00+01:00');
     try {
       await tablero([{ ...pub(1, 'Foto', 10), date: '2026-11-10T18:00:00.000+01:00' }, pub(2, 'Foto', 11), { ...pub(3, 'Reel', 10), date: '2026-11-10T19:00:00.000+01:00' }, { ...pub(4, 'Foto', 10), date: '2026-11-10T20:00:00.000+01:00' }]);
@@ -15371,7 +15371,7 @@
       const fila = id => q(`.pp-grupo[data-cat="hoy"] .pp-av[data-slot="${id}"]`), cs = e => W.getComputedStyle(e);
       igual(['r1', 'r2', 'r3', 'r4'].map(id => fila(id) && fila(id).classList.contains('pp-avhoy')), [true, false, true, false], 'la marca de hoy va en r1 y r3 (la Foto y el Reel sin programar de hoy), no en mañana ni en lo programado');
       ok(fila('r2').classList.contains('sinprog'), '«Mañana» pierde su franja (D-190)');
-      const tk = q('.pp-grupo[data-cat="hoy"] .pp-av.tarea'); ok(tk && !tk.classList.contains('pp-avhoy') && !tk.classList.contains('sinprog'), 'una tarea de hoy lleva la marca');
+      const tk = q('.pp-grupo[data-cat="hoy"] .pp-av.tarea'); ok(tk && tk.classList.contains('pp-avhoy') && tk.classList.contains('sinprog'), 'una tarea de hoy sin hacer no lleva la marca (D-300)');
       for (const t of ['light', 'dark']) await enTema(t, async () => {
         const tok = n => cs(q('#mesa')).getPropertyValue(n).trim(), chg = rgbDe(tok('--chg')), soft = rgbDe(tok('--chg-soft'));
         const a = fila('r1'), cu = a.querySelector('.pp-cu'), est = a.querySelector('.pp-est');
@@ -15382,7 +15382,7 @@
         const reel = fila('r3').querySelector('.pp-mano'); ok(reel && rgbDe(cs(reel).color).join() === chg.join(), `${t}: «publicar a mano» del reel de hoy no va en --chg`);
         ok(contraste(cs(cu).color, cs(a).backgroundColor) >= 4.5, `${t}: la hora sobre la fila no llega a 4,5:1`);
         const hov = deRegla(/button\.pp-av\.pp-avhoy:hover/, 'background-color', a.parentNode) || deRegla(/button\.pp-av\.pp-avhoy:hover/, 'background', a.parentNode);
-        ok(hov && rgbDe(hov).join() !== soft.join() && lumi(rgbDe(hov)) !== lumi(soft), `${t}: al pasar la fila no cambia: ${hov}`);
+        ok(hov && rgbDe(hov).join() === soft.join(), `${t}: al pasar la fila pierde su tinte (D-300): ${hov}`);
         ok(contraste(cs(cu).color, hov) >= 4.5 && contraste(cs(est).color, hov) >= 4.5, `${t}: al pasar, la hora o el estado bajan de 4,5:1 (${contraste(cs(cu).color, hov).toFixed(2)})`);
         const m = fila('r2'); igual(rgbDe(cs(m).backgroundColor).join() === soft.join(), false, `${t}: «Mañana» va tintada`);
       });
@@ -21744,6 +21744,87 @@
       const col = await hasta(() => q('.main > .cont > .vc-lado'), 3000, '«Tus pagos» a la derecha');
       cerca(vdR(col).width, 360, 1, 'la columna derecha no mide 360 px');
     } finally { await vistaCliente(false); }
+  });
+
+  // ---------- ajustes de la 4.49, lote A (D-300 a D-303) ----------
+  const reglasDe = re => [...D.styleSheets].flatMap(sh => { try { return [...sh.cssRules]; } catch (e) { return []; } }).flatMap(r => r.cssRules && r.media ? [] : [r]).filter(r => r.selectorText && re.test(r.selectorText));
+  const reglasReduce = re => [...D.styleSheets].flatMap(sh => { try { return [...sh.cssRules]; } catch (e) { return []; } }).filter(r => r.media && /prefers-reduced-motion/.test(r.conditionText || r.media.mediaText)).flatMap(r => [...r.cssRules]).filter(r => r.selectorText && re.test(r.selectorText));
+  const msDe = v => { v = String(v).trim(); return v.endsWith('ms') ? parseFloat(v) : parseFloat(v) * 1000; };
+
+  prueba('AN1', 'Las marcas de hoy y de lo pasado también en las tareas (D-300): el núcleo da la marca de cada aviso y de cada tarea; en Avisos, una tarea de hoy sin hacer va como una publicación de hoy sin programar y una pasada en rojo; hecha, sin marca; una sesión de hoy, como estaba; en Tareas, Lista con tinte y franja (mañana, solo la franja), Semana y Mes solo el tinte; al pasar el ratón, la fila conserva su tinte con un contorno de su color y el texto sigue por encima de 4,5:1, en claro y en oscuro', async () => {
+    relojEn('2026-11-10T10:00:00+01:00');
+    try {
+      await tablero([pub(1)]);
+      const t = async (txt, fecha) => (await M.personal.tarea({ txt, fecha, cliente: CLIENTE })).id;
+      const hoy = await t('AN1 de hoy', '2026-11-10'), man = await t('AN1 de mañana', '2026-11-11'), pas = await t('AN1 pasada', '2026-11-08'), hecha = await t('AN1 hecha', '2026-11-07'), ses = 'tkan1sesion';
+      await M.personal.hecha(hecha, true);
+      const ahora = new W.Date().toISOString();
+      await M._in.idbPut('tareas', ses, { id: ses, tipo: 'sesion', txt: 'AN1 sesión de hoy', fecha: '2026-11-10', hora: '18:00', clientes: [CLIENTE], creada: ahora, at: ahora });
+      const R = await M.personal.datos({ avTareas: true }), mk = id => { const x = R.items.find(i => i.k && i.k.id === id); return x ? x.marca : 'falta'; };
+      igual([hoy, pas, hecha, ses].map(mk), ['hoy', 'pasado', '', ''], 'la marca del núcleo de cada aviso (hoy, pasada, hecha, sesión de hoy)');
+      const L = await M.personal.lista(), mt = id => { const x = L.find(y => y.id === id); return x ? x.marca : 'falta'; };
+      igual([hoy, man, pas, hecha, ses].map(mt), ['hoy', 'man', 'pasado', '', ''], 'la marca del núcleo de cada tarea (la lista del iPhone)');
+      await paginaAbierta(); await M.personal.set({ plg: { tareas: false, clientes: true, avisos: false }, avTareas: true, vista: 'lista' }); await M.personal.render();
+      const av = id => q(`.pp-av.tarea[data-tid="${id}"]`), cl = e => e ? ['sinprog', 'pp-avhoy'].filter(c => e.classList.contains(c)).join(' ') : 'falta';
+      igual([hoy, pas, hecha, ses].map(id => cl(av(id))), ['sinprog pp-avhoy', 'sinprog', '', ''], 'las marcas de las tareas en Avisos');
+      const tk = id => q(`.pp-tk[data-tid="${id}"]`), mkc = e => e ? (e.className.match(/pp-mk-\w+/) || [''])[0] : 'falta';
+      igual([hoy, man, pas, hecha, ses].map(id => mkc(tk(id))), ['pp-mk-hoy', 'pp-mk-man', 'pp-mk-pasado', '', ''], 'las marcas de Lista');
+      const cs = e => W.getComputedStyle(e), tok = n => cs(q('#mesa')).getPropertyValue(n).trim();
+      for (const th of ['light', 'dark']) await enTema(th, async () => {
+        const chgS = rgbDe(tok('--chg-soft')), redS = rgbDe(tok('--red-soft'));
+        igual(rgbDe(cs(av(hoy)).backgroundColor), chgS, th + ': la tarea de hoy en Avisos sin su tinte');
+        igual(rgbDe(cs(av(pas)).backgroundColor), redS, th + ': la tarea pasada en Avisos sin su tinte');
+        igual(rgbDe(cs(tk(hoy)).backgroundColor), chgS, th + ': Lista, la de hoy sin su tinte');
+        ok(/inset/.test(cs(tk(hoy)).boxShadow) && /inset/.test(cs(tk(pas)).boxShadow), th + ': Lista, sin franja');
+        ok(/inset/.test(cs(tk(man)).boxShadow) && rgbDe(cs(tk(man)).backgroundColor).join() !== chgS.join(), th + ': Lista, la de mañana no lleva solo la franja');
+        igual(rgbDe(cs(tk(pas)).backgroundColor), redS, th + ': Lista, la pasada sin su tinte');
+        for (const id of [hoy, pas]) { const f = tk(id).querySelector('.pp-tf'); ok(contraste(cs(f).color, cs(tk(id)).backgroundColor) >= 4.5, `${th}: la fecha sobre su tinte: ${contraste(cs(f).color, cs(tk(id)).backgroundColor).toFixed(2)}`); }
+        // al pasar el ratón (la regla: el marco de la batería no recibe :hover, lección 79)
+        for (const [re, soft, c] of [[/\.pp-tk\.pp-mk-hoy:hover/, chgS, '--chg'], [/\.pp-tk\.pp-mk-pasado:hover/, redS, '--red'], [/button\.pp-av\.sinprog:hover/, redS, '--red'], [/button\.pp-av\.pp-avhoy:hover/, chgS, '--chg']]) {
+          const bg = deRegla(re, 'background-color', q('.pp')) || deRegla(re, 'background', q('.pp')), sh = deRegla(re, 'box-shadow', q('.pp'));
+          ok(bg && rgbDe(bg).join() === soft.join(), `${th}: al pasar, ${re.source} cambia el tinte: ${bg}`);
+          ok(sh && /0px 0px 0px 1px inset/.test(sh), `${th}: al pasar, ${re.source} sin el contorno: ${sh}`);
+          ok(contraste(tok(c), bg) >= 4.5, `${th}: al pasar, ${c} sobre la fila: ${contraste(tok(c), bg).toFixed(2)}`);
+        }
+      });
+      await M.personal.set({ vista: 'semana' }); await M.personal.render();
+      const fi = id => q(`.pp-fi[data-tid="${id}"]`);
+      igual([hoy, pas, man, ses].map(id => mkc(fi(id))), ['pp-mk-hoy', 'pp-mk-pasado', 'pp-mk-man', ''], 'las marcas de Semana');
+      ok(rgbDe(cs(fi(hoy)).backgroundColor).join() === rgbDe(tok('--chg-soft')).join() && rgbDe(cs(fi(pas)).backgroundColor).join() === rgbDe(tok('--red-soft')).join() && rgbDe(cs(fi(man)).backgroundColor).join() !== rgbDe(tok('--chg-soft')).join(), 'Semana: solo el tinte de hoy y de lo pasado');
+      await M.personal.set({ vista: 'mes' }); await M.personal.render();
+      const mm = id => q(`.pp-mt[data-tid="${id}"]`);
+      igual([hoy, pas].map(id => mkc(mm(id))), ['pp-mk-hoy', 'pp-mk-pasado'], 'las marcas de Mes');
+      ok(rgbDe(cs(mm(hoy)).backgroundColor).join() === rgbDe(tok('--chg-soft')).join() && rgbDe(cs(mm(pas)).backgroundColor).join() === rgbDe(tok('--red-soft')).join(), 'Mes: sin el tinte');
+    } finally { if (M.personal) await M.personal.set({ vista: 'lista' }); paginaCerrada(); relojVuelve(); await sinTareas(); }
+  });
+
+  prueba('AN2', 'En el iPhone, las marcas del Mac, sacadas del núcleo (D-300, D-287): en Hoy, con «Tareas», una tarea de hoy sin hacer va tintada en amarillo con su franja, una pasada en rojo, una hecha tachada, sobre el tinte la baldosa sin fondo; en Tareas, cada tarea con su marca (mañana, la franja) y «N se han pasado» en rojo', async () => {
+    await tableroMovil();
+    const h = M._in.hoy(), d = n => new W.Date(Date.UTC(+h.slice(0, 4), +h.slice(5, 7) - 1, +h.slice(8, 10) + n)).toISOString().slice(0, 10);
+    const t = async (txt, fecha) => (await M.personal.tarea({ txt, fecha, cliente: CLIENTE })).id;
+    try {
+      await t('AN2 de hoy', d(0)); await t('AN2 pasada', d(-2)); await t('AN2 de mañana', d(1));
+      await M.personal.hecha(await t('AN2 hecha', d(0)), true);
+      await enMovilPagina(async () => {
+        await M.movil.releer();
+        const sw = () => W.document.querySelector('#movil [data-a="avt"]');
+        await hasta(() => sw() && W.document.querySelector('#movil .cifras'), 6000, 'Hoy');
+        sw().click();
+        await hasta(() => W.document.getElementById('movil').innerText.includes('AN2 de hoy'), 4000, 'las tareas en Hoy');
+        const fila = (sel, txt) => [...W.document.querySelectorAll(sel)].find(f => f.textContent.includes(txt)), mk = e => e ? ['mk-hoy', 'mk-man', 'mk-pasado', 'hecha'].filter(c => e.classList.contains(c)).join(' ') : 'falta';
+        igual(['AN2 de hoy', 'AN2 pasada', 'AN2 hecha'].map(x => mk(fila('#movil .fila', x))), ['mk-hoy', 'mk-pasado', 'hecha'], 'las marcas de Hoy');
+        const cs = e => W.getComputedStyle(e), tok = n => cs(W.document.getElementById('movil')).getPropertyValue(n).trim();
+        const fh = fila('#movil .fila', 'AN2 de hoy'), fp = fila('#movil .fila', 'AN2 pasada'), fx = fila('#movil .fila', 'AN2 hecha');
+        igual([rgbDe(cs(fh).backgroundColor), rgbDe(cs(fp).backgroundColor)], [rgbDe(tok('--chg-soft')), rgbDe(tok('--red-soft'))], 'Hoy: los tintes');
+        ok(/inset/.test(cs(fh).boxShadow) && /inset/.test(cs(fp).boxShadow), 'Hoy: sin franja');
+        ok(/line-through/.test(cs(fx.querySelector('.t1')).textDecorationLine), 'Hoy: la hecha no va tachada');
+        const ico = fh.querySelector('.ft.ico'); ok(!ico || cs(ico).backgroundColor === 'rgba(0, 0, 0, 0)', 'Hoy: la baldosa del icono con fondo sobre el tinte');
+        await irMovil('#tareas', '#movil .tarea');
+        igual(['AN2 de hoy', 'AN2 de mañana', 'AN2 pasada', 'AN2 hecha'].map(x => mk(fila('#movil .tarea', x))), ['mk-hoy', 'mk-man', 'mk-pasado', 'hecha'], 'las marcas de Tareas');
+        const r = W.document.querySelector('#movil .titulo p .roja');
+        ok(r && /se ha(n)? pasado/.test(r.textContent) && rgbDe(cs(r).color).join() === rgbDe(tok('--red')).join(), '«N se han pasado» no va en rojo: ' + (r ? r.outerHTML : W.document.querySelector('#movil .titulo').innerHTML));
+      });
+    } finally { await sinTareas(); }
   });
 
   window.pasarBateria = pasar;

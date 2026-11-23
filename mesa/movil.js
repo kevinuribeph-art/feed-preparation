@@ -1263,7 +1263,7 @@
     const hop = enCurso(null, x.id, 'tarea'); if (hop) x = { ...x, hecha: hop.valor.hecha ? x.hecha || new Date().toISOString() : null };   // marcada, mientras se guarda (D-271, punto 9)
     const tex = enCurso(null, x.id, 'tareaTexto'), fop = enCurso(null, x.id, 'tareaFecha'), edita = !!(tex || fop || opsLeer().some(o => o.estado === 'nueva' && o.slot === x.id && NUEVOS.test(o.campo)));
     if (tex) x = { ...x, txt: tex.valor }; if (fop) x = { ...x, fecha: fop.valor || null };   // lo editado, ya a la vista (D-272)
-    if (fop && x.tipo === 'tarea' && M.personal._p && M.personal._p.marcaT) x = { ...x, marca: M.personal._p.marcaT(x, hoy()) };   // su marca, la de la fecha nueva, del núcleo (D-300)
+    if ((fop || hop) && x.tipo === 'tarea' && M.personal._p && M.personal._p.marcaT) x = { ...x, marca: M.personal._p.marcaT(x, hoy()) };   // mientras se guarda (otra fecha, hecha o desmarcada), su marca del núcleo (D-300)
     const nota = x.tipo === 'nota', ses = x.tipo === 'sesion';
     const meta = [];
     if (nota) meta.push(`Nota · ${esc(plural(String(x.txt).split('\n').length, 'línea', 'líneas'))}`);

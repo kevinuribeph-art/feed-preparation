@@ -969,20 +969,18 @@
     toB.crops = toB.crops || {};
     for (const f of [...(to.photos || []), ...dSrc(to)]) { const c = fromB.crops && fromB.crops[f]; if (c) toB.crops[f] = { ...c }; else delete toB.crops[f]; }
   }
-  // init: the newest copy of each slot (this board's or another's) becomes the «old» copy the board is built from
-  async function importShared(cfgSlots, old, key) {
-    let pend = pendienteLS();
-    const others = ((await idbAll('boards')) || []).filter(b => b.key !== key)
-      .map(b => pend && pend.board && pend.key === b.key && String(pend.board.savedAt || '') > String(b.savedAt || '') ? pend.board : b);
-    const refs = new Set([...others.flatMap(b => [...refsOf(b)]), ...(await trayRefs())]);   // + the clients' trays (D-041)
+  // opening a board: the newest copy of each slot (this board's or another's) becomes the «old» copy the board is built from.
+  // others: the other saved boards (as read), refs: every photo they and the trays hold. Changes old; gives the board's links
+  // (slotId -> [{key, client, cd}] of the other boards that have it: IDX once the board is open). armarTablero calls it
+  function unirCompartidas(cfgSlots, old, others, refs) {
     old.slots = old.slots || []; old.tray = old.tray || []; old.crops = old.crops || {};
-    IDX = {};
+    const idx = {};
     for (const id of new Set(cfgSlots.map(s => s.id))) {
       const own = old.slots.find(s => s.id === id), capd = [];
       let best = own, from = null;
       for (const b of others) {
         const s = (b.slots || []).find(x => x.id === id); if (!s) continue;
-        (IDX[id] = IDX[id] || []).push({ key: b.key, client: boardClient(b), cd: cdOf(b.cycleDay) });
+        (idx[id] = idx[id] || []).push({ key: b.key, client: boardClient(b), cd: cdOf(b.cycleDay) });
         if (s.caption) capd.push(s);
         if (!best || (s.at || 0) > (best.at || 0)) { best = s; from = b; }
       }
@@ -996,12 +994,7 @@
       const t = old.slots.find(s => s.id === id);
       if (t) for (const s of capd) if (s !== best) { const m = capMerge(s.caption, t.caption); if (m) t.caption = m; }
     }
-  }
-  // once S is built: keep the revisions; the baseline is each slot as it was before init (base: id -> signature of the
-  // pre-merge copy), so what init changed (Notion wins, synced, renames) gets a new revision and reaches the other boards
-  function sharedInit(oldById, base) {
-    S.slots.forEach(s => { const o = oldById[s.id]; if (o && o.at) s.at = o.at; });
-    SIG = { b: S, m: Object.fromEntries(S.slots.map(s => [s.id, base[s.id] ?? slotSig(s, S)])), dirty: new Set() };
+    return idx;
   }
   // since when a post waits for the client (D-180): in Por aprobar or No aprobado, s.esperaCliente = {v, desde}, written when
   // the open board is saved. On a board's first save with 4.16 (no B.esperaDesde) the posts already waiting get desde null:
@@ -6692,6 +6685,123 @@ ${TK_FUENTES}
     const p = Object.fromEntries(Object.entries(o).filter(([m, v]) => ms.includes(m) && PASOS.some(x => x[0] === v)));
     return Object.keys(p).length ? { pasos: p } : {};
   }
+  // ---------- a board as it opens (feed continuo, pieza 1) ----------
+  // armarTablero(rec, ctx): the board M.init leaves open, built from what is already read, without S, without writing anything
+  // (IndexedDB, localStorage) and without drawing: M.init uses it, and so can whatever needs a board that is not the open one.
+  // rec: the saved board (newest()), null for a new one; it is taken (changed, as M.init always did). ctx: {cfg (its slots and
+  // past from Notion, reopen), key, client, month, span, cd, mirar (the iPhone, D-267), bandeja (the client's tray, read only),
+  // recCarp (its record in 'bandejas'), todos (every saved board, as read), pend (mesa-pending), refsBandejas (trayRefs()),
+  // cargar (ids -> their thumbnails in M.files; gives those not found: a read)}. Gives {S, PB, IDX (its links), sig (each slot's
+  // shared signature before this opening), faltan, retyped, won, deadRenders, borrar (a photo twice in the tray: for
+  // deleteIfUnused), aDel (images drawn by the editor that were in the tray: for delList)}: the writes are M.init's.
+  async function armarTablero(rec, ctx) {
+    const { cfg, key, client, month, span, cd, bandeja = [], recCarp = null, todos = [], pend = null, refsBandejas = new Set(), cargar = loadThumbs } = ctx;
+    const MIRA = !!ctx.mirar;
+    const old = rec || { slots: [], tray: [] };
+    const carp0 = old.carpetas && String(old.savedAt || '') > String((recCarp && recCarp.at) || '') ? old.carpetas : recCarp && recCarp.carpetas;
+    const others = todos.filter(b => b.key !== key).map(b => pend && pend.board && pend.key === b.key && String(pend.board.savedAt || '') > String(b.savedAt || '') ? pend.board : b);
+    const idx = unirCompartidas(cfg.slots, old, others, new Set([...others.flatMap(b => [...refsOf(b)]), ...refsBandejas]));   // + the clients' trays (D-041)
+    const oldById = Object.fromEntries((old.slots || []).map(s => [s.id, s]));
+    const base = Object.fromEntries((old.slots || []).map(s => [s.id, slotSig(s, old)]));   // shared state before init
+    const orphans = [], deadRenders = [], retyped = [];
+    for (const s of old.slots || []) if (!cfg.slots.some(x => x.id === s.id)) { orphans.push(...[...(s.photos || []), ...dSrc(s)].filter(f => trayable(f) && !dOut(s).includes(f) && !lOut(s).includes(f))); deadRenders.push(...dOut(s), ...lOut(s)); }
+    const pm = prevMonth(month);
+    const pastIn = cfg.past.length ? cfg.past : (old.past || []);
+    // Dates and names: cfg carries Notion's values (notionDate/notionName); a change made here stays pending until
+    // Notion has it. If Notion changed the same post on its own, Notion wins.
+    const won = [], wonIds = new Set();
+    const merge = n => {
+      const o = oldById[n.id] || {};
+      const r = { id: n.id, name: n.name, type: n.type, notionType: n.type, date: n.date, notionDate: n.date, notionName: n.name, photos: o.photos || [], note: o.note || '', uploaded: o.uploaded || null };
+      const ont = o.notionType ?? o.type, tw = !!o.type && o.type !== ont && n.type !== ont && n.type !== o.type;   // Notion changed a type changed here too: Notion wins
+      if (o.type && o.type !== ont && n.type === ont) r.type = o.type;   // a type changed here stays pending until Notion has it
+      if (o.fmt) r.fmt = o.fmt;
+      if (o.memo) r.memo = o.memo;
+      if (o.design && (MIRA || !borradorVacio(o))) r.design = o.design;   // an empty design never applied is not kept (D-090); to look, everything as it is
+      if (o.libre) r.libre = o.libre;
+      if (o.caption) r.caption = o.caption;
+      if (o.estado) r.estado = !MIRA && o.estado.v === 'programado' && !('fecha' in o.estado) ? { ...o.estado, fecha: o.date ?? null } : o.estado;   // a Programada from before 3.92: the date it has now is the one scheduled (D-120)
+      if (o.guias) r.guias = o.guias;
+      if (o.ubicacion) r.ubicacion = o.ubicacion;   // the location chosen here (D-124): Notion doesn't have it
+      if (o.etiquetas) r.etiquetas = o.etiquetas;   // nor the tags and collaborators (D-130)
+      if (o.colaboradores) r.colaboradores = o.colaboradores;
+      if (o.esperaCliente) r.esperaCliente = o.esperaCliente;   // since when it waits for the client (D-180)
+      if (r.design && o.type && o.type !== r.type && M.diseno && M.diseno._retipo) {   // its type changed in Notion: the design converts
+        const x = M.diseno._retipo(r, r.type);
+        if (x) { orphans.push(...x.tray); deadRenders.push(...x.dead); retyped.push(n.name); }
+      }
+      if (!o.id) return r;
+      const od = o.notionDate === undefined ? o.date : o.notionDate, on = o.notionName === undefined ? o.name : o.notionName;
+      let w = tw;
+      if (!sameDate(o.date, od)) { if (sameDate(n.date, od)) r.date = o.date; else if (!sameDate(n.date, o.date)) w = true; }
+      if (o.name !== on) { if (n.name === on) r.name = o.name; else if (n.name !== o.name) w = true; }
+      if (w) { won.push(n.name); wonIds.add(n.id); } else if (o.hold && r.name !== r.notionName) r.hold = true;
+      return r;
+    };
+    const B = {
+      key, client, month, span, cycleDay: cd,
+      slots: cfg.slots.map(merge),
+      tray: [...bandeja, ...(old.tray || []), ...orphans],   // old.tray: the copy a reload left in localStorage, or a board from before 3.44
+      carpetas: carpetasBien(carp0),
+      past: pastIn.filter(p => p.date && cycleOf(p.date, cd) === pm).map(p => ({ id: p.id, name: p.name, type: p.type, date: p.date })),
+      crops: old.crops || {},
+      ...(old.pins && old.pins.some(id => cfg.slots.some(x => x.id === id)) ? { pins: old.pins.filter(id => cfg.slots.some(x => x.id === id)) } : {}),
+      ...(old.fillers > 0 ? { fillers: old.fillers } : {}),
+      ...(old.fillers > 0 && previewsOf(old).length ? { previews: old.previews } : {}),
+      ...(hsDe(old).length ? { historias: old.historias } : {}),
+      ...pasosIniciales(rec, old, month, span),   // each month's step (D-084, D-119)
+      ...(old.esperaDesde ? { esperaDesde: old.esperaDesde } : {}),   // since when its posts' waits are known (D-180)
+      // when the board last had Notion's data (loaded from Notion here, or an upload confirmed by markSynced): the calendar's «Notion a fecha de»
+      ...(!cfg.reopen ? { notionAt: new Date().toISOString() } : old.notionAt ? { notionAt: old.notionAt } : {}),
+      savedAt: old.savedAt || null, editedAt: old.editedAt || old.savedAt || null
+    };
+    if (!MIRA) { holdOrphans(wonIds, B); renumber(B, idx); }   // a rename whose date change is already in Notion stays pending (not the posts Notion won)
+    sortSlots(B);
+    const oldPrevOwn = (old.prev || []).filter(p => p.own).flatMap(p => p.photos || []);
+    if (!MIRA) alinearH(B);                       // a post that changed while this board was closed (Notion, a collab): its stories follow
+    // to look (D-267): only the month's own photos (their sizes decide the crops' signature, so «Aprobado»); never the tray's
+    const ids = MIRA ? [...new Set([...B.slots.flatMap(s => s.photos), ...previewsOf(B), ...hsDe(B).flatMap(h => h.photos || [])])]
+      : [...new Set([...B.tray, ...enCarpetas(B.carpetas), ...B.slots.flatMap(s => s.photos), ...oldPrevOwn, ...previewsOf(B), ...hsDe(B).flatMap(h => h.photos || [])])];
+    const missing = MIRA ? (await cargar(ids), []) : await cargar(ids);   // to look, nothing is taken out of the board
+    if (missing.length) { const no = new Set(missing); B.carpetas.forEach(c => { c.files = c.files.filter(f => !no.has(f)); }); }
+    if (missing.length && B.previews) setPreviews(B.previews.map(f => (missing.includes(f) ? null : f)), B);
+    await cargar([...new Set(B.slots.flatMap(dSrc))]);   // a design's photos too: its cover can move to another post (the designer says if one is missing)
+    if (missing.length) { B.tray = B.tray.filter(x => !missing.includes(x)); B.slots.forEach(s => { s.photos = s.photos.filter(x => !missing.includes(x)); }); }
+    const aDel = [], sinDibujos = fs => { fs = fs.filter(trayable); const d = fs.filter(f => M.files[f] && M.files[f].design); aDel.push(...d); return d.length ? fs.filter(f => !d.includes(f)) : fs; };   // aBandeja, its delList left to M.init
+    if (!MIRA) B.slots.forEach(s => { if (!isMulti(s.type) && s.photos.length > 1) { B.tray.unshift(...sinDibujos(s.photos.slice(1).filter(f => !dOut(s).includes(f)))); s.photos = s.photos.slice(0, 1); } });
+    B.tray = sinDibujos(B.tray);         // an image the editor drew that a mesa before 3.83 left hidden in the tray (D-101)
+    { const enPost = new Set(B.slots.flatMap(s => s.photos)); B.tray = [...new Set(B.tray)].filter(id => !enPost.has(id)); }
+    if (!MIRA) libresDeCarpetas(B, todos);
+    const borrar = [];
+    normalize(B, borrar);
+    // previous month: the same client's board (1–3 months) that covers it — newest if several — only its posts of that month
+    const rangeOf = b => { const k2 = String(b.key || '').match(/^(.+)-(\d{4}-\d{2})$/); return { c: b.client || (k2 && k2[1]), m: b.month || (k2 && k2[2]) }; };
+    let pb = todos.filter(b => { const r = rangeOf(b); return b.key !== key && r.c === client && r.m && monthsOf(r.m, b.span).includes(pm) && cdOf(b.cycleDay) === cd; })
+      .sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')))[0] || null;
+    if (pb) pb = { ...pb, slots: (pb.slots || []).filter(s => cycleOf(s.date, cd) === pm && !B.slots.some(x => x.id === s.id)) };   // a post of this board (moved) shows once
+    buildPrev(old.prev, B, pb);
+    B.prevUnlocked = !!old.prevUnlocked;
+    { const own = new Set(B.prev.filter(p => p.own).flatMap(p => p.photos)); B.tray = B.tray.filter(id => !own.has(id)); }
+    { const kept = refsOf(B); (old.prev || []).filter(p => p.own).forEach(p => (p.photos || []).forEach(f => { if (M.files[f] && !kept.has(f)) { B.tray.push(f); kept.add(f); } })); }
+    // keep the revisions; the baseline is each slot as it was before (base: the pre-merge copy), so what opening changed (Notion
+    // wins, synced, renames) gets a new revision and reaches the other boards
+    B.slots.forEach(s => { const o = oldById[s.id]; if (o && o.at) s.at = o.at; });
+    const sig = Object.fromEntries(B.slots.map(s => [s.id, base[s.id] ?? slotSig(s, B)]));
+    if (M.libre && M.libre.migrar) M.libre.migrar(B);   // old drawn photo holes become the editor's hole element (libre ≥ 1.9)
+    return { S: B, PB: pb, IDX: idx, sig, faltan: missing, retyped, won, deadRenders, borrar, aDel };
+  }
+  // «como abierto» of a saved board: what MESA.open(key) would leave open, read without writing anything (IndexedDB, localStorage,
+  // what this tab remembers of its writes) and without touching S; the client's tray only read. {S, PB, IDX, …} or {error}
+  async function comoAbierto(key) {
+    const rec = newest(key, await idbGet('boards', key));
+    if (!rec) return { error: 'no existe' };
+    const km = String(rec.key || key).match(/^(.+)-(\d{4}-\d{2})$/);
+    const client = rec.client || (km ? km[1] : key), month = rec.month || (km ? km[2] : null), span = rec.span || 1, cd = cdOf(rec.cycleDay);
+    const cfg = { slots: (rec.slots || []).map(({ id, name, type, date, notionName, notionDate, notionType }) => ({ id, name: notionName ?? name, type: notionType ?? type, date: notionDate ?? date })), past: rec.past || [], reopen: true };
+    const why = dropCheck(rec, cfg.slots, month, span, cd); if (why) return { error: why };
+    const recCarp = await idbGet('bandejas', client);
+    return armarTablero(rec, { cfg, key, client, month, span, cd, mirar: false, bandeja: ((recCarp || {}).tray || []).slice(), recCarp, todos: (await idbAll('boards')) || [], pend: pendienteLS(), refsBandejas: await trayRefs(), cargar: loadThumbs });
+  }
   // cfg = { client, month:'YYYY-MM', months?:1-3, slots:[{id,name,type,date}], past:[{id,name,type,date}] }  (key optional)
   // force: true lets a re-init drop months of the saved board (their photos go to the tray, their notes are lost)
   // months: how many months the board prepares from `month` (default: the saved board's, else 1); key = client-month.
@@ -6738,7 +6848,6 @@ ${TK_FUENTES}
     const saved = newest(key, await idbGet('boards', key)), old = saved || { slots: [], tray: [] };
     const recCarp = await idbGet('bandejas', client);   // its folders; those of the copy a reload left in localStorage, if newer (D-069)
     BASE_IDB.set(key, (saved && saved.savedAt) || null);   // the copy it starts from (with the cloud, always IndexedDB's)
-    const carp0 = old.carpetas && String(old.savedAt || '') > String((recCarp && recCarp.at) || '') ? old.carpetas : recCarp && recCarp.carpetas;
     const cd = hasCd ? cdOf(cfg.cycleDay) : saved ? cdOf(saved.cycleDay) : cdOf(cl0.cycleDay);
     const span = cfg.months != null ? +cfg.months : (old.span || 1);
     const why = cfg.force ? null : dropCheck(old, cfg.slots, month, span, cd);
@@ -6749,94 +6858,20 @@ ${TK_FUENTES}
     try { if (navigator.storage && navigator.storage.persist) persistida = await navigator.storage.persist(); } catch (e) { /* ignore */ }
     if (MOVIL) { /* no shell on the iPhone */ } else if (!shellReady()) buildShell(); else closeDetail();
     setSave('Cargando…');
-    await importShared(cfg.slots, old, key);
-    const oldById = Object.fromEntries((old.slots || []).map(s => [s.id, s]));
-    const base = Object.fromEntries((old.slots || []).map(s => [s.id, slotSig(s, old)]));   // shared state before init
-    const orphans = [], deadRenders = [], retyped = [];
-    for (const s of old.slots || []) if (!cfg.slots.some(x => x.id === s.id)) { orphans.push(...[...(s.photos || []), ...dSrc(s)].filter(f => trayable(f) && !dOut(s).includes(f) && !lOut(s).includes(f))); deadRenders.push(...dOut(s), ...lOut(s)); }
-    const pm = prevMonth(month);
-    const pastIn = cfg.past.length ? cfg.past : (old.past || []);
-    // Dates and names: cfg carries Notion's values (notionDate/notionName); a change made here stays pending until
-    // Notion has it. If Notion changed the same post on its own, Notion wins.
-    const won = [], wonIds = new Set();
-    const merge = n => {
-      const o = oldById[n.id] || {};
-      const r = { id: n.id, name: n.name, type: n.type, notionType: n.type, date: n.date, notionDate: n.date, notionName: n.name, photos: o.photos || [], note: o.note || '', uploaded: o.uploaded || null };
-      const ont = o.notionType ?? o.type, tw = !!o.type && o.type !== ont && n.type !== ont && n.type !== o.type;   // Notion changed a type changed here too: Notion wins
-      if (o.type && o.type !== ont && n.type === ont) r.type = o.type;   // a type changed here stays pending until Notion has it
-      if (o.fmt) r.fmt = o.fmt;
-      if (o.memo) r.memo = o.memo;
-      if (o.design && (MIRA || !borradorVacio(o))) r.design = o.design;   // an empty design never applied is not kept (D-090); to look, everything as it is
-      if (o.libre) r.libre = o.libre;
-      if (o.caption) r.caption = o.caption;
-      if (o.estado) r.estado = !MIRA && o.estado.v === 'programado' && !('fecha' in o.estado) ? { ...o.estado, fecha: o.date ?? null } : o.estado;   // a Programada from before 3.92: the date it has now is the one scheduled (D-120)
-      if (o.guias) r.guias = o.guias;
-      if (o.ubicacion) r.ubicacion = o.ubicacion;   // the location chosen here (D-124): Notion doesn't have it
-      if (o.etiquetas) r.etiquetas = o.etiquetas;   // nor the tags and collaborators (D-130)
-      if (o.colaboradores) r.colaboradores = o.colaboradores;
-      if (o.esperaCliente) r.esperaCliente = o.esperaCliente;   // since when it waits for the client (D-180)
-      if (r.design && o.type && o.type !== r.type && M.diseno && M.diseno._retipo) {   // its type changed in Notion: the design converts
-        const x = M.diseno._retipo(r, r.type);
-        if (x) { orphans.push(...x.tray); deadRenders.push(...x.dead); retyped.push(n.name); }
-      }
-      if (!o.id) return r;
-      const od = o.notionDate === undefined ? o.date : o.notionDate, on = o.notionName === undefined ? o.name : o.notionName;
-      let w = tw;
-      if (!sameDate(o.date, od)) { if (sameDate(n.date, od)) r.date = o.date; else if (!sameDate(n.date, o.date)) w = true; }
-      if (o.name !== on) { if (n.name === on) r.name = o.name; else if (n.name !== o.name) w = true; }
-      if (w) { won.push(n.name); wonIds.add(n.id); } else if (o.hold && r.name !== r.notionName) r.hold = true;
-      return r;
-    };
-    S = {
-      key, client, month, span, cycleDay: cd,
-      slots: cfg.slots.map(merge),
-      tray: [...bandeja, ...(old.tray || []), ...orphans],   // old.tray: the copy a reload left in localStorage, or a board from before 3.44
-      carpetas: carpetasBien(carp0),
-      past: pastIn.filter(p => p.date && cycleOf(p.date, cd) === pm).map(p => ({ id: p.id, name: p.name, type: p.type, date: p.date })),
-      crops: old.crops || {},
-      ...(old.pins && old.pins.some(id => cfg.slots.some(x => x.id === id)) ? { pins: old.pins.filter(id => cfg.slots.some(x => x.id === id)) } : {}),
-      ...(old.fillers > 0 ? { fillers: old.fillers } : {}),
-      ...(old.fillers > 0 && previewsOf(old).length ? { previews: old.previews } : {}),
-      ...(hsDe(old).length ? { historias: old.historias } : {}),
-      ...pasosIniciales(saved, old, month, span),   // each month's step (D-084, D-119)
-      ...(old.esperaDesde ? { esperaDesde: old.esperaDesde } : {}),   // since when its posts' waits are known (D-180)
-      // when the board last had Notion's data (loaded from Notion here, or an upload confirmed by markSynced): the calendar's «Notion a fecha de»
-      ...(!cfg.reopen ? { notionAt: new Date().toISOString() } : old.notionAt ? { notionAt: old.notionAt } : {}),
-      savedAt: old.savedAt || null, editedAt: old.editedAt || old.savedAt || null
-    };
-    if (!MIRA) { holdOrphans(wonIds); renumber(); }   // a rename whose date change is already in Notion stays pending (not the posts Notion won)
-    sortSlots();
-    const oldPrevOwn = (old.prev || []).filter(p => p.own).flatMap(p => p.photos || []);
-    if (!MIRA) alinearH(S);                       // a post that changed while this board was closed (Notion, a collab): its stories follow
-    // to look (D-267): only the month's own photos (their sizes decide the crops' signature, so «Aprobado»); never the tray's
-    const ids = MIRA ? [...new Set([...S.slots.flatMap(s => s.photos), ...previewsOf(S), ...hsDe(S).flatMap(h => h.photos || [])])]
-      : [...new Set([...S.tray, ...enCarpetas(S.carpetas), ...S.slots.flatMap(s => s.photos), ...oldPrevOwn, ...previewsOf(S), ...hsDe(S).flatMap(h => h.photos || [])])];
-    const missing = MIRA ? (await loadThumbs(ids), []) : await loadThumbs(ids);   // to look, nothing is taken out of the board
-    if (missing.length) { const no = new Set(missing); S.carpetas.forEach(c => { c.files = c.files.filter(f => !no.has(f)); }); }
-    if (missing.length && S.previews) setPreviews(S.previews.map(f => (missing.includes(f) ? null : f)));
-    await loadThumbs([...new Set(S.slots.flatMap(dSrc))]);   // a design's photos too: its cover can move to another post (the designer says if one is missing)
-    if (missing.length) { S.tray = S.tray.filter(x => !missing.includes(x)); S.slots.forEach(s => { s.photos = s.photos.filter(x => !missing.includes(x)); }); }
-    if (!MIRA) S.slots.forEach(s => { if (!isMulti(s.type) && s.photos.length > 1) { S.tray.unshift(...aBandeja(s.photos.slice(1).filter(f => !dOut(s).includes(f)))); s.photos = s.photos.slice(0, 1); } });
-    S.tray = aBandeja(S.tray);         // an image the editor drew that a mesa before 3.83 left hidden in the tray (D-101)
-    { const enPost = new Set(S.slots.flatMap(s => s.photos)); S.tray = [...new Set(S.tray)].filter(id => !enPost.has(id)); }
-    if (!MIRA) libresDeCarpetas(S, (await idbAll('boards')) || []);
-    normalize();
-    // previous month: the same client's board (1–3 months) that covers it — newest if several — only its posts of that month
-    const rangeOf = b => { const k2 = String(b.key || '').match(/^(.+)-(\d{4}-\d{2})$/); return { c: b.client || (k2 && k2[1]), m: b.month || (k2 && k2[2]) }; };
-    PB = ((await idbAll('boards')) || []).filter(b => { const r = rangeOf(b); return b.key !== key && r.c === client && r.m && monthsOf(r.m, b.span).includes(pm) && cdOf(b.cycleDay) === cd; })
-      .sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')))[0] || null;
-    if (PB) PB = { ...PB, slots: (PB.slots || []).filter(s => cycleOf(s.date, cd) === pm && !S.slots.some(x => x.id === s.id)) };   // a post of this board (moved) shows once
+    // the board as it opens (armarTablero, pure: feed continuo, pieza 1), from what is read here; then what opening it does
+    const A = await armarTablero(saved, { cfg, key, client, month, span, cd, mirar: MIRA, bandeja, recCarp, todos: (await idbAll('boards')) || [], pend: pendienteLS(), refsBandejas: await trayRefs(), cargar: loadThumbs });
+    const { faltan: missing, retyped, won, deadRenders } = A;
+    S = A.S; PB = A.PB; IDX = A.IDX;
+    if (A.aDel.length) delList(l => [...new Set([...l, ...A.aDel])]);   // images the editor drew that were in the tray (D-101): deleted once nothing uses them
+    A.borrar.forEach(id => { deleteIfUnused(id).catch(() => null); });   // a photo twice in the tray: the copy left out (D-041)
     if (PB && !MIRA) await loadThumbs([...new Set(PB.slots.flatMap(s => publishList(s)))]);
     if (!MIRA) for (const p of S.past) {
       if (M.pastThumbs[p.id]) continue;
       const rec = await idbGet('files', 'past:' + p.id);
       if (rec && rec.thumb instanceof Blob) { M.pastBlobs[p.id] = rec.thumb; M.pastThumbs[p.id] = URL.createObjectURL(rec.thumb); }   // still up there (lot 4): it comes down behind (pastLlego)
     }
-    buildPrev(old.prev);
-    S.prevUnlocked = !!old.prevUnlocked; prevOnce = false; pendingUnlock = null;
-    { const own = new Set(S.prev.filter(p => p.own).flatMap(p => p.photos)); S.tray = S.tray.filter(id => !own.has(id)); }
-    { const kept = refsOf(S); (old.prev || []).filter(p => p.own).forEach(p => (p.photos || []).forEach(f => { if (M.files[f] && !kept.has(f)) { S.tray.push(f); kept.add(f); } })); }
-    sharedInit(oldById, base);
+    prevOnce = false; pendingUnlock = null;
+    SIG = { b: S, m: A.sig, dirty: new Set() };   // the slots' revisions as before this opening: what it changed reaches the other boards
     if (!MIRA) pestCargar(client);     // its tabs, as they were left in this browser (D-076)
     curClient = client;
     if (!MIRA) {
@@ -6844,7 +6879,6 @@ ${TK_FUENTES}
       let lastBy = {}; try { lastBy = JSON.parse(lsGet('mesa-lastByClient') || '{}'); } catch (e) { /* */ }
       lastBy[client] = key; lsSet('mesa-lastByClient', JSON.stringify(lastBy));
     }
-    if (M.libre && M.libre.migrar) M.libre.migrar(S);   // old drawn photo holes become the editor's hole element (libre ≥ 1.9)
     BODY.set(S, boardBody(S));        // what init loaded/merged is the baseline: only later changes count as edits
     histReset();                      // ⌘Z history starts here (another board or a reload: new history)
     if (deadRenders.length && !MIRA) delList(l => [...new Set([...l, ...deadRenders])]);
@@ -8943,7 +8977,8 @@ ${TK_FUENTES}
     elegirYa, ELIGE_MS,   // a question «1 / 2» answered: the chosen button in the accent, then it closes (D-194, mesa ≥ 4.20)
     hsDe, hNorm, adelantos, hProblemas, usoHistoria, askModoHistoria, tipoPost, hFecha, ts, isoDe, sameDate, inBoard, pick: () => sel, pickOff: () => { sel = null; render(); },   // for the stories (historias.js, mesa ≥ 3.53)
     estadoWeb, capFinal, cropSig, mesOtros,   // the client's decisions (D-244); what the client's web gets: the chosen caption, the crops' signature, no other client (web.js, D-241, mesa ≥ 4.28)
-    cellHTML   // a post's cell drawn with its own board (feed continuo, pieza 1): cellHTML(s, pill, B)
+    cellHTML,   // a post's cell drawn with its own board (feed continuo, pieza 1): cellHTML(s, pill, B)
+    armarTablero, comoAbierto   // a board as it opens, without writing (feed continuo, pieza 1)
   };
   M._test = {
     entBorrarTodo: async () => { if (NUBE.activa) throw new Error('con la nube encendida no se vacía nada (D-256)'); entGen++; await tx('entregas', 'readwrite', st => st.clear()); ENT = new Map(); entAvisar(false); },   // D-290

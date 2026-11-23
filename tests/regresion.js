@@ -22848,6 +22848,53 @@
   }
   const fcSlot = (id, n, dia, mes = MES) => ({ id, name: `Foto ${n}`, type: 'Foto', date: `${mes}-${String(dia).padStart(2, '0')}T12:00:00.000+0${mes < '2026-10-25' ? 2 : 1}:00` });
 
+  prueba('FC1', '«Como abierto» (feed continuo, pieza 1): armar un tablero guardado da el mismo tablero, campo a campo, que abrirlo con MESA.open: un mes con huecos, portada, fijadas y el mes anterior de Notion; dos meses; día de ciclo 15; una collab enlazada; y con el tablero del mes anterior', async () => {
+    ok(M._in.armarTablero && M._in.comoAbierto, 'no hay armarTablero ni comoAbierto en MESA._in');
+    try {
+      // un mes: huecos con portada, una fijada y el mes anterior cargado de Notion
+      await limpiar();
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1), pub(2), pub(3, 'Carrusel')], past: [fcSlot('fc1-p1', '4.1', 20, '2026-10'), fcSlot('fc1-p2', '4.2', 24, '2026-10')], force: true });
+      await porAprobar(['r1', 'r2'], 'fc1'); M.setEstado('r1', 'aprobado');
+      M._test.setCrop(slot('r2').photos[0], 'r2', { cx: 0.4, cy: 0.6, z: 1.3 });
+      const [pv] = await M.addFiles([await foto('fc1-portada.jpg')]);
+      M._in.S.fillers = 2; M._in.S.pins = ['r2']; M._in.save(); await M._test.setPreview(0, pv);
+      await M.flush();
+      await fcComo(`${CLIENTE}-${MES}`, 'un mes');
+      // dos meses (D-007)
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, months: 2, slots: [pub(1), pub(2), pub(3, 'Carrusel'), pub(4, 'Foto', 5, '2026-12')], past: [], force: true });
+      await poner('r4-2026-12', [await foto('fc1-dic.jpg')]);
+      await fcComo(`${CLIENTE}-${MES}`, 'dos meses');
+      // día de ciclo 15 (otro cliente) y una collab enlazada con el primero (D-008)
+      await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 15, slots: [fcSlot('c15a', '1.1', 20), fcSlot('c15b', '1.2', 28), pub(1)], past: [], force: true });
+      await poner('c15a', [await foto('fc1-c15.jpg')]);
+      const r2 = await fcComo(`${CLIENTE2}-${MES}`, 'día de ciclo 15 con una collab');
+      ok((r2.IDX.r1 || []).some(x => x.key === `${CLIENTE}-${MES}`), 'la collab no sale enlazada: ' + json(r2.IDX));
+      await fcComo(`${CLIENTE}-${MES}`, 'el otro lado de la collab');
+      // con el tablero del mes anterior: su franja sale de ahí
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: '2026-10', slots: [fcSlot('fc1-o1', '4.1', 20, '2026-10'), fcSlot('fc1-o2', '4.2', 24, '2026-10')], past: [], force: true });
+      await poner('fc1-o1', [await foto('fc1-oct.jpg')]);
+      await M.flush();
+      const r3 = await fcComo(`${CLIENTE}-${MES}`, 'con el mes anterior en la mesa');
+      ok(r3.PB && r3.PB.key === `${CLIENTE}-2026-10` && r3.S.prev.some(p => p.id === 'fc1-o1' && p.src === 'mesa'), 'el mes anterior no sale de su tablero: ' + json(r3.S.prev));
+    } finally { await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 1, slots: [], past: [], force: true }); await limpiar(); }
+  });
+
+  prueba('FC2', 'Mirar no escribe (feed continuo, pieza 1; contado de verdad, lección 171): «como abierto» de cada tablero del cliente no hace ni una escritura en IndexedDB ni en localStorage, y no cambia el tablero abierto', async () => {
+    ok(M._in.comoAbierto, 'no hay comoAbierto en MESA._in');
+    await limpiar();
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: '2026-10', slots: [fcSlot('fc2-o1', '4.1', 20, '2026-10')], past: [], force: true });
+    await poner('fc2-o1', [await foto('fc2-oct.jpg')]);
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, months: 2, slots: [pub(1), pub(2), pub(3, 'Foto', 5, '2026-12')], past: [], force: true });
+    await porAprobar(['r1'], 'fc2'); M.setEstado('r1', 'aprobado');
+    await M.flush(); await M._test.fueraListo();
+    const antes = json(M._in.S), keys = (await M.boards()).filter(b => b.client === CLIENTE).map(b => b.key);
+    igual(keys.length, 2, 'los tableros del cliente');
+    const c = await fcContar(async () => { const out = []; for (const k of keys) out.push(await M._in.comoAbierto(k)); return out; });
+    igual([c.idb, c.ls], [0, 0], '«como abierto» escribió: ' + json(c.que));
+    ok(c.r.every(r => r && r.S), 'no armó todos los tableros');
+    igual(json(M._in.S), antes, 'cambió el tablero abierto');
+  });
+
   prueba('FC3', 'Un mes que no es el abierto se dibuja con su propio tablero (feed continuo, pieza 1, trampa 3): una «Por programar» fijada y con el encuadre movido da, con otro mes abierto, el mismo estado, encuadre, casilla y paso que con su mes abierto; el día de ciclo y los meses, los de su tablero', async () => {
     const OCT = '2026-10', okey = `${CLIENTE}-${OCT}`, X = M._in;
     const casilla = (s, B) => X.cellHTML ? X.cellHTML(s, '', B) : 'sin cellHTML en MESA._in';

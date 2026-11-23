@@ -66,7 +66,7 @@
       + `<div class="en-w"><label for="en-enlace">Enlace</label><input id="en-enlace" type="url" class="co-q" data-en="campo" data-k="enlace" maxlength="1000" autocomplete="off" value="${esc(r.enlace)}" placeholder="https://"></div>`
       + `<div class="en-acc"><button type="button" class="lnk danger" data-en="borrar">Borrar entrega</button><button type="button" class="btn2" data-en="cerrar">Listo</button></div></div>` : '';
     return `<div class="en-f ${k}${abierta ? ' abierta' : ''}" data-id="${esc(r.id)}"><input type="checkbox" class="pp-ck en-ck" data-en="ck"${r.entregada ? ' checked' : ''} aria-label="Entregada: ${esc(r.que || 'sin título')}">`
-      + `<button type="button" class="en-q" data-en="abrir" aria-expanded="${abierta}"><span class="en-d">${esc(corto(r.fecha, h))}</span><span class="en-t"><b>${esc(r.que || 'Sin título')}</b><span>${esc(sub)}${cad}</span></span></button>${link}</div>${ed}`;
+      + `<button type="button" class="en-q" data-en="abrir" aria-expanded="${abierta}"><span class="en-d">${esc(corto(r.fecha, h))}</span><span class="en-t"><b>${esc(r.que || 'Sin título')}</b><span${cad ? ' class="en-sc"' : ''}>${esc(sub)}${cad}</span></span></button>${link}</div>${ed}`;
   }
   function izqHTML(cli) {
     // all its deliveries (D-312): those not delivered by deadline (one gone past, red) and «+ Entrega»; under them, apart, the
@@ -315,7 +315,7 @@
 #mesa .en-e{font-size:12.5px;font-weight:600;white-space:nowrap}#mesa .en-e.ok{color:var(--ok)}#mesa .en-e.tarde{color:var(--red)}#mesa .en-e.pend{color:var(--chg)}#mesa .en-e.sin{color:var(--mute);font-weight:400}
 #mesa .en-q svg,#mesa .en-mas svg,#mesa .en-l svg,#mesa .en-s svg{fill:none;stroke:currentColor;stroke-width:1.33;stroke-linecap:round;stroke-linejoin:round}
 #mesa .en-q svg :is(path,circle),#mesa .en-mas svg path,#mesa .en-l svg path,#mesa .en-s svg :is(path,circle){vector-effect:non-scaling-stroke}
-#mesa .en-f .en-t span.en-cad{display:inline;color:var(--chg);font-weight:600}   /* a WeTransfer link expires: only Kevin sees it (D-312) */
+#mesa .en-f .en-t span.en-cad{display:inline;color:var(--chg);font-weight:600}#mesa .en-f .en-t span.en-sc{white-space:normal}   /* its line goes on below: «caduca», the last, is never the one lost (second round) */   /* a WeTransfer link expires: only Kevin sees it (D-312) */
 #mesa .cont>.cont-der .en-t b,#mesa .cont>.cont-der .en-t span{white-space:normal;overflow:visible;text-overflow:clip}   /* the agreement's column, 280–340 px: its lines go on below, never cut (D-312) */
 @media (prefers-reduced-motion:reduce){#mesa .en-q:hover,#mesa .en-s:hover,#mesa .en-p:hover{transition:none}}
 `;

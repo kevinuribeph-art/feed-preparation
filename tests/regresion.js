@@ -21816,6 +21816,10 @@
     } finally { M._in.closeDetail(); if (M._test.entBorrarTodo) await M._test.entBorrarTodo(); for (const id of hechos) await M.removeClient(id); }
   });
   prueba('SM4', 'Solo contenido en el iPhone (D-312): su página en #cli/<cliente> —sus entregas sin entregar (la pasada en rojo), sus sesiones que vienen y lo entregado por meses—; una ruta vieja #mes/<su tablero>/… lleva a ella; su bloque de «Clientes» y su entrega pasada de «Hoy» la abren', async () => {
+    // cada icono que dibuja el iPhone existe en su tabla (un comentario se tragó «subir» y el botón de contestar salió vacío; segunda ronda)
+    { const src = await (await W.fetch('movil.js?sm4=' + Date.now(), { cache: 'no-store' })).text(), i0 = src.indexOf('const P = {'), i1 = src.indexOf('\n  };', i0);
+      const hay = new Set([...src.slice(i0, i1).split('\n').map(l => l.replace(/\s\/\/.*$/, '')).join('\n').matchAll(/(\w+):\s*'</g)].map(m => m[1]));
+      igual([...new Set([...src.matchAll(/\b(?:ic|icoFila)\('([a-z0-9]+)'/g)].map(m => m[1]))].filter(n => !hay.has(n)), [], 'iconos del iPhone que no existen'); }
     const key = await tableroContenido();
     const E = M._in.ent;
     await E.nueva({ cliente: CLIENTE, fecha: '2026-09-25', que: 'Fotos de septiembre' });   // pasada con el reloj de la batería (1 oct)
@@ -21945,6 +21949,7 @@
       igual(msDe(W.getComputedStyle(q('.cont-izq .en-q')).transitionDuration.split(',')[0]), 0, 'una fila deja estela');
       // «caduca», in the amber of a notice (--chg), never the terracotta of an action
       const cad = q('.cont-izq .en-cad'); ok(cad && rgbDe(W.getComputedStyle(cad).color).join() === rgbDe(W.getComputedStyle(q('#mesa')).getPropertyValue('--chg')).join(), '«caduca» no va en --chg: ' + (cad && W.getComputedStyle(cad).color));
+      ok(W.getComputedStyle(cad.parentElement).whiteSpace === 'normal', '«caduca» se puede perder tras los «…» (segunda ronda)');
       // the vista cliente and back: its calendar drawn again, no «Feed · Historias» in its bar
       await vistaCliente(true); await espera(150); await vistaCliente(false); await espera(200);
       await hasta(() => cal().querySelectorAll('.cday[data-day]').length >= 28 && !cal().hidden, 3000, 'su calendario no vuelve tras la «Vista cliente»: ' + cal().querySelectorAll('.cday').length);
@@ -22208,21 +22213,24 @@
     await CB().acuGuardar(CLIENTE, AU_ACU);
     const n2 = await CB().acuNuevo(CLIENTE, '2027-01'); await CB().acuCambiar(CLIENTE, n2.id, { importe: 3000, dia: 1, meses: 3, renueva: true });   // two: the old one folded, with its summary
     ok((await M.cobros.cargar([{ id: 'cb1-1', cliente: CLIENTE, periodo: '2026-05', hasta: '2026-10', importe: 2700, factura: 'CB1-1', emitida: '2026-05-01', vence: '2026-05-16', cobrada: '2026-05-10' }])).ok, 'cargar');
-    const dentro = (cont, els, n) => { const c = cont.getBoundingClientRect(); for (const e of els) { const r = e.getBoundingClientRect(); ok(r.right <= c.right + .5 && r.left >= c.left - .5, `${n}: «${e.textContent.trim().slice(0, 40)}» se sale (${Math.round(r.left)}–${Math.round(r.right)} de ${Math.round(c.left)}–${Math.round(c.right)})`); } };
+    const dentro = (cont, els, n, tol = .5) => { const c = cont.getBoundingClientRect(); for (const e of els) { const r = e.getBoundingClientRect(); ok(r.right <= c.right + tol && r.left >= c.left - tol, `${n}: «${e.textContent.trim().slice(0, 40)}» se sale (${Math.round(r.left)}–${Math.round(r.right)} de ${Math.round(c.left)}–${Math.round(c.right)})`); } };
     const entero = (els, n) => { for (const e of els) ok(e.scrollWidth <= e.clientWidth + 1, `${n}: «${e.textContent.trim().slice(0, 40)}» se corta`); };
     try {
       await coFicha(CLIENTE, 'cobros');
       const pane = await hasta(() => q('.detail[data-dlg="editclient"] .co-pane .co-ac-h'), 3000, '«Cobros»') && q('.detail[data-dlg="editclient"] .co-pane');
-      pane.style.width = '280px'; pane.style.maxWidth = '280px'; await espera(60);
+      for (const ancho of [280, 440]) {
+      pane.style.width = ancho + 'px'; pane.style.maxWidth = ancho + 'px'; await espera(60);
       for (const h of qa('.co-pane .co-ac-h')) {
         const b = h.querySelector('b'), ch = h.querySelector('.co-ach'), sub = h.querySelector('.co-acs');
         if (!ch) continue;
         dentro(h, [b, ch, ...(sub ? [sub] : [])], 'la cabecera de un acuerdo'); entero([b, ...(sub ? [sub] : [])], 'la cabecera de un acuerdo');
         ok(ch.getBoundingClientRect().left >= b.getBoundingClientRect().right - 1, '«Ahora» o «Terminado» no van a la derecha');
-        ok(!/\d (meses|mes|año|años|€)\b/.test(b.textContent) && !/\b(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic) \d{4}/.test(b.textContent), 'una cifra se puede separar de su unidad: ' + JSON.stringify(b.textContent));
+        ok(!/\d (meses|mes|año|años)\b|\d €|cada \d/.test(b.textContent + (sub ? sub.textContent : '')) && !/\b(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic) \d{4}/.test(b.textContent), 'una cifra se puede separar de su unidad: ' + JSON.stringify(b.textContent + (sub ? sub.textContent : '')));
+        ok(b.getBoundingClientRect().width >= (h.clientWidth - ch.getBoundingClientRect().width) * .6, `a ${ancho} px el título solo tiene la mitad del ancho (segunda ronda)`);
+      }
       }
       ok(qa('.co-pane .co-ac-h .co-acs').length, 'sin un acuerdo plegado con su resumen');
-      dentro(pane, [...q('.co-pane .co-acu-t').children].filter(e => e.getClientRects().length), 'el título');
+      dentro(pane, [...q('.co-pane .co-acu-t').children].filter(e => e.getClientRects().length), 'el título', 4.5);   // «+ Nuevo acuerdo» lleva −4 px a la derecha a propósito (su fondo, alineado con el borde)
     } finally { M._in.closeDetail(); }
     // «Acuerdo y pagos» de su página, a 280 px
     const de = q('.main > .cont > .cont-der'); de.style.width = '280px'; de.style.justifySelf = 'start'; M._in.render(); await espera(80);

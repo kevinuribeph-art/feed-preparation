@@ -2717,7 +2717,7 @@ ${TK_FUENTES}
 /* a client of «Solo contenido» (D-290, tablero A): deliveries and sessions · calendar · agreement and payments, each column its own scroll */
 #mesa .cont{flex:1;min-width:0;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr) minmax(280px,340px);gap:12px}
 #mesa .cont>.cont-izq,#mesa .cont>.cont-der,#mesa .cont>.cont-side>.cont-ses{min-width:0;min-height:0;overflow-y:auto;background:var(--panel);border-radius:var(--r-lg);padding:16px 18px;overscroll-behavior:contain}
-#mesa .cont>.cont-side{min-height:0;display:grid;grid-template-rows:minmax(0,auto) minmax(160px,1fr);gap:12px;background:none}#mesa.cont-on .bar .sw{margin-left:auto}#mesa .cont>.cont-side>.cal{min-height:0;border-top:0;border-radius:var(--r-lg)}   /* the calendar at half height, the sessions under it (D-312) */
+#mesa .cont>.cont-side{min-height:0;display:grid;grid-template-rows:minmax(0,auto) minmax(160px,1fr);gap:12px;background:none}#mesa.cont-on .bar .spacer + *{margin-left:auto}#mesa .cont>.cont-side>.cal{min-height:0;border-top:0;border-radius:var(--r-lg)}   /* the calendar at half height, the sessions under it (D-312) */
 #mesa .cont-espera{margin:0;font-size:13px;color:var(--mute)}
 @media (max-width:1099px){#mesa.client .cont{display:flex;flex-direction:column;overflow-y:auto;gap:12px}#mesa.client .cont>*{flex:none;overflow:visible}}   /* its vista cliente in one column below 1100 px, as the portal (D-312, lesson 178) */
 @media (max-width:980px){#mesa .cont{display:flex;flex-direction:column;overflow-y:auto;gap:12px}#mesa .cont>*{flex:none;overflow:visible}#mesa .cont>.cont-side{display:flex;flex-direction:column}#mesa .cont>.cont-side>*{flex:none;overflow:visible}#mesa .cont>.cont-side>.cal{min-height:420px}}   /* one column: deliveries, calendar, sessions, agreement */
@@ -5475,13 +5475,15 @@ ${TK_FUENTES}
       if (a.dataset.mira === '1') return;   // still finding out what goes with it: a second click waits (cold review)
       if (a.dataset.confirm !== '1') {   // its tray goes with it (D-072): the button says how much
         a.dataset.mira = '1'; a.textContent = 'Confirmar: eliminar';
+        try {
         const cid0 = edCid || curClient, r = await resumenBandeja(cid0);
         // a client of «Solo contenido» with its old boards, empty (D-312): the button says they go with it; with posts or photos,
         // the confirmation says why it can't be deleted
         const vj = esContenido(cid0) ? ((await idbAll('boards')) || []).filter(b => b.client === cid0 && !tableroLleno(b)) : [];
         const partes = [r.fotos ? `${nOf(r.fotos, 'foto', 'fotos')} de su bandeja${r.carpetas ? ` y ${nOf(r.carpetas, 'carpeta', 'carpetas')}` : ''} (${pesoTxt(r.bytes)})` : '', vj.length ? (vj.length === 1 ? 'su tablero viejo, vacío' : `sus ${vj.length} tableros viejos, vacíos`) : ''].filter(Boolean);
         if (a.isConnected) { a.dataset.viejos = vj.length ? '1' : ''; if (partes.length) a.textContent = `Confirmar: eliminar y borrar ${partes.join(' y ')}`; }
-        a.dataset.confirm = '1'; a.dataset.mira = '';
+        a.dataset.confirm = '1';
+        } finally { a.dataset.mira = ''; }   // a failed reading leaves the button working (second round)
         return;
       }
       const cid = edCid || curClient, c = CL.find(x => x.id === cid);

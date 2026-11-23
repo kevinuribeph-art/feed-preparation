@@ -13,7 +13,7 @@
   }
 
   const CLIENTE = 'prueba-regresion', NOMBRE = 'Cliente de prueba', MES = '2026-11';
-  const V_ARCHIVO = 20, V_IDB = 25;   // IndexedDB 25 y v20 desde la 4.47 (el acuerdo, el servicio, las entregas y la reunión, D-288 a D-292); 24 desde la 4.33 (la marca «copia» de una foto que bajó como copia de trabajo, D-259); 23 desde la 4.32 (la nube, almacén 'nube', D-253); 22 desde la 4.31 (el diario de cambios, D-250); v19 y 21 desde la 4.27 (el porqué y cómo fue de cada mes, el almacén 'meses', D-238); v18 y 20 desde la 4.26 (cobros y sus facturas en PDF, la cuota de un cliente, D-232); v17 y 19 desde la 4.24 (varios clientes, fin y plantillas de material de una sesión, D-217 a D-220); v16 y 18 desde la 4.22 (sesiones, esporádicos, material y el almacén 'tfotos', D-206 a D-208); la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183); v15 y 17 desde la 4.19 (D-193)
+  const V_ARCHIVO = 21, V_IDB = 26;   // IndexedDB 26 y v21 desde la 4.51 (los acuerdos y los paquetes, D-305 a D-307); 25 y v20 desde la 4.47 (el acuerdo, el servicio, las entregas y la reunión, D-288 a D-292); 24 desde la 4.33 (la marca «copia» de una foto que bajó como copia de trabajo, D-259); 23 desde la 4.32 (la nube, almacén 'nube', D-253); 22 desde la 4.31 (el diario de cambios, D-250); v19 y 21 desde la 4.27 (el porqué y cómo fue de cada mes, el almacén 'meses', D-238); v18 y 20 desde la 4.26 (cobros y sus facturas en PDF, la cuota de un cliente, D-232); v17 y 19 desde la 4.24 (varios clientes, fin y plantillas de material de una sesión, D-217 a D-220); v16 y 18 desde la 4.22 (sesiones, esporádicos, material y el almacén 'tfotos', D-206 a D-208); la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183); v15 y 17 desde la 4.19 (D-193)
   // la batería va con el reloj de la mesa parado antes de sus fechas (noviembre de 2026): nada vence ni pasa solo a Publicado
   // salvo en las pruebas que lo adelantan (D-120)
   const RELOJ_PRUEBAS = Date.parse('2026-10-01T10:00:00+02:00');
@@ -15900,7 +15900,7 @@
       coCambiar(qi, 'mucho'); await espera(60); igual(CB().acuerdo(M._in.CL.find(c => c.id === CLIENTE)).importe, 1470.5, 'una cuota no válida se guarda'); ok(/importe/.test(coToast()), 'sin aviso de una cuota no válida');
       coCambiar(q('[data-co="cuota"][data-k="importe"]'), '450 €'); coCambiar(q('[data-co="cuota"][data-k="dia"]'), '15'); coCambiar(q('[data-co="cuota"][data-k="plazo"]'), '15');   // «Vence a los», 7 · 15 · 30 · Otro… (D-304)
       await hasta(() => M._in.cob.cuota(M._in.CL.find(c => c.id === CLIENTE)), 3000, 'la cuota entera');
-      igual(M._in.CL.find(c => c.id === CLIENTE).acuerdo, { pago: 'mensual', importe: 450, dia: 15, plazo: 15, renueva: true }, 'la cuota guardada (el acuerdo mensual, D-288)');
+      { const r = await M._in.idbGet('acuerdos', CLIENTE + '-a1'); igual(r && { pago: r.pago, importe: r.importe, dia: r.dia, plazo: r.plazo, renueva: r.renueva }, { pago: 'mensual', importe: 450, dia: 15, plazo: 15, renueva: true }, 'la cuota guardada (el acuerdo mensual, D-288)'); }   // en el almacén «acuerdos» desde la 4.51 (D-305), a propósito
       // «+ Factura de octubre» (none yet: this month, with the clock at 1 Oct), then «noviembre»
       await hasta(() => !q('.co-mas[data-co="nueva"]').disabled, 2000, '«+ Factura» con cuota');
       ok(/Factura de octubre/.test(q('.co-mas[data-co="nueva"]').textContent), '«+ Factura» no es la del mes en curso: ' + q('.co-mas').textContent);
@@ -21107,17 +21107,18 @@
 
   // ---------- lote C de los ajustes de la 4.42: clientes (D-288 a D-292) ----------
   const AU_ACU = { pago: 'semestral', importe: 2700, dia: 1, plazo: 15, desde: '2026-05', meses: 12, renueva: true, renegociar: '2027-04-01' };   // cifras inventadas
+  const acuCampos = a => a ? Object.fromEntries(['pago', 'importe', 'dia', 'plazo', 'desde', 'meses', 'renueva', 'renegociar'].map(k => [k, a[k]])) : a;   // los campos de D-288 (desde la 4.51 un acuerdo lleva además su id, su «Termina en», su paquete y lo que cubre, D-305 a D-307)
   prueba('AU1', 'El acuerdo, datos (D-288): una cuota de antes se lee como acuerdo mensual; un acuerdo semestral guarda pago, importe, día, plazo, desde, duración, renovación y «Renegociar el», sin la cuota; una factura cubre su tramo (`hasta`) y MESA.cobros.cargar lo acepta y lo valida; un cliente semestral no sale «sin emitir» cada mes, solo cuando empieza un tramo sin factura, y la siguiente es la de su tramo; un pago único y un acuerdo que acaba sin renovarse; su nombre «Mayo – octubre» (o su primer mes para la web); «⇅ Exportar» v20 lo lleva y al importar gana el más reciente, también frente a una cuota de antes; un acuerdo o un tramo mal formados no entran', async () => {
     await tablero([pub(1)]);
     const cli = () => M._in.CL.find(c => c.id === CLIENTE);
     // una cuota de antes
     await coCliente({ importe: 450, dia: 15, plazo: 10 });
-    igual(CB().acuerdo(cli()), { pago: 'mensual', importe: 450, dia: 15, plazo: 10, desde: '', meses: null, renueva: true, renegociar: '' }, 'la cuota de antes no se lee como acuerdo mensual');
+    igual(acuCampos(CB().acuerdo(cli())), { pago: 'mensual', importe: 450, dia: 15, plazo: 10, desde: '', meses: null, renueva: true, renegociar: '' }, 'la cuota de antes no se lee como acuerdo mensual');
     ok(CB().cuota(cli()) && CB().cuota(cli()).importe === 450, 'la cuota de antes no hace facturas');
     // el acuerdo semestral
     await CB().acuGuardar(CLIENTE, AU_ACU);
-    let rec = await M._in.idbGet('clients', CLIENTE);
-    igual(rec.acuerdo, AU_ACU, 'el acuerdo guardado'); ok(rec.acuerdoAt && !('cuota' in rec) && !('cuotaAt' in rec), 'la cuota sigue junto al acuerdo: ' + json(rec));
+    let rec = await M._in.idbGet('clients', CLIENTE);   // desde la 4.51, en el almacén «acuerdos» (D-305), a propósito
+    igual(acuCampos(await M._in.idbGet('acuerdos', CLIENTE + '-a1')), AU_ACU, 'el acuerdo guardado'); ok(rec.acuerdoAt && !('acuerdo' in rec) && !('cuota' in rec) && !('cuotaAt' in rec), 'la cuota sigue en el cliente: ' + json(rec));
     ok(/cubre may 2026 – abr 2027/i.test(CB().resumen(cli())) && /dos pagos de 2700 €/.test(CB().resumen(cli())) && /se facturan el día 1 del mes anterior/.test(CB().resumen(cli())), 'la línea del acuerdo: ' + CB().resumen(cli()));   // «Ahora cubre» y cuándo se factura (D-304), a propósito
     // la factura de su tramo
     let r = await M.cobros.cargar([{ id: 'au-1', cliente: CLIENTE, periodo: '2026-05', hasta: '2026-04', importe: 2700 }]); ok(r.error, 'entra un tramo que acaba antes de empezar');
@@ -21174,15 +21175,15 @@
     // exportar e importar
     await CB().acuGuardar(CLIENTE, AU_ACU);
     const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
-    igual(d.v, V_ARCHIVO, 'la versión del archivo'); igual(d.clients.find(c => c.id === CLIENTE).acuerdo, AU_ACU, 'el archivo sin el acuerdo');
+    igual(d.v, V_ARCHIVO, 'la versión del archivo'); igual(acuCampos(d.acuerdos.find(a => a.id === CLIENTE + '-a1')), AU_ACU, 'el archivo sin el acuerdo');   // en «acuerdos» (D-305)
     igual(d.cobros.find(x => x.id === 'au-1').hasta, '2026-10', 'el archivo sin el tramo de la factura');
     const viejo = JSON.parse(json(d)), cv = viejo.clients.find(c => c.id === CLIENTE); cv.acuerdo = { ...AU_ACU, importe: 1 }; cv.acuerdoAt = '2026-01-01T00:00:00.000Z';
-    await M.importData(viejo, { confirm: false }); igual((await M._in.idbGet('clients', CLIENTE)).acuerdo.importe, 2700, 'un acuerdo más viejo pisa el de aquí');
+    await M.importData(viejo, { confirm: false }); igual(CB().acuerdos(CLIENTE)[0].importe, 2700, 'un acuerdo más viejo pisa el de aquí');
     const nuevo = JSON.parse(json(d)), cn = nuevo.clients.find(c => c.id === CLIENTE); cn.acuerdo = { ...AU_ACU, importe: 3000 }; cn.acuerdoAt = new Date(Date.now() + 60000).toISOString();
-    await M.importData(nuevo, { confirm: false }); igual((await M._in.idbGet('clients', CLIENTE)).acuerdo.importe, 3000, 'el acuerdo más reciente no gana');
+    await M.importData(nuevo, { confirm: false }); igual(CB().acuerdos(CLIENTE)[0].importe, 3000, 'el acuerdo más reciente no gana');   // un v20 más nuevo va al almacén (D-305)
     const cuota = JSON.parse(json(d)), cq = cuota.clients.find(c => c.id === CLIENTE); delete cq.acuerdo; delete cq.acuerdoAt; cq.cuota = { importe: 500, dia: 1, plazo: 15 }; cq.cuotaAt = new Date(Date.now() + 120000).toISOString();
     await M.importData(cuota, { confirm: false }); rec = await M._in.idbGet('clients', CLIENTE);
-    ok(rec.cuota && rec.cuota.importe === 500 && !rec.acuerdo, 'una cuota de antes más reciente no gana al acuerdo: ' + json(rec)); igual(CB().acuerdo(rec).pago, 'mensual', 'la cuota importada no es mensual');
+    { const a1 = CB().acuerdos(CLIENTE)[0]; ok(a1 && a1.importe === 500 && a1.pago === 'mensual' && !('cuota' in rec) && !('acuerdo' in rec), 'una cuota de antes más reciente no gana al acuerdo: ' + json([a1, rec])); }
     for (const [i, f] of [c => { c.acuerdo = { pago: 'cada siglo' }; }, c => { c.acuerdo = { pago: 'mensual', dia: 31 }; }, c => { c.acuerdoAt = 'ayer'; }].entries()) {
       const m = JSON.parse(json(d)); f(m.clients.find(c => c.id === CLIENTE)); ok((await M.importData(m, { confirm: false })).error, `entra un acuerdo mal formado (${i})`);
     }
@@ -22061,6 +22062,140 @@
       aqTk(mi(), 'ArrowDown', { alt: true }); await hasta(() => q('.mx-pop.mx-mespop.on'), 2000, 'otra vez');
       aqTk(D.activeElement, 'Escape'); await hasta(() => !q('.mx-pop.mx-mespop.on'), 2000, 'Esc no cierra'); ok(D.activeElement === mi(), 'Esc no vuelve al campo');
     } finally { if (M.controles) M.controles.cerrar(); M._in.closeDetail(); for (const id of hechos) await M.removeClient(id); await sinTareas(); }
+  });
+  // ---------- ajustes de la 4.49, lote B, puntos 4 y 5: acuerdos con historial y paquetes (D-305 a D-307) ----------
+  const AL_PAQ = [{ nombre: 'Paquete A', precio: 300, incluye: ['8 fotos al mes', '2 reels'] }, { nombre: 'Paquete B', precio: 450, incluye: ['12 fotos al mes', '4 reels', '1 sesión al mes'] }, { nombre: 'Paquete C', precio: 700, incluye: ['20 fotos al mes', '8 reels', '2 sesiones al mes'] }];   // inventados (los reales los da Kevin)
+  prueba('AL1', 'Acuerdos con historial y paquetes, datos (D-305 a D-307): IndexedDB 26 con «acuerdos» y «paquetes»; el acuerdo de antes se lee como el primero y, al cambiarlo, pasa al almacén con su id y sale del cliente; un acuerdo nuevo desde un mes cierra el anterior el mes de antes; «Termina en» manda; cada factura cae en el acuerdo de su primer mes y la siguiente sale del acuerdo de su mes; borrar deja una lápida y «Deshacer» lo devuelve; MESA.cobros.acuerdos y MESA.cobros.paquetes; cada acuerdo guarda su copia del paquete; «⇅ Exportar» v21 los lleva y al importar gana el más reciente (también una lápida); un archivo v20 más viejo no los pisa; uno mal formado no entra; borrar un cliente se lleva sus acuerdos', async () => {
+    await tablero([pub(1)]);
+    const st = await new Promise(res => { const o = W.indexedDB.open('mesa-feed'); o.onsuccess = () => { const x = { v: o.result.version, n: [...o.result.objectStoreNames] }; o.result.close(); res(x); }; o.onerror = () => res({}); });
+    igual(st.v, V_IDB, 'la versión de IndexedDB'); ok(['acuerdos', 'paquetes'].every(n => (st.n || []).includes(n)), 'faltan los almacenes: ' + json(st.n));
+    const cli = () => M._in.CL.find(c => c.id === CLIENTE), lid = CLIENTE + '-a1';
+    try {
+      relojEn('2026-11-20T10:00:00+01:00');
+      // el de antes, el primero
+      await coCliente({ importe: 450, dia: 5, plazo: 15 });
+      let l = CB().acuerdos(CLIENTE); ok(l.length === 1 && l[0].id === lid && l[0].legado && l[0].importe === 450, 'el acuerdo de antes no es el primero: ' + json(l));
+      ok(!(await M._in.idbGet('acuerdos', lid)), 'leerlo lo escribe');
+      // al cambiarlo, al almacén
+      await CB().acuGuardar(CLIENTE, { ...AU_ACU, pago: 'mensual', importe: 450, desde: '2026-05', meses: null });
+      const r1 = await M._in.idbGet('acuerdos', lid), c1 = await M._in.idbGet('clients', CLIENTE);
+      ok(r1 && r1.cliente === CLIENTE && r1.importe === 450 && r1.desde === '2026-05' && r1.at, 'no pasó al almacén: ' + json(r1));
+      ok(!('acuerdo' in c1) && !('cuota' in c1) && c1.acuerdoAt, 'sigue en el cliente: ' + json(c1));
+      // uno nuevo desde enero: el anterior cubre hasta diciembre
+      const n2 = await CB().acuNuevo(CLIENTE, '2027-01'); ok(n2 && n2.id && n2.desde === '2027-01' && n2.importe === 450, 'el nuevo no copia lo de hoy: ' + json(n2));
+      await CB().acuCambiar(CLIENTE, n2.id, { importe: 600, paquete: { id: 'p-x', nombre: 'Paquete B', incluye: ['12 fotos al mes'] } });
+      l = CB().acuerdos(CLIENTE); igual(l.map(a => [a.id === lid ? 'a1' : 'a2', a.desde, a.cubreHasta]), [['a1', '2026-05', '2026-12'], ['a2', '2027-01', '']], 'lo que cubre cada uno');
+      igual([CB().delMes(CLIENTE, '2026-12').id, CB().delMes(CLIENTE, '2027-03').id], [lid, n2.id], 'el acuerdo de cada mes');
+      // la siguiente de enero, del nuevo: su importe
+      await M.cobros.cargar([{ id: 'al-12', cliente: CLIENTE, periodo: '2026-12', importe: 450, emitida: '2026-11-05', vence: '2026-11-20', cobrada: '2026-11-10' }]);
+      relojEn('2026-12-10T10:00:00+01:00'); const u = CB().urgente(CLIENTE);
+      ok(u.e.k === 'sinemitir' && u.r.periodo === '2027-01' && u.r.importe === 600 && u.r.emitida === '2026-12-01', 'la de enero no sale del acuerdo nuevo: ' + json(u));
+      relojEn('2026-11-20T10:00:00+01:00');
+      // «Termina en» manda
+      await CB().acuCambiar(CLIENTE, n2.id, { termina: '2027-06' }); igual(CB().acuerdos(CLIENTE)[1].cubreHasta, '2027-06', '«Termina en»');
+      await CB().acuCambiar(CLIENTE, n2.id, { termina: '2026-11' }); igual(CB().acuerdos(CLIENTE)[1].termina, '', 'un «Termina en» antes de «Cubre desde» entra');
+      // la API
+      const api = await M.cobros.acuerdos(CLIENTE); ok(api.length === 2 && api[1].paquete && api[1].paquete.nombre === 'Paquete B' && !('legado' in api[0]), 'MESA.cobros.acuerdos: ' + json(api));
+      ok((await M.cobros.acuerdos('nadie')).error, 'un cliente que no existe');
+      let rp = await M.cobros.paquetes(AL_PAQ); ok(rp.ok && rp.paquetes === 3, 'MESA.cobros.paquetes: ' + json(rp));
+      ok((await M.cobros.paquetes([{ precio: 10 }])).error, 'un paquete sin nombre entra');
+      const cat = await M.cobros.paquetes(); igual(cat.map(p => p.nombre), ['Paquete A', 'Paquete B', 'Paquete C'], 'el catálogo');
+      // la copia de cada acuerdo: cambiar el paquete no la toca
+      const pb = cat.find(p => p.nombre === 'Paquete B'); await CB().acuCambiar(CLIENTE, n2.id, { paquete: { id: pb.id, nombre: pb.nombre, incluye: pb.incluye } });
+      await CB().paqCambiar(pb.id, { incluye: ['1 foto'] }); igual(CB().acuerdos(CLIENTE)[1].paquete.incluye, ['12 fotos al mes', '4 reels', '1 sesión al mes'], 'cambiar el paquete cambia el acuerdo');
+      // borrar con lápida y «Deshacer»
+      const b = await CB().acuBorrar(n2.id); ok(b && b.rec && (await M._in.idbGet('acuerdos', n2.id)).borrado, 'borrar no deja una lápida');
+      igual(CB().acuerdos(CLIENTE).length, 1, 'el borrado sigue'); igual(CB().acuerdos(CLIENTE)[0].cubreHasta, '', 'el anterior no vuelve a no tener fin');
+      await CB().acuDevolver(b.rec); igual(CB().acuerdos(CLIENTE).length, 2, '«Deshacer» no lo devuelve');
+      // exportar → importar
+      const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
+      igual(d.v, V_ARCHIVO, 'la versión del archivo'); ok(d.acuerdos.length === 2 && d.paquetes.length === 3, 'el archivo sin acuerdos o paquetes: ' + json([d.acuerdos, d.paquetes]));
+      await M._test.cobBorrarTodo(); igual(CB().acuerdos(CLIENTE).length, 0, 'vaciar');
+      const dm = JSON.parse(json(d)); dm.clients.find(c => c.id === CLIENTE).acuerdoAt = new Date(Date.now() + 30000).toISOString();   // la marca de que el de antes pasó al almacén, más nueva que él: no lo borra (lo vio la batería entera)
+      let x = await M.importData(dm, { confirm: false }); ok(x && x.ok, 'importar: ' + json(x));
+      igual(CB().acuerdos(CLIENTE).map(a => a.desde), ['2026-05', '2027-01'], 'importar no los devuelve'); igual((await M.cobros.paquetes()).length, 3, 'importar no devuelve los paquetes');
+      // lo más nuevo gana, también una lápida; lo más viejo no
+      const nu = JSON.parse(json(d)), an = nu.acuerdos.find(a => a.id === n2.id); an.importe = 650; an.at = new Date(Date.now() + 60000).toISOString();
+      nu.acuerdos.push({ id: 'pq-x', cliente: CLIENTE, borrado: true, at: new Date().toISOString() });
+      await M.importData(nu, { confirm: false }); igual(CB().acuerdos(CLIENTE)[1].importe, 650, 'lo más nuevo no gana');
+      const vi = JSON.parse(json(d)), av = vi.acuerdos.find(a => a.id === n2.id); av.importe = 1; av.at = '2026-01-01T00:00:00.000Z';
+      await M.importData(vi, { confirm: false }); igual(CB().acuerdos(CLIENTE)[1].importe, 650, 'lo más viejo pisa');
+      const la = JSON.parse(json(d)), al = la.acuerdos.find(a => a.id === n2.id); la.acuerdos = la.acuerdos.map(a => a.id === n2.id ? { id: a.id, cliente: CLIENTE, borrado: true, at: new Date(Date.now() + 120000).toISOString() } : a);
+      await M.importData(la, { confirm: false }); igual(CB().acuerdos(CLIENTE).length, 1, 'una lápida más nueva no lo borra'); ok(al, 'el archivo');
+      // un v20 con su acuerdo de antes más viejo no lo resucita
+      const v20 = JSON.parse(json(d)); v20.v = 20; delete v20.acuerdos; delete v20.paquetes; const cv = v20.clients.find(c => c.id === CLIENTE); cv.acuerdo = { pago: 'mensual', importe: 1 }; cv.acuerdoAt = '2026-01-01T00:00:00.000Z';
+      await M.importData(v20, { confirm: false }); ok(CB().acuerdos(CLIENTE)[0].importe === 450 && !('acuerdo' in (await M._in.idbGet('clients', CLIENTE))), 'un v20 viejo pisa el acuerdo');
+      // mal formados no entran
+      for (const [i, f] of [m => { m.acuerdos[0].pago = 'cada siglo'; }, m => { m.acuerdos[0].termina = '2020-01'; }, m => { m.acuerdos[0].at = 'ayer'; }, m => { m.paquetes[0].nombre = ''; }, m => { m.paquetes[0].incluye = 'todo'; }, m => { m.acuerdos = {}; }].entries()) {
+        const m = JSON.parse(json(d)); f(m); ok((await M.importData(m, { confirm: false })).error, `entra algo mal formado (${i})`);
+      }
+      // borrar un cliente se lleva sus acuerdos
+      await M.addClient({ id: CLIENTE2, name: NOMBRE2 }); await CB().acuGuardar(CLIENTE2, { pago: 'mensual', importe: 100, dia: 1, plazo: 5 });
+      ok(CB().acuerdos(CLIENTE2).length === 1, 'el acuerdo del otro cliente'); const id2 = CB().acuerdos(CLIENTE2)[0].id;
+      igual(await M.removeClient(CLIENTE2), true, 'borrar el otro cliente'); ok((await M._in.idbGet('acuerdos', id2)).borrado, 'su acuerdo se queda');
+    } finally { relojVuelve(); }
+  });
+  prueba('AL2', 'Acuerdos con historial y paquetes, lo que se ve (D-305 a D-307): «Cobros» enseña los acuerdos del más nuevo al más viejo, el de hoy abierto con «Ahora» y sus facturas debajo, uno terminado plegado con «Terminado», sus meses, su paquete y sus pagos; se despliega; «Nuevo acuerdo» abre uno que «Empieza» el mes que viene, con «Cubre desde» listo; «Paquete» con el catálogo, «Personalizado» y «Editar paquetes…»; elegir uno pone lo que incluye (para leer) y su precio si no había importe; «Personalizado» se escribe (Intro añade, × quita); «Editar paquetes…» abre el catálogo («‹ Acuerdos», nombre, precio, lo que incluye, «Paquete», borrar con «Deshacer»); «Termina en»; «Borrar acuerdo» con el clic derecho y «Deshacer»', async () => {
+    await tablero([pub(1)]);
+    await hasta(() => M.cobrosUI && M.personal && M.controles, 8000, 'cobros.js, personal.js y controles.js');
+    const cli = () => M._in.CL.find(c => c.id === CLIENTE);
+    relojEn('2026-11-20T10:00:00+01:00');
+    try {
+      await M.cobros.paquetes(AL_PAQ); const cat = await M.cobros.paquetes(), pb = cat.find(p => p.nombre === 'Paquete B');
+      await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 380, dia: 5, plazo: 15, desde: '2026-01', meses: 4, renueva: false, paquete: { id: 'personalizado', nombre: 'Personalizado', incluye: ['8 fotos al mes'] } });
+      const n2 = await CB().acuNuevo(CLIENTE, '2026-05'); await CB().acuCambiar(CLIENTE, n2.id, { importe: 450, dia: 10, meses: 6, renueva: true, paquete: { id: pb.id, nombre: pb.nombre, incluye: pb.incluye } });
+      await M.cobros.cargar([{ id: 'al2-feb', cliente: CLIENTE, periodo: '2026-02', importe: 380, emitida: '2026-01-05', cobrada: '2026-01-10' }, { id: 'al2-nov', cliente: CLIENTE, periodo: '2026-11', importe: 450, emitida: '2026-10-10', cobrada: '2026-10-20' }]);
+      await CB().dlgCliente(CLIENTE, 'cobros');
+      const cards = () => qa('.detail .co-ac[data-acu]');
+      await hasta(() => cards().length === 2, 4000, 'las dos tarjetas');
+      ok(/Acuerdos/.test(q('.detail .co-acu-t h4').textContent), 'el título no es «Acuerdos»');
+      const [c0, c1] = cards(); igual([c0.dataset.acu, c1.dataset.acu], [n2.id, CLIENTE + '-a1'], 'el orden, del más nuevo al más viejo');
+      ok(/Desde may 2026 · cada mes, se renueva/.test(c0.textContent) && /Ahora/.test(c0.querySelector('.co-ach').textContent) && !c0.classList.contains('pleg'), 'el de hoy: ' + c0.textContent.slice(0, 120));
+      ok(c0.querySelector('tr.co-f[data-id="al2-nov"]') && !c0.querySelector('tr.co-f[data-id="al2-feb"]'), 'las facturas del de hoy');
+      ok(c1.classList.contains('pleg') && /ene 2026 – abr 2026/.test(c1.textContent) && /Personalizado/.test(c1.textContent) && /cuatro pagos de 380 €/.test(c1.textContent) && /Terminado/.test(c1.textContent), 'el terminado: ' + c1.textContent);
+      ok(/12 fotos al mes/.test(c0.querySelector('.co-inc.ro').textContent), 'lo que incluye el paquete');
+      c1.querySelector('[data-co="acu-pleg"]').click(); await hasta(() => !cards()[1].classList.contains('pleg') && cards()[1].querySelector('tr.co-f[data-id="al2-feb"]'), 3000, 'desplegar el terminado');
+      // «Nuevo acuerdo»: empieza el mes que viene, abierto, con «Cubre desde» listo
+      q('.detail [data-co="acu-nuevo"]').click();
+      await hasta(() => cards().length === 3, 3000, 'el acuerdo nuevo'); const nv = cards()[0];
+      ok(/Desde dic 2026/.test(nv.textContent) && /Empieza/.test(nv.querySelector('.co-ach').textContent), 'el nuevo: ' + nv.textContent.slice(0, 80));
+      await hasta(() => D.activeElement && D.activeElement.closest && D.activeElement.closest(`[data-acu="${nv.dataset.acu}"]`) && D.activeElement.classList.contains('mx-in'), 2000, 'el foco en «Cubre desde»');
+      ok(nv.querySelector('[data-k="termina"]') && nv.querySelector('[data-k="termina"]').type === 'month', 'sin «Termina en»');
+      const idN = nv.dataset.acu;
+      // «Paquete»: el catálogo, «Personalizado» y «Editar paquetes…»
+      const sel = () => q(`.detail [data-acu="${idN}"] [data-k="paquete"]`);
+      igual([...sel().options].filter(o => !o.hidden).map(o => o.textContent), ['Paquete A', 'Paquete B', 'Paquete C', 'Personalizado', 'Editar paquetes…'], 'las opciones de «Paquete»');
+      // elegir «Paquete C» con el importe de «Paquete B» (copiado): pasa al de C
+      coCambiar(sel(), cat.find(p => p.nombre === 'Paquete C').id); await hasta(() => { const a = CB().acuerdos(CLIENTE).find(x => x.id === idN); return a && a.paquete && a.paquete.nombre === 'Paquete C' && a.importe === 700; }, 3000, '«Paquete C» con su precio');
+      await hasta(() => /20 fotos al mes/.test((q(`.detail [data-acu="${idN}"] .co-inc`) || {}).textContent || ''), 3000, 'lo que incluye C');
+      // «Personalizado»: se escribe
+      coCambiar(sel(), 'personalizado'); await hasta(() => q(`.detail [data-acu="${idN}"] .co-inc:not(.ro) [data-co="inc-nuevo"]`), 3000, 'lo que incluye, para escribir');
+      const ai = q(`.detail [data-acu="${idN}"] [data-co="inc-nuevo"]`); ai.value = '3 vídeos'; tecla('Enter', { en: ai });
+      await hasta(() => CB().acuerdos(CLIENTE).find(x => x.id === idN).paquete.incluye.includes('3 vídeos'), 3000, 'añadir «3 vídeos»');
+      await hasta(() => [...qa(`.detail [data-acu="${idN}"] .co-inc li span`)].some(s => s.textContent === '3 vídeos'), 3000, '«3 vídeos» a la vista');
+      const qx = [...qa(`.detail [data-acu="${idN}"] .co-inc li`)].find(li => /3 vídeos/.test(li.textContent)).querySelector('[data-co="inc-quitar"]'); qx.click();
+      await hasta(() => !CB().acuerdos(CLIENTE).find(x => x.id === idN).paquete.incluye.includes('3 vídeos'), 3000, 'quitar «3 vídeos»');
+      // «Editar paquetes…»: el catálogo en su sitio
+      await aqOpcion(M.controles.gemelo(sel()), 'Editar paquetes…');
+      const pq = await hasta(() => q('.detail .co-paqs'), 3000, 'el catálogo');
+      igual(qa('.detail .co-paq [data-co="paq-nombre"]').map(i => i.value), ['Paquete A', 'Paquete B', 'Paquete C'], 'los paquetes'); ok(/Cambiar un paquete no cambia los acuerdos/.test(pq.textContent), 'sin la nota');
+      const na = q(`.detail .co-paq[data-paq="${pb.id}"] [data-co="paq-nombre"]`); coCambiar(na, 'Paquete Base'); await hasta(async () => (await M.cobros.paquetes()).some(p => p.nombre === 'Paquete Base'), 3000, 'el nombre');
+      const pr = q(`.detail .co-paq[data-paq="${pb.id}"] [data-co="paq-precio"]`); coCambiar(pr, '480'); await hasta(async () => (await M.cobros.paquetes()).find(p => p.id === pb.id).precio === 480, 3000, 'el precio');
+      q('.detail [data-co="paq-nuevo"]').click(); await hasta(async () => (await M.cobros.paquetes()).length === 4, 3000, '«Paquete»');
+      const pc = q(`.detail .co-paq[data-paq="${cat.find(p => p.nombre === 'Paquete C').id}"]`), r = pc.getBoundingClientRect();
+      pc.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.x + 20, clientY: r.y + r.height - 8, view: W }));
+      const bm = await hasta(() => qa('[role="menuitem"]').find(b => /Borrar paquete/.test(b.textContent)), 2000, '«Borrar paquete»'); bm.click();
+      await hasta(async () => (await M.cobros.paquetes()).length === 3, 3000, 'borrar el paquete'); ok(/Deshacer/.test(coToast()), 'sin «Deshacer»');
+      ok(CB().acuerdos(CLIENTE).find(x => x.id === n2.id).paquete.nombre === 'Paquete B', 'borrar o renombrar el paquete toca el acuerdo');
+      q('.detail [data-co="paq-volver"]').click(); await hasta(() => cards().length === 3, 3000, '«‹ Acuerdos»');
+      // «Borrar acuerdo» con el clic derecho
+      const h0 = cards()[0].querySelector('.co-ac-h'), rh = h0.getBoundingClientRect();
+      h0.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: rh.x + 30, clientY: rh.y + 10, view: W }));
+      const ba = await hasta(() => qa('[role="menuitem"]').find(b => /Borrar acuerdo/.test(b.textContent)), 2000, '«Borrar acuerdo»'); ba.click();
+      await hasta(() => cards().length === 2, 3000, 'borrar el acuerdo');
+      const und = await hasta(() => { const t = qa('.toasts .toast').find(x => /Acuerdo borrado/.test(x.textContent)); return t && [...t.querySelectorAll('button')].find(b => /Deshacer/.test(b.textContent)); }, 2000, '«Deshacer»'); und.click();
+      await hasta(() => cards().length === 3, 3000, '«Deshacer» lo devuelve');
+    } finally { relojVuelve(); if (M.controles) M.controles.cerrar(); M._in.closeDetail(); }
   });
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;

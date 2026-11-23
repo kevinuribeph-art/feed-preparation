@@ -9,7 +9,7 @@
 // Apagada (lo normal hasta la mudanza, lote 5) no hace nada: ni red ni temporizadores.
 (function (G) {
   'use strict';
-  const VERSION = '1.7';   // 1.7: «Es mío» y «No lo reconozco» en el aviso de aparato nuevo, que dice cuál es; una sesión cerrada en el servidor lleva a entrar otra vez (D-298); «Visto» de los avisos en el servidor (D-299). 1.6: las entregas de un cliente de solo contenido, un almacén más (D-290). 1.5: los avisos del portal (portal_aparato_nuevo, portal_no_miembro, portal_codigos, portal_fallo; D-278). 1.4: las fotos de tareas y sesiones bajan al verlas (M.nube.archivo), mira cada 10 s, el avance para el monograma (D-271). 1.3: el iPhone (D-268): mira sin coger la Mesa, la coge sin recargar para cada cambio y la suelta en cuanto sube; «no contesta» al momento; «aparato nuevo». 1.2: la entrada (D-262): «falta el código» (`verificacion`), el avance de la bajada para la pantalla de carga, sin «Entrar y traer tu Mesa»
+  const VERSION = '1.8';   // 1.8: the agreements and the packages, two stores more (D-305, D-307). 1.7: «Es mío» y «No lo reconozco» en el aviso de aparato nuevo, que dice cuál es; una sesión cerrada en el servidor lleva a entrar otra vez (D-298); «Visto» de los avisos en el servidor (D-299). 1.6: las entregas de un cliente de solo contenido, un almacén más (D-290). 1.5: los avisos del portal (portal_aparato_nuevo, portal_no_miembro, portal_codigos, portal_fallo; D-278). 1.4: las fotos de tareas y sesiones bajan al verlas (M.nube.archivo), mira cada 10 s, el avance para el monograma (D-271). 1.3: el iPhone (D-268): mira sin coger la Mesa, la coge sin recargar para cada cambio y la suelta en cuanto sube; «no contesta» al momento; «aparato nuevo». 1.2: la entrada (D-262): «falta el código» (`verificacion`), el avance de la bajada para la pantalla de carga, sin «Entrar y traer tu Mesa»
 
   // ================= el núcleo =================
   const TOPES = Object.freeze({ cambios: 500, valor: 1950000, lote: 3600000, masivo: 20 });   // como jsonb; los del servidor: 500 / 2 MB / 4 MB
@@ -925,7 +925,7 @@
     }
 
     // ---------- la mudanza (lote 5): subirlo todo y comprobarlo ----------
-    const ALMS0 = ['files', 'boards', 'clients', 'bandejas', 'ubicaciones', 'tareas', 'tfotos', 'cobros', 'cfacturas', 'meses', 'entregas'];   // entregas: D-290
+    const ALMS0 = ['files', 'boards', 'clients', 'bandejas', 'ubicaciones', 'tareas', 'tfotos', 'cobros', 'cfacturas', 'meses', 'entregas', 'acuerdos', 'paquetes'];   // entregas: D-290; acuerdos and paquetes: D-305, D-307
     const almacenes = async () => (A.almacenes ? await A.almacenes() : ALMS0);
     // Recorre todos los almacenes (no solo el diario) y sube cada registro que el servidor no tiene con su versión: lo ya subido
     // con esa versión y sin cambiar se salta, así que se puede cortar, retomar y repetir sin duplicar. Las fotos esperan a subir
@@ -1554,7 +1554,7 @@
   let releyendo = false;
 
   // ---------- el panel: estado y «quedó sin subir» ----------
-  const ALM = { boards: 'Tablero', clients: 'Cliente', bandejas: 'Bandeja', files: 'Foto', tareas: 'Tarea o nota', tfotos: 'Foto de una sesión', cobros: 'Factura', cfacturas: 'PDF de una factura', meses: 'Por qué y cómo fue', ubicaciones: 'Ubicación', entregas: 'Entrega' };
+  const ALM = { boards: 'Tablero', clients: 'Cliente', bandejas: 'Bandeja', files: 'Foto', tareas: 'Tarea o nota', tfotos: 'Foto de una sesión', cobros: 'Factura', cfacturas: 'PDF de una factura', meses: 'Por qué y cómo fue', ubicaciones: 'Ubicación', entregas: 'Entrega', acuerdos: 'Acuerdo', paquetes: 'Paquete' };
   const MOTIVO = { ilegible: 'sus fotos no se pueden leer en este navegador', masivo: 'un vaciado lo borraría arriba: «Subir encima» confirma el borrado', borrado_arriba: 'otro ordenador lo borró, pero sus fotos solo están aquí', pendiente: 'la copia de una recarga, de antes de lo que llegó', turno: 'la Mesa pasó a otro ordenador antes de subirlo', choque: 'otro ordenador lo cambió antes', bajada: 'al abrir llegó otra versión del servidor', tope: 'pasa del tope de un registro', forma: 'no se puede subir', texto: 'tiene un texto que el servidor no admite', cede: 'no se pudo subir antes de pasar la Mesa', antes: 'lo tenía este navegador antes de traer tu Mesa; no se ha subido', huella: 'el mismo tamaño que arriba, pero no es la misma foto: vuelve la de arriba', archivo: 'un archivo que el servidor no admite' };
   function etiqueta(x) {
     const v = x.valor || {}, cl = id => ((X().CL || []).find(c => c.id === id) || {}).name || id;
@@ -1609,7 +1609,7 @@
     if (f.tipo === 'portal_no_miembro') return ['Entró en el portal una cuenta que no es de ningún cliente', d.aparato || ''];
     if (f.tipo === 'portal_codigos') return ['Muchos códigos pedidos para un correo', [d.dueno ? 'tu cuenta' : cuenta, `${+d.n || 5} en la última hora`].filter(Boolean).join(' · ')];
     if (f.tipo === 'portal_fallo') return ['El registro del portal falló', 'la entrada no se paró por esto'];
-    const PL = { files: ['foto', 'fotos'], boards: ['tablero', 'tableros'], clients: ['cliente', 'clientes'], bandejas: ['bandeja', 'bandejas'], tareas: ['tarea o nota', 'tareas o notas'], tfotos: ['foto de sesión', 'fotos de sesiones'], cobros: ['factura', 'facturas'], entregas: ['entrega', 'entregas'], cfacturas: ['PDF', 'PDF'], meses: ['mes', 'meses'], ubicaciones: ['ubicación', 'ubicaciones'] };
+    const PL = { files: ['foto', 'fotos'], boards: ['tablero', 'tableros'], clients: ['cliente', 'clientes'], bandejas: ['bandeja', 'bandejas'], tareas: ['tarea o nota', 'tareas o notas'], tfotos: ['foto de sesión', 'fotos de sesiones'], cobros: ['factura', 'facturas'], entregas: ['entrega', 'entregas'], cfacturas: ['PDF', 'PDF'], meses: ['mes', 'meses'], ubicaciones: ['ubicación', 'ubicaciones'], acuerdos: ['acuerdo', 'acuerdos'], paquetes: ['paquete', 'paquetes'] };
     if (f.tipo === 'borrado_masivo') return [`Se borraron ${+d.cuantos || 'muchos'} registros de una vez`, [Object.entries(d.almacenes || {}).map(([a, n]) => `${+n || 0} ${PL[a] ? PL[a][+n === 1 ? 0 : 1] : a}`).join(', '), quien].filter(Boolean).join(' · ')];
     const POR = { tope: 'era demasiado grande', forma: 'venía mal formado', turno: 'llegó sin el turno', turno_cambiado: 'el turno había cambiado', app: 'venía de una versión vieja de la Mesa', permiso: 'sin permiso', cursor: 'de otra copia del servidor', sesion: 'de una sesión cerrada' };
     return ['El servidor rechazó un lote', [POR[d.codigo] || (d.codigo ? 'código ' + d.codigo : ''), quien].filter(Boolean).join(' · ')];

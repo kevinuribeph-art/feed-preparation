@@ -100,6 +100,7 @@
       + `<div><label for="co-a-pago${sx}">Pago</label><select id="co-a-pago${sx}" class="co-q" data-co="cuota" data-k="pago">${(C().PAGOS || [['mensual', 'Cada mes']]).map(([v, t]) => `<option value="${v}"${v === pago ? ' selected' : ''}>${t}</option>`).join('')}</select></div>`
       + campo('importe', 'Importe de cada pago', 'Importe', 'decimal')
       + `<div><label for="co-a-dia${sx}">Se emite el día</label>${dia}</div>`
+      + `<div><label for="co-a-adelanto${sx}">Se factura</label><select id="co-a-adelanto${sx}" class="co-q" data-co="cuota" data-k="adelanto"><option value="no"${a && a.adelanto ? '' : ' selected'}>El mismo mes</option><option value="si"${a && a.adelanto ? ' selected' : ''}>El mes antes</option></select></div>`   // D-309
       + `<div><label for="co-a-plazo${sx}">Vence a los</label>${plazoSel(a && a.plazo != null ? a.plazo : null, sx)}</div>`
       + `<div><label for="co-a-desde${sx}">Cubre desde</label><input id="co-a-desde${sx}" type="month" class="co-q" data-co="cuota" data-k="desde" data-sin-fecha value="${esc((a && a.desde) || '')}" aria-label="Cubre desde"></div>`
       + `<div><label for="co-a-meses${sx}">Duración</label>${mesesSel(a, sx)}</div>`
@@ -230,11 +231,12 @@
   async function cuota(inp, ctx) {                 // a field of an agreement (D-288; of the list, D-305), saved on its own
     const cid = (ctx && ctx.cid) || cliDe(inp), c = cliRec(cid); if (!c) return;
     const aid = ctx && ctx.aid != null ? ctx.aid : aidDe(inp), a1 = acuPor(cid, aid), k = inp.dataset.k, v = String((ctx && ctx.v != null ? ctx.v : inp.value) || '').trim();
-    const a0 = a1 || { pago: 'mensual', importe: null, dia: null, plazo: null, desde: '', meses: null, renueva: true, renegociar: '', termina: '', paquete: null };
+    const a0 = a1 || { pago: 'mensual', importe: null, dia: null, plazo: null, desde: '', meses: null, renueva: true, renegociar: '', termina: '', paquete: null, adelanto: false };
     if (k === 'paquete') return cambiarPaquete(cid, a1, v);
     let val = null;
     if (k === 'pago') val = v || 'mensual';
     else if (k === 'renueva') val = v !== 'no';
+    else if (k === 'adelanto') val = v === 'si';   // D-309
     else if (k === 'renegociar') val = /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : v ? undefined : '';
     else if (k === 'desde' || k === 'termina') val = leerMes(v);
     else if (v) {
@@ -334,6 +336,7 @@
     else if (k === 'renueva') inp.value = !a || a.renueva !== false ? 'si' : 'no';
     else if (k === 'renegociar') inp.value = (a && a.renegociar) || '';
     else if (k === 'termina') inp.value = (a && a.termina) || '';
+    else if (k === 'adelanto') inp.value = a && a.adelanto ? 'si' : 'no';
     else inp.value = acuVal(a, k);
   }
   async function numero(inp) {

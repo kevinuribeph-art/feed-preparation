@@ -5690,7 +5690,7 @@ ${TK_FUENTES}
   // an agreement's fields as they're read (also an incomplete one: each one by one); termina, its last month set by hand (D-306;
   // '' while it goes on); paquete, a copy of what it included (D-307), or null
   const acuDe = a => ({ pago: ACU_PAGO.has(a.pago) ? a.pago : 'mensual', importe: +a.importe > 0 ? Math.round(+a.importe * 100) / 100 : null, dia: acuNum(a.dia, 1, 28), plazo: acuNum(a.plazo, 0, 365),
-    desde: COB_MES.test(a.desde || '') ? a.desde : '', meses: acuNum(a.meses, 1, 120), renueva: a.renueva !== false, renegociar: cobDia(a.renegociar), termina: COB_MES.test(a.termina || '') ? a.termina : '', paquete: paqCopia(a.paquete) });
+    desde: COB_MES.test(a.desde || '') ? a.desde : '', meses: acuNum(a.meses, 1, 120), renueva: a.renueva !== false, renegociar: cobDia(a.renegociar), termina: COB_MES.test(a.termina || '') ? a.termina : '', paquete: paqCopia(a.paquete), adelanto: a.adelanto === true });
   // what a package included, as an agreement keeps it: {id, nombre, incluye[]} (each thing a line, up to 20 of 80 letters)
   const paqIncluye = l => (Array.isArray(l) ? l : []).filter(x => typeof x === 'string' && x.trim()).map(x => x.trim().replace(/\s+/g, ' ').slice(0, 80)).slice(0, 20);
   const paqCopia = p => p && typeof p === 'object' && typeof p.nombre === 'string' && p.nombre.trim() ? { id: typeof p.id === 'string' ? p.id.slice(0, 60) : '', nombre: p.nombre.trim().slice(0, 60), incluye: paqIncluye(p.incluye) } : null;
@@ -5816,15 +5816,16 @@ ${TK_FUENTES}
       }
       else out.push(`${cobEur(a.importe)} ${a.pago === 'mensual' ? 'al mes' : (ACU_PAGOS.find(x => x[0] === a.pago) || [, ''])[1].toLowerCase()}`);
     }
-    if (a.dia != null) out.push(`${a.pago === 'unico' || (fin && a.meses && a.meses <= n) ? 'se factura' : 'se facturan'} el día ${a.dia} del mes anterior`);
+    if (a.dia != null) { const una = a.pago === 'unico' || (fin && a.meses && a.meses <= n); out.push(`${una ? 'se factura' : 'se facturan'} el día ${a.dia} ${a.adelanto ? 'del mes anterior' : a.pago === 'mensual' ? 'de cada mes' : una ? 'de su primer mes' : 'del primer mes de cada pago'}`); }   // D-309
     if (fin && a.pago !== 'unico' && (!a.renueva || a.cubreHasta === fin)) out.push(`acaba en ${acuMes(fin)}`);
     return out.join(' · ');
   }
   // what the line's title says: when to renegotiate, only Kevin's
   function acuTitulo(c) { return acuTituloA(acuerdoDe(c)); }
   const acuTituloA = a => a && a.renegociar ? `Renegociar el ${cobCorto(a.renegociar)} ${a.renegociar.slice(0, 4)}: aviso en tu página 14 días antes` : '';
-  // an invoice of a stretch is issued on its day of the month before the stretch: Kevin bills in advance (D-304)
-  const cobFechas = (mes, q) => { const emitida = `${addMonths(mes, -1)}-${String(q.dia).padStart(2, '0')}`; return { emitida, vence: cobMasDias(emitida, q.plazo) }; };
+  // an invoice of a stretch is issued on its day of its first month or, with «Se factura: el mes antes» (D-309), of the
+  // month before (D-304)
+  const cobFechas = (mes, q) => { const emitida = `${q && q.adelanto ? addMonths(mes, -1) : mes}-${String(q.dia).padStart(2, '0')}`; return { emitida, vence: cobMasDias(emitida, q.plazo) }; };
   // what goes first in a list: its date of issue, else its month, else when it was written
   const cobClave = r => r.emitida || (COB_MES.test(r.periodo || '') ? r.periodo + '-01' : '') || r.vence || '';
   const cobOrden = (a, b) => cobClave(b).localeCompare(cobClave(a)) || String(b.id).localeCompare(String(a.id));   // never by `at`: a row being written doesn't jump
@@ -5850,12 +5851,12 @@ ${TK_FUENTES}
     const l = cobVivos(cli).map(r => ({ r, e: cobEstado(r, hoy) })), por = k => l.filter(x => x.e.k === k);
     const asc = (a, b) => cobClave(a.r).localeCompare(cobClave(b.r));
     const t = por('retrasada').sort(asc)[0] || por('pendiente').sort(asc)[0]; if (t) return t;
-    // Kevin bills in advance (D-304): the stretch of this month without an invoice is late; the one that starts next month is
-    // issued this month, «sin emitir» from the 1st (also late once its day passed)
+    // the stretch of this month without an invoice: «sin emitir», late once its day passed (D-304); billed the month before
+    // (D-309), also the one that starts next month, «sin emitir» from the 1st
     // each month with the agreement that covers it (D-305)
     const c = CL.find(x => x.id === cli), mes = hoy.slice(0, 7), sig = addMonths(mes, 1), rs = l.map(x => x.r), qM = cuotaDe(c, mes), qS = cuotaDe(c, sig);
     const virt = (q, tr, m) => { const fa = tr && !cobCubre(rs, m) ? acuFalta(rs, tr) : null; if (!fa) return null; const r = { cliente: cli, periodo: fa.de, ...(fa.hasta !== fa.de ? { hasta: fa.hasta } : {}), importe: acuImporte(q, fa), ...cobFechas(fa.de, q), virtual: true, acuerdo: q.id }; if (r.emitida < hoy) r.tarde = true; return { r, e: { k: 'sinemitir' } }; };
-    const trS = qS && acuTramo(qS, sig);
+    const trS = qS && qS.adelanto && acuTramo(qS, sig);
     const v = (qM && virt(qM, acuTramo(qM, mes), mes)) || (trS && trS.de === sig ? virt(qS, trS, sig) : null); if (v) return v;
     const s = por('sinemitir').sort(asc)[0]; if (s) return s;
     const ok = por('cobrada').sort((a, b) => String(b.r.cobrada).localeCompare(String(a.r.cobrada)) || cobOrden(a.r, b.r))[0];
@@ -5983,7 +5984,7 @@ ${TK_FUENTES}
     const hoy = acuerdoDe(c);
     if (!a) { if (hoy) await acuBorrar(hoy.id); return CL.find(x => x.id === cid); }
     const id = hoy ? hoy.id : acuIdNuevo(cid);
-    await acuPoner(cid, id, prev => ({ ...acuLimpio({ ...a, termina: 'termina' in a ? a.termina : prev && prev.termina, paquete: 'paquete' in a ? a.paquete : prev && prev.paquete }), id, cliente: cid }));
+    await acuPoner(cid, id, prev => ({ ...acuLimpio({ ...a, termina: 'termina' in a ? a.termina : prev && prev.termina, paquete: 'paquete' in a ? a.paquete : prev && prev.paquete, adelanto: 'adelanto' in a ? a.adelanto : prev && prev.adelanto }), id, cliente: cid }));
     return CL.find(x => x.id === cid);
   }
   // only the fields it knows, each valid or out (an import, MESA.cobros.acuerdo and the dialog keep the same shape)
@@ -5994,6 +5995,7 @@ ${TK_FUENTES}
     if (COB_MES.test(a.desde || '')) n.desde = a.desde;
     { const v = acuNum(a.meses, 1, 120); if (v != null) n.meses = v; }
     n.renueva = a.renueva !== false;
+    if (a.adelanto === true) n.adelanto = true;   // D-309: only when it's billed the month before
     if (cobDia(a.renegociar)) n.renegociar = a.renegociar;
     if (COB_MES.test(a.termina || '') && !(n.desde && a.termina < n.desde)) n.termina = a.termina;   // D-306
     { const p = paqCopia(a.paquete); if (p) n.paquete = p; }   // D-307
@@ -6008,6 +6010,7 @@ ${TK_FUENTES}
     if (!n(a.dia, 1, 28) || !n(a.plazo, 0, 365) || !n(a.meses, 1, 120)) return false;
     if (a.desde != null && a.desde !== '' && !COB_MES.test(a.desde)) return false;
     if (a.renueva != null && typeof a.renueva !== 'boolean') return false;
+    if (a.adelanto != null && typeof a.adelanto !== 'boolean') return false;   // D-309
     if (a.renegociar != null && a.renegociar !== '' && !cobDia(a.renegociar)) return false;
     if (a.termina != null && a.termina !== '' && (!COB_MES.test(a.termina) || (COB_MES.test(a.desde || '') && a.termina < a.desde))) return false;   // D-306
     if (a.paquete != null && !paqValido(a.paquete)) return false;   // D-307
@@ -6070,7 +6073,7 @@ ${TK_FUENTES}
     const c = CL.find(x => x.id === cli); if (!c) throw new Error(`cliente desconocido «${cli}»`);
     const h = madParts(ahora()).day.slice(0, 7), de = COB_MES.test(desde || '') ? desde : addMonths(h, 1), b = base || acuerdoDe(c) || { pago: 'mensual' };
     const id = acuId();
-    return acuPoner(cli, id, () => ({ ...acuLimpio({ pago: b.pago, importe: b.importe, dia: b.dia, plazo: b.plazo, desde: de, meses: b.meses, renueva: b.renueva, paquete: b.paquete }), id, cliente: cli }));
+    return acuPoner(cli, id, () => ({ ...acuLimpio({ pago: b.pago, importe: b.importe, dia: b.dia, plazo: b.plazo, desde: de, meses: b.meses, renueva: b.renueva, paquete: b.paquete, adelanto: b.adelanto }), id, cliente: cli }));
   }
   async function acuBorrar(id) {
     await acuLeer(); const r0 = ACU && ACU.get(id);
@@ -6119,7 +6122,7 @@ ${TK_FUENTES}
       await loadClients(); const c = CL.find(x => x.id === cliente);
       if (!c) return { error: `cliente desconocido «${cliente}» (los ids, en MESA.clients())` };
       if (a === undefined) return { error: 'falta el acuerdo (para quitarlo, null)' };
-      if (a !== null && (!acuValido(a) || !a.pago || (a.importe != null && a.importe !== '' && !(+a.importe > 0)))) return { error: 'acuerdo no válido: {pago (' + ACU_PAGOS.map(x => x[0]).join(', ') + '), importe (> 0), dia (1-28), plazo (0-365), desde (AAAA-MM), meses (1-120), renueva, renegociar (AAAA-MM-DD), termina (AAAA-MM), paquete ({nombre, incluye})}' };
+      if (a !== null && (!acuValido(a) || !a.pago || (a.importe != null && a.importe !== '' && !(+a.importe > 0)))) return { error: 'acuerdo no válido: {pago (' + ACU_PAGOS.map(x => x[0]).join(', ') + '), importe (> 0), dia (1-28), plazo (0-365), desde (AAAA-MM), meses (1-120), renueva, renegociar (AAAA-MM-DD), termina (AAAA-MM), paquete ({nombre, incluye}), adelanto (true: se factura el mes antes)}' };
       try { await acuGuardar(cliente, a); } catch (e) { return { error: String((e && e.message) || e) }; }
       return { ok: true, acuerdo: acuerdoDe(CL.find(x => x.id === cliente)) };
     },

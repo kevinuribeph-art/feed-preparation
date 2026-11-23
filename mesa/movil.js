@@ -340,9 +340,9 @@
 #movil .llave{display:flex;align-items:center;gap:10px;margin:14px 0 0;padding:12px 14px;border-radius:14px;background:var(--bg-2);font-size:14px;color:var(--ink-2)}
 #movil .llave svg{width:22px;height:22px;flex:none}
 #movil .pie{margin-top:18px;text-align:center;font-size:14px;color:var(--mute)}
-#movil .toast{position:fixed;left:var(--pad);right:var(--pad);bottom:calc(76px + var(--sa-b));z-index:45;display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:14px;background:var(--tip);color:var(--bg);font-size:15px;box-shadow:var(--shadow-md)}
-#movil .toast svg{width:20px;height:20px;flex:none;color:#86C795}
-:root[data-theme="dark"] #movil .toast svg{color:var(--ok-on-ink)}
+#movil .toast{position:fixed;left:var(--pad);right:var(--pad);bottom:calc(76px + var(--sa-b));z-index:45;display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:14px;background:var(--acc);color:var(--on-acc);font-size:15px;box-shadow:var(--shadow-md)}
+#movil .toast svg{width:20px;height:20px;flex:none;color:currentColor}
+#movil .toast.error svg{box-sizing:border-box;padding:3px;border-radius:50%;background:var(--on-acc);color:var(--red-fijo)}   /* D-303: on the terracotta, white; an error's triangle red in a white disc (5.59:1) */
 #movil .ph{background:var(--g)}
 #movil .ft .ph,#movil .hc .ph{position:absolute;inset:0}
 #movil .car .ph{display:block}
@@ -614,7 +614,6 @@
 #movil .estado-op .porque{display:block;font-size:13px;color:var(--red);font-weight:400}
 #movil .toast{transform:translateY(12px);opacity:0;transition:transform .3s var(--ease),opacity .3s var(--ease);pointer-events:none}
 #movil .toast.on{transform:none;opacity:1}
-#movil .toast.error svg,:root[data-theme="dark"] #movil .toast.error svg{color:var(--rojo-tinta)}
 #movil .toast.sin-tabs{bottom:calc(20px + var(--sa-b))}
 #movil .ver{position:fixed;inset:0;z-index:70;background:#000;display:flex;flex-direction:column;touch-action:pan-y}
 #movil .ver .lam{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}

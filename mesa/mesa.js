@@ -2463,8 +2463,8 @@
 --bg:#F4EFE8;--bg-2:#EDE6DC;--bg-3:#E4DBCE;--panel:#FBF9F6;--panel-2:#FFFFFF;
 --ink-2:#4A4038;--mute:#6E635A;--faint:#A39A90;--on-ink:#F4EFE8;
 --line:#DDD4C8;--line2:#EAE3D9;--line-strong:#C7BCAE;
---acc:#B2503A;--acc-ink:#A0472F;--acc-hover:#9B432F;--acc-on-ink:#D07152;--on-acc:#FFFFFF;--acc-soft:#F3E2DA;--ring:rgba(178,80,58,.32);--acc2:#A0472F;--focus:#A0472F;
---ok:#2F7440;--ok-soft:#E2EDE3;--red:#C42B3A;--red-soft:#F9E8E9;--chg:#8A5A14;--chg-soft:#F3E8D4;
+--acc:#B2503A;--acc-ink:#A0472F;--acc-hover:#9B432F;--on-acc:#FFFFFF;--acc-soft:#F3E2DA;--ring:rgba(178,80,58,.32);--acc2:#A0472F;--focus:#A0472F;
+--ok:#2F7440;--ok-soft:#E2EDE3;--red:#C42B3A;--red-fijo:#C42B3A;--red-soft:#F9E8E9;--chg:#8A5A14;--chg-soft:#F3E8D4;
 --ok-on-ink:#86C795;--cal-off:#F0EAE2;--cruce-veil:rgba(22,17,14,.62);
 --ty-reel:#DDE8D8;--ty-reel-ink:#1E3A26;--ty-collab:#BFD6C2;--ty-collab-ink:#12321C;--ty-foto:#F6DFD7;--ty-foto-ink:#5E2418;--ty-carr:#E6DDEA;--ty-carr-ink:#42284E;--ty-trial:#E7E1D9;--ty-trial-ink:#3A322B;--ty-past:#F0EBE4;--ty-ses:#DCE4EE;--ty-ses-ink:#24385A;
 --knob:#FFFFFF;--sw-on:#16110E;
@@ -2512,7 +2512,7 @@
 --bg:#15110E;--bg-2:#29221D;--bg-3:#352D26;--panel:#1E1915;--panel-2:#2F2822;
 --ink:#F1EBE3;--ink-2:#D3C9BD;--mute:#A89C8F;--faint:#7A6F64;--on-ink:#16110E;
 --line:#3D352E;--line2:#2F2822;--line-strong:#574C42;
---acc:#B2503A;--acc-ink:#D9805F;--acc-hover:#C25A41;--acc-on-ink:#A0472F;--acc-soft:#3B241B;--ring:rgba(217,128,95,.42);--acc2:#D9805F;--focus:#D9805F;
+--acc:#B2503A;--acc-ink:#D9805F;--acc-hover:#C25A41;--acc-soft:#3B241B;--ring:rgba(217,128,95,.42);--acc2:#D9805F;--focus:#D9805F;
 --ok:#6FBF85;--ok-soft:#1F2E22;--red:#F0727A;--red-soft:#3A1E21;--chg:#E0B25C;--chg-soft:#33291A;
 --ok-on-ink:#2F7440;--cal-off:#1A1511;
 --ty-reel:#23352A;--ty-reel-ink:#CFE6D3;--ty-collab:#2D4834;--ty-collab-ink:#DDF0E1;--ty-foto:#46271F;--ty-foto-ink:#F5D7CC;--ty-carr:#392C42;--ty-carr-ink:#E6DAEE;--ty-trial:#2E2823;--ty-trial-ink:#E2D9CE;--ty-past:#241E19;--ty-ses:#27323F;--ty-ses-ink:#D2DDEB;
@@ -3016,9 +3016,9 @@ ${TK_FUENTES}
 #mesa .pempty{color:var(--faint);font-size:13px;text-align:center;padding:60px 12px}
 /* avisos */
 #mesa .toasts{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);display:flex;flex-direction:column;gap:6px;align-items:center;z-index:9;pointer-events:none}
-#mesa .toast{pointer-events:none;background:var(--ink);color:var(--on-ink);font-size:13px;line-height:1.35;padding:10px 16px;border-radius:var(--r-md);max-width:90vw;display:flex;gap:14px;align-items:center;box-shadow:var(--shadow-md)}
-#mesa .toast button{pointer-events:auto;border:0;background:none;color:var(--acc-on-ink);font-weight:600;font-size:13px;padding:4px 2px;white-space:nowrap}
-#mesa .toast button:hover{text-decoration:underline;text-underline-offset:3px}
+#mesa .toast{pointer-events:none;background:var(--acc);color:var(--on-acc);font-size:13px;line-height:1.35;padding:10px 16px;border-radius:var(--r-md);max-width:90vw;display:flex;gap:14px;align-items:center;box-shadow:var(--shadow-md)}
+#mesa .toast button{pointer-events:auto;border:0;background:none;color:var(--on-acc);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px;font-weight:600;font-size:13px;padding:4px 2px;white-space:nowrap}
+#mesa .toast button:hover{text-decoration-thickness:2px}#mesa .toast button:focus-visible{outline-color:var(--on-acc)}   /* D-303: the notices in the brand's terracotta, white on --acc 5.12:1 in both themes; its focus white (--focus on --acc, 1.19:1) */
 #mesa .lock{position:absolute;inset:0;z-index:20;background:var(--veil-bg);display:flex;align-items:center;justify-content:center;padding:16px}
 /* vista cliente */
 #mesa.client .lab,#mesa.client .badges,#mesa.client .cnt,#mesa.client .pdate,#mesa.client .pmonth,#mesa.client .ptag2,#mesa.client .cell.past.phidden,#mesa.client .ph>*,#mesa.client .tray{display:none}

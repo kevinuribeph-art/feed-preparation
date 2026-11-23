@@ -21883,6 +21883,40 @@
     } finally { if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes); }
   });
 
+  prueba('AN5', 'Los avisos de abajo en la terracota de la marca (D-303): fondo --acc y texto blanco (5,12:1) en claro y en oscuro; su botón, blanco y subrayado, con el foco blanco; en el iPhone igual, el de error con su triángulo rojo en un disco blanco; el portal, como la «Vista cliente»', async () => {
+    await tablero([pub(1)]);
+    const cs = e => W.getComputedStyle(e);
+    for (const th of ['light', 'dark']) await enTema(th, async () => {
+      M._in.toast('AN5 aviso ' + th, { action: 'Deshacer', onAction() {}, ms: 3000 });
+      const t = await hasta(() => qa('.toast').find(x => x.textContent.includes('AN5 aviso ' + th)), 2000, 'el aviso');
+      const acc = rgbDe(cs(q('#mesa')).getPropertyValue('--acc').trim());
+      igual([rgbDe(cs(t).backgroundColor), rgbDe(cs(t).color)], [acc, [255, 255, 255]], th + ': el aviso no va blanco sobre --acc');
+      ok(contraste(cs(t).color, cs(t).backgroundColor) >= 4.5, th + ': el texto del aviso por debajo de 4,5:1');
+      const b = t.querySelector('button');
+      ok(b && rgbDe(cs(b).color).join() === '255,255,255' && /underline/.test(cs(b).textDecorationLine), th + ': el botón no va blanco y subrayado');
+      igual(rgbDe(deRegla(/\.toast button:focus-visible/, 'outline-color') || 'rgb(1,2,3)'), [255, 255, 255], th + ': el foco del botón no es blanco');
+      t.remove();
+    });
+    await enMovilPagina(async () => {
+      const mv = W.document.getElementById('movil'), csm = e => W.getComputedStyle(e);
+      for (const th of ['light', 'dark']) {
+        if (th === 'dark') W.document.documentElement.dataset.theme = 'dark'; else delete W.document.documentElement.dataset.theme;
+        await espera(200);
+        for (const o of [{ ok: true }, { error: true }]) {
+          M._in.movil.alAviso('AN5 iPhone', { ...o, ms: 3000 }); await espera(120);
+          const t = W.document.querySelector('.toast'), sv = t.querySelector('svg'), acc = rgbDe(csm(mv).getPropertyValue('--acc').trim());
+          igual([rgbDe(csm(t).backgroundColor), rgbDe(csm(t).color)], [acc, [255, 255, 255]], `${th}: el aviso del iPhone no va blanco sobre --acc`);
+          if (o.error) ok(rgbDe(csm(sv).color).join() === '196,43,58' && rgbDe(csm(sv).backgroundColor).join() === '255,255,255', `${th}: el triángulo del error no va rojo en un disco blanco: ${csm(sv).color} ${csm(sv).backgroundColor}`);
+          else igual(rgbDe(csm(sv).color), [255, 255, 255], th + ': el icono del aviso no es blanco');
+        }
+      }
+      delete W.document.documentElement.dataset.theme;
+    });
+    const css = await (await W.fetch('../portal/portal.css?regresion=' + Date.now())).text();
+    ok(/:root\{[^}]*--on-acc:#FFFFFF/i.test(css), 'el portal no tiene --on-acc');
+    ok(/(^|\n)\.toast\{[^}]*background:var\(--acc\);color:var\(--on-acc\)/.test(css), 'el aviso del portal no va blanco sobre --acc');
+  });
+
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;
   $('resumen').textContent = `${T.length} pruebas listas.`;

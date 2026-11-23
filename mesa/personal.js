@@ -242,8 +242,7 @@
       if (!X.esContenido(c.id)) continue;
       for (const r of EN.vivas(c.id)) {
         if (EN.estado(r, hoy) !== 'pasada') continue;
-        const B = D.boards.filter(b => b.client === c.id && mesesDe(b).includes(r.fecha.slice(0, 7))).sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')))[0] || null;
-        items.push({ tipo: 'entrega', r, B, clientes: [c.id], dia: r.fecha, ts: utc(r.fecha), cat: 'pasado' });
+        items.push({ tipo: 'entrega', r, B: null, clientes: [c.id], dia: r.fecha, ts: utc(r.fecha), cat: 'pasado' });   // it opens the client's page, with it open (D-312): no board
       }
     }
     // an agreement to renegotiate (D-288): 14 days before, in «Acuerdos»; its day gone, in «Se ha pasado»; no figure of its own
@@ -436,7 +435,7 @@
   }
   function bloque(f, R, hueco) {
     const m = f.meses[0];
-    return `<div class="pp-bw" data-c="${esc(f.c.id)}"><button type="button" class="pp-blq" data-pp="cliente" data-c="${esc(f.c.id)}"${m.B ? ` data-key="${esc(m.B.key)}"` : ''}><span class="pp-l1"><span class="pp-quien">${avatar(f.c.id)}<span class="pp-cn">${esc(f.c.name)}</span></span>${cuentas(f)}</span>`
+    return `<div class="pp-bw" data-c="${esc(f.c.id)}"><button type="button" class="pp-blq" data-pp="cliente" data-c="${esc(f.c.id)}"${m.B && !f.cont ? ` data-key="${esc(m.B.key)}"` : ''}><span class="pp-l1"><span class="pp-quien">${avatar(f.c.id)}<span class="pp-cn">${esc(f.c.name)}</span></span>${cuentas(f)}</span>`
       + `<span class="pp-l2">${f.meses.map(x => f.cont ? pasoEnt(x) : paso(x.B, x.m, x.paso)).join('')}</span>${tira(f, R)}</button>${cobLinea(f.c.id, f.c.name, hueco)}</div>`;
   }
   // a client's payment that matters most, under its block (D-235): retrasada before pendiente, pendiente before sin emitir;
@@ -719,7 +718,7 @@
   async function abrirCliente(cid, key) {      // a client's block: its board in the month seen (if it has one), else as a tab does
     const X = I();
     if (key) { if (X.S && X.S.key === key) cerrar(); else await abrirTablero(() => M.open(key)); return; }
-    if (X.curClient === cid && X.S) cerrar(); else await abrirTablero(() => M.openClient(cid));
+    if (X.curClient === cid && (X.S || (X.contCli && X.contCli() === cid))) cerrar(); else await abrirTablero(() => M.openClient(cid));   // also its page, of a client of «Solo contenido» (D-312)
   }
 
   // ---------- the iPhone's list of tasks (D-267) ----------

@@ -2716,10 +2716,10 @@ ${TK_FUENTES}
 #mesa .side>.cal{border-radius:0 0 var(--r-lg) var(--r-lg)}
 /* a client of «Solo contenido» (D-290, tablero A): deliveries and sessions · calendar · agreement and payments, each column its own scroll */
 #mesa .cont{flex:1;min-width:0;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr) minmax(280px,340px);gap:12px}
-#mesa .cont>.cont-izq,#mesa .cont>.cont-der{min-width:0;min-height:0;overflow-y:auto;background:var(--panel);border-radius:var(--r-lg);padding:16px 18px;overscroll-behavior:contain}
-#mesa .cont>.cont-side{min-height:0}#mesa .cont>.cont-side>.cal{flex:1 1 0;border-top:0;border-radius:var(--r-lg)}
+#mesa .cont>.cont-izq,#mesa .cont>.cont-der,#mesa .cont>.cont-side>.cont-ses{min-width:0;min-height:0;overflow-y:auto;background:var(--panel);border-radius:var(--r-lg);padding:16px 18px;overscroll-behavior:contain}
+#mesa .cont>.cont-side{min-height:0;display:grid;grid-template-rows:minmax(0,1fr) minmax(0,1fr);gap:12px;background:none}#mesa .cont>.cont-side>.cal{min-height:0;border-top:0;border-radius:var(--r-lg)}   /* the calendar at half height, the sessions under it (D-312) */
 #mesa .cont-espera{margin:0;font-size:13px;color:var(--mute)}
-@media (max-width:980px){#mesa .cont{display:flex;flex-direction:column;overflow-y:auto;gap:12px}#mesa .cont>*{flex:none;overflow:visible}#mesa .cont>.cont-side>.cal{min-height:520px}}
+@media (max-width:980px){#mesa .cont{display:flex;flex-direction:column;overflow-y:auto;gap:12px}#mesa .cont>*{flex:none;overflow:visible}#mesa .cont>.cont-side{display:flex;flex-direction:column}#mesa .cont>.cont-side>*{flex:none;overflow:visible}#mesa .cont>.cont-side>.cal{min-height:420px}}   /* one column: deliveries, calendar, sessions, agreement */
 #mesa .csplit{display:none;flex:none;position:relative;height:11px;cursor:row-resize;touch-action:none;background:var(--panel)}
 #mesa .csplit::before{content:'';position:absolute;left:0;right:0;top:5px;height:1px;background:var(--line);transition:background var(--d1) ease-out}
 #mesa .csplit::after{content:'';position:absolute;left:50%;top:3px;width:36px;height:5px;margin-left:-18px;border-radius:var(--r-pill);background:var(--line-strong);transition:background var(--d1) ease-out,width var(--d1) ease-out,margin var(--d1) ease-out}
@@ -3160,16 +3160,16 @@ ${TK_FUENTES}
     root.classList.toggle('picking', !!sel);
     setBusy('sel', sel && M.files[sel] ? `Pulsa una casilla para colocar «${M.files[sel].name}» · Esc cancela` : null);
     if (!c) { bar.innerHTML = ''; return; }
-    const cont = esContenido(c.id);   // D-290: the months alone, as chips without posts to count
+    // a client of «Solo contenido» has one page, without months (D-312, replaces D-290's chips): «Web del cliente» and «Vista
+    // cliente» alone; its old boards stay kept, unseen
+    if (esContenido(c.id)) { bar.innerHTML = `<div class="spacer"></div>${M.web && M.web.barra ? M.web.barra() : ''}<label class="sw"><input type="checkbox" class="clientToggle"${root.classList.contains('client') ? ' checked' : ''}> Vista cliente</label>`; return; }
     const months = MB.map(b => {
-      if (cont) return `<button class="mchip${S && b.key === S.key ? ' on' : ''}" data-act="month" data-key="${esc(b.key)}">${esc(rangeLabel(b.month, b.span, true, b.cycleDay))}</button>`;
       const live = S && b.key === S.key ? counts() : null;
       const f = live ? live.filled : b.filled, n = live ? live.n : b.n;
       const tt = `${f} de ${n} con foto`;   // the chip says what «8/11 con foto» said (D-157); not in «Vista cliente», like its number
       return `<button class="mchip${S && b.key === S.key ? ' on' : ''}" data-act="month" data-key="${esc(b.key)}" data-tt="${tt}"${root.classList.contains('client') ? '' : ` title="${tt}"`}>${esc(rangeLabel(b.month, b.span, true, b.cycleDay))}<i>${f}/${n}</i></button>`;
     }).join('');
     let stats = '';
-    if (S && cont) { bar.innerHTML = `<div class="mgrp"><div class="months">${months}</div></div><div class="spacer"></div>${M.web && M.web.barra ? M.web.barra() : ''}<label class="sw"><input type="checkbox" class="clientToggle"${root.classList.contains('client') ? ' checked' : ''}> Vista cliente</label>`; return; }   // «Web del cliente» and «Vista cliente» since lot D (D-297)
     if (S) {
       const k = counts();
       const pl = (n, a, b) => n === 1 ? a : b;
@@ -3191,17 +3191,17 @@ ${TK_FUENTES}
   function renderMain() {
     const main = root.querySelector('.main');
     const cn = (CL.find(x => x.id === curClient) || {}).name || '';
-    const cont = !!(S && esContenido(S.client));   // a client of «Solo contenido» (D-290): no feed nor tray
-    const mode = S ? (cont ? 'cont:' : 'board:') + S.key : CL.length ? 'empty-client:' + curClient + ':' + cn : 'no-clients';
+    const cc = contCli(), cont = !!cc;   // a client of «Solo contenido» (D-290): no feed nor tray; one page, without months (D-312)
+    const mode = cc ? 'cont:' + cc : S ? 'board:' + S.key : CL.length ? 'empty-client:' + curClient + ':' + cn : 'no-clients';
     if (mode !== mainMode) {
       { const t = main.querySelector('.tray'); if (t) trayDonde(t); }   // the place of the folder it showed (D-092)
-      if (mainMode && mainMode.startsWith('cont:') && M.entregasUI && M.entregasUI.salir) { try { M.entregasUI.salir(); } catch (e) { /* */ } }   // a «Solo contenido» board left (D-290)
+      if (mainMode && mainMode.startsWith('cont:') && M.entregasUI && M.entregasUI.salir) { try { M.entregasUI.salir(); } catch (e) { /* */ } }   // a «Solo contenido» page left (D-290)
       mainMode = mode;
       if (M._ro) { M._ro.disconnect(); M._ro = null; }
-      if (!S) root.classList.remove('client');
+      if (!S && !cc) root.classList.remove('client');
       root.classList.toggle('cont-on', cont);
-      if (cont) {                                   // three columns: deliveries and sessions · calendar · agreement and payments (D-290, tablero A); its vista cliente since lot D (D-297)
-        main.innerHTML = '<div class="cont"><section class="cont-izq" aria-label="Entregas y sesiones"></section><div class="side cont-side"><section class="cal" aria-label="Calendario" hidden></section></div><section class="cont-der" aria-label="Acuerdo y pagos"></section></div>';
+      if (cont) {                                   // three columns: deliveries · calendar at half height and the sessions under it · agreement and payments (D-312, opción 2); its vista cliente, the list and «Tus pagos» (D-297)
+        main.innerHTML = '<div class="cont"><section class="cont-izq" aria-label="Entregas"></section><div class="side cont-side"><section class="cal" aria-label="Calendario" hidden></section><section class="cont-ses" aria-label="Sesiones"></section></div><section class="cont-der" aria-label="Acuerdo y pagos"></section></div>';
       } else if (S) {
         main.innerHTML = '<section class="feed"><div class="grid" tabindex="' + (root.classList.contains('client') ? -1 : 0) + '" role="group" aria-label="Feed del mes" aria-keyshortcuts="Shift+F10"></div></section><section class="hv" aria-label="Historias" hidden></section>'
           + `<div class="side" style="${colVars()}"><aside class="tray${trayPlegada() ? ' fold' : ''}"><div class="trayhead"><button type="button" class="tfold" data-act="tfold"${sinCal() ? ' hidden' : ''} aria-expanded="${!trayPlegada()}" title="${trayPlegada() ? 'Abrir la bandeja' : 'Plegar la bandeja'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button><b title="Doble clic: la bandeja y el calendario, mitad y mitad">Bandeja</b>`
@@ -3213,7 +3213,7 @@ ${TK_FUENTES}
         { const t = main.querySelector('.tray'); t.addEventListener('scroll', dondeAlDeslizar, { passive: true }); t.querySelector('.tbody').addEventListener('scroll', dondeAlDeslizar, { passive: true }); }
       } else if (CL.length) {
         const c = CL.find(x => x.id === curClient);
-        main.innerHTML = `<div class="empty"><div class="ecard">${IC.grid}<h3>${esc(c ? c.name : 'Elige un cliente')}${c ? ': aún no hay ningún mes en la mesa' : ''}</h3>${c && esContenido(c.id) ? 'Los meses de este cliente los crea Claude, sin publicaciones: sus entregas y sesiones van en su tablero. Pídeselo en el chat:' : c && c.notion === false ? 'Los meses de este cliente los crea Claude con lo que le digas: nombre, tipo, fecha y hora de cada publicación. Pídeselo en el chat:' : 'Los meses se cargan desde Notion, con las publicaciones del calendario ya creado. Pídeselo a Claude en el chat:'}<br><span class="say">«Carga ${esc(nextMonthName(c && c.cycleDay))} de ${esc(c ? c.name : 'este cliente')} en la mesa»</span></div></div>`;
+        main.innerHTML = `<div class="empty"><div class="ecard">${IC.grid}<h3>${esc(c ? c.name : 'Elige un cliente')}${c ? ': aún no hay ningún mes en la mesa' : ''}</h3>${c && c.notion === false ? 'Los meses de este cliente los crea Claude con lo que le digas: nombre, tipo, fecha y hora de cada publicación. Pídeselo en el chat:' : 'Los meses se cargan desde Notion, con las publicaciones del calendario ya creado. Pídeselo a Claude en el chat:'}<br><span class="say">«Carga ${esc(nextMonthName(c && c.cycleDay))} de ${esc(c ? c.name : 'este cliente')} en la mesa»</span></div></div>`;
       } else {
         main.innerHTML = `<div class="empty"><div class="ecard">${IC.grid}<h3>Crea tu primer cliente</h3>Cada cliente tiene su pestaña, con sus meses.<br><br><button class="btn" data-act="newclient">+ Nuevo cliente</button></div></div>`;
       }
@@ -4706,7 +4706,7 @@ ${TK_FUENTES}
   // «Nuevo cliente» (D-289, variant B): first the kind of work in three cards, then the least it needs; the rest, in «Editar
   // cliente». «Mensual» and «Esporádico» speak of the work, not of the payment. No help text nor «Cancelar» (D-156, D-155: the ×,
   // Esc or a click outside close it); a double click on «Inicio de ciclo» puts back day 1 (D-159)
-  const NC_TIPOS = [['redes', 'Gestión de redes', 'Cada mes: su feed, sus historias y su calendario en Zernio.'], ['contenido', 'Solo contenido', 'Cada mes: sesiones y entregas, sin feed.'], ['esporadico', 'Esporádico', 'Una sesión suelta; se cobra por sesión.']];
+  const NC_TIPOS = [['redes', 'Gestión de redes', 'Cada mes: su feed, sus historias y su calendario en Zernio.'], ['contenido', 'Solo contenido', 'Sesiones y entregas en una sola página, sin feed ni meses.'], ['esporadico', 'Esporádico', 'Una sesión suelta; se cobra por sesión.']];
   let ncTipo = 'redes';
   function dlgNewClient(tipo) {
     if (tipo && NC_TIPOS.some(t => t[0] === tipo)) ncTipo = tipo;
@@ -4734,7 +4734,8 @@ ${TK_FUENTES}
   async function dlgEditClient(cid, tab) {
     cid = cid || curClient;
     const c = CL.find(x => x.id === cid); if (!c) return;
-    const nm = cid === curClient ? MB.length : ((await idbAll('boards').catch(() => [])) || []).filter(b => b.client === cid).length;
+    // a client of «Solo contenido» (D-312): only an old board with posts or photos keeps it; the empty ones go with it, asked
+    const cont = esContenido(cid), nm = cont ? ((await idbAll('boards').catch(() => [])) || []).filter(b => b.client === cid && tableroLleno(b)).length : cid === curClient ? MB.length : ((await idbAll('boards').catch(() => [])) || []).filter(b => b.client === cid).length;
     await cobLeer(); const nf = cobVivos(cid).length;
     edCid = cid;
     const U = M.cobrosUI && M.cobrosUI.pane ? M.cobrosUI : null, co = U && tab === 'cobros';
@@ -4748,7 +4749,7 @@ ${TK_FUENTES}
       <label>Foto de perfil</label><div class="avrow">${avatarHTML(c, 'avprev')}<button type="button" class="btn2" data-act="avpick">Elegir foto…</button><button type="button" class="lnk" data-act="avdel"${c.foto ? '' : ' hidden'}>Quitar</button><input type="file" class="avin" accept="image/jpeg,image/png,image/webp" hidden></div>
       <div class="ecnot" title="Apagada, la Mesa no compara con Notion ni invita a subir."><b>Usa Notion</b><label class="sw"><span class="ecnot-e" aria-hidden="true"><span class="ecnot-si">Conectado</span><span class="ecnot-no">Desconectado</span></span><input type="checkbox" name="notion" role="switch" aria-label="Usa Notion"${c.notion === false ? '' : ' checked'}></label></div>
       <p class="ferr" hidden></p>
-      <div class="row">${nm ? `<span class="left muted">Tiene ${nm} mes${nm === 1 ? '' : 'es'} guardado${nm === 1 ? '' : 's'}: no se puede eliminar.</span>` : nf ? `<span class="left muted">Tiene ${nf} factura${nf === 1 ? '' : 's'}: no se puede eliminar.</span>` : '<button type="button" class="btn2 danger left" data-act="delclient">Eliminar cliente</button>'}<button type="submit" class="btn">Guardar</button></div></form>${U ? `<div class="co-pane" id="ecp-cobros" role="tabpanel" aria-labelledby="ect-cobros" data-co-cli="${esc(cid)}"${co ? '' : ' hidden'}>${U.pane(cid)}</div>` : ''}`);
+      <div class="row">${nm && cont ? `<span class="left muted">${nm === 1 ? 'Un tablero viejo suyo lleva' : `${nm} tableros viejos suyos llevan`} publicaciones o fotos: no se puede eliminar.</span>` : nm ? `<span class="left muted">Tiene ${nm} mes${nm === 1 ? '' : 'es'} guardado${nm === 1 ? '' : 's'}: no se puede eliminar.</span>` : nf ? `<span class="left muted">Tiene ${nf} factura${nf === 1 ? '' : 's'}: no se puede eliminar.</span>` : '<button type="button" class="btn2 danger left" data-act="delclient">Eliminar cliente</button>'}<button type="submit" class="btn">Guardar</button></div></form>${U ? `<div class="co-pane" id="ecp-cobros" role="tabpanel" aria-labelledby="ect-cobros" data-co-cli="${esc(cid)}"${co ? '' : ' hidden'}>${U.pane(cid)}</div>` : ''}`);
     const card = root.querySelector('.detail .card.dlg'); if (U && card) card.classList.add('ec2');
     if (co) { const t = root.querySelector('#ect-cobros'); if (t) t.focus(); }
     if (U && U.abierto) U.abierto(cid);
@@ -5118,6 +5119,7 @@ ${TK_FUENTES}
       clearOver();
       if (hasFiles(e)) {
         e.preventDefault(); drag = null;
+        if (contCli()) { if (!e.target.closest('.pp-card')) toast('Este cliente no tiene bandeja: sus fotos van en el enlace de cada entrega.'); return; }   // its page (D-312): no tray; a session's sheet takes its own
         if (!S) { toast('Abre un mes antes de añadir fotos.'); return; }
         if (root.classList.contains('client')) { toast('En «Vista cliente» no se añaden fotos: quítala para trabajar.'); return; }   // only looks (D-095)
         if (esContenido(S.client) && !e.target.closest('.pp-card')) { toast('Este cliente no tiene bandeja: sus fotos van en el enlace de cada entrega.'); return; }   // no tray without a feed (D-290); a session's sheet takes its own
@@ -5471,12 +5473,16 @@ ${TK_FUENTES}
     else if (act === 'delclient') {
       if (a.dataset.confirm !== '1') {   // its tray goes with it (D-072): the button says how much
         a.dataset.confirm = '1'; a.textContent = 'Confirmar: eliminar';
-        const r = await resumenBandeja(edCid || curClient);
-        if (r.fotos && a.isConnected) a.textContent = `Confirmar: eliminar y borrar ${nOf(r.fotos, 'foto', 'fotos')} de su bandeja${r.carpetas ? ` y ${nOf(r.carpetas, 'carpeta', 'carpetas')}` : ''} (${pesoTxt(r.bytes)})`;
+        const cid0 = edCid || curClient, r = await resumenBandeja(cid0);
+        // a client of «Solo contenido» with its old boards, empty (D-312): the button says they go with it; with posts or photos,
+        // the confirmation says why it can't be deleted
+        const vj = esContenido(cid0) ? ((await idbAll('boards')) || []).filter(b => b.client === cid0 && !tableroLleno(b)) : [];
+        const partes = [r.fotos ? `${nOf(r.fotos, 'foto', 'fotos')} de su bandeja${r.carpetas ? ` y ${nOf(r.carpetas, 'carpeta', 'carpetas')}` : ''} (${pesoTxt(r.bytes)})` : '', vj.length ? (vj.length === 1 ? 'su tablero viejo, vacío' : `sus ${vj.length} tableros viejos, vacíos`) : ''].filter(Boolean);
+        if (a.isConnected) { a.dataset.viejos = vj.length ? '1' : ''; if (partes.length) a.textContent = `Confirmar: eliminar y borrar ${partes.join(' y ')}`; }
         return;
       }
       const cid = edCid || curClient, c = CL.find(x => x.id === cid);
-      const r = await M.removeClient(cid);
+      const r = await M.removeClient(cid, { tableros: a.dataset.viejos === '1' });
       closeDetail();
       if (r === true) toast(`Cliente «${c ? c.name : ''}» eliminado.`); else toast(String(r));
       if (M.personal && M.personal.abierta && M.personal.abierta()) M.personal.render();   // removed from the page (D-233)
@@ -5487,7 +5493,7 @@ ${TK_FUENTES}
   M.clients = async () => {
     await loadClients();
     const boards = (await idbAll('boards')) || [];
-    return CL.map(c => ({ ...c, servicio: servicioDe(c), months: boards.filter(b => b.client === c.id).map(b => b.month).sort() }));   // servicio: 'redes' unless it's only content (D-289)
+    return CL.map(c => ({ ...c, servicio: servicioDe(c), months: servicioDe(c) === 'contenido' ? [] : boards.filter(b => b.client === c.id).map(b => b.month).sort() }));   // servicio: 'redes' unless it's only content (D-289), which has no months (D-312: its old boards stay kept, unseen)
   };
   // ---------- locations: Claude's API (D-124) ----------
   // cargar(clientId, [{nombre, locationId}]) makes the client's list exactly that one (it's closed: it isn't edited in the
@@ -6221,7 +6227,9 @@ ${TK_FUENTES}
   const CAMPOS_CLI = [['servicio', 'servicioAt'], ['entregasDia', 'entregasDiaAt'], ['metricas', 'metricasAt']];
   const servicioDe = c => c && c.servicio === 'contenido' ? 'contenido' : 'redes';
   const esContenido = cid => servicioDe(CL.find(c => c.id === (cid === undefined ? curClient : cid))) === 'contenido';
-  const urlHttps = (u, max) => { if (typeof u !== 'string' || !u || u.length > max || /\s/.test(u)) return false; try { const x = new URL(u); return x.protocol === 'https:' && !!x.hostname; } catch (e) { return false; } };
+  // the client whose page is open (D-312): a client of «Solo contenido» has no months, its tab opens one page with no board
+  const contCli = () => !S && curClient != null && esContenido(curClient) ? curClient : null;
+  const urlHttps =(u, max) => { if (typeof u !== 'string' || !u || u.length > max || /\s/.test(u)) return false; try { const x = new URL(u); return x.protocol === 'https:' && !!x.hostname; } catch (e) { return false; } };
   const metricasOk = u => urlHttps(u, 500);
   // 'entregas', one record per delivery of a «Solo contenido» client: {id, cliente, fecha (its deadline, AAAA-MM-DD), que (what),
   // cuanto (how much, free text: it changes every month), enlace (an https link: Drive, WeTransfer…; never a path of this
@@ -6270,7 +6278,30 @@ ${TK_FUENTES}
     let m = d0.slice(0, 7); for (let i = 0; i < 3; i++, m = addMonths(m, 1)) { const f = `${m}-${String(dia).padStart(2, '0')}`; if (f >= d0) return f; }
     return d0;
   }
-  const entId = () => 'en-' + (crypto.randomUUID ? crypto.randomUUID().slice(0, 13) : Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
+  // the client's page (D-312): its deliveries not delivered, by their deadline (one gone past, red), and apart the delivered
+  // ones, all its history, from the newest, by the month of their deadline. The same lists for the Mac, its vista cliente and
+  // the iPhone (the portal has its own copy, as the client's web)
+  function entListas(cli) {
+    const l = entVivas(cli), pend = l.filter(r => !r.entregada);
+    const hechas = l.filter(r => r.entregada).sort((a, b) => b.fecha.localeCompare(a.fecha) || String(b.entregada).localeCompare(String(a.entregada)) || String(a.id).localeCompare(String(b.id)));
+    const grupos = [];
+    for (const r of hechas) { const m = r.fecha.slice(0, 7), g = grupos[grupos.length - 1]; if (g && g.m === m) g.l.push(r); else grupos.push({ m, l: [r] }); }
+    return { pendientes: pend, entregadas: grupos, nPend: pend.length, nHechas: hechas.length };
+  }
+  // a WeTransfer link expires (D-312): «caduca» beside its delivery, never blocking, only for Kevin (never in the vista cliente
+  // nor the portal). The rule is its address, we.tl or wetransfer.com: by it the free one isn't told from the paid one
+  const entCaduca = u => { try { const x = new URL(String(u || '')); return x.protocol === 'https:' && /(^|\.)(we\.tl|wetransfer\.com)$/i.test(x.hostname); } catch (e) { return false; } };
+  // a client's sessions (D-312), also those it shares with others: the next ones (today's and one still going on too) by their
+  // day and time, and apart those gone past, from the newest. visibles: only those with the eye open, as the client sees them (D-297)
+  function sesListas(l, cli, h, o = {}) {
+    const fin = t => t.fin && /^\d{4}-\d{2}-\d{2}$/.test(t.fin.fecha || '') && t.fin.fecha > t.fecha ? t.fin.fecha : t.fecha;
+    const k = t => t.fecha + (/^\d\d:\d\d$/.test(t.hora || '') ? t.hora : '');
+    const mias = (l || []).filter(t => t && t.tipo === 'sesion' && t.id && /^\d{4}-\d{2}-\d{2}$/.test(t.fecha || '') && (Array.isArray(t.clientes) ? t.clientes : t.cliente ? [t.cliente] : []).includes(cli)
+      && !(o.visibles && t.sesion && t.sesion.visible === false));
+    return { proximas: mias.filter(t => fin(t) >= h).sort((a, b) => k(a).localeCompare(k(b)) || String(a.id).localeCompare(String(b.id))),
+      pasadas: mias.filter(t => fin(t) < h).sort((a, b) => k(b).localeCompare(k(a)) || String(a.id).localeCompare(String(b.id))) };
+  }
+  const entId = () => 'en-' +(crypto.randomUUID ? crypto.randomUUID().slice(0, 13) : Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
   // written over the record as it is now (a change from another tab while this one was being edited stays), one at a time
   async function entPoner(id, fn) {
     if (locked) throw new Error('la mesa está abierta en otra pestaña: pulsa «Usar aquí»');
@@ -6540,6 +6571,9 @@ ${TK_FUENTES}
     if (!c) return 'no existe';
     if (gone && String(gone).startsWith('perfil-')) { try { await idbDel('files', gone); } catch (e) { /* */ } soltarArchivo(gone); }   // its URL too (D-071)
     await loadClients(); render();
+    // its service changed (only with this API, D-312) while it is open: its page or its boards at once, never a board of a
+    // client of «Solo contenido» left open
+    if (patch.servicio !== undefined && !MOVIL && curClient === id && (S ? esContenido(S.client) : !esContenido(id))) await M.openClient(id);
     return c;
   };
   // A client's kit files (D-104, replaces that part of D-071): its logos (kit-<id>-logo-…, also those taken out of its list)
@@ -6557,10 +6591,19 @@ ${TK_FUENTES}
     if (va.length) { await borrarBlobs('files', va); va.forEach(soltarArchivo); }   // never one that hasn't arrived (D-256)
     return va.length;
   }
-  M.removeClient = async id => {
+  // o.tableros (D-312): a client of «Solo contenido» keeps its old boards unseen; asked, they go with it, never one with posts or
+  // photos (that one says so and nothing is deleted)
+  const tableroLleno = b => !!((b.slots || []).length || hsDe(b).length || (b.past || []).length || refsTodo(b).size || (Array.isArray(b.tray) && b.tray.length));
+  M.removeClient =async (id, o = {}) => {
     const boards = (await idbAll('boards')) || [];
-    const n = boards.filter(b => b.client === id).length;
-    if (n) return `No se puede eliminar: tiene ${n} mes(es) guardados.`;
+    const viejos = boards.filter(b => b.client === id), n = viejos.length;
+    await loadClients();
+    if (n && !esContenido(id)) return `No se puede eliminar: tiene ${n} mes(es) guardados.`;
+    if (n) {
+      const llenos = viejos.filter(tableroLleno).length;
+      if (llenos) return `No se puede eliminar: ${llenos === n ? (n === 1 ? 'su tablero viejo lleva' : 'sus tableros viejos llevan') : `${llenos} de sus ${n} tableros viejos llevan`} publicaciones o fotos.`;
+      if (!o.tableros) return `No se puede eliminar sin borrar con él ${n === 1 ? 'su tablero viejo' : `sus ${n} tableros viejos`}, sin publicaciones ni fotos: pásalo con {tableros: true}.`;
+    }
     await cobLeer(true); if (cobMal) return 'No se puede eliminar: no se pudieron leer sus facturas.';
     if (acuMal) return 'No se puede eliminar: no se pudieron leer sus acuerdos.';   // a client made again with its id would take them (revisión del lote B)
     const nf = cobVivos(id).length;
@@ -6570,6 +6613,7 @@ ${TK_FUENTES}
     if (ne) return `No se puede eliminar: tiene ${ne} entrega${ne === 1 ? '' : 's'}.`;   // as its invoices (D-290)
     if (subida && subida.client === id) return 'Espera a que termine la subida de la carpeta.';
     const c0 = await idbGet('clients', id), tr = await idbGet('bandejas', id);
+    for (const b of viejos) { const r = await M.purge(b.key); if (!/^borrada /.test(String(r))) return 'No se puede eliminar: no se pudo borrar su tablero viejo ' + b.key + '.'; }   // its old boards, empty (D-312)
     try { await acuBorrarCliente(id); } catch (e) { return 'No se puede eliminar: no se pudieron borrar sus acuerdos.'; }   // its agreements (D-305), or nothing: another client with its id would take them
     await idbDel('clients', id);
     try { await mesBorrarCliente(id); } catch (e) { /* */ }   // its months' why and summary (D-238)
@@ -6592,7 +6636,7 @@ ${TK_FUENTES}
     await loadClients();
     if (!CL.find(c => c.id === id)) return 'no existe';
     if (uploadsBusy() || importing) return 'ocupada: espera a que termine la subida o la importación';
-    const all = (await idbAll('boards')) || [];
+    const all = esContenido(id) ? [] : (await idbAll('boards')) || [];   // a client of «Solo contenido»: its page, never a board (D-312)
     const mine = all.filter(b => b.client === id).sort((a, b) => String(b.month).localeCompare(String(a.month)));
     let lastBy = {}; try { lastBy = JSON.parse(lsGet('mesa-lastByClient') || '{}'); } catch (e) { /* */ }
     const hoy = madParts(ahora()).day, conHoy = mine.filter(b => b.month && monthsOf(b.month, b.span).some(m => cycleStart(m, b.cycleDay) <= hoy && hoy <= cycleEnd(m, b.cycleDay)));
@@ -6667,6 +6711,8 @@ ${TK_FUENTES}
       cl0 = await M.addClient({ id: client, name, handle: cfg.handle || '' });
       client = cl0.id;                                    // an existing client with that name keeps its id
     }
+    // a client of «Solo contenido» has no months (D-312): nothing is made nor opened, and it says so without an error
+    if (servicioDe(cl0) === 'contenido') return { version: M.version, client: cl0.id, servicio: 'contenido', sinMeses: true, board: null };
     // cycle day: cfg's; else the saved board's own (a board keeps its cycles); else the client's; else 1 (calendar month)
     const hasCd = cfg.cycleDay != null && cfg.cycleDay !== '';
     if (!month) {
@@ -6819,6 +6865,8 @@ ${TK_FUENTES}
     if (!b) return 'no existe';
     const km = String(b.key || key).match(/^(.+)-(\d{4}-\d{2})$/);
     const client = b.client || (km ? km[1] : key), month = b.month || (km ? km[2] : null);
+    await loadClients();
+    if (esContenido(client)) return MIRA ? { error: 'sin meses', sinMeses: true, client } : M.openClient(client);   // an old board of a client of «Solo contenido»: its page (D-312)
     const t = String(b.title || '');
     return M.init({ key, client, month, months: b.span || 1, cycleDay: cdOf(b.cycleDay), reopen: true, clientName: t.includes(' · ') ? t.split(' · ')[0].trim() : null, handle: b.handle || '', slots: (b.slots || []).map(({ id, name, type, date, notionName, notionDate, notionType }) => ({ id, name: notionName ?? name, type: notionType ?? type, date: notionDate ?? date })), past: b.past || [], ...(MIRA ? { mirar: true } : {}) });
   };
@@ -6889,10 +6937,29 @@ ${TK_FUENTES}
   const enFila = f => { const p = colaMovil.then(() => f()); colaMovil = p.catch(() => null); return p; };
   async function mirarMovil(key) {
     if (!MOVIL) return { error: 'solo en el móvil' };
+    { await loadClients(); const km = String(key || '').match(/^(.+)-\d{4}-\d{2}$/); if (km && CL.some(c => c.id === km[1]) && esContenido(km[1])) return { error: 'sin meses', sinMeses: true, client: km[1] }; }   // also an old board already gone (D-312)
     const r = await M.open(key, { mirar: true });
+    if (r && r.sinMeses) return { error: r.error, sinMeses: true, client: r.client };   // an old board of a client of «Solo contenido»: the phone goes to its page (D-312)
     if (typeof r === 'string' || (r && r.error)) { if (S && S.key === key) { S = null; PB = null; } return { error: typeof r === 'string' ? r : r.error }; }   // gone: nothing of it stays in memory to be written
     return vistaMovil();
   }
+  // the page of a client of «Solo contenido» on the phone (D-312), only to look: its line, its deliveries not delivered and
+  // the delivered ones by month, its sessions next and gone past; the same lists as the Mac's (entListas, sesListas)
+  async function clienteMovil(cli) {
+    await loadClients();
+    const c = CL.find(x => x.id === cli); if (!c) return { error: 'no existe' };
+    if (!esContenido(cli)) return { error: 'no es de solo contenido' };
+    await entLeer(); if (entMal) return { error: 'no se pudieron leer sus entregas' };
+    try { await cobLeer(); } catch (e) { /* its line, without the agreement */ }
+    const h = madParts(ahora()).day, L = entListas(cli), q = cuotaDe(c, h.slice(0, 7));
+    const ent = r => ({ id: r.id, fecha: r.fecha, mes: r.fecha.slice(0, 7), que: r.que, cuanto: r.cuanto, enlace: r.enlace, entregada: r.entregada || '', estado: entEstado(r, h) });
+    const tareas = await idbAll('tareas'), S2 = sesListas(tareas, cli, h);
+    const ses = t => { const k = (t.sesion && t.sesion.clase) || ''; return { id: t.id, nombre: String(t.txt || (k === 'reunion' ? 'Reunión' : 'Sesión')), fecha: t.fecha, hora: /^\d\d:\d\d$/.test(t.hora || '') ? t.hora : '', reunion: k === 'reunion', tipo: SES_CLASE[k] || 'Sesión' }; };
+    return { client: cli, nombre: c.name, hoy: h, linea: ['Solo contenido', q && q.importe != null ? `${cobEur(q.importe)} ${PAGO_TXT[q.pago || 'mensual'] || ''}`.trim() : ''].filter(Boolean).join(' · '),
+      pendientes: L.pendientes.map(ent), entregadas: L.entregadas.map(g => ({ m: g.m, l: g.l.map(ent) })), sesiones: { proximas: S2.proximas.map(ses), pasadas: S2.pasadas.map(ses) } };
+  }
+  const SES_CLASE = { foto: 'Foto', video: 'Vídeo', fotovideo: 'Foto y vídeo', libre: 'Libre', reunion: 'Reunión' };   // as sesiones.js names them
+  const PAGO_TXT = { mensual: 'al mes', trimestral: 'cada 3 meses', semestral: 'cada 6 meses', anual: 'al año', unico: 'en un solo pago' };
   async function releerMovil() {   // after what came down (lot 2): every cache this page read, then the board on view again
     await loadClients();
     try { await cobLeer(true); } catch (e) { /* the invoices say it in Hoy */ }
@@ -7087,7 +7154,7 @@ ${TK_FUENTES}
     return { modo: NUBE.activa ? NUBE.modo || 'local' : 'sin_nube' };
   }
   const turnoMovil = v => { if (v && (movilParada || !MOVIL)) return false; movilTurno = !!v; if (MOVIL) locked = !v; return movilTurno; };   // the cloud's glue (lot 2): it holds the Mesa, or not
-  const MOVIL_IN = { activo: MOVIL, alAviso: null, alVersion: null, mirar: k => enFila(() => mirarMovil(k)), vista: vistaMovil, releer: () => (MOVIL ? enFila(releerMovil) : Promise.resolve({ error: 'solo en el móvil' })),
+  const MOVIL_IN = { activo: MOVIL, alAviso: null, alVersion: null, mirar: k => enFila(() => mirarMovil(k)), vista: vistaMovil, cliente: cli => enFila(() => clienteMovil(cli)), releer: () => (MOVIL ? enFila(releerMovil) : Promise.resolve({ error: 'solo en el móvil' })),
     valor: op => (MOVIL ? enFila(() => valorAsync(op)) : Promise.resolve({ error: 'solo en el móvil' })), operar: op => enFila(() => operarMovil(op)), aplicar: op => enFila(() => aplicarMovil(op)), estadosPosibles: estadosMovil, dias: diasMovil, turno: turnoMovil, tokens: tokensMovil, TOKENS: { claro: TK_CLARO, oscuro: TK_OSCURO, fuentes: TK_FUENTES },
     get conTurno() { return movilTurno; }, abrir: abrirMovil, esperar: () => colaMovil, reclamar: () => claim(), alPestana: null };
   // on the iPhone (D-267) the desk never opens: only a board to look at (M.open(key, {mirar: true}), lot 1), through the phone's core
@@ -7216,7 +7283,7 @@ ${TK_FUENTES}
   M.startZernio = (items, conc = M.cfg.uploadConc) => startJobs('zernio', items, conc);
   function startJobs(dn, items, conc) {
     if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; pulsa «Usar aquí» o vuelve a abrirla' };
-    if (S && esContenido(S.client)) return {};   // a client of «Solo contenido» has no feed (D-289): nothing starts, as with no items
+    if ((S && esContenido(S.client)) || contCli()) return {};   // a client of «Solo contenido» has no feed (D-289): nothing starts, as with no items; also its page (D-312)
     revAuto(dn === 'zernio' ? 'programa' : 'sube', items);
     const D = DEST[dn], U = D.store(), B = S;
     const jobs = []; let soloCopiaN = 0;
@@ -8409,7 +8476,7 @@ ${TK_FUENTES}
     prevLock: S.prevUnlocked ? 'desbloqueado' : prevOnce ? 'solo esta vez' : 'bloqueado',
     prevHidden: (S.prev || []).filter(p => p.hidden).length, prevEdited: (S.prev || []).filter(p => p.own).length,
     linked: S.slots.filter(s => sharedWith(s).length).length
-  }) : { version: M.version, client: curClient, board: null, locked };
+  }) : { version: M.version, client: curClient, board: null, locked, ...(contCli() ? { servicio: 'contenido', sinMeses: true } : {}) };   // its page without months (D-312)
   M.board = () => S && JSON.parse(JSON.stringify(S));
   M.purge = async key => {
     try { const pend = pendienteLS(); if (pend && pend.key === key) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }
@@ -8841,7 +8908,8 @@ ${TK_FUENTES}
       acuerdo: acuerdoDe, tramo: acuTramo, libre: acuLibre, falta: acuFalta, importeDe: acuImporte, resumen: acuResumen, titulo: acuTitulo, rango: acuRango, mal: () => cobMal || acuMal, acuGuardar, acuerdos: acuerdosDe, delMes: (cli, m) => acuDelMes(acuerdosDe(cli), m), resumenA: acuResumenA, tituloA: acuTituloA, completo: acuCompleto, acuLeer, acuNuevo, acuBorrar, acuDevolver, acuCambiar, idLegado: acuIdLegado, paquetes: () => paqVivos(), paqGet: id => PAQ && PAQ.get(id), paqNuevo, paqCambiar, paqBorrar, paqDevolver, paqIncluye, acuLimpio, PAGOS: ACU_PAGOS, paso: acuPaso, fin: acuFin, finCiclo: acuFinCiclo, mesCorto: acuMes, hasta: cobHasta, cubre: cobCubre },
     // a «Solo contenido» client (D-289) and its deliveries (D-290): for entregas.js, personal.js, calendario.js and movil.js
     servicio: servicioDe, esContenido, metricasOk, diaSel, acuRecValido, paqRecValido,
-    ent: { leer: entLeer, esperar: () => entPend, listo: () => !!ENT, vivas: entVivas, get: id => ENT && ENT.get(id), estado: entEstado, propuesta: entPropuesta, nueva: entNueva, cambiar: entCambiar, borrar: entBorrar, devolver: entDevolver, avisar: entAvisar, url: entUrl },
+    contCli, sesListas,   // its page without months (D-312)
+    ent: { leer: entLeer, esperar: () => entPend, listo: () => !!ENT, vivas: entVivas, get: id => ENT && ENT.get(id), estado: entEstado, propuesta: entPropuesta, nueva: entNueva, cambiar: entCambiar, borrar: entBorrar, devolver: entDevolver, avisar: entAvisar, url: entUrl, listas: entListas, caduca: entCaduca },
     get S() { return S; }, get CL() { return CL; }, get curClient() { return curClient; }, get locked() { return locked; },
     root: () => root, colPliegue, trayFold, shellReady, slot, changed, save, flushNow, render, renderFeed, renderBar, renderTray, refreshDetail, openDetail, closeDetail,
     get trayCarpeta() { return trayCarpeta; }, trayAbrir, pestNueva, pestIr, pestCerrar, pestLista, pestOrdenar, pestArrastrar, pestVisible, dondeGuardar, dondeVolver, trayLote, traySoltar, trayElegir, trayMover, trayCopiar, trayPegar, trayPuedePegar, trayPegaAlgo, get trayFoco() { return trayFoco; }, get trayClip() { return trayClip; }, rutaCarpeta, carpetasDeVista, cuentaCarpeta, minisPerezosas, MINIS_DE_UNA, ICON_CARPETA,

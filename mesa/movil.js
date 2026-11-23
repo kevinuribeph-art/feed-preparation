@@ -911,7 +911,7 @@
   const vacio = (t, s) => `<div class="vacio"><b>${esc(t)}</b>${s ? esc(s) : ''}</div>`;
   const mal = (t, a) => `<div class="mal" role="alert">${ic('alerta')}<span>${esc(t)}</span><button type="button" data-a="${a || 'reintentar'}">Reintentar</button></div>`;
 
-  // ---------- la navegación: #hoy, #clientes, #tareas, #mes/<tablero>/<vista>[/<mes>], #pub/<tablero>/<id>, #cap/…, #ret/…/<k>, #his/<tablero>/<id> ----------
+  // ---------- la navegación: #hoy, #clientes, #tareas, #cli/<cliente> (solo contenido, D-312), #mes/<tablero>/<vista>[/<mes>], #pub/<tablero>/<id>, #cap/…, #ret/…/<k>, #his/<tablero>/<id> ----------
   const leerRuta = () => { const p = decodeURIComponent((location.hash || '#hoy').slice(1)).split('/'); return { p: p[0] || 'hoy', a: p[1] || '', b: p[2] || '', c: p[3] || '' }; };
   let RUTA = leerRuta();
   // atrás (D-271, punto 3): cada entrada guarda de dónde se vino (history.state.prev). Abrir algo apila; cambiar de vista o de mes
@@ -937,7 +937,7 @@
   }
 
   // ---------- lo leído (todo del núcleo); lo que falla se dice, nunca se enseña como vacío ----------
-  const L = { hoy: null, clientes: null, tareas: null, vista: null, conv: null, error: {} };
+  const L = { hoy: null, clientes: null, tareas: null, vista: null, cli: null, conv: null, error: {} };
   let TAREAS_PASADO = 0;
   async function leerHoy() {
     try {
@@ -963,10 +963,15 @@
   async function leerMes(key) {
     try {
       const v = await MV().mirar(key);
+      if (v && v.sinMeses && v.client) { L.vista = null; L.error.mes = ''; ir('cli/' + v.client, 'sustituir'); return; }   // una ruta vieja de un cliente de solo contenido: su página (D-312)
       if (!v || v.error) throw new Error((v && v.error) || 'sin tablero');
       L.vista = v; L.error.mes = '';
       leerConv(v.key);
     } catch (e) { L.vista = null; L.error.mes = 'No se pudo abrir este mes.'; }
+  }
+  async function leerCli(id) {   // la página de un cliente de solo contenido (D-312): la vista sale del núcleo
+    try { const v = await MV().cliente(id); if (!v || v.error) throw new Error((v && v.error) || 'sin cliente'); L.cli = v; L.error.cli = ''; }
+    catch (e) { L.cli = null; L.error.cli = 'No se pudo abrir este cliente.'; }
   }
   async function leerSes(id) {   // una sesión entera (D-275): la vista sale de sesiones.js
     if (!(M.sesiones && M.sesiones.movil)) { L.ses = null; L.error.ses = 'No se pudo leer la sesión: recarga la Mesa.'; return; }
@@ -989,8 +994,7 @@
     const quien = x.clientes.map(nombreCli).join(x.tipo === 'sesion' ? ' · ' : ' × '), cls = mkFila(x);
     if (x.tipo === 'entrega') {   // una entrega pasada sin entregar (D-290): su mes, para mirarla
       const r = x.r;
-      const f = fila({ cls, a: x.B ? `data-ir="mes/${esc(x.B.key)}/lista/${esc(r.fecha.slice(0, 7))}"` : 'disabled', izq: icoFila('paquete', true), t1: esc(r.que || 'Entrega sin título'), t2: `${esc(quien)} · <span class="roja">sin entregar · ${esc(corto(r.fecha))}</span>` });
-      return x.B ? f : sinFlecha(f);
+      return fila({ cls, a: `data-ir="cli/${esc(r.cliente)}"`, izq: icoFila('paquete', true), t1: esc(r.que || 'Entrega sin título'), t2: `${esc(quien)} · <span class="roja">sin entregar · ${esc(corto(r.fecha))}</span>` });   // su página (D-312)
     }
     if (x.tipo === 'acuerdo') {   // renegociar (D-288): lo dice el núcleo (personal.js); se abre en el escritorio, como una factura
       const pas = x.cat === 'pasado', cu = M.personal._p && M.personal._p.acuerdoCuando ? M.personal._p.acuerdoCuando(x) : corto(x.dia);
@@ -1053,7 +1057,7 @@
     if (!filas.length) return html + vacio('Sin clientes todavía', 'Se dan de alta en el escritorio.') + '</main>' + tabs('clientes');
     html += `<div class="clis" style="margin-top:18px">${filas.map(f => {
       const m = f.meses[0], B = m && m.B, key = B ? B.key : ((C.boards.filter(b => b.client === f.c.id).sort((a, b) => String(b.month).localeCompare(String(a.month)))[0]) || {}).key;
-      return `<button type="button" class="cli"${key ? ` data-ir="mes/${esc(key)}/lista/${esc(m && B ? m.m : '')}"` : ' disabled'}>
+      return `<button type="button" class="cli"${f.cont ? ` data-ir="cli/${esc(f.c.id)}"` : key ? ` data-ir="mes/${esc(key)}/lista/${esc(m && B ? m.m : '')}"` : ' disabled'}>
       ${f.cont ? cliCont(f, m, B) : `<span class="cli-h" style="display:flex">${av(f.c.id, true)}<span class="nm"><b>${esc(f.c.name)}</b><span>${esc(plural(f.pubs, 'publicación', 'publicaciones'))} · ${esc(plural(f.hs, 'historia', 'historias'))}</span></span><span class="chev">${ic('der')}</span></span>
       ${B ? tramos(m.paso) : `<div class="tramos" aria-hidden="true">${'<i></i>'.repeat(6)}</div>`}
       <span class="cli-p" style="display:flex"><span>${B ? `<b>${esc(pasoTxt(m.paso))}</b>` : 'Sin tablero este mes'}</span>${f.pubSin ? `<span class="acc num">${esc(plural(f.pubSin, 'sin programar', 'sin programar'))}</span>` : B ? '<span>Todo programado</span>' : ''}</span>`}
@@ -1065,7 +1069,26 @@
   function cliCont(f, m, B) {
     const e = (m && m.ent) || { n: 0, h: 0 };
     return `<span class="cli-h" style="display:flex">${av(f.c.id, true)}<span class="nm"><b>${esc(f.c.name)}</b><span>${esc(plural(f.ents || 0, 'entrega', 'entregas'))} · solo contenido</span></span><span class="chev">${ic('der')}</span></span>
-      <span class="cli-p" style="display:flex"><span>${B ? `<b>${e.n ? esc(`${e.h} de ${e.n} ${e.n === 1 ? 'entregada' : 'entregadas'}`) : 'Sin entregas este mes'}</b>` : 'Sin tablero este mes'}</span>${f.entSin ? `<span class="acc num">${esc(plural(f.entSin, 'sin entregar', 'sin entregar'))}</span>` : ''}</span>`;
+      <span class="cli-p" style="display:flex"><span><b>${e.n ? esc(`${e.h} de ${e.n} ${e.n === 1 ? 'entregada' : 'entregadas'}`) : 'Sin entregas este mes'}</b></span>${f.entSin ? `<span class="acc num">${esc(plural(f.entSin, 'sin entregar', 'sin entregar'))}</span>` : ''}</span>`;
+  }
+
+  // ---------- un cliente de solo contenido (D-312): su página, sin meses ----------
+  // Lo da el núcleo (MV().cliente): sus entregas sin entregar por fecha (la pasada, en rojo), sus sesiones que vienen y, aparte,
+  // las entregadas por meses. Para mirar: las entregas se apuntan en el escritorio, el enlace se abre fuera y una sesión se abre
+  function pantCli() {
+    const v = L.cli;
+    if (!v || v.client !== RUTA.a) return top(volverMes()) + `<main class="main" id="contenido">${L.error.cli ? mal(L.error.cli) : '<div class="lugar">Abriendo el cliente…</div>'}</main>` + tabs('clientes');
+    const ent = r => (r.enlace ? x => x : sinFlecha)(fila({ cls: r.estado === 'pasada' ? ' mk-pasado' : '', a: r.enlace ? `data-a="enlace" data-u="${esc(r.enlace)}"` : 'disabled',
+      t1: esc(r.que || 'Entrega sin título'), t2: [r.cuanto ? esc(r.cuanto) : '', r.estado === 'entregada' ? `entregada el ${esc(corto(r.entregada))}` : r.estado === 'pasada' ? '<span class="roja">sin entregar</span>' : `antes del ${esc(corto(r.fecha))}`].filter(Boolean).join(' · '),
+      hr: corto(r.fecha), hrRoja: r.estado === 'pasada' }));   // sin enlace, sin flecha (como su dibujo)
+    const ses = t => fila({ a: `data-ir="ses/${esc(t.id)}"`, t1: esc(t.nombre), t2: esc([t.tipo, t.hora].filter(Boolean).join(' · ')), hr: corto(t.fecha) });
+    const sec = (t, n, cuerpo) => `<section class="sec"><div class="sec-h"><h2>${esc(t)}${n ? ` <span class="n num">${n}</span>` : ''}</h2></div>${cuerpo}</section>`;
+    const anio = m => m.slice(0, 4) === v.hoy.slice(0, 4) ? '' : ' ' + m.slice(0, 4);
+    let html = top(volverMes()) + `<main class="main" id="contenido"><div class="titulo"><h1>${esc(v.nombre)}</h1><p>${esc(v.linea)}</p></div>`;
+    html += sec('Entregas', v.pendientes.length, v.pendientes.length ? `<div class="lista">${v.pendientes.map(ent).join('')}</div>` : vacio('Nada pendiente', 'Las entregas se apuntan en el escritorio.'));
+    if (v.sesiones.proximas.length) html += sec('Sesiones', v.sesiones.proximas.length, `<div class="lista">${v.sesiones.proximas.map(ses).join('')}</div>`);
+    for (const g of v.entregadas) html += sec(mesNombre(g.m) + anio(g.m), 0, `<div class="lista">${g.l.map(ent).join('')}</div>`);
+    return html + '</main>' + tabs('clientes');
   }
 
   // ---------- el mes de un cliente: lista, calendario e historias ----------
@@ -1300,7 +1323,7 @@
   }
 
   // ---------- pintar ----------
-  const PANT = { hoy: pantHoy, clientes: pantClientes, tareas: pantTareas, mes: pantMes, pub: pantPub, cap: pantCaptions, his: pantHistoria, ses: r => C.pantSes(r) };
+  const PANT = { hoy: pantHoy, clientes: pantClientes, tareas: pantTareas, cli: pantCli, mes: pantMes, pub: pantPub, cap: pantCaptions, his: pantHistoria, ses: r => C.pantSes(r) };
   let pintando = 0, PEND_PINTAR = false;
   const esCampo = a => !!a && (/^(TEXTAREA|INPUT)$/.test(a.tagName) || a.isContentEditable);   // también el campo del ordenador (D-286)
   const enUso = () => { const a = D.activeElement; return !!(a && raiz.contains(a) && esCampo(a)) || !!raiz.querySelector('.hoja'); };
@@ -1310,6 +1333,7 @@
     const n = ++pintando, r = RUTA;
     if (r.p === 'mes' && !['mes', 'pub', 'cap', 'ret', 'his'].includes(ULT_P)) PUBS.abierta = false;   // «Publicadas» se pliega al entrar en el mes; volver de una publicación la deja como estaba
     const entra = r.p === 'ses' && (ULT_P !== 'ses' || ULT_A !== r.a);   // una sesión, al entrar en ella: plegada y leída otra vez (D-275)
+    const entraCli = r.p === 'cli' && (ULT_P !== 'cli' || ULT_A !== r.a);   // la página de un cliente de solo contenido, leída otra vez al entrar (D-312)
     if (entra) SES.abiertos = new Set();
     ULT_P = r.p; ULT_A = r.a;
     if (r.p === 'mes' || r.p === 'pub' || r.p === 'cap' || r.p === 'ret' || r.p === 'his') {
@@ -1318,6 +1342,7 @@
     else if (r.p === 'clientes' && !L.clientes && !L.error.clientes) { dibujar(pantClientes()); await leerClientes(); if (n !== pintando) return; }
     else if (r.p === 'tareas' && !L.tareas && !L.error.tareas) { dibujar(pantTareas()); await leerTareas(); if (n !== pintando) return; }
     else if (r.p === 'ses' && (entra || !L.ses || L.ses.id !== r.a)) { dibujar(C.pantSes()); await leerSes(r.a); if (n !== pintando) return; }
+    else if (r.p === 'cli' && (entraCli || !L.cli || L.cli.client !== r.a)) { dibujar(pantCli()); await leerCli(r.a); if (n !== pintando) return; }
     if (r.p === 'ret') { if (C.pantRetocar) return dibujar(C.pantRetocar()); }
     dibujar((PANT[r.p] || pantHoy)());
   }
@@ -1349,6 +1374,7 @@
       await leerTareas();
     } catch (e) { /* cada lectura dice lo suyo */ }
     if (r.p === 'ses' && L.ses && L.ses.id) await leerSes(L.ses.id);   // la sesión abierta, también al día (solo si se está en ella)
+    if (r.p === 'cli' && r.a) await leerCli(r.a);   // la página de un cliente de solo contenido (D-312)
     const vv = MV().vista(); if (L.vista && vv && vv.key === L.vista.key) { L.vista = vv; if (['mes', 'pub', 'cap', 'his'].includes(r.p) && r.a === vv.key) leerConv(vv.key); }   // el tablero abierto, aunque no se vea
     if (r.p !== 'hoy') { L.hoy = null; L.error.hoy = ''; }
     if (r.p !== 'clientes') { L.clientes = null; L.error.clientes = ''; }
@@ -1634,7 +1660,7 @@
   // a la vez, como pidió Kevin); se cambian la fecha y la hora de inicio, los clientes, el material, el nombre y el texto de cada apartado
   const SES = { abiertos: new Set() };
   const E_HTML = t => (M.escritura && M.escritura.html ? M.escritura.html(t, { leer: true }) : esc(t));
-  const volverSes = () => { const pv = prevDe(); return pv === 'hoy' ? { atras: 'Hoy', destino: 'hoy' } : { atras: 'Tareas', destino: 'tareas' }; };
+  const volverSes = () => { const pv = prevDe(); return pv === 'hoy' ? { atras: 'Hoy', destino: 'hoy' } : pv && /^cli\//.test(pv) ? { atras: nombreCli(pv.slice(4)), destino: pv } : { atras: 'Tareas', destino: 'tareas' }; };   // de la página de un cliente, a ella (D-312)
   const sesCurso = (campo, f) => opsLeer().filter(o => o.estado === 'nueva' && o.slot === (L.ses || {}).id && o.campo === campo && (!f || f(o.valor || {}))).pop();
   const conocido = c => !!((X().CL || []).find(x => x.id === c) || (M.personal && M.personal._p && M.personal._p.cliDe(c)));
   const fotoSes = (fid, px, q) => `<span class="mv-sf" style="--r:${(q || 1).toFixed(4)}">${fotoArch('tfotos', fid, 'el valor.blob', px)}</span>`;
@@ -1843,7 +1869,7 @@
     raiz.hidden = false;
     if (!location.hash) history.replaceState(null, '', '#hoy');
     RUTA = leerRuta();
-    leerTareas().then(() => { if (RUTA.p !== 'tareas') raiz.querySelectorAll('.tabs').forEach(n => { n.outerHTML = tabs(RUTA.p === 'mes' ? 'clientes' : RUTA.p); }); });
+    leerTareas().then(() => { if (RUTA.p !== 'tareas') raiz.querySelectorAll('.tabs').forEach(n => { n.outerHTML = tabs(RUTA.p === 'mes' || RUTA.p === 'cli' ? 'clientes' : RUTA.p); }); });
     await pintar();
     (W.MESA_CARGA = W.MESA_CARGA || {}).movil = 'ok';
   }
@@ -2083,6 +2109,7 @@
     if (L.vista) { const v = await MV().mirar(L.vista.key).catch(() => null); L.vista = v && !v.error ? v : null; }
     await leerTareas();
     if (RUTA.p === 'ses' && L.ses && L.ses.id) await leerSes(L.ses.id);   // tras guardar, la sesión con lo guardado (revisión del lote B)
+    if (RUTA.p === 'cli' && RUTA.a) await leerCli(RUTA.a);   // D-312
     pintar();
   }
   const pAhora = () => { const v = L.vista; return v && v.key === RUTA.a ? v.posts.find(x => x.id === RUTA.b) : null; };

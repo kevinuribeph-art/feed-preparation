@@ -130,8 +130,8 @@
   // Its parts are given by others through M._in.vc (mesa.js): tabs beside «Calendario» and the right column. Each part draws
   // for the board's client and the calendar's month; one with nothing ('') doesn't show, and with none the page is as before.
   let vcTab = 'cal';                             // the tab chosen (this visit; back to «Calendario» with another board)
-  function vcPartes(X, m) {
-    const V = X.vc, ctx = { cliente: X.S.client, mes: m, S: X.S };
+  function vcPartes(X, m, cli) {
+    const V = X.vc, ctx = { cliente: cli || X.S.client, mes: m, S: X.S || null };
     const html = p => { try { return String(p.html(ctx) || ''); } catch (e) { return ''; } };
     const titulo = p => { try { return String((typeof p.titulo === 'function' ? p.titulo(ctx) : p.titulo) || ''); } catch (e) { return ''; } };   // one that fails doesn't show
     return { tabs: V ? V.pestanas.map(p => ({ id: p.id, titulo: titulo(p), html: html(p) })).filter(p => p.html && p.titulo) : [],
@@ -158,7 +158,9 @@
     if (mv && mv.on) { later = true; return; }   // a chip being moved: drawn again once it is let go
     const X = I(); if (!X || !X.shellReady || !X.shellReady()) return;
     const root = X.root(), sec = root && root.querySelector('.side > .cal'); if (!sec) return;
-    const S = X.S; if (!S) { sec.hidden = true; return; }
+    const S = X.S, cc = !S && X.contCli ? X.contCli() : null;
+    if (cc) { renderCont(X, root, sec, cc); return; }   // the page of a client of «Solo contenido», without a board (D-312)
+    if (!S) { sec.hidden = true; return; }
     const client = root.classList.contains('client'), sp = span(X);
     if (view.key !== S.key || !sp.list.includes(view.m)) { if (view.key !== S.key) vcTab = 'cal'; view = { key: S.key, m: mesInicial(X, sp) }; }
     // ‹ › only with another month of the board's own days to go to, in the vista cliente (D-228); without, its month (also when
@@ -222,7 +224,7 @@
       : cont ? `<div class="calhead"><b class="ctit">Calendario</b>${nav}</div>`   // its own column, never folded (D-290)
       : `<div class="calhead"><button type="button" class="cfold" data-cal="fold" aria-expanded="${!fo}" title="${fo ? 'Abrir el calendario' : 'Plegar el calendario'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg><b>Calendario</b></button>${vh}${sync}${nav}</div>`;
     const panelEl = sec.querySelector(':scope > .vcp-panel'), mismo = panel && panelEl && panelEl.dataset.t === panel.id && panelEl._h === panel.html, pTop = mismo ? panelEl.scrollTop : 0;
-    sec.hidden = false;
+    sec.hidden = false; sec._h = null;
     sec.classList.toggle('fold', fo2 && !cont); sec.classList.toggle('vctabs', conTabs); sec.classList.toggle('cont', cont);
     sec.innerHTML = cab + (panel ? `<div class="vcp-panel" id="vcp-p" role="tabpanel" aria-labelledby="vcp-t-${esc(panel.id)}" data-t="${esc(panel.id)}" tabindex="0"></div>`
       : `${leg}<div class="calbody"${conTabs ? ' id="vcp-p" role="tabpanel" aria-labelledby="vcp-t-cal"' : ''}><div class="cgrid" style="grid-template-rows:24px repeat(${rows},minmax(58px,auto))${client ? '' : ' auto'}">${body}</div></div>`);
@@ -232,6 +234,39 @@
     light();
     vencPintar(true);                            // the vencidas' window, if it is open (a ⌘Z, a change from elsewhere)
     cambPintar();                                // and the changed ones' (D-126)
+  }
+
+  // ---------- the page of a client of «Solo contenido» (D-312) ----------
+  // No board nor months: the calendar opens on today's month and ‹ › go to any month, without changing the lists beside it
+  // (entregas.js). Its sessions and deliveries, a chip each; the days of another month dimmed, their chips muted (D-153); no
+  // total, steps nor Notion. In the vista cliente there is no calendar: its list and «Tus pagos» (D-297)
+  function renderCont(X, root, sec, cli) {
+    const client = root.classList.contains('client'), today = X.hoy();
+    if (client) { sec.hidden = true; sec.innerHTML = ''; vcLado(X, root, vcPartes(X, today.slice(0, 7), cli).lado); return; }
+    vcLado(X, root, []);
+    if (view.key !== 'cli:' + cli || view.sec !== sec) view = { key: 'cli:' + cli, m: today.slice(0, 7), sec };   // each time its page opens, today's month
+    if (!SES && !sesLee) leerSes();
+    const m = view.m, [y, mo] = m.split('-').map(Number), first = `${m}-01`, start = addDays(first, -dow(first)), dim = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+    const rows = Math.ceil((dow(first) + dim) / 7), fin = addDays(start, rows * 7 - 1), sd = {};
+    if (SES) for (const x of SES) {
+      if (!x.clientes.includes(cli) || x.fin < start || x.fecha > fin) continue;
+      for (let d = x.fecha < start ? start : x.fecha, i = 0; d <= x.fin && d <= fin && i < 400; d = addDays(d, 1), i++) (sd[d] = sd[d] || []).push({ x, t: x.fecha === d && x.hora ? +x.hora.replace(':', '') : -1 });
+    }
+    if (X.ent) for (const r of X.ent.vivas(cli)) if (r.fecha >= start && r.fecha <= fin) (sd[r.fecha] = sd[r.fecha] || []).push({ e: r, t: -2 });
+    let body = DOW.map(d => `<div class="cdow">${d}</div>`).join('');
+    for (let i = 0; i < rows * 7; i++) {
+      const d = addDays(start, i), inM = d.slice(0, 7) === m;
+      const num = +d.slice(8) === 1 ? `${+d.slice(8)} ${X.MONTHS[+d.slice(5, 7) - 1].slice(0, 3)}` : String(+d.slice(8));
+      body += `<div class="cday${inM ? '' : ' out otromes'}${d === today ? ' today' : ''}" data-day="${d}"><div class="dh"><span class="dn">${num}</span></div>`
+        + (sd[d] || []).sort((u, v) => u.t - v.t).map(it => it.e ? entHTML(X, it.e, today, false) : sesHTML(X, it.x, d)).join('') + '</div>';
+    }
+    const mesNom = `${cap(X.MONTHS[mo - 1])} ${y}`, mesTit = `${mesNom} · doble clic: el mes de hoy`;
+    const nav = `<span class="cnav"><button type="button" data-cal="prev" aria-label="Mes anterior">‹</button><span class="cmes" title="${esc(mesTit)}">${esc(mesNom)}</span><button type="button" data-cal="next" aria-label="Mes siguiente">›</button></span>`;
+    const bodyEl = sec.querySelector('.calbody'), top = bodyEl ? bodyEl.scrollTop : 0;
+    sec.hidden = false; sec.classList.remove('fold', 'vctabs'); sec.classList.add('cont');
+    const h = `<div class="calhead"><b class="ctit">Calendario</b>${nav}</div><div class="calbody"><div class="cgrid" style="grid-template-rows:22px repeat(${rows},minmax(44px,auto))">${body}</div></div>`;
+    if (sec._h !== h) { sec.innerHTML = h; sec._h = h; const nb = sec.querySelector('.calbody'); if (nb && top) nb.scrollTop = top; }
+    light();
   }
 
   // the fold opens and closes with its height, the same movement as the editor's sections (D-137): from where it is, so a
@@ -284,13 +319,14 @@
       if (a === 'venc') { if (!client) abrirVencidas(); return; }
       if (a === 'fold') { plegar(X, sec); return; }
       if (a === 'vctab') { if (vcTab === b.dataset.t) return; vcTab = b.dataset.t; render(); const t = sec.querySelector(`.vcp-tab[data-t="${cssq(vcTab)}"]`); if (t) t.focus({ preventScroll: true }); return; }
-      if (a === 'prev' || a === 'next') { const sp = span(X), i = sp.list.indexOf(view.m) + (a === 'prev' ? -1 : 1); if (sp.list[i]) view.m = sp.list[i]; }
+      if ((a === 'prev' || a === 'next') && !X.S) { if (X.contCli && X.contCli()) view.m = addMonths(view.m, a === 'prev' ? -1 : 1); }   // the page (D-312): any month
+      else if (a === 'prev' || a === 'next') { const sp = span(X), i = sp.list.indexOf(view.m) + (a === 'prev' ? -1 : 1); if (sp.list[i]) view.m = sp.list[i]; }
       render(); return;
     }
     if (sec.classList.contains('fold') && !client && e.target.closest('.calhead') && sec.parentNode.querySelector(':scope > .tray.fold')) { plegar(X, sec); return; }   // its tab (D-148)
     const ch = e.target.closest('.chip'); if (!ch || Date.now() - noClick < 400) return;   // the click that ends a move opens nothing
     if (ch.dataset.ent) { if (client) { if (M.entregasUI && M.entregasUI.irA) M.entregasUI.irA(ch.dataset.ent); } else if (M.entregasUI && M.entregasUI.abrir) M.entregasUI.abrir(ch.dataset.ent); return; }   // a delivery: open in its column (D-290); in the vista cliente, its row (D-297)
-    if (ch.dataset.ses) { if (M.personal && M.personal.abrirSesion) M.personal.abrirSesion(ch.dataset.ses, { de: `.side > .cal .chip[data-ses="${cssq(ch.dataset.ses)}"]`, vc: client, cli: X.S && X.S.client }); return; }   // its sheet over the board (D-219)
+    if (ch.dataset.ses) { if (M.personal && M.personal.abrirSesion) M.personal.abrirSesion(ch.dataset.ses, { de: `.side > .cal .chip[data-ses="${cssq(ch.dataset.ses)}"]`, vc: client, cli: X.S ? X.S.client : X.contCli && X.contCli() }); return; }   // its sheet over the board (D-219)
     if (ch.dataset.slot) { if (client) X.openIG(ch.dataset.slot, 0); else X.openDetail(ch.dataset.slot, 0); }
     else if (ch.dataset.prev) { const id = ch.dataset.prev; if (client) X.openIG(id, 0); else X.withPrev(() => X.openPast(id), 'open'); }
   }
@@ -653,7 +689,7 @@
 #mesa .vc-parte{min-height:0;overflow-y:auto;background:var(--panel);border-radius:var(--r-lg);padding:18px 20px 20px;color:var(--ink)}
 #mesa .vc-lado>.vc-parte:only-child{grid-row:1/-1}
 #mesa:not(.client) .vc-lado{display:none}
-#mesa.client .cont>.cont-der{display:none}#mesa .cont>.vc-lado{min-height:0}#mesa.client:not(.vc-lado-on) .cont{grid-template-columns:minmax(0,1fr) minmax(0,1.25fr)}#mesa.client.vc-lado-on .cont{grid-template-columns:minmax(0,1fr) minmax(0,1.25fr) 360px}
+#mesa.client .cont>.cont-der,#mesa.client .cont>.cont-side{display:none}#mesa .cont>.vc-lado{min-height:0}#mesa.client .cont{grid-template-columns:minmax(0,1fr)}#mesa.client.vc-lado-on .cont{grid-template-columns:minmax(0,1.6fr) minmax(320px,1fr)}   /* its vista cliente (D-312): the list and «Tus pagos», no calendar */
 @media (max-width:980px){#mesa .cont>.vc-lado{display:flex;flex-direction:column;overflow:visible}#mesa .cont>.vc-lado>.vc-parte{overflow:visible}}   /* one column: each part as tall as it is */   /* without its parts, the calendar widens, as the portal */   /* «Solo contenido» in the vista cliente: «Tus pagos» in place of the agreement (D-297) */
 #mesa.client .side>.cal{border-radius:inherit}   /* alone in its column (no tray): round on top too, as the drawing (D-240) */
 #mesa.client.vc-lado-on .feed{width:min(440px,32vw);margin:0}
@@ -671,7 +707,8 @@
   I().estilo('mesa-cal-css', CSS);
 
   function onDbl(e) {                            // the month's name: back to the month the board opens with (D-159)
-    const X = I(); if (!X || !e.target.closest || !e.target.closest('#mesa .side > .cal .cmes') || !X.S) return;
+    const X = I(); if (!X || !e.target.closest || !e.target.closest('#mesa .side > .cal .cmes')) return;
+    if (!X.S) { if (X.contCli && X.contCli() && view.m !== X.hoy().slice(0, 7)) { view.m = X.hoy().slice(0, 7); render(); } return; }   // the page (D-312): today's month
     const ini = mesInicial(X, span(X)); if (view.m !== ini) { view.m = ini; render(); }
   }
   // ---------- the right click (D-285): in a day, what can be made there; on a chip, what it is ----------
@@ -679,9 +716,9 @@
   // is the board's, «Nueva historia» (one to design that day; the stories' view opens on it). A post: «Abrir». A session:
   // «Abrir», «Duplicar sesión», «Borrar sesión». Never in the vista cliente nor in a paused tab; elsewhere, the browser's.
   function onCtx(e) {
-    const X = I(); if (!X || !X.S || !X.menu || !e.target.closest) return;
+    const X = I(), cc = X && !X.S && X.contCli ? X.contCli() : null; if (!X || (!X.S && !cc) || !X.menu || !e.target.closest) return;   // also the page of a client of «Solo contenido» (D-312)
     const sec = e.target.closest('#mesa .side > .cal'); if (!sec || X.root().classList.contains('client') || X.locked) return;
-    const ch = e.target.closest('.chip'), dia = e.target.closest('.cday[data-day]'), P = M.personal, cli = X.S.client;
+    const ch = e.target.closest('.chip'), dia = e.target.closest('.cday[data-day]'), P = M.personal, cli = X.S ? X.S.client : cc;
     let l = null;
     if (ch && ch.dataset.ses) {
       const id = ch.dataset.ses, de = `.side > .cal .chip[data-ses="${cssq(id)}"]`;
@@ -690,11 +727,11 @@
     else if (ch && ch.dataset.ent) { const id = ch.dataset.ent; l = [{ t: 'Abrir', off: !(M.entregasUI && M.entregasUI.abrir), hacer: () => M.entregasUI.abrir(id) }]; }   // D-290
     else if (ch && ch.dataset.prev) { const id = ch.dataset.prev; l = [{ t: 'Abrir', hacer: () => X.withPrev(() => X.openPast(id), 'open') }]; }
     else if (dia) {
-      const d = dia.dataset.day, sp = span(X), kb = `${+d.slice(8)} ${X.MONTHS[+d.slice(5, 7) - 1].slice(0, 3)}`, de = `.side > .cal .cday[data-day="${d}"]`;
+      const d = dia.dataset.day, sp = X.S ? span(X) : null, kb = `${+d.slice(8)} ${X.MONTHS[+d.slice(5, 7) - 1].slice(0, 3)}`, de = `.side > .cal .cday[data-day="${d}"]`;
       l = [{ t: 'Nueva sesión', kb, off: !(P && P.nuevaSesion), hacer: () => P.nuevaSesion({ fecha: d, cliente: cli }) },
         { t: 'Nueva reunión', kb, off: !(P && P.nuevaSesion), hacer: () => P.nuevaSesion({ fecha: d, cliente: cli, clase: 'reunion' }) },   // D-291
         { t: 'Nueva tarea', kb, off: !(P && P.nuevaTarea), hacer: () => P.nuevaTarea({ fecha: d, cliente: cli, de }) }];
-      if (d >= sp.lo && d <= sp.hi && M.hs && M.hs.anadir && !(X.esContenido && X.esContenido(X.S.client))) l.push('-', { t: 'Nueva historia', kb, hacer: () => nuevaHistoria(d) });   // no stories without a feed (D-290)
+      if (sp && d >= sp.lo && d <= sp.hi && M.hs && M.hs.anadir && !(X.esContenido && X.esContenido(X.S.client))) l.push('-', { t: 'Nueva historia', kb, hacer: () => nuevaHistoria(d) });   // no stories without a feed (D-290)
     }
     if (!l) return;
     e.preventDefault(); e.stopPropagation();
@@ -708,7 +745,7 @@
   const ON = [['pointerover', onOver], ['click', onClick, false], ['dblclick', onDbl, false], ['contextmenu', onCtx, false], ['pointerdown', onDown], ['pointermove', onMove], ['pointerup', end], ['pointercancel', onCancel], ['keydown', onKey]];
   ON.forEach(([t, f, c]) => document.addEventListener(t, f, c !== false));
   document.addEventListener('mesa-tareas', alTareas);
-  const alEntregas = () => { const X = I(); if (X && X.S && X.esContenido && X.esContenido(X.S.client)) render(); };   // a delivery changed (D-290)
+  const alEntregas = () => { const X = I(); if (X && X.contCli && X.contCli()) render(); };   // a delivery changed (D-290), on its page (D-312)
   document.addEventListener('mesa-entregas', alEntregas);
   M.calendario = {
     version: VERSION, render, vencidas: abrirVencidas, cambios: abrirCambios,

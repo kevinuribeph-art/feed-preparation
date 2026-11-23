@@ -156,7 +156,8 @@
     });
   }
   async function cargarHistorias(items, opts = {}) {
-    let X = I(); if (!X || !X.S) return { error: 'no hay mesa abierta' };
+    let X = I(); if (X && !X.S && X.contCli && X.contCli()) return { error: 'sin feed: es un cliente de solo contenido, no tiene historias (D-289, D-312)' };
+    if (!X || !X.S) return { error: 'no hay mesa abierta' };
     if (X.locked) return { error: 'locked: la mesa está abierta en otra pestaña; no se ha guardado nada' };
     if (X.esContenido && X.esContenido(X.S.client)) return { error: 'sin feed: es un cliente de solo contenido, no tiene historias (D-289)' };
     const S = X.S, list = [].concat(items ?? []);

@@ -15,9 +15,9 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.7';   // 1.7: a calendar never narrows by the edge, it moves to the left whole; no compact field in the vencidas (D-301). 1.6: the field's placeholder in --mute, text that is read (D-231). 1.5: an option that acts instead of being chosen (data-accion: «Nuevo esporádico», D-207) fires «mx-accion» on its native and leaves the value as it was. 1.4: «Sin fecha» in the date's calendar where a date can be left empty (data-sin-fecha: a task's, D-188); an option's data-dest in grey after it (D-191). 1.2: the list's text starts where the closed field's does, the ✓ of the chosen one on the right (D-150). 1.1: its calendar's measures are the mesa's --cx-* tokens, shared with the posts' calendar (D-147)
+  const VERSION = '1.8';   // 1.8: a month field (<input type="month">: «may 2026», its calendar of the twelve months with ‹ year ›, «Sin mes» and «Este mes»); a dropdown's option that opens the days of a month (data-accion="rejilla": 1–28 in the calendar's look) or a calendar of months (data-accion="mes", for «Duración · Otra…») (D-304). 1.7: a calendar never narrows by the edge, it moves to the left whole; no compact field in the vencidas (D-301). 1.6: the field's placeholder in --mute, text that is read (D-231). 1.5: an option that acts instead of being chosen (data-accion: «Nuevo esporádico», D-207) fires «mx-accion» on its native and leaves the value as it was. 1.4: «Sin fecha» in the date's calendar where a date can be left empty (data-sin-fecha: a task's, D-188); an option's data-dest in grey after it (D-191). 1.2: the list's text starts where the closed field's does, the ✓ of the chosen one on the right (D-150). 1.1: its calendar's measures are the mesa's --cx-* tokens, shared with the posts' calendar (D-147)
   if (M.controles && M.controles._off) { try { M.controles._off(); } catch (e) { /* */ } }   // a previous copy on this page
-  const QS = 'select, input[type="date"], input[type="time"]';
+  const QS = 'select, input[type="date"], input[type="time"], input[type="month"]';
   const FLECHA = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>';   // Lucide arrow-right (ISC)
   const PV = { SELECT: Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value'), INPUT: Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value') };
   const PSI = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'selectedIndex');
@@ -85,6 +85,31 @@
     if (v && !L.includes(v)) { L.push(v); L.sort(); }
     return L;
   }
+  // ---------- months (D-304) ----------
+  const MESC = MES.map(x => x.slice(0, 3));
+  const fmtMes = v => /^\d{4}-\d{2}$/.test(v || '') ? `${MESC[+v.slice(5, 7) - 1]} ${v.slice(0, 4)}` : '';
+  const sumarMesesM = (v, n) => { const t = +v.slice(0, 4) * 12 + (+v.slice(5, 7) - 1) + n; return `${Math.floor(t / 12)}-${p2(((t % 12) + 12) % 12 + 1)}`; };
+  // «may 2026», «mayo 2026», «mayo de 2026», «05/2026», «5/26», «2026-05», «may» or «5» (the year nearest to the month it had)
+  function leerMes(s, ref) {
+    const t = sinTilde(String(s || '').trim()).replace(/\s+de\s+/g, ' ').replace(/[.,]$/, '');
+    if (!t) return null;
+    const r0 = /^\d{4}-\d{2}$/.test(ref || '') ? ref : hoyISO().slice(0, 7), ry = +r0.slice(0, 4), rm = +r0.slice(5, 7);
+    let m, y = null, r;
+    if ((r = /^(\d{4})-(\d{1,2})$/.exec(t))) { y = +r[1]; m = +r[2]; }
+    else if ((r = /^(\d{1,2})\s*[/\-. ]\s*(\d{2}|\d{4})$/.exec(t))) { m = +r[1]; y = +r[2]; }
+    else if ((r = /^([a-z]{3,})\.?(?:\s+(\d{2}|\d{4}))?$/.exec(t))) {
+      const k = MES.findIndex(x => x.startsWith(r[1].slice(0, 3)) || (r[1].startsWith('set') && x === 'septiembre')); if (k < 0) return null;
+      m = k + 1; if (r[2]) y = +r[2];
+    }
+    else if ((r = /^(\d{1,2})$/.exec(t))) m = +r[1];
+    else return null;
+    if (y != null && y < 100) y += 2000;
+    if (y == null) { y = ry; if (m - rm > 6) y--; else if (rm - m > 6) y++; }
+    return m >= 1 && m <= 12 && y >= 1900 && y <= 2200 ? `${y}-${p2(m)}` : null;
+  }
+  // a field's value as text, and back, by its kind
+  const fmtDe = (g, v) => g._tipo === 'hora' ? (v || '').slice(0, 5) : g._tipo === 'mes' ? fmtMes(v) : fmtFecha(v);
+  const leerDe = (g, s, ref) => g._tipo === 'hora' ? leerHora(s) : g._tipo === 'mes' ? leerMes(s, ref) : leerFecha(s, ref);
 
   // ---------- twins ----------
   function etiqueta(n) {                       // the text of the <label> around it, without the controls' own text
@@ -95,7 +120,7 @@
   function mejorar(n) {
     if (n._mx || !n.isConnected || (n.tagName === 'SELECT' && (n.multiple || n.size > 1))) return;   // a list box stays as it is
     const r = raiz(); if (!r || !r.contains(n) || n.closest('.mx-pop')) return;
-    const tipo = n.tagName === 'SELECT' ? 'sel' : n.getAttribute('type') === 'time' ? 'hora' : 'fecha';
+    const ty = n.getAttribute('type'), tipo = n.tagName === 'SELECT' ? 'sel' : ty === 'time' ? 'hora' : ty === 'month' ? 'mes' : 'fecha';
     const g = tipo === 'sel' ? gemeloSel() : gemeloCampo(tipo);
     dato(n, '_mx', g); dato(g, '_nat', n); dato(g, '_tipo', tipo); dato(g, '_dentro', false); dato(g, '_html', '');
     if (tipo !== 'sel') dato(g.firstChild, '_sync', '');
@@ -118,9 +143,9 @@
     return b;
   }
   function gemeloCampo(tipo) {
-    const g = document.createElement('span'), hora = tipo === 'hora';
-    g.className = 'mx-f ' + (hora ? 'mx-time' : 'mx-date');
-    g.innerHTML = `<input type="text" class="mx-in" autocomplete="off" spellcheck="false" inputmode="numeric" role="combobox" aria-autocomplete="none" aria-expanded="false" aria-haspopup="${hora ? 'listbox' : 'dialog'}"><button type="button" class="mx-cal" tabindex="-1" aria-label="${hora ? 'Abrir la lista de horas' : 'Abrir el calendario'}"></button>`;
+    const g = document.createElement('span'), hora = tipo === 'hora', mes = tipo === 'mes';
+    g.className = 'mx-f ' + (hora ? 'mx-time' : mes ? 'mx-date mx-month' : 'mx-date');
+    g.innerHTML = `<input type="text" class="mx-in" autocomplete="off" spellcheck="false" inputmode="${mes ? 'text' : 'numeric'}" role="combobox" aria-autocomplete="none" aria-expanded="false" aria-haspopup="${hora ? 'listbox' : 'dialog'}"><button type="button" class="mx-cal" tabindex="-1" aria-label="${hora ? 'Abrir la lista de horas' : mes ? 'Abrir los meses' : 'Abrir el calendario'}"></button>`;
     const inp = g.firstChild, bt = g.lastChild;
     inp.addEventListener('input', e => { e.stopPropagation(); if (abierto && abierto.g === g) seguir(); });
     inp.addEventListener('change', e => e.stopPropagation());   // its own events stay here: the native one fires the mesa's
@@ -145,14 +170,14 @@
       if (n.title) g.title = n.title; else g.removeAttribute('title');
       return;
     }
-    const inp = g.firstChild, bt = g.lastChild, v = leer(n), hora = g._tipo === 'hora';
-    const txt = hora ? (v || '').slice(0, 5) : fmtFecha(v);
+    const inp = g.firstChild, bt = g.lastChild, v = leer(n), hora = g._tipo === 'hora', mes = g._tipo === 'mes';
+    const txt = fmtDe(g, v);
     if (!(document.activeElement === inp && inp.value !== inp._sync)) { inp.value = txt; inp._sync = txt; }
     inp.disabled = bt.disabled = dis; g.classList.toggle('mx-dis', dis);
-    inp.placeholder = hora ? '--:--' : 'dd/mm/aaaa';
-    inp.setAttribute('aria-label', lab || (hora ? 'Hora' : 'Fecha'));
-    g.title = [n.title, hora ? 'Escribe la hora o usa ↑ ↓ (15 min; ⇧, una hora)' : 'Escribe la fecha o usa ↑ ↓ (un día; ⇧, una semana)'].filter(Boolean).join(' · ');
-    if (abierto && abierto.g === g && !hora && abierto.marca !== (leerFecha(inp.value, v) || v)) seguir();
+    inp.placeholder = n.getAttribute('placeholder') || (hora ? '--:--' : mes ? 'mes y año' : 'dd/mm/aaaa');   // the native's, if it says what empty means («Sigue»)
+    inp.setAttribute('aria-label', lab || (hora ? 'Hora' : mes ? 'Mes' : 'Fecha'));
+    g.title = [n.title, hora ? 'Escribe la hora o usa ↑ ↓ (15 min; ⇧, una hora)' : mes ? 'Escribe el mes («may 2026») o usa ↑ ↓ (un mes; ⇧, un año)' : 'Escribe la fecha o usa ↑ ↓ (un día; ⇧, una semana)'].filter(Boolean).join(' · ');
+    if (abierto && abierto.g === g && !hora && abierto.marca !== (leerDe(g, inp.value, v) || v)) seguir();
   }
   function alFocoNativo(e) {                   // the code gives the focus to its native (after a redraw): it goes to the twin
     const g = e.currentTarget._mx; if (!g || !g.isConnected) return;
@@ -213,7 +238,8 @@
     const abajo = vh - a.bottom - sep - m, arriba = a.top - sep - m, sube = h > abajo && arriba > abajo;
     const alto = Math.min(h, Math.max(120, sube ? arriba : abajo));
     if (alto < h) pop.style.maxHeight = alto + 'px';
-    const x = Math.round(Math.min(Math.max(m, a.left), vw - m - w));
+    const caja = cal && g.closest ? g.closest('.dlg') : null, cr = caja ? caja.getBoundingClientRect() : null;   // a calendar in a dialog stays in it: by the edge, its right on its field's (revisión del lote B)
+    const x = Math.round(Math.min(Math.max(m, cr && a.left + w > cr.right ? a.right - w : a.left), vw - m - w));
     pop.style.left = x + 'px';
     pop.style.transformOrigin = x < a.left - 1 ? `${Math.round(Math.min(w, a.left - x + a.width / 2))}px ${sube ? '100%' : '0'}` : '';   // moved to the left: it grows from its field (D-301)
     pop.style.top = Math.round(sube ? a.top - sep - alto : a.bottom + sep) + 'px';
@@ -235,7 +261,7 @@
   function cerrar(foco) {
     const a = abierto; if (!a) return;
     abierto = null; vigilar(false);
-    const g = a.g, pop = a.pop, c = a.tipo === 'sel' ? g : g.firstChild;
+    const g = a.g, pop = a.pop, c = a.ctl || (a.tipo === 'sel' ? g : g.firstChild);   // ctl: a pop of a dropdown's option (rejilla, mes) goes back to its dropdown
     c.setAttribute('aria-expanded', 'false'); c.removeAttribute('aria-activedescendant'); c.removeAttribute('aria-controls');
     g.classList.remove('mx-abierto');
     pop.classList.remove('on'); pop.classList.add('fuera');
@@ -249,7 +275,7 @@
     cerrar(false);
     const pop = crearPop('mx-list', 'listbox'), lab = b.getAttribute('aria-label');
     if (lab) pop.setAttribute('aria-label', lab);
-    const fila = o => o.hidden ? '' : `<div class="mx-o${o.dataset.accion ? ' mx-acc' : ''}" role="option" id="${pop.id}-${o.index}" data-i="${o.index}" aria-selected="${o.dataset.accion ? 'false' : o.selected}"${o.disabled ? ' aria-disabled="true"' : ''}>${esc(o.label || o.textContent)}${o.dataset.dest ? `<span class="mx-dest">${FLECHA}${esc(o.dataset.dest)}</span>` : ''}</div>`;   // data-dest: where it takes it, in grey (D-191); data-accion: it acts (D-207)
+    const fila = o => o.hidden ? '' : `<div class="mx-o${o.dataset.accion ? ' mx-acc' : ''}${o.dataset.icono === 'no' ? ' mx-sin' : ''}" role="option" id="${pop.id}-${o.index}" data-i="${o.index}" aria-selected="${o.dataset.accion ? 'false' : o.selected}"${o.disabled ? ' aria-disabled="true"' : ''}>${esc(o.label || o.textContent)}${o.dataset.dest ? `<span class="mx-dest">${FLECHA}${esc(o.dataset.dest)}</span>` : ''}</div>`;   // data-dest: where it takes it, in grey (D-191); data-accion: it acts (D-207)
     pop.innerHTML = [...n.children].map(c => c.tagName === 'OPTGROUP' ? `<div role="group" aria-label="${esc(c.label)}"><div class="mx-gl" aria-hidden="true">${esc(c.label)}</div>${[...c.children].map(fila).join('')}</div>` : c.tagName === 'OPTION' ? fila(c) : '').join('');
     pop.style.minWidth = b.offsetWidth + 'px';
     abierto = { g: b, pop, tipo: 'sel', act: -1 };
@@ -287,14 +313,17 @@
     const n = b._nat; cerrar(true);
     if (!n || i == null || i < 0) return;
     const o = n.options[i]; if (!o || o.disabled) return;
+    if (o.dataset.accion === 'rejilla') { abrirRejilla(b); return; }   // «Otro…»: the days of a month (D-304)
+    if (o.dataset.accion === 'mes') { abrirMesSel(b); return; }        // «Otra…»: a calendar of months; what it chooses goes in «mx-accion» (D-304)
     if (o.dataset.accion) { n.dispatchEvent(new CustomEvent('mx-accion', { bubbles: true, detail: { accion: o.dataset.accion } })); return; }   // it acts: the value stays as it was
     if (i === PSI.get.call(n)) return;
     PSI.set.call(n, i); pintar(n); disparar(n);
   }
   function teclaSel(e, b) {
-    const k = e.key, open = abierto && abierto.g === b;
+    const k = e.key, open = abierto && abierto.g === b && abierto.tipo === 'sel';
     if (e.metaKey || e.ctrlKey) return;
     const para = () => { e.preventDefault(); e.stopImmediatePropagation(); };
+    if (!open && abierto && abierto.g === b && k === 'Escape') { para(); cerrar(true); return; }   // its «Otro…» open, the keys on it
     if (!open) {
       if (['ArrowDown', 'ArrowUp', 'Enter', ' ', 'Home', 'End'].includes(k)) { para(); abrirSel(b); if (k === 'Home' || k === 'End') primero(k === 'End'); }
       else if (k.length === 1 && !e.altKey) { para(); abrirSel(b); buscar(k); }
@@ -333,6 +362,11 @@
       if (grande) v = deMin((aMin(cur) + dir * 60 + 1440) % 1440);
       else { const L = horas(cur), i = L.indexOf(cur); v = L[(i + dir + L.length) % L.length]; }
       ponerCampo(g, v);
+    } else if (g._tipo === 'mes') {            // a month a step (⇧ or Re Pág / Av Pág, a year) (D-304)
+      const base = leerMes(inp.value, leer(n)) || leer(n) || hoyISO().slice(0, 7);
+      let v = sumarMesesM(base, dir * (grande || mes ? 12 : 1));
+      if (n.min && v < n.min) v = n.min; if (n.max && v > n.max) v = n.max;
+      ponerCampo(g, v);
     } else {
       const base = leerFecha(inp.value, leer(n)) || leer(n) || hoyISO();
       let v = mes ? sumarMeses(base, dir) : sumarDias(base, dir * (grande ? 7 : 1));
@@ -342,7 +376,7 @@
     }
   }
   function ponerCampo(g, v) {
-    const n = g._nat, inp = g.firstChild, txt = g._tipo === 'hora' ? v : fmtFecha(v);
+    const n = g._nat, inp = g.firstChild, txt = fmtDe(g, v);
     inp.value = txt; inp._sync = txt;
     if (leer(n) !== v) { poner(n, v); disparar(n); }
     if (abierto && abierto.g === g) seguir();
@@ -352,9 +386,9 @@
     if (!n || inp.value === inp._sync) return;
     const raw = inp.value.trim();
     if (!raw) { if (!n.required && leer(n)) { poner(n, ''); inp._sync = ''; disparar(n); } else inp.value = inp._sync; return; }
-    const v = hora ? leerHora(raw) : leerFecha(raw, leer(n));
-    if (!v) { inp.value = inp._sync; return; }
-    const txt = hora ? v : fmtFecha(v); inp.value = txt; inp._sync = txt;
+    const v = leerDe(g, raw, leer(n));
+    if (!v || (g._tipo === 'mes' && ((n.min && v < n.min) || (n.max && v > n.max)))) { inp.value = inp._sync; return; }
+    const txt = fmtDe(g, v); inp.value = txt; inp._sync = txt;
     if (leer(n) !== v) { poner(n, v); disparar(n); }
   }
   function abrirCampo(g, alGrid) {
@@ -362,10 +396,17 @@
     if (abierto && abierto.g === g) { if (alGrid) focoGrid(); return; }
     cerrar(false);
     const hora = g._tipo === 'hora', inp = g.firstChild;
-    const pop = crearPop(hora ? 'mx-list mx-tlist' : 'mx-calpop', hora ? 'listbox' : 'dialog');
+    const pop = crearPop(hora ? 'mx-list mx-tlist' : g._tipo === 'mes' ? 'mx-calpop mx-mespop' : 'mx-calpop', hora ? 'listbox' : 'dialog');
     abierto = { g, pop, tipo: g._tipo, act: null };
     inp.setAttribute('aria-expanded', 'true'); inp.setAttribute('aria-controls', pop.id); g.classList.add('mx-abierto');
-    if (hora) {
+    if (g._tipo === 'mes') {                   // the twelve months of a year (D-304)
+      pop.setAttribute('aria-modal', 'false'); pop.setAttribute('aria-label', nombre(n) || 'Mes');
+      const v = leerMes(inp.value, leer(n)) || leer(n) || hoyISO().slice(0, 7);
+      Object.assign(abierto, { vista: { y: +v.slice(0, 4) }, foco: v, marca: v, min: n.min || '', max: n.max || '', sinMes: n.hasAttribute('data-sin-fecha') && !n.required, sel: () => leer(n) });
+      pop.addEventListener('click', calClic);
+      pop.addEventListener('focusin', () => entra(g)); pop.addEventListener('focusout', () => sale(g));
+      calPintarMes(0); colocar(pop, g);
+    } else if (hora) {
       pop.setAttribute('aria-label', 'Horas');
       const v = (leer(n) || '').slice(0, 5);
       pop.innerHTML = horas(v).map((h, k) => `<div class="mx-o" role="option" id="${pop.id}-${k}" data-v="${h}" aria-selected="${h === v}">${h}</div>`).join('');
@@ -395,6 +436,11 @@
       activar(cerca, 0, !!centrar || !L.includes(v));
       return;
     }
+    if (a.tipo === 'mes') {
+      const v = leerMes(inp.value, leer(n)) || leer(n); if (!v) return;
+      const dy = +v.slice(0, 4) - a.vista.y; a.marca = v; a.foco = v; a.vista = { y: +v.slice(0, 4) };
+      calPintarMes(dy > 0 ? 1 : dy < 0 ? -1 : 0); return;
+    }
     const v = leerFecha(inp.value, leer(n)) || leer(n); if (!v) return;
     const dir = v.slice(0, 7) === `${a.vista.y}-${p2(a.vista.m + 1)}` ? 0 : v > `${a.vista.y}-${p2(a.vista.m + 1)}` ? 1 : -1;
     a.marca = v; a.foco = v; a.vista = { y: +v.slice(0, 4), m: +v.slice(5, 7) - 1 };
@@ -422,6 +468,79 @@
       + `<div class="mx-days${dir ? (dir > 0 ? ' mx-de' : ' mx-iz') : ''}" role="grid" aria-label="${titulo}">${filas}</div>`
       + `<div class="mx-cf${sinF ? ' mx-cf2' : ''}">${sinF ? `<button type="button" class="mx-hoy mx-sinf"${sel ? '' : ' disabled'}>Sin fecha</button>` : ''}<button type="button" class="mx-hoy"${hoyNo ? ' disabled' : ''}>Hoy</button></div>`;
   }
+  // the twelve months of a year, three by row, with the look of the dates' calendar (D-304): a month field's, or the «Otra…»
+  // of a dropdown (a.alElegir)
+  function calPintarMes(dir) {
+    const a = abierto; if (!a || (a.tipo !== 'mes' && a.tipo !== 'mesel')) return;
+    const y = a.vista.y, min = a.min || '', max = a.max || '', sel = a.sel() || '', hoy = hoyISO().slice(0, 7);
+    let filas = '';
+    for (let f = 0; f < 4; f++) {
+      filas += '<div class="mx-row mx-mrow" role="row">';
+      for (let c = 0; c < 3; c++) {
+        const i = f * 3 + c, v = `${y}-${p2(i + 1)}`, dis = (min && v < min) || (max && v > max);
+        filas += `<button type="button" class="mx-d mx-m${v === hoy ? ' hoy' : ''}${v === a.marca && v !== sel ? ' marca' : ''}" role="gridcell" data-v="${v}" tabindex="${v === a.foco ? 0 : -1}" aria-selected="${v === sel}"${v === hoy ? ' aria-current="date"' : ''}${dis ? ' disabled' : ''} aria-label="${MES[i]} de ${y}">${MESC[i]}</button>`;
+      }
+      filas += '</div>';
+    }
+    const hoyNo = (min && hoy < min) || (max && hoy > max);
+    a.pop.innerHTML = (a.tipo === 'mesel' && a.t ? `<div class="mx-ch mx-ch1 mx-cht"><b>${esc(a.t)}</b></div>` : '') + `<div class="mx-ch"><button type="button" class="mx-nav ant" data-d="-1" aria-label="Año anterior"${min && `${y - 1}-12` < min ? ' disabled' : ''}></button><b aria-live="polite">${y}</b><button type="button" class="mx-nav sig" data-d="1" aria-label="Año siguiente"${max && `${y + 1}-01` > max ? ' disabled' : ''}></button></div>`
+      + `<div class="mx-days mx-meses${dir ? (dir > 0 ? ' mx-de' : ' mx-iz') : ''}" role="grid" aria-label="${y}">${filas}</div>`
+      + (a.tipo === 'mesel' && a.nota ? `<p class="mx-nota">${esc(a.nota)}</p>` : '')
+      + `<div class="mx-cf${a.sinMes ? ' mx-cf2' : ''}">${a.sinMes ? `<button type="button" class="mx-hoy mx-sinf"${sel ? '' : ' disabled'}>Sin mes</button>` : ''}<button type="button" class="mx-hoy mx-estemes"${hoyNo ? ' disabled' : ''}>Este mes</button></div>`;
+  }
+  function irAno(dir) { const a = abierto; a.vista = { y: a.vista.y + dir }; a.foco = `${a.vista.y}-${a.foco.slice(5, 7)}`; calPintarMes(dir); }
+  // «Otra…» of a dropdown: its calendar of months beside it; the month chosen goes to its native in «mx-accion» (its value, as it
+  // was). data-min, the first month it can be; data-mes, the one it marks; data-mes-t, what it's called
+  function abrirMesSel(b) {
+    const n = b._nat; if (!n || n.disabled) return;
+    cerrar(false);
+    const M7 = /^\d{4}-\d{2}$/, min = M7.test(n.dataset.min || '') ? n.dataset.min : '', v0 = M7.test(n.dataset.mes || '') ? n.dataset.mes : (min || hoyISO().slice(0, 7));
+    const pop = crearPop('mx-calpop mx-mespop', 'dialog');
+    pop.setAttribute('aria-modal', 'false'); pop.setAttribute('aria-label', n.dataset.mesT || 'Mes');
+    abierto = { g: b, pop, tipo: 'mesel', ctl: b, vista: { y: +v0.slice(0, 4) }, foco: v0 < min ? min : v0, marca: '', min, max: '', sinMes: false, t: n.dataset.mesT || '', nota: n.dataset.mesN || '', sel: () => (M7.test(n.dataset.mes || '') ? n.dataset.mes : ''),
+      alElegir: v => { if (v) n.dispatchEvent(new CustomEvent('mx-accion', { bubbles: true, detail: { accion: 'mes', valor: v } })); } };
+    b.setAttribute('aria-expanded', 'true'); b.setAttribute('aria-controls', pop.id); b.classList.add('mx-abierto');
+    pop.addEventListener('click', calClic);
+    pop.addEventListener('focusin', () => entra(b)); pop.addEventListener('focusout', () => sale(b));
+    calPintarMes(0); colocar(pop, b); mostrar(pop); vigilar(true); focoGrid();
+  }
+  // «Otro…» of a dropdown of days: the days of a month (1–28, data-max) in the calendar's look; the one chosen is an option of
+  // its own («Día 10», data-fmt) if the list doesn't have it
+  function abrirRejilla(b) {
+    const n = b._nat; if (!n || n.disabled) return;
+    cerrar(false);
+    const max = Math.max(1, Math.min(31, +n.dataset.max || 28)), v = PV.SELECT.get.call(n), cur = /^\d{1,2}$/.test(v) && +v <= max ? String(+v) : '';
+    const pop = crearPop('mx-calpop mx-rejpop', 'dialog'), t = n.dataset.rejillaT || 'Día de cada mes';
+    pop.setAttribute('aria-modal', 'false'); pop.setAttribute('aria-label', t);
+    abierto = { g: b, pop, tipo: 'rej', ctl: b, max, foco: cur || '1', sel: cur, t, nota: n.dataset.rejillaN || '', alElegir: x => ponerDia(n, x) };
+    b.setAttribute('aria-expanded', 'true'); b.setAttribute('aria-controls', pop.id); b.classList.add('mx-abierto');
+    pop.addEventListener('click', calClic);
+    pop.addEventListener('focusin', () => entra(b)); pop.addEventListener('focusout', () => sale(b));
+    rejPintar(); colocar(pop, b); mostrar(pop); vigilar(true); focoGrid();
+  }
+  function rejPintar() {
+    const a = abierto; if (!a || a.tipo !== 'rej') return;
+    let filas = '';
+    for (let f = 0; f * 7 < a.max; f++) {
+      filas += '<div class="mx-row" role="row">';
+      for (let c = 0; c < 7; c++) {
+        const d = f * 7 + c + 1, v = String(d);
+        filas += d > a.max ? '<span role="presentation"></span>' : `<button type="button" class="mx-d mx-r" role="gridcell" data-v="${v}" tabindex="${v === a.foco ? 0 : -1}" aria-selected="${v === a.sel}" aria-label="Día ${d}">${d}</button>`;
+      }
+      filas += '</div>';
+    }
+    a.pop.innerHTML = `<div class="mx-ch mx-ch1"><b>${esc(a.t)}</b></div><div class="mx-days" role="grid" aria-label="${esc(a.t)}">${filas}</div>${a.nota ? `<p class="mx-nota">${esc(a.nota)}</p>` : ''}`;
+  }
+  function ponerDia(n, v) {
+    let o = [...n.options].find(x => x.value === v && !x.dataset.accion);
+    if (!o) { o = document.createElement('option'); o.value = v; o.textContent = `${n.dataset.fmt || 'Día'} ${v}`; n.insertBefore(o, [...n.options].find(x => x.dataset.accion) || null); }
+    if (PV.SELECT.get.call(n) === v) return;
+    PSI.set.call(n, o.index); pintar(n); disparar(n);
+  }
+  function tomar(a, v) {                       // a day, a month or a day of the month, chosen
+    if (a.alElegir) { const f = a.alElegir; cerrar(true); f(v); return; }
+    ponerCampo(a.g, v); cerrar(true);
+  }
   function focoGrid() { const a = abierto; const b = a && a.pop.querySelector('.mx-d[tabindex="0"]:not(:disabled)') || (a && a.pop.querySelector('.mx-d:not(:disabled)')); if (b) b.focus({ preventScroll: true }); }
   function irMes(dir) {
     const a = abierto, y = a.vista.y, m = a.vista.m + dir;
@@ -432,16 +551,17 @@
   }
   function calClic(e) {
     const a = abierto; if (!a) return;
-    const d = e.target.closest('.mx-d'); if (d) { if (!d.disabled) { ponerCampo(a.g, d.dataset.v); cerrar(true); } return; }
+    const meses = a.tipo === 'mes' || a.tipo === 'mesel';
+    const d = e.target.closest('.mx-d'); if (d) { if (!d.disabled) tomar(a, d.dataset.v); return; }
     const nv = e.target.closest('.mx-nav');
     if (nv) {
       if (nv.disabled) return;
-      const dentro = a.pop.contains(document.activeElement), d = nv.dataset.d; irMes(+d);
+      const dentro = a.pop.contains(document.activeElement), d = nv.dataset.d; if (meses) irAno(+d); else irMes(+d);
       if (dentro) { const x = a.pop.querySelector(`.mx-nav[data-d="${d}"]`); if (x && !x.disabled) x.focus({ preventScroll: true }); else focoGrid(); }   // the keys stay where they were
       return;
     }
-    const sf = e.target.closest('.mx-sinf'); if (sf) { if (!sf.disabled) { ponerCampo(a.g, ''); cerrar(true); } return; }   // D-188
-    const h = e.target.closest('.mx-hoy'); if (h && !h.disabled) { ponerCampo(a.g, hoyISO()); cerrar(true); }
+    const sf = e.target.closest('.mx-sinf'); if (sf) { if (!sf.disabled) tomar(a, ''); return; }   // D-188
+    const h = e.target.closest('.mx-hoy'); if (h && !h.disabled) tomar(a, meses ? hoyISO().slice(0, 7) : hoyISO());
   }
   function calTecla(e) {
     const a = abierto; if (!a) return;
@@ -453,6 +573,23 @@
       return;
     }
     if (!t.classList || !t.classList.contains('mx-d')) { if (k === 'Enter' || k === ' ') e.stopImmediatePropagation(); return; }
+    if (k === 'Enter' || k === ' ') { para(); if (!t.disabled) tomar(a, t.dataset.v); return; }
+    if (a.tipo === 'mes' || a.tipo === 'mesel') {   // ← → a month, ↑ ↓ a row (three), Re Pág / Av Pág a year (D-304)
+      const f0 = a.foco, c = (+f0.slice(5, 7) - 1) % 3;
+      let d = k === 'ArrowLeft' ? sumarMesesM(f0, -1) : k === 'ArrowRight' ? sumarMesesM(f0, 1) : k === 'ArrowUp' ? sumarMesesM(f0, -3) : k === 'ArrowDown' ? sumarMesesM(f0, 3)
+        : k === 'PageUp' ? sumarMesesM(f0, -12) : k === 'PageDown' ? sumarMesesM(f0, 12) : k === 'Home' ? sumarMesesM(f0, -c) : k === 'End' ? sumarMesesM(f0, 2 - c) : null;
+      if (!d) return;
+      para();
+      if (a.min && d < a.min) d = a.min; if (a.max && d > a.max) d = a.max;
+      const dy = +d.slice(0, 4) - a.vista.y; a.foco = d; if (dy) a.vista = { y: +d.slice(0, 4) };
+      calPintarMes(dy > 0 ? 1 : dy < 0 ? -1 : 0); focoGrid(); return;
+    }
+    if (a.tipo === 'rej') {                    // ← → a day, ↑ ↓ a week, Inicio / Fin the first and the last
+      const f0 = +a.foco;
+      let d = k === 'ArrowLeft' ? f0 - 1 : k === 'ArrowRight' ? f0 + 1 : k === 'ArrowUp' ? f0 - 7 : k === 'ArrowDown' ? f0 + 7 : k === 'Home' ? 1 : k === 'End' ? a.max : null;
+      if (d == null) return;
+      para(); d = Math.max(1, Math.min(a.max, d)); a.foco = String(d); rejPintar(); focoGrid(); return;
+    }
     const n = a.g._nat, f0 = a.foco;
     let d = null;
     if (k === 'ArrowLeft') d = sumarDias(f0, -1); else if (k === 'ArrowRight') d = sumarDias(f0, 1);
@@ -475,7 +612,7 @@
     const t = e.target; if (!t || t.nodeType !== 1) return;
     if (t.classList.contains('mx-sel') && t._nat) teclaSel(e, t);
     else if (t.classList.contains('mx-in') && t.parentNode && t.parentNode._nat) teclaCampo(e, t);
-    else if (abierto && abierto.tipo === 'fecha' && abierto.pop.contains(t)) calTecla(e);
+    else if (abierto && ['fecha', 'mes', 'mesel', 'rej'].includes(abierto.tipo) && abierto.pop.contains(t)) calTecla(e);
   }
   function alSoltar(e) {                       // Space opened a dropdown on keydown: its keyup doesn't click it again
     const t = e.target; if (e.key === ' ' && t && t.classList && t.classList.contains('mx-sel')) { e.preventDefault(); e.stopImmediatePropagation(); }
@@ -538,6 +675,7 @@
 #mesa .mx-o[aria-disabled="true"]{color:var(--faint);cursor:default;background:none}
 #mesa .mx-o.mx-acc{margin-top:5px;padding-left:27px;color:var(--acc-ink);font-weight:600;overflow:visible}
 #mesa .mx-o.mx-acc::before{content:'';position:absolute;left:7px;top:50%;width:14px;height:14px;margin-top:-7px;background:currentColor;-webkit-mask:var(--i-plus) center/contain no-repeat;mask:var(--i-plus) center/contain no-repeat}
+#mesa .mx-o.mx-acc.mx-sin{padding-left:7px}#mesa .mx-o.mx-acc.mx-sin::before{display:none}
 #mesa .mx-o.mx-acc::after{content:'';position:absolute;left:-2px;right:-2px;top:-3px;height:1px;background:var(--line2)}
 #mesa .mx-dest{margin-left:8px;font-weight:400;color:var(--mute)}#mesa .mx-dest svg{width:12px;height:12px;margin-right:3px;vertical-align:-1px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 #mesa .mx-gl{padding:8px 12px 4px 5px;font-size:11px;font-weight:600;color:var(--mute)}#mesa [role="group"]+[role="group"] .mx-gl{margin-top:4px;border-top:1px solid var(--line2);padding-top:10px}
@@ -562,6 +700,11 @@
 #mesa .mx-cf.mx-cf2{justify-content:space-between}#mesa .mx-hoy.mx-sinf:not(:disabled){color:var(--ink-2)}
 #mesa .mx-hoy{margin:0;padding:6px 10px;border:0;border-radius:var(--r-sm);background:none;color:var(--acc-ink);font:600 12.5px var(--font);cursor:pointer;transition:background-color var(--d1) ease-out}#mesa .mx-hoy:hover:not(:disabled){background:var(--bg-2)}#mesa .mx-hoy:disabled{color:var(--faint);cursor:default}
 #mesa .mx-nav:focus-visible,#mesa .mx-hoy:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+#mesa .mx-month .mx-in:not(#mx){width:8.6ch}
+#mesa .mx-meses{gap:4px}#mesa .mx-row.mx-mrow{grid-template-columns:repeat(3,1fr);gap:4px}#mesa .mx-d.mx-m{height:38px}
+#mesa .mx-ch.mx-ch1{justify-content:center;min-height:var(--cx-nav,30px)}
+#mesa .mx-nota{margin:8px 2px 0;font-size:12px;line-height:1.4;color:var(--mute)}
+
 @media (prefers-reduced-motion:reduce){#mesa .mx-pop:not(#mx),#mesa .mx-pop.arriba:not(#mx){transform:none !important;transition:opacity .12s linear !important}#mesa .mx-days.mx-de,#mesa .mx-days.mx-iz{animation:none !important}#mesa .mx-sel::after{transition:none !important}}`;
   if (I() && I().estilo) I().estilo('mesa-mx-css', CSS);
   else { const st = document.createElement('style'); st.id = 'mesa-mx-css'; st.textContent = CSS; document.head.append(st); }
@@ -572,7 +715,7 @@
     mejorar: el => { if (el && el.querySelectorAll) el.querySelectorAll(QS).forEach(mejorar); },   // at once, before a window is laid out (mesa.js)
     abierto: () => (abierto ? { tipo: abierto.tipo, pop: abierto.pop, de: abierto.g._nat } : null),
     cerrar: () => cerrar(false),
-    _leerFecha: leerFecha, _leerHora: leerHora, _horas: horas,   // tests
+    _leerFecha: leerFecha, _leerHora: leerHora, _horas: horas, _leerMes: leerMes,   // tests
     _off: () => { mo.disconnect(); cerrar(false); window.removeEventListener('keydown', alTeclear, true); window.removeEventListener('keyup', alSoltar, true); }
   };
   (window.MESA_CARGA = window.MESA_CARGA || {}).controles = 'ok';

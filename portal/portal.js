@@ -4,7 +4,7 @@
 // hace: aprobar, pedir cambios con motivo y comentar.
 (function portal() {
   'use strict';
-  const V = '1.6';   // 1.6: a pantalla completa (D-293), «Ver más en Zernio» (D-294), la ventana de una publicación como Instagram (D-295), las flechas del carrusel (D-296), «Tus pagos» con su tramo, las entregas de un cliente de solo contenido y la reunión (D-297). 1.5: el aviso de demasiados intentos ya no promete un minuto (D-280). 1.4: la cuenta que solo mira: ve cada cliente como lo ve él, sin aprobar, pedir cambios ni comentar (D-266). 1.3: el monograma a la izquierda de la barra, sin pulsar, y la página con las medidas de la «Vista cliente» (D-264)
+  const V = '1.7';   // 1.7: «Tus pagos» con el acuerdo de cuándo a cuándo, lo que incluye su paquete y la siguiente por su fecha (D-308). 1.6: a pantalla completa (D-293), «Ver más en Zernio» (D-294), la ventana de una publicación como Instagram (D-295), las flechas del carrusel (D-296), «Tus pagos» con su tramo, las entregas de un cliente de solo contenido y la reunión (D-297). 1.5: el aviso de demasiados intentos ya no promete un minuto (D-280). 1.4: la cuenta que solo mira: ve cada cliente como lo ve él, sin aprobar, pedir cambios ni comentar (D-266). 1.3: el monograma a la izquierda de la barra, sin pulsar, y la página con las medidas de la «Vista cliente» (D-264)
   const app = document.getElementById('app');
   const CFG = window.PORTAL_CONFIG || {};
   const TZ = 'Europe/Madrid';
@@ -79,11 +79,13 @@
     st.todoMira = !!(mios || []).length && (mios || []).every(m => m.observa === true);
     const ids = [...new Set((mios || []).map(m => m.cliente_id))];
     if (!ids.length) return [];
-    // `metricas` (D-294) y el acuerdo y el servicio (D-297): un servidor que aún no los tiene contesta 400 y se lee como antes
-    const en = ids.map(encodeURIComponent).join(','), C0 = 'id,nombre,handle,foto,cuota_cent,proxima_emision';
+    // `metricas` (D-294), el acuerdo y el servicio (D-297) y el acuerdo de cuándo a cuándo con su paquete (D-308): un servidor que
+    // aún no los tiene contesta 400 y se lee como antes, un escalón cada vez
+    const en = ids.map(encodeURIComponent).join(','), C0 = 'id,nombre,handle,foto,cuota_cent,proxima_emision', C1 = 'metricas,servicio,pago,pago_cent,cubre_de,cubre_hasta', C2 = 'acuerdo_de,acuerdo_hasta,acuerdo_renueva,paquete,incluye';
     let l;
-    try { l = await S.leer(`clientes?select=${C0},metricas,servicio,pago,pago_cent,cubre_de,cubre_hasta&id=in.(${en})`); }
-    catch (e) { if (e.status !== 400) throw e; l = await S.leer(`clientes?select=${C0}&id=in.(${en})`); }
+    for (const cols of [`${C0},${C1},${C2}`, `${C0},${C1}`, C0]) {
+      try { l = await S.leer(`clientes?select=${cols}&id=in.(${en})`); break; } catch (e) { if (e.status !== 400 || cols === C0) throw e; }
+    }
     return (l || []).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   }
   // una lectura con columnas nuevas (D-297): un servidor que aún no las tiene contesta 400 y se lee sin ellas
@@ -379,7 +381,7 @@
     const orden = (a, b) => clave(b).localeCompare(clave(a)) || String(b.id).localeCompare(String(a.id));
     const deber = P.filter(r => !r.cobrada && r.emitida && r.emitida <= H).sort((a, b) => clave(a).localeCompare(clave(b)));
     const pagadas = P.filter(r => r.cobrada).sort(orden), N = Math.max(0, pagadas.length - 3), ver = st.verAnt === st.cli;
-    const prox = cli && cli.proxima_emision && cli.proxima_emision >= H ? cli.proxima_emision : '';
+    const prox = cli && /^\d{4}-\d{2}-\d{2}$/.test(cli.proxima_emision || '') ? cli.proxima_emision : '';   // también una que ya tocaba (D-308)
     const tramo = cli && cli.pago && cli.pago !== 'mensual' && cli.pago_cent != null;
     if (!(cli && cli.cuota_cent) && !tramo && !deber.length && !pagadas.length && !prox) return null;
     const filas = [...deber, ...pagadas.slice(0, 3), ...(ver ? pagadas.slice(3) : [])], venc = deber.filter(r => r.vence && r.vence < H).length;
@@ -389,11 +391,18 @@
         h('div', {}, h('b', { text: titulo }), r.factura ? h('span', { class: 'm' }, r.pdf ? ico('file') : null, 'Factura ' + r.factura) : null, cuando ? h('span', { class: r.factura ? 'm2' : 'm', text: cuando }) : null),
         h('span', { class: 'est ' + k }, ico(i), t));
     };
-    const emite = prox && !tramo ? h('p', { class: 'emite' }, ico('file'), `La de ${MESES[+prox.slice(5, 7) - 1]} se emite el ${diaCorto(prox)}`) : null;   // con tramo, va en «Cubre …»
-    const cubre = tramo && cli.cubre_de && cli.cubre_hasta ? h('p', { class: 'cubre' }, 'Cubre ', h('b', { text: tramoTxt(cli.cubre_de, cli.cubre_hasta) }), cli.pago !== 'unico' && prox ? ` · el siguiente, el ${diaCorto(prox)}` : '') : null;
+    // la siguiente por su fecha, sin nombrar el mes: se emite el mes de antes (D-308); el acuerdo, de cuándo a cuándo
+    // una fecha ya pasada, «en unos días» solo si es de hace poco: el portal tiene lo del último envío (revisión del lote B); sin partir
+    // «1 abr 2027» ni «nov 2026», y un solo mes una vez
+    const dia = d => diaCorto(d).replace(' ', '\u00a0') + (d.slice(0, 4) !== H.slice(0, 4) ? '\u00a0' + d.slice(0, 4) : ''), reciente = prox && prox < H && (Date.parse(H) - Date.parse(prox)) / 864e5 <= 10;
+    const sig = prox ? (prox >= H ? 'el ' + dia(prox) : reciente ? 'en unos días' : '') : '';
+    const mesA = m => `${mesC(m)}\u00a0${m.slice(0, 4)}`, rg = cli && /^\d{4}-\d{2}$/.test(cli.acuerdo_de || '') ? (/^\d{4}-\d{2}$/.test(cli.acuerdo_hasta || '') ? (cli.acuerdo_hasta === cli.acuerdo_de ? mesA(cli.acuerdo_de) : `${mesA(cli.acuerdo_de)} – ${mesA(cli.acuerdo_hasta)}`) : `desde ${mesA(cli.acuerdo_de)}`) : '';
+    const emite = sig && !tramo ? h('p', { class: 'emite' }, ico('file'), `Próxima factura, ${sig}`) : null;   // con tramo, va en «Cubre …»
+    const cubre = tramo && cli.cubre_de && cli.cubre_hasta ? h('p', { class: 'cubre' }, 'Cubre ', h('b', { text: tramoTxt(cli.cubre_de, cli.cubre_hasta) }), cli.pago !== 'unico' && prox && prox >= H ? ` · próxima factura, ${sig}` : '') : null;
+    const inc = cli && Array.isArray(cli.incluye) && cli.incluye.length ? h('p', { class: 'incluye', text: 'Incluye ' + cli.incluye.join(' · ') }) : null;   // lo que incluye su paquete (D-307)
     const mas = N ? h('button', { type: 'button', class: 'lnk ver-ant', 'aria-expanded': String(ver), text: ver ? 'Ocultar las anteriores' : `Ver las anteriores (${N})`, onclick: () => { st.verAnt = ver ? null : st.cli; pintar(); } }) : null;
     return h('section', { class: 'card', 'aria-labelledby': 'h-pagos' },
-      h('div', { class: 'ti pagos-ti' }, h('h2', { id: 'h-pagos', text: 'Tus pagos' }), tramo ? h('span', { text: `${PAGO[cli.pago] || 'Pago'} · ${eur(cli.pago_cent)}` }) : cli && cli.cuota_cent ? h('span', { text: eur(cli.cuota_cent) + ' al mes' }) : null), cubre,
+      h('div', { class: 'ti pagos-ti' }, h('h2', { id: 'h-pagos', text: 'Tus pagos' }), tramo ? h('span', { text: `${PAGO[cli.pago] || 'Pago'} · ${eur(cli.pago_cent)}${rg ? ' · ' + rg + (cli.acuerdo_renueva ? ', se\u00a0renueva' : '') : ''}` }) : cli && cli.cuota_cent ? h('span', { text: eur(cli.cuota_cent) + ' al mes' + (rg ? ' · ' + rg : '') }) : null), inc, cubre,
       deber.length ? h('p', { class: 'pend-pago' }, 'Pendiente de pago ', h('b', { text: eur(deber.reduce((s, r) => s + r.importe_cent, 0)) }), venc ? h('em', { text: `· ${venc === 1 ? '1 vencida' : venc + ' vencidas'}` }) : null) : null,
       filas.map(fila), mas, emite);
   }

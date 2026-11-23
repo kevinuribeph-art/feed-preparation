@@ -5,7 +5,7 @@
 (function webBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
-  const VERSION = '1.6';   // 1.6: el enlace de métricas (D-294); el acuerdo, el tramo de cada factura, la reunión con el ojo abierto y las entregas de un cliente de solo contenido (D-297); M.web.hilo, lo ya leído de una publicación para su ventana en la «Vista cliente» (D-295). 1.5: la cuota solo si paga cada mes y cada factura por su primer mes (D-288); una reunión no se envía (D-291). 1.4: en el iPhone (D-267) no arranca solo; conversacion(B), contestar(B, slot, texto) y leido(pid, hora) para su cara, nunca estadoWeb ni lecturas (R2); «desde el escritorio». 1.3: con la entrada de la Mesa (D-262) no hay código por correo aquí: sin sesión, la Mesa vuelve a su entrada
+  const VERSION = '1.7';   // 1.7: el acuerdo de hoy de cuándo a cuándo, si se renueva, su paquete y lo que incluye (D-308). 1.6: el enlace de métricas (D-294); el acuerdo, el tramo de cada factura, la reunión con el ojo abierto y las entregas de un cliente de solo contenido (D-297); M.web.hilo, lo ya leído de una publicación para su ventana en la «Vista cliente» (D-295). 1.5: la cuota solo si paga cada mes y cada factura por su primer mes (D-288); una reunión no se envía (D-291). 1.4: en el iPhone (D-267) no arranca solo; conversacion(B), contestar(B, slot, texto) y leido(pid, hora) para su cara, nunca estadoWeb ni lecturas (R2); «desde el escritorio». 1.3: con la entrada de la Mesa (D-262) no hay código por correo aquí: sin sesión, la Mesa vuelve a su entrada
   const I = () => M._in;
   if (M.web && M.web._off) { try { M.web._off(); } catch (e) { /* una versión anterior ya no está */ } }
   const OFF = [];
@@ -116,6 +116,7 @@
       if (r && !r.error && (r.porque || r.resumen)) mesesInfo.push({ cliente_id: cli, mes: m, porque: r.porque || null, resumen: r.resumen || null });
     }
     if (X.cob && X.cob.leer) await X.cob.leer();
+    if (X.cob && X.cob.mal && X.cob.mal()) return { error: 'no se pudieron leer las facturas o los acuerdos: recarga la página' };   // nunca «sin acuerdo» por una lectura fallida (lección 94)
     const cob = X.cob, H = X.hoy(), vivos = cob ? cob.vivos(cli) : [];
     // solo lo que enseña «Tus pagos»: pendientes, retrasados y cobrados; nunca un borrador sin emitir (D-237)
     const pagos = vivos.filter(r => +r.importe >= 0 && ['pendiente', 'retrasada', 'cobrada'].includes(cob.estado(r, H).k)).map(r => ({ cliente_id: cli, id: String(r.id).slice(0, 80), periodo: /^\d{4}-\d{2}$/.test(r.periodo || '') ? r.periodo : null,
@@ -124,12 +125,16 @@
       hasta: /^\d{4}-\d{2}$/.test(r.periodo || '') && cob.hasta && cob.hasta(r) !== r.periodo ? cob.hasta(r) : null }));   // el tramo que cubre (D-297)
     // el acuerdo como lo ve el cliente (D-297): cada cuánto paga, cuánto en cada pago y el tramo que cubre hoy; la cuota, como
     // siempre, solo si paga cada mes (un portal viejo la lee «al mes»); la fecha de renegociar, nunca
-    const q = cob ? cob.cuota(c) : null, prox = cob && q ? cob.proxima(cli) : null, mensual = q && (q.pago || 'mensual') === 'mensual';
-    const tr = q && cob.tramo ? cob.tramo(q, H.slice(0, 7)) : null;
+    const q = cob ? cob.cuota(c, H.slice(0, 7)) : null, prox = cob && q ? cob.proxima(cli) : null, mensual = q && (q.pago || 'mensual') === 'mensual';   // the agreement of today (D-305)
+    const tr = q && cob.tramo ? cob.tramo(q, H.slice(0, 7)) : null, rg = q && cob.rango ? cob.rango(q, H.slice(0, 7)) : null;
     const cliente = { id: cli, nombre: String(c.name || cli).slice(0, 80), handle: c.handle ? String(c.handle).replace(/^@/, '').slice(0, 40) : null,
       cuota_cent: mensual ? Math.round(q.importe * 100) : null, proxima_emision: prox && prox.emitida ? prox.emitida : null,
       servicio: X.servicio ? X.servicio(c) : 'redes', pago: q ? q.pago || 'mensual' : null, pago_cent: q ? Math.round(q.importe * 100) : null,
       cubre_de: tr ? tr.de : null, cubre_hasta: tr ? tr.hasta : null,
+      // el acuerdo de hoy de cuándo a cuándo (sin fin, sin «hasta»), si un pago por tramos se renueva, y su paquete con lo que
+      // incluye (D-307, D-308); nunca la fecha de renegociar
+      acuerdo_de: rg ? rg.de : null, acuerdo_hasta: rg && rg.hasta ? rg.hasta : null, acuerdo_renueva: q ? !!(q.renueva && !q.cubreHasta && (q.pago || 'mensual') !== 'unico') : null,
+      paquete: q && q.paquete && q.paquete.nombre ? String(q.paquete.nombre).slice(0, 60) : null, incluye: q && q.paquete && q.paquete.incluye && q.paquete.incluye.length ? q.paquete.incluye.slice(0, 20).map(x => String(x).slice(0, 80)) : null,
       metricas: c.metricas && X.metricasOk && X.metricasOk(c.metricas) && /^https:\/\//.test(c.metricas) ? c.metricas : null, _foto: c.foto || null };   // «Ver más en Zernio» (D-294)
     // Las entregas de un cliente de solo contenido (D-297), todas las suyas (son pocas): qué, cuánto, su fecha y, solo entregada,
     // su enlace. Leídas del almacén: una lectura fallida no es «sin entregas» (lección 94), no se envía.
@@ -190,7 +195,8 @@
       if (todo || st.extra == null || Date.now() - st.extraT > 30000) {   // leer tareas, informe y cobros, cada 30 s como mucho
         st.extraT = Date.now();
         const P = await paquete(B); if (I().S !== B) return;
-        const e = P.error ? 0 : (await huellaExtra(P)) === lsG(claveHuella(B)) ? 0 : 1;
+        if (P.error) throw new Error(P.error);   // sin poder leer, nunca «al día» (revisión del lote B)
+        const e = (await huellaExtra(P)) === lsG(claveHuella(B)) ? 0 : 1;
         if (e !== st.extra) { st.extra = e; st.firma = ''; }
       }
       const errorAntes = st.error; st.error = '';

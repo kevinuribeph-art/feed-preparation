@@ -62,6 +62,26 @@ alter table public.clientes add constraint clientes_cubre_check check (
   (cubre_de is null and cubre_hasta is null)
   or (cubre_de is not null and cubre_hasta is not null
       and cubre_de ~ '^[0-9]{4}-(0[1-9]|1[0-2])$' and cubre_hasta ~ '^[0-9]{4}-(0[1-9]|1[0-2])$' and cubre_hasta >= cubre_de));
+-- El acuerdo de hoy de cuándo a cuándo (D-308), además del tramo de hoy de arriba:
+--   · acuerdo_de y acuerdo_hasta (AAAA-MM): el ciclo en curso o lo que cubre; sin «hasta», sin fin (solo `acuerdo_hasta` puede ir
+--     nulo: con `acuerdo_de` nulo, los dos);
+--   · acuerdo_renueva: si un pago por tramos se renueva;
+--   · paquete y incluye: el nombre de su paquete y lo que incluye (D-307), hasta 20 cosas.
+alter table public.clientes add column if not exists acuerdo_de      text;
+alter table public.clientes add column if not exists acuerdo_hasta   text;
+alter table public.clientes add column if not exists acuerdo_renueva boolean;
+alter table public.clientes add column if not exists paquete         text;
+alter table public.clientes add column if not exists incluye         text[];
+alter table public.clientes drop constraint if exists clientes_acuerdo_check;
+alter table public.clientes add constraint clientes_acuerdo_check check (
+  (acuerdo_de is null and acuerdo_hasta is null)
+  or (acuerdo_de is not null and acuerdo_de ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'
+      and (acuerdo_hasta is null or (acuerdo_hasta ~ '^[0-9]{4}-(0[1-9]|1[0-2])$' and acuerdo_hasta >= acuerdo_de))));
+alter table public.clientes drop constraint if exists clientes_paquete_check;
+alter table public.clientes add constraint clientes_paquete_check check (paquete is null or char_length(paquete) between 1 and 60);
+alter table public.clientes drop constraint if exists clientes_incluye_check;
+alter table public.clientes add constraint clientes_incluye_check check (incluye is null
+  or (cardinality(incluye) <= 20 and array_position(incluye, null) is null and char_length(array_to_string(incluye, '')) <= 1600));
 
 -- Un id de cliente borrado no se vuelve a usar: sus archivos podían seguir en el almacén.
 create table if not exists public.clientes_borrados (

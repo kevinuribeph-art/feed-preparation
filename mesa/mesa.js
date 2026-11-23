@@ -5791,13 +5791,21 @@ ${TK_FUENTES}
   // the line, short (D-304): the cycle it covers (the one in course: «Ahora cubre»; one not begun or ended, «Cubre»), its
   // payments and when they're invoiced — Kevin bills in advance, the month before; renegotiating, in its title (acuTitulo)
   function acuResumen(c, hoyM) { return acuResumenA(acuerdoDe(c), hoyM); }
+  // what an agreement covers as of a month (D-308): the cycle in course (one that renews) or its months, never past what it covers;
+  // {de, hasta} ('' with no end), or null without «Cubre desde». The client sees it in «Tus pagos» and the portal (acuerdo_de / _hasta)
+  function acuRango(a, hoyM) {
+    if (!a || !a.desde) return null;
+    hoyM = hoyM || madParts(ahora()).day.slice(0, 7);
+    let de = a.desde, fin = acuFin(a);
+    if (a.meses && a.renueva && hoyM > a.desde) { fin = acuFinCiclo(a, hoyM); de = addMonths(fin, -(a.meses - 1)); }
+    if (a.cubreHasta && (!fin || fin > a.cubreHasta)) { fin = a.cubreHasta; if (de > fin) de = a.desde; }
+    return { de, hasta: fin || '' };
+  }
   function acuResumenA(a, hoyM) {   // one of the list (D-305): never past what it covers
     if (!a) return '';
     hoyM = hoyM || madParts(ahora()).day.slice(0, 7);
     const n = acuPaso(a), out = [];
-    let de = a.desde, fin = acuFin(a);
-    if (a.desde && a.meses && a.renueva && hoyM > a.desde) { fin = acuFinCiclo(a, hoyM); de = addMonths(fin, -(a.meses - 1)); }   // the cycle in course (A49-1)
-    if (a.cubreHasta && (!fin || fin > a.cubreHasta)) { fin = a.cubreHasta; if (de > fin) de = a.desde; }   // the next one starts, or its «Termina en»
+    const rg = acuRango(a, hoyM), de = rg ? rg.de : '', fin = rg ? rg.hasta : '';   // the cycle in course (A49-1), never past what it covers (D-305)
     if (a.desde) out.push(fin ? `${de <= hoyM && hoyM <= fin ? 'Ahora cubre' : 'Cubre'} ${acuMes(de)} – ${acuMes(fin)}` : `Cubre desde ${acuMes(a.desde)}`);
     else if (a.cubreHasta) out.push(`Hasta ${acuMes(a.cubreHasta)}`);
     if (a.importe != null) {
@@ -8822,7 +8830,7 @@ ${TK_FUENTES}
       dlgCliente: async (cid, tab) => { await loadClientPhotos(); return dlgEditClient(cid, tab); },   // «Editar cliente» of any client, in its tab (D-233)
       guardar: cobGuardar, parche: cobParche, pdfVolver: cobPdfVolver, borrar: cobBorrar, devolver: cobDevolver, pdfPoner: cobPdfPoner, pdfValido: cobPdfValido, pdfLibre: cobPdfLibre, nuevoId: cobId, cuotaGuardar, cuotaTxt, avisar: cobAvisar, MES: COB_MES,
       // the agreement (D-288): as kept, its stretches, its line, its save; an invoice's last month and whether one covers a month
-      acuerdo: acuerdoDe, tramo: acuTramo, libre: acuLibre, falta: acuFalta, importeDe: acuImporte, resumen: acuResumen, titulo: acuTitulo, acuGuardar, acuerdos: acuerdosDe, delMes: (cli, m) => acuDelMes(acuerdosDe(cli), m), resumenA: acuResumenA, tituloA: acuTituloA, completo: acuCompleto, acuLeer, acuNuevo, acuBorrar, acuDevolver, acuCambiar, idLegado: acuIdLegado, paquetes: () => paqVivos(), paqGet: id => PAQ && PAQ.get(id), paqNuevo, paqCambiar, paqBorrar, paqDevolver, paqIncluye, acuLimpio, PAGOS: ACU_PAGOS, paso: acuPaso, fin: acuFin, finCiclo: acuFinCiclo, mesCorto: acuMes, hasta: cobHasta, cubre: cobCubre },
+      acuerdo: acuerdoDe, tramo: acuTramo, libre: acuLibre, falta: acuFalta, importeDe: acuImporte, resumen: acuResumen, titulo: acuTitulo, rango: acuRango, acuGuardar, acuerdos: acuerdosDe, delMes: (cli, m) => acuDelMes(acuerdosDe(cli), m), resumenA: acuResumenA, tituloA: acuTituloA, completo: acuCompleto, acuLeer, acuNuevo, acuBorrar, acuDevolver, acuCambiar, idLegado: acuIdLegado, paquetes: () => paqVivos(), paqGet: id => PAQ && PAQ.get(id), paqNuevo, paqCambiar, paqBorrar, paqDevolver, paqIncluye, acuLimpio, PAGOS: ACU_PAGOS, paso: acuPaso, fin: acuFin, finCiclo: acuFinCiclo, mesCorto: acuMes, hasta: cobHasta, cubre: cobCubre },
     // a «Solo contenido» client (D-289) and its deliveries (D-290): for entregas.js, personal.js, calendario.js and movil.js
     servicio: servicioDe, esContenido, metricasOk, diaSel, acuRecValido, paqRecValido,
     ent: { leer: entLeer, esperar: () => entPend, listo: () => !!ENT, vivas: entVivas, get: id => ENT && ENT.get(id), estado: entEstado, propuesta: entPropuesta, nueva: entNueva, cambiar: entCambiar, borrar: entBorrar, devolver: entDevolver, avisar: entAvisar, url: entUrl },

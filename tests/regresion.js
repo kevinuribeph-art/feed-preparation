@@ -16068,7 +16068,7 @@
         ['Septiembre · 450 €', 'Factura 2026-022 · pagada el 23 sep', 'Pagada', 'ok', true], ['Agosto · 450 €', 'Factura 2026-018 · pagada el 22 ago', 'Pagada', 'ok', true], ['Julio · 450 €', 'Factura 2026-015 · pagada el 22 jul', 'Pagada', 'ok', true]], 'las líneas y su orden');
       const dw = p.querySelector('.co-dw'); igual([dw.title, dw.getAttribute('aria-label')], ['Descargar la factura 2026-027 (PDF)', 'Descargar la factura 2026-027 (PDF)'], 'el botón de descarga');
       cerca(dw.getBoundingClientRect().width, 32, 0.5, 'el botón de descarga no mide 32 px');
-      igual(p.querySelector('.co-vprox').textContent, 'La de diciembre se emite en unos días', 'la próxima');   // se emite el 15 nov (D-304), a propósito
+      igual(p.querySelector('.co-vprox').textContent, 'El siguiente, en unos días', 'la próxima');   // por su fecha, sin nombrar el mes (D-308); se emitía el 15 nov (D-304), a propósito
       // «Ver las anteriores (3)»
       const ver = p.querySelector('[data-co="ver-ant"]'); igual([ver.textContent, ver.getAttribute('aria-expanded')], ['Ver las anteriores (3)', 'false'], '«Ver las anteriores»');
       ver.click(); await espera(80); igual(lado().querySelectorAll('.co-vl li').length, 8, 'no despliega las anteriores');
@@ -21653,11 +21653,11 @@
       ok((await M.cobros.cargar([{ id: 'vd5-1', cliente: CLIENTE, periodo: '2026-05', hasta: '2026-10', importe: 2700, factura: 'VD5-1', emitida: '2026-05-01', vence: '2026-05-16', cobrada: '2026-05-10' }])).ok, 'cargar');
       await vistaCliente(true); M._in.render(); await espera(120);
       const p = await hasta(() => q('.main > .vc-lado [data-vc="pagos"]'), 3000, '«Tus pagos»');
-      igual(p.querySelector('.co-vh').textContent, 'Tus pagos Pago semestral · 2700 €', 'el título');
+      igual(p.querySelector('.co-vh').textContent, 'Tus pagos Pago semestral · 2700 € · may 2026 – abr 2027, se renueva', 'el título');   // el acuerdo de cuándo a cuándo (D-308), a propósito
       igual(p.querySelector('.co-vcubre') && p.querySelector('.co-vcubre').textContent, 'Cubre may – oct 2026', 'el tramo');   // el siguiente se emitía el 1 oct (D-304), a propósito
       igual(p.querySelector('.co-vl li .m').textContent, 'Mayo – octubre · 2700 €', 'la factura');
       ok(!p.querySelector('.co-vprox'), 'la siguiente se repite abajo');
-      ok(!/abr|2027/.test(p.textContent), 'sale la fecha de renegociar: ' + p.textContent);
+      ok(!/1 abr|renegoci/i.test(p.textContent), 'sale la fecha de renegociar: ' + p.textContent);   // «abr 2027» es el final del acuerdo (D-308); renegociar sería «1 abr», a propósito
       // mensual: como siempre
       await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 450, dia: 15, plazo: 10, desde: '', meses: null, renueva: true, renegociar: '2027-04-01' }); M._in.render(); await espera(120);
       const p2 = await hasta(() => q('.main > .vc-lado [data-vc="pagos"] .co-vh') && /al mes/.test(q('.main > .vc-lado [data-vc="pagos"] .co-vh').textContent) && q('.main > .vc-lado [data-vc="pagos"]'), 3000, 'el mensual');
@@ -22196,6 +22196,48 @@
       const und = await hasta(() => { const t = qa('.toasts .toast').find(x => /Acuerdo borrado/.test(x.textContent)); return t && [...t.querySelectorAll('button')].find(b => /Deshacer/.test(b.textContent)); }, 2000, '«Deshacer»'); und.click();
       await hasta(() => cards().length === 3, 3000, '«Deshacer» lo devuelve');
     } finally { relojVuelve(); if (M.controles) M.controles.cerrar(); M._in.closeDetail(); }
+  });
+  // ---------- ajustes de la 4.49, lote B, punto 9: «Cubre» siempre y la siguiente por su fecha (D-308) ----------
+  prueba('AX1', '«Tus pagos» dice el acuerdo de cuándo a cuándo (D-308): un mensual, «450 € al mes · may 2026 – oct 2026» (sin fin, «desde may 2026»); uno por tramos, «Pago semestral · 2700 € · desde may 2026, se renueva» y «Cubre <tramo de hoy>» (D-297); lo que incluye su paquete; la siguiente por su fecha («El siguiente, el 10 dic»), sin nombrar el mes, también cuando se emite el mes de antes; sin «Cubre desde», como siempre; nunca la fecha de renegociar', async () => {
+    await tablero([pub(1)]);
+    relojEn('2026-11-20T10:00:00+01:00');
+    try {
+      await hasta(() => M.cobrosUI, 8000, 'cobros.js');
+      await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 450, dia: 10, plazo: 15, desde: '2026-05', meses: 6, renueva: true, renegociar: '2027-04-15', paquete: { id: 'p-b', nombre: 'Paquete B', incluye: ['12 fotos al mes', '4 reels'] } });
+      await M.cobros.cargar([{ id: 'ax-11', cliente: CLIENTE, periodo: '2026-11', importe: 450, factura: 'AX-11', emitida: '2026-10-10', vence: '2026-10-25', cobrada: '2026-10-20' }, { id: 'ax-12', cliente: CLIENTE, periodo: '2026-12', importe: 450, factura: 'AX-12', emitida: '2026-11-10', vence: '2026-11-25' }]);
+      await vistaCliente(true); M._in.render(); await espera(120);
+      const p = await hasta(() => q('.main > .vc-lado [data-vc="pagos"]'), 3000, '«Tus pagos»');
+      igual(p.querySelector('.co-vh').textContent, 'Tus pagos 450 € al mes · nov 2026 – abr 2027', 'el título de un mensual');
+      ok(/Incluye 12 fotos al mes · 4 reels/.test(p.textContent), 'sin lo que incluye: ' + p.textContent);
+      igual(p.querySelector('.co-vprox').textContent, 'El siguiente, el 10 dic', 'la siguiente por su fecha');
+      ok(!/abr 2027 ·|15 abr|renegoci/i.test(p.textContent.replace('nov 2026 – abr 2027', '')), 'sale la fecha de renegociar: ' + p.textContent);
+      // sin fin
+      await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 450, dia: 10, plazo: 15, desde: '2026-05', meses: null, renueva: true }); M._in.render(); await espera(120);
+      await hasta(() => /desde may 2026/.test(q('.main > .vc-lado [data-vc="pagos"] .co-vh').textContent), 3000, '«desde may 2026»');
+      // por tramos
+      await CB().acuGuardar(CLIENTE, { ...AU_ACU, meses: null }); await M.cobros.cargar([{ id: 'ax-s', cliente: CLIENTE, periodo: '2026-11', hasta: '2027-04', importe: 2700, factura: 'AX-S', emitida: '2026-10-01', cobrada: '2026-10-05' }]); M._in.render(); await espera(120);
+      const pt = await hasta(() => { const x = q('.main > .vc-lado [data-vc="pagos"]'); return x && /Pago semestral/.test(x.textContent) && x; }, 3000, 'el semestral');
+      igual(pt.querySelector('.co-vh').textContent, 'Tus pagos Pago semestral · 2700 € · desde may 2026, se renueva', 'el título de uno por tramos');
+      igual(pt.querySelector('.co-vcubre').textContent, 'Cubre nov 2026 – abr 2027 · el siguiente, el 1 abr 2027', 'el tramo de hoy y la siguiente');
+      ok(!pt.querySelector('.co-vprox'), 'la siguiente se repite abajo');
+      // sin «Cubre desde»: como siempre
+      await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 500, dia: 5, plazo: 15 }); M._in.render(); await espera(120);
+      await hasta(() => q('.main > .vc-lado [data-vc="pagos"] .co-vh').textContent === 'Tus pagos 500 € al mes', 3000, 'sin «Cubre desde», como siempre');
+    } finally { relojVuelve(); await vistaCliente(false); }
+  });
+  prueba('AX2', 'Lo que recibe la web del cliente del acuerdo (D-308): de cuándo a cuándo (sin fin, sin «hasta»), si se renueva, el nombre de su paquete y lo que incluye, y la fecha de la siguiente; nunca la fecha de renegociar ni el acuerdo de otro mes', async () => {
+    await tablero([pub(1)]);
+    relojEn('2026-11-20T10:00:00+01:00');
+    try {
+      await hasta(() => M.web && M.web.paquete, 8000, 'web.js');
+      await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 380, dia: 5, plazo: 15, desde: '2026-01', meses: 4, renueva: false });
+      const n = await CB().acuNuevo(CLIENTE, '2026-05'); await CB().acuCambiar(CLIENTE, n.id, { importe: 450, dia: 10, meses: 6, renueva: true, renegociar: '2027-04-15', paquete: { id: 'p-b', nombre: 'Paquete B', incluye: ['12 fotos al mes', '4 reels'] } });
+      let P = await M.web.paquete(M._in.S);
+      igual([P.cliente.acuerdo_de, P.cliente.acuerdo_hasta, P.cliente.acuerdo_renueva, P.cliente.paquete, P.cliente.incluye], ['2026-11', '2027-04', true, 'Paquete B', ['12 fotos al mes', '4 reels']], 'el acuerdo de hoy');
+      ok(!/2027-04-15|renegoc/.test(json(P.cliente)), 'la web recibe la fecha de renegociar');
+      await CB().acuCambiar(CLIENTE, n.id, { meses: null }); P = await M.web.paquete(M._in.S);
+      igual([P.cliente.acuerdo_de, P.cliente.acuerdo_hasta], ['2026-05', null], 'sin fin');
+    } finally { relojVuelve(); }
   });
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;

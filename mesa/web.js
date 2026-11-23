@@ -124,12 +124,16 @@
       hasta: /^\d{4}-\d{2}$/.test(r.periodo || '') && cob.hasta && cob.hasta(r) !== r.periodo ? cob.hasta(r) : null }));   // el tramo que cubre (D-297)
     // el acuerdo como lo ve el cliente (D-297): cada cuánto paga, cuánto en cada pago y el tramo que cubre hoy; la cuota, como
     // siempre, solo si paga cada mes (un portal viejo la lee «al mes»); la fecha de renegociar, nunca
-    const q = cob ? cob.cuota(c) : null, prox = cob && q ? cob.proxima(cli) : null, mensual = q && (q.pago || 'mensual') === 'mensual';
-    const tr = q && cob.tramo ? cob.tramo(q, H.slice(0, 7)) : null;
+    const q = cob ? cob.cuota(c, H.slice(0, 7)) : null, prox = cob && q ? cob.proxima(cli) : null, mensual = q && (q.pago || 'mensual') === 'mensual';   // the agreement of today (D-305)
+    const tr = q && cob.tramo ? cob.tramo(q, H.slice(0, 7)) : null, rg = q && cob.rango ? cob.rango(q, H.slice(0, 7)) : null;
     const cliente = { id: cli, nombre: String(c.name || cli).slice(0, 80), handle: c.handle ? String(c.handle).replace(/^@/, '').slice(0, 40) : null,
       cuota_cent: mensual ? Math.round(q.importe * 100) : null, proxima_emision: prox && prox.emitida ? prox.emitida : null,
       servicio: X.servicio ? X.servicio(c) : 'redes', pago: q ? q.pago || 'mensual' : null, pago_cent: q ? Math.round(q.importe * 100) : null,
       cubre_de: tr ? tr.de : null, cubre_hasta: tr ? tr.hasta : null,
+      // el acuerdo de hoy de cuándo a cuándo (sin fin, sin «hasta»), si un pago por tramos se renueva, y su paquete con lo que
+      // incluye (D-307, D-308); nunca la fecha de renegociar
+      acuerdo_de: rg ? rg.de : null, acuerdo_hasta: rg && rg.hasta ? rg.hasta : null, acuerdo_renueva: q ? !!(q.renueva && !q.cubreHasta && (q.pago || 'mensual') !== 'unico') : null,
+      paquete: q && q.paquete && q.paquete.nombre ? String(q.paquete.nombre).slice(0, 60) : null, incluye: q && q.paquete && q.paquete.incluye && q.paquete.incluye.length ? q.paquete.incluye.slice(0, 20).map(x => String(x).slice(0, 80)) : null,
       metricas: c.metricas && X.metricasOk && X.metricasOk(c.metricas) && /^https:\/\//.test(c.metricas) ? c.metricas : null, _foto: c.foto || null };   // «Ver más en Zernio» (D-294)
     // Las entregas de un cliente de solo contenido (D-297), todas las suyas (son pocas): qué, cuánto, su fecha y, solo entregada,
     // su enlace. Leídas del almacén: una lectura fallida no es «sin entregas» (lección 94), no se envía.

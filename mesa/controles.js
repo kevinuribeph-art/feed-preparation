@@ -204,9 +204,10 @@
     const a = g.getBoundingClientRect(), vw = document.documentElement.clientWidth, vh = window.innerHeight, m = 8, sep = 6;
     pop.style.maxHeight = ''; pop.style.maxWidth = ''; pop.style.left = '0px'; pop.style.top = '0px';
     // its text where the field's starts (D-150): with no room beside the field for its longest name, narrower (at most to the
-    // window's margin), the long ones cut with «…», rather than moved to the left; moved only with almost no room at all
-    const libre = vw - m - Math.max(m, a.left);
-    if (libre >= 120) { pop.style.minWidth = Math.min(parseFloat(pop.style.minWidth) || 0, libre) + 'px'; pop.style.maxWidth = libre + 'px'; }
+    // window's margin), the long ones cut with «…», rather than moved to the left; moved only with almost no room at all. A
+    // calendar never narrows (D-301): its days are drawn at their size, and beside the edge it goes to the left, whole
+    const libre = vw - m - Math.max(m, a.left), cal = pop.classList.contains('mx-calpop');
+    if (!cal && libre >= 120) { pop.style.minWidth = Math.min(parseFloat(pop.style.minWidth) || 0, libre) + 'px'; pop.style.maxWidth = libre + 'px'; }
     else pop.style.maxWidth = (vw - 2 * m) + 'px';
     const w = Math.min(pop.offsetWidth, vw - 2 * m), h = pop.offsetHeight;
     const abajo = vh - a.bottom - sep - m, arriba = a.top - sep - m, sube = h > abajo && arriba > abajo;
@@ -523,7 +524,6 @@
 #mesa .ubsel+.mx-sel{max-width:100%}#mesa .persel+.mx-sel:not(#mx){flex:none;width:10.6em;max-width:100%}
 #mesa .lb-sel+.mx-sel:not(#mx){display:flex;width:100%;min-height:32px;font-size:13px;padding:0 30px 0 10px}
 #mesa .hv-lin select+.mx-sel:not(#mx){flex:1;min-width:0;font-size:13px;font-weight:400}#mesa .hv-fh .mx-f{flex:1;min-width:0}#mesa .hv-fh .mx-in:not(#mx){font-size:13px;font-weight:400}
-#mesa .vform .mx-f{min-height:28px}#mesa .vform .mx-in:not(#mx){height:26px;font-size:12px}#mesa .vform .mx-cal:not(#mx){width:24px;height:24px}
 #mesa .mx-pop{position:fixed;z-index:80;box-sizing:border-box;margin:0;padding:5px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line2);border-radius:var(--r-md);box-shadow:var(--shadow-lg);font:13px/1.35 var(--font);opacity:0;transform:translateY(-6px) scale(.98);transform-origin:top left;transition:opacity var(--d2) var(--ease),transform var(--d-m) var(--ease-m);pointer-events:none}
 #mesa .mx-pop.arriba{transform:translateY(6px) scale(.98);transform-origin:bottom left}
 #mesa .mx-pop.on{opacity:1;transform:none;pointer-events:auto}

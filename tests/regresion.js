@@ -21827,6 +21827,30 @@
     } finally { await sinTareas(); }
   });
 
+  prueba('AN3', 'El calendario de una fecha nunca se estrecha (D-301): un campo cerca del borde derecho abre su calendario a 280 px, entero dentro de la ventana y movido a la izquierda; el campo de la ventana de vencidas mide 32 px, como los demás', async () => {
+    await tablero([pub(1)]);
+    await hasta(() => M.controles, 4000, 'controles.js');
+    M._in.openDetail('r1', 0);
+    await hasta(() => q('.detail .card'), 3000, 'la ventana');
+    const caja = D.createElement('div'); caja.style.cssText = 'position:fixed;top:120px;right:80px;z-index:90';
+    caja.innerHTML = '<input type="date" aria-label="Prueba AN3" value="2026-11-10">';
+    const vf = D.createElement('div'); vf.className = 'vform'; vf.innerHTML = '<input type="date" aria-label="Prueba AN3, vencidas" value="2026-11-10">';
+    q('.detail .card').append(caja, vf);
+    try {
+      const g = await hasta(() => gem(caja.querySelector('input')), 2000, 'el campo de fecha');
+      g.querySelector('.mx-cal').click();
+      const pop = await hasta(() => capa(), 1500, 'el calendario');
+      await espera(300);
+      const r = pop.getBoundingClientRect(), vw = D.documentElement.clientWidth;
+      cerca(r.width, 280, 1, 'el calendario se estrecha');
+      ok(r.left >= 7.5 && r.right <= vw - 7.5, `el calendario se sale de la ventana: ${r.left.toFixed(1)}–${r.right.toFixed(1)} de ${vw}`);
+      ok(r.left < g.getBoundingClientRect().left, 'el calendario no se movió a la izquierda');
+      D.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true })); await espera(200);
+      const gv = await hasta(() => gem(vf.querySelector('input')), 2000, 'el campo de vencidas');
+      cerca(gv.getBoundingClientRect().height, 32, 0.5, 'el campo de vencidas no mide 32 px');
+    } finally { caja.remove(); vf.remove(); M._in.closeDetail(); }
+  });
+
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;
   $('resumen').textContent = `${T.length} pruebas listas.`;

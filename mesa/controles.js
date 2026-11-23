@@ -213,7 +213,9 @@
     const abajo = vh - a.bottom - sep - m, arriba = a.top - sep - m, sube = h > abajo && arriba > abajo;
     const alto = Math.min(h, Math.max(120, sube ? arriba : abajo));
     if (alto < h) pop.style.maxHeight = alto + 'px';
-    pop.style.left = Math.round(Math.min(Math.max(m, a.left), vw - m - w)) + 'px';
+    const x = Math.round(Math.min(Math.max(m, a.left), vw - m - w));
+    pop.style.left = x + 'px';
+    pop.style.transformOrigin = x < a.left - 1 ? `${Math.round(Math.min(w, a.left - x + a.width / 2))}px ${sube ? '100%' : '0'}` : '';   // moved to the left: it grows from its field (D-301)
     pop.style.top = Math.round(sube ? a.top - sep - alto : a.bottom + sep) + 'px';
     pop.classList.toggle('arriba', sube);
   }

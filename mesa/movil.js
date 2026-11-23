@@ -140,7 +140,7 @@
 #movil .fila .t2 .roja{color:var(--red);font-weight:600}
 #movil .fila .chev{flex:none;width:20px;height:20px;color:var(--faint)}
 #movil .fila .hr{flex:none;font-size:15px;font-weight:600;color:var(--ink-2);text-align:right;min-width:44px}
-#movil .fila.mk-hoy,#movil .tarea.mk-hoy{background:var(--chg-soft);box-shadow:inset 3px 0 0 var(--chg)}#movil .fila.mk-hoy .hr{color:var(--chg)}#movil :is(.fila,.tarea).mk-man{box-shadow:inset 3px 0 0 var(--chg)}
+#movil .fila.mk-hoy,#movil .tarea.mk-hoy{background:var(--chg-soft);box-shadow:inset 3px 0 0 var(--chg)}#movil .fila:is(.mk-hoy,.mk-man) .hr{color:var(--chg)}#movil :is(.fila,.tarea).mk-man{box-shadow:inset 3px 0 0 var(--chg)}
 #movil .fila.mk-pasado,#movil .tarea.mk-pasado{background:var(--red-soft);box-shadow:inset 3px 0 0 var(--red)}#movil .fila:is(.mk-hoy,.mk-pasado) .ft.ico{background:transparent}
 #movil .fila.hecha .t1{text-decoration:line-through;color:var(--mute);font-weight:400}   /* D-300: the Mac's marks, from the core; a task done, struck out */
 #movil .av{flex:none;width:22px;height:22px;border-radius:50%;display:inline-grid;place-items:center;font-size:11px;font-weight:800;color:#fff}
@@ -522,7 +522,7 @@
 #movil .tarea .tm .cn{display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 #movil .top-in{grid-template-columns:minmax(max-content,1fr) minmax(0,auto) minmax(max-content,1fr);column-gap:6px}#movil .top-r{justify-self:end}#movil .top-t{max-width:none;min-width:0}#movil .back{min-width:0;max-width:34vw}#movil .back>span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 #movil .fila{touch-action:manipulation}
-#movil .fila:active{background:var(--bg-2)}
+#movil .fila:active{background:var(--bg-2)}#movil .fila.mk-hoy:active{background:var(--chg-soft);box-shadow:inset 3px 0 0 var(--chg),inset 0 0 0 1px var(--chg)}#movil .fila.mk-pasado:active{background:var(--red-soft);box-shadow:inset 3px 0 0 var(--red),inset 0 0 0 1px var(--red)}#movil .fila.mk-man:active{box-shadow:inset 3px 0 0 var(--chg),inset 0 0 0 1px var(--chg)}   /* D-300: a touch keeps the tint, as the Mac's mouse */
 #movil .fila .hr.roja{color:var(--red)}
 #movil .t1 .ty{vertical-align:1px}
 #movil .vacio{margin:18px var(--pad) 0;padding:22px 18px;border-radius:16px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2);color:var(--mute);font-size:15px;text-align:center}
@@ -1263,6 +1263,7 @@
     const hop = enCurso(null, x.id, 'tarea'); if (hop) x = { ...x, hecha: hop.valor.hecha ? x.hecha || new Date().toISOString() : null };   // marcada, mientras se guarda (D-271, punto 9)
     const tex = enCurso(null, x.id, 'tareaTexto'), fop = enCurso(null, x.id, 'tareaFecha'), edita = !!(tex || fop || opsLeer().some(o => o.estado === 'nueva' && o.slot === x.id && NUEVOS.test(o.campo)));
     if (tex) x = { ...x, txt: tex.valor }; if (fop) x = { ...x, fecha: fop.valor || null };   // lo editado, ya a la vista (D-272)
+    if (fop && x.tipo === 'tarea' && M.personal._p && M.personal._p.marcaT) x = { ...x, marca: M.personal._p.marcaT(x, hoy()) };   // su marca, la de la fecha nueva, del núcleo (D-300)
     const nota = x.tipo === 'nota', ses = x.tipo === 'sesion';
     const meta = [];
     if (nota) meta.push(`Nota · ${esc(plural(String(x.txt).split('\n').length, 'línea', 'líneas'))}`);

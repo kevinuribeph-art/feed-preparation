@@ -588,9 +588,9 @@
 #mesa .vlist li{padding:10px 0;border-top:1px solid var(--line2)}
 #mesa .vlist .vnom{border:0;background:none;padding:0;font:inherit;color:var(--ink);cursor:pointer}#mesa .vlist .vnom:hover b{text-decoration:underline}
 #mesa .vlist .vque{font-size:12px;color:var(--mute)}#mesa .vlist .votro{color:var(--ink)}
-#mesa .vacc,#mesa .vform{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px}#mesa .vacc button,#mesa .vform button{font-size:12px;min-height:28px;padding:0 12px}
+#mesa .vacc,#mesa .vform{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px}#mesa .vacc button,#mesa .vform button{font-size:12px;min-height:28px;padding:0 12px}#mesa .vform button{min-height:32px}
 #mesa .vacc button[disabled]{opacity:.4;cursor:default}
-#mesa .vform input{font:inherit;font-size:12px;min-height:28px;padding:0 8px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel-2);color:var(--ink);transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}#mesa .vform input:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--ring)}#mesa .vform input[type=text]{flex:1;min-width:160px}
+#mesa .vform input{font:inherit;font-size:12px;min-height:32px;padding:0 8px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel-2);color:var(--ink);transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}#mesa .vform input:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--ring)}#mesa .vform input[type=text]{flex:1;min-width:160px}
 #mesa .cleg .csep{position:relative;display:inline-block;width:10px;height:10px;vertical-align:middle;color:var(--faint);font-size:0}#mesa .cleg .csep::before{content:'';position:absolute;inset:0;background:currentColor;-webkit-mask:var(--i-chev-r) center/contain no-repeat;mask:var(--i-chev-r) center/contain no-repeat}
 #mesa .cleg .cextra{gap:8px;margin-left:auto;padding-left:8px;color:var(--mute)}   /* text that is read (D-231) */
 #mesa .detail .cplist{max-height:30vh}#mesa .detail .cplist li span.cpb{color:var(--red)}
@@ -636,9 +636,8 @@
 #mesa .chip.calhi{box-shadow:0 0 0 2px var(--ink)}
 /* D-302: the ring of a cell lives in mesa.js (also on a hole); a day of the board, under the mouse, the date calendar's hover
    background, appearing in --d1; nothing in «Vista cliente» (the pause's veil covers it) nor while something is dropped */
-#mesa .side>.cal .cday[data-day]{transition:background-color var(--d1) var(--ease)}#mesa .side>.cal .cday[data-day]:is(.cover,.cno){transition:none}   /* where something is dropped, at once, as before */
-#mesa:not(.client) .side>.cal .cday[data-day]:not(.cover):not(.cno):hover{background:var(--cx-hov)}
-@media (prefers-reduced-motion:reduce){#mesa .side>.cal .cday[data-day]{transition:none}}
+#mesa:not(.client) .side>.cal .cday[data-day]:not(.cover):not(.cno):hover{background:var(--cx-hov);transition:background-color var(--d1) var(--ease)}   /* it appears in --d1, goes at once: where something is dropped, as before */
+@media (prefers-reduced-motion:reduce){#mesa:not(.client) .side>.cal .cday[data-day]:not(.cover):not(.cno):hover{transition:none}}
 #mesa .ctot{grid-column:1/-1;padding:4px 6px 0;text-align:right;font-size:11px;color:var(--mute)}#mesa .ctot b{margin-left:4px;font-weight:600;color:var(--ink)}   /* the month's total, its own row (D-229) */
 /* the vista cliente's structure (D-230): «Calendario» and the other tabs; the right column, 360 px */
 #mesa .cal.vctabs .calhead{flex-wrap:wrap;padding:12px 14px 4px;gap:6px}

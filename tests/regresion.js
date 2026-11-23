@@ -21756,19 +21756,20 @@
     try {
       await tablero([pub(1)]);
       const t = async (txt, fecha) => (await M.personal.tarea({ txt, fecha, cliente: CLIENTE })).id;
-      const hoy = await t('AN1 de hoy', '2026-11-10'), man = await t('AN1 de mañana', '2026-11-11'), pas = await t('AN1 pasada', '2026-11-08'), hecha = await t('AN1 hecha', '2026-11-07'), ses = 'tkan1sesion';
+      const hoy = await t('AN1 de hoy', '2026-11-10'), man = await t('AN1 de mañana', '2026-11-11'), pas = await t('AN1 pasada', '2026-11-08'), hecha = await t('AN1 hecha', '2026-11-07'), ses = 'tkan1sesion', sesp = 'tkan1sesionpas';
       await M.personal.hecha(hecha, true);
       const ahora = new W.Date().toISOString();
       await M._in.idbPut('tareas', ses, { id: ses, tipo: 'sesion', txt: 'AN1 sesión de hoy', fecha: '2026-11-10', hora: '18:00', clientes: [CLIENTE], creada: ahora, at: ahora });
+      await M._in.idbPut('tareas', sesp, { id: sesp, tipo: 'sesion', txt: 'AN1 sesión pasada', fecha: '2026-11-06', hora: '10:00', clientes: [CLIENTE], creada: ahora, at: ahora });
       const R = await M.personal.datos({ avTareas: true }), mk = id => { const x = R.items.find(i => i.k && i.k.id === id); return x ? x.marca : 'falta'; };
       igual([hoy, pas, hecha, ses].map(mk), ['hoy', 'pasado', '', ''], 'la marca del núcleo de cada aviso (hoy, pasada, hecha, sesión de hoy)');
       const L = await M.personal.lista(), mt = id => { const x = L.find(y => y.id === id); return x ? x.marca : 'falta'; };
-      igual([hoy, man, pas, hecha, ses].map(mt), ['hoy', 'man', 'pasado', '', ''], 'la marca del núcleo de cada tarea (la lista del iPhone)');
+      igual([hoy, man, pas, hecha, ses, sesp].map(mt), ['hoy', 'man', 'pasado', '', '', 'pasado'], 'la marca del núcleo de cada tarea (la lista del iPhone; una sesión pasada en rojo, como en Avisos)');
       await paginaAbierta(); await M.personal.set({ plg: { tareas: false, clientes: true, avisos: false }, avTareas: true, vista: 'lista' }); await M.personal.render();
       const av = id => q(`.pp-av.tarea[data-tid="${id}"]`), cl = e => e ? ['sinprog', 'pp-avhoy'].filter(c => e.classList.contains(c)).join(' ') : 'falta';
       igual([hoy, pas, hecha, ses].map(id => cl(av(id))), ['sinprog pp-avhoy', 'sinprog', '', ''], 'las marcas de las tareas en Avisos');
       const tk = id => q(`.pp-tk[data-tid="${id}"]`), mkc = e => e ? (e.className.match(/pp-mk-\w+/) || [''])[0] : 'falta';
-      igual([hoy, man, pas, hecha, ses].map(id => mkc(tk(id))), ['pp-mk-hoy', 'pp-mk-man', 'pp-mk-pasado', '', ''], 'las marcas de Lista');
+      igual([hoy, man, pas, hecha, ses, sesp].map(id => mkc(tk(id))), ['pp-mk-hoy', 'pp-mk-man', 'pp-mk-pasado', '', '', 'pp-mk-pasado'], 'las marcas de Lista');
       const cs = e => W.getComputedStyle(e), tok = n => cs(q('#mesa')).getPropertyValue(n).trim();
       for (const th of ['light', 'dark']) await enTema(th, async () => {
         const chgS = rgbDe(tok('--chg-soft')), redS = rgbDe(tok('--red-soft'));
@@ -21786,6 +21787,7 @@
           ok(sh && /0px 0px 0px 1px inset/.test(sh), `${th}: al pasar, ${re.source} sin el contorno: ${sh}`);
           ok(contraste(tok(c), bg) >= 4.5, `${th}: al pasar, ${c} sobre la fila: ${contraste(tok(c), bg).toFixed(2)}`);
         }
+        for (const re of [/\.pp-av\.tarea\.pp-avhoy:hover/, /\.pp-av\.tarea\.sinprog:hover/]) { const sh = deRegla(re, 'box-shadow', q('.pp')); ok(sh && /0px 0px 0px 1px inset/.test(sh), `${th}: una tarea de Avisos, al pasar, sin el contorno de las publicaciones (${re.source}): ${sh}`); }
       });
       await M.personal.set({ vista: 'semana' }); await M.personal.render();
       const fi = id => q(`.pp-fi[data-tid="${id}"]`);
@@ -21819,6 +21821,10 @@
         ok(/inset/.test(cs(fh).boxShadow) && /inset/.test(cs(fp).boxShadow), 'Hoy: sin franja');
         ok(/line-through/.test(cs(fx.querySelector('.t1')).textDecorationLine), 'Hoy: la hecha no va tachada');
         const ico = fh.querySelector('.ft.ico'); ok(!ico || cs(ico).backgroundColor === 'rgba(0, 0, 0, 0)', 'Hoy: la baldosa del icono con fondo sobre el tinte');
+        const act = reglasDe(/\.fila\.mk-(hoy|pasado):active/);
+        ok(act.length === 2 && act.every(r => /--(chg|red)-soft/.test(r.style.getPropertyValue('background') || r.style.getPropertyValue('background-color'))), 'al tocar, la fila pierde su tinte: ' + act.map(r => r.cssText).join(' | '));
+        ok(reglasDe(/\.fila:is\(\.mk-hoy,\s*\.mk-man\) \.hr/).some(r => /--chg/.test(r.style.color)), 'la hora de mañana no va en --chg, como en el Mac');
+        const P = M.personal._p, h0 = M._in.hoy(); igual(P && P.marcaT ? [d(0), d(1), d(-2)].map(f => P.marcaT({ tipo: 'tarea', fecha: f }, h0)) : null, ['hoy', 'man', 'pasado'], 'el iPhone no tiene la marca del núcleo para una fecha cambiada a medio guardar');
         await irMovil('#tareas', '#movil .tarea');
         igual(['AN2 de hoy', 'AN2 de mañana', 'AN2 pasada', 'AN2 hecha'].map(x => mk(fila('#movil .tarea', x))), ['mk-hoy', 'mk-man', 'mk-pasado', 'hecha'], 'las marcas de Tareas');
         const r = W.document.querySelector('#movil .titulo p .roja');
@@ -21834,7 +21840,7 @@
     await hasta(() => q('.detail .card'), 3000, 'la ventana');
     const caja = D.createElement('div'); caja.style.cssText = 'position:fixed;top:120px;right:80px;z-index:90';
     caja.innerHTML = '<input type="date" aria-label="Prueba AN3" value="2026-11-10">';
-    const vf = D.createElement('div'); vf.className = 'vform'; vf.innerHTML = '<input type="date" aria-label="Prueba AN3, vencidas" value="2026-11-10">';
+    const vf = D.createElement('div'); vf.className = 'vform'; vf.innerHTML = '<input type="date" aria-label="Prueba AN3, vencidas" value="2026-11-10"><button type="button" class="btn">Mover</button><input type="text" data-v="motivo" aria-label="Prueba AN3, motivo">';
     q('.detail .card').append(caja, vf);
     try {
       const g = await hasta(() => gem(caja.querySelector('input')), 2000, 'el campo de fecha');
@@ -21845,9 +21851,13 @@
       cerca(r.width, 280, 1, 'el calendario se estrecha');
       ok(r.left >= 7.5 && r.right <= vw - 7.5, `el calendario se sale de la ventana: ${r.left.toFixed(1)}–${r.right.toFixed(1)} de ${vw}`);
       ok(r.left < g.getBoundingClientRect().left, 'el calendario no se movió a la izquierda');
+      const ox = parseFloat(pop.style.transformOrigin), gr = g.getBoundingClientRect();
+      ok(ox > 0 && Math.abs(r.left + ox - (gr.left + gr.width / 2)) <= 2, `movido a la izquierda, no nace de su campo: origen ${pop.style.transformOrigin}`);
       D.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true })); await espera(200);
       const gv = await hasta(() => gem(vf.querySelector('input')), 2000, 'el campo de vencidas');
       cerca(gv.getBoundingClientRect().height, 32, 0.5, 'el campo de vencidas no mide 32 px');
+      cerca(vf.querySelector('button.btn').getBoundingClientRect().height, 32, 0.5, 'el botón de la fila de vencidas no mide 32 px');
+      cerca(vf.querySelector('input[data-v="motivo"]').getBoundingClientRect().height, 32, 0.5, '«Motivo» no mide 32 px');
     } finally { caja.remove(); vf.remove(); M._in.closeDetail(); }
   });
 
@@ -21864,22 +21874,27 @@
       for (const [c, n] of [[hueco, 'el hueco'], [vacia, 'la publicación sin foto'], [celda('r1'), 'la publicación']]) {
         const a = cs(c, '::after');
         ok(a.content !== 'none' && a.opacity === '0' && /inset/.test(a.boxShadow), `${n}: sin su anillo guardado en reposo (${a.content}, ${a.opacity})`);
-        igual(msDe(a.transitionDuration), d1, `${n}: el anillo no aparece con --d1`);
+        igual(msDe(a.transitionDuration), 0, `${n}: el anillo no se va al instante`);
       }
+      // al dejar de soltar sobre una casilla, ningún anillo
+      celda('r1').classList.add('over'); await espera(30); celda('r1').classList.remove('over');
+      igual(cs(celda('r1'), '::after').opacity, '0', 'al dejar de soltar, la casilla enseña un anillo');
       vacia.dispatchEvent(new W.PointerEvent('pointerover', { bubbles: true }));
-      await hasta(() => vacia.classList.contains('calhi'), 2000, 'el enlace de la publicación sin foto'); await espera(d1 + 150);
+      await hasta(() => vacia.classList.contains('calhi'), 2000, 'el enlace de la publicación sin foto');
+      igual(msDe(cs(vacia, '::after').transitionDuration), d1, 'el anillo no aparece con --d1'); await espera(d1 + 150);
       igual(cs(vacia, '::after').opacity, '1', 'la publicación sin foto no lleva el anillo');
-      q('.side > .cal .calhead').dispatchEvent(new W.PointerEvent('pointerover', { bubbles: true })); await espera(d1 + 150);
-      igual(cs(vacia, '::after').opacity, '0', 'el anillo no se va');
+      q('.side > .cal .calhead').dispatchEvent(new W.PointerEvent('pointerover', { bubbles: true })); await espera(30);
+      igual(cs(vacia, '::after').opacity, '0', 'el anillo no se va al instante');
       const rh = reglasDe(/\.cell\.filler:not\(\.over\):hover::after/);
       ok(rh.length && rh.every(r => r.style.opacity === '1' && /#mesa:not\(\.client\)/.test(r.selectorText)), 'el hueco: sin su anillo al pasar, o también en «Vista cliente»: ' + rh.map(r => r.cssText).join(' | '));
       const rd = reglasDe(/\.cday\[data-day\]:not\(\.cover\):not\(\.cno\):hover/);
       ok(rd.length && rd.every(r => /#mesa:not\(\.client\)/.test(r.selectorText) && /--cx-hov/.test(r.style.getPropertyValue('background') || r.style.getPropertyValue('background-color'))), 'el día: sin el fondo de pasar el ratón, o también en «Vista cliente»: ' + rd.map(r => r.cssText).join(' | '));
+      ok(rd.some(r => /background-color/.test(r.style.getPropertyValue('transition')) && /--d1/.test(r.style.getPropertyValue('transition'))), 'el día no aparece con --d1: ' + rd.map(r => r.cssText).join(' | '));
       const dia = q('.side > .cal .cday[data-day]');
-      ok(/background-color/.test(cs(dia).transitionProperty) && msDe(cs(dia).transitionDuration.split(',')[0]) === d1, 'el día no cambia con --d1: ' + cs(dia).transitionProperty + ' ' + cs(dia).transitionDuration);
+      igual(msDe(cs(dia).transitionDuration.split(',')[0]), 0, 'el fondo del día no se va al instante (deja estela al soltar)');
       for (const k of ['cover', 'cno']) { dia.classList.add(k); const bg = cs(dia).backgroundColor; dia.classList.remove(k); ok(rgbDe(bg).join() === rgbDe(cs(q('#mesa')).getPropertyValue(k === 'cover' ? '--acc-soft' : '--red-soft').trim()).join(), `al soltar (${k}), el resaltado no sale al momento: ${bg}`); }
-      const rr = reglasReduce(/\.cell::after|\.cday\[data-day\]/);
-      ok(rr.some(r => /\.cell::after/.test(r.selectorText) && r.style.transition === 'none') && rr.some(r => /\.cday\[data-day\]/.test(r.selectorText) && r.style.transition === 'none'), 'con «reducir movimiento» sigue la animación: ' + rr.map(r => r.cssText).join(' | '));
+      const rr = reglasReduce(/\.cell\.calhi:not\(\.over\)::after|\.cday\[data-day\]:not\(\.cover\)/);
+      ok(rr.some(r => /\.cell\.calhi/.test(r.selectorText) && /\.cell\.filler/.test(r.selectorText) && r.style.transition === 'none') && rr.some(r => /\.cday\[data-day\]/.test(r.selectorText) && r.style.transition === 'none'), 'con «reducir movimiento» sigue la animación: ' + rr.map(r => r.cssText).join(' | '));
     } finally { if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes); }
   });
 
@@ -21915,6 +21930,7 @@
     const css = await (await W.fetch('../portal/portal.css?regresion=' + Date.now())).text();
     ok(/:root\{[^}]*--on-acc:#FFFFFF/i.test(css), 'el portal no tiene --on-acc');
     ok(/(^|\n)\.toast\{[^}]*background:var\(--acc\);color:var\(--on-acc\)/.test(css), 'el aviso del portal no va blanco sobre --acc');
+    ok(/(^|\n)\.toast\{[^}]*width:max-content/.test(css), 'el aviso del portal no usa el ancho que necesita (a 375 se encoge a media pantalla)');
   });
 
   window.pasarBateria = pasar;

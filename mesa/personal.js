@@ -269,8 +269,9 @@
     if (x.tipo === 'historias') return '';
     return x.cat === 'pasado' ? 'pasado' : '';
   }
-  // a task's mark in Tareas (D-300): not done, today, tomorrow or gone past; a session and a note, none (as they are)
-  const marcaT = (k, hoy) => k.tipo !== 'tarea' || k.hecha || !k.fecha ? '' : k.fecha < hoy ? 'pasado' : k.fecha === hoy ? 'hoy' : k.fecha === addD(hoy, 1) ? 'man' : '';
+  // a task's mark in Tareas (D-300): not done, today, tomorrow or gone past; a session only once it went past (as in Avisos
+  // and in the iPhone's «Hoy»: one of today, as it is); a note, none
+  const marcaT = (k, hoy) => k.hecha || !k.fecha ? '' : k.tipo === 'sesion' ? (ultDia(k) < hoy ? 'pasado' : '') : k.tipo !== 'tarea' ? '' : k.fecha < hoy ? 'pasado' : k.fecha === hoy ? 'hoy' : k.fecha === addD(hoy, 1) ? 'man' : '';
   const mkCls = m => m ? ' pp-mk-' + m : '';
   function fila(c, D, Q, V, enV, hoy) {        // a client's block
     const X = I(), bs = D.boards.filter(b => b.client === c.id), cd = +c.cycleDay || 1;
@@ -1563,7 +1564,7 @@
     for (const L of [H.u, H.r]) { for (let i = L.length - 1; i >= 0; i--) { const paso = L[i]; if (sinId) for (let j = paso.length - 1; j >= 0; j--) if (paso[j].id === sinId) paso.splice(j, 1); if (!paso.length) { L.splice(i, 1); continue; } for (const p of paso) { if (p.antes) f(p.antes); if (p.despues) f(p.despues); } } }
   }
   const _p = {
-    EXT, TK, I, esc, ICO, st, avatar, avatarN, cliDe, clis, conCli, cliOk, esps, sesiones, tareas, notas, vivos, opcionesCli, diaHora, tramo, ultDia, moverInicio, finOk, finNuevo, corto, fechaLarga, addD, dow, difD, acuerdoCuando,
+    EXT, TK, I, esc, ICO, st, avatar, avatarN, cliDe, clis, conCli, cliOk, esps, sesiones, tareas, notas, vivos, opcionesCli, diaHora, tramo, ultDia, marcaT, moverInicio, finOk, finNuevo, corto, fechaLarga, addD, dow, difD, acuerdoCuando,
     hacer, cambiar, enmendar, escribir, deshacer, copia, hondo, nuevoId, ahoraISO, puede, borrar, marcar, rebajar, esImagen, verFoto, remapH, guardarCard, ampliar, colocarAmplia,
     pintar, refrescar, cargarTK, abrirCard, cerrarCard, quitarCard, pintarCard, editar, borrador, pedirFecha, comando, menuSesion, menuEsp,
     abrirMenu, cerrarMenu, ES, leerTxt, lsGet, lsSet, enCard, pocoMov, DBL, fotosURL, botonesCard, ponerCard, seleccionando, morfar,
@@ -1705,6 +1706,7 @@
 #mesa .pp-grupo[data-cat="hoy"] .pp-av.pp-avhoy :is(.pp-est,.pp-mano){color:var(--chg);font-weight:600}
 #mesa .pp-grupo[data-cat="pasado"] .pp-av.sinprog{background:var(--red-soft);box-shadow:inset 3px 0 0 var(--red)}#mesa .pp-grupo[data-cat="pasado"] button.pp-av.sinprog:hover{background:var(--red-soft);box-shadow:inset 3px 0 0 var(--red),inset 0 0 0 1px var(--red)}   /* D-300: the red no longer darkens (it fell to 3.96:1) */
 #mesa .pp-grupo[data-cat="pasado"] .pp-av.sinprog .pp-est,#mesa .pp-grupo[data-cat="pasado"] .pp-av.sinprog .pp-mano{color:var(--red);font-weight:600}
+#mesa .pp-grupo[data-cat="hoy"] .pp-av.tarea.pp-avhoy:hover{box-shadow:inset 3px 0 0 var(--chg),inset 0 0 0 1px var(--chg)}#mesa .pp-grupo[data-cat="pasado"] .pp-av.tarea.sinprog:hover{box-shadow:inset 3px 0 0 var(--red),inset 0 0 0 1px var(--red)}   /* D-300: a task or a session, as a post */
 #mesa .pp-avs{display:inline-flex;align-items:center}
 #mesa .pp-avs .pp-ava:first-child{position:relative;z-index:1;box-shadow:0 0 0 2px var(--panel)}#mesa .pp-avs .pp-ava + .pp-ava{margin-left:-7px}
 #mesa .pp-av .pp-avs:has(.pp-ck){justify-content:center}

@@ -22926,6 +22926,51 @@
     } finally { await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 1, slots: [], past: [], force: true }); await limpiar(); }
   });
 
+  prueba('FC4', 'Las copias en memoria de los tableros del cliente (feed continuo, pieza 1, trampa 4): leerlas no escribe nada; nunca son el tablero abierto; «Ya se publicó» de una vencida de un mes anterior, una collab que se guarda, guardar ese tablero o cambiar de cliente las sueltan, y al leerlas otra vez traen lo nuevo', async () => {
+    const OCT = '2026-10', okey = `${CLIENTE}-${OCT}`, nkey = `${CLIENTE}-${MES}`, k2 = `${CLIENTE2}-${MES}`, T = M._in.tablerosMem;
+    ok(T && T.leer && T.ver && T.soltar, 'no hay tablerosMem en MESA._in');
+    try {
+      await limpiar();
+      reloj('2026-10-01', '09:00');
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: OCT, slots: [fcSlot('fc4-o1', '4.1', 20, OCT), fcSlot('fc4-o2', '4.2', 22, OCT)], past: [], force: true });
+      await porAprobar(['fc4-o1'], 'fc4'); M.setEstado('fc4-o1', 'aprobado'); await M.flush();
+      await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(1)], past: [], force: true }); await M.flush();   // r1: collab con el otro cliente
+      reloj('2026-11-04', '12:00');
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1), pub(2)], past: [], force: true });
+      await M.flush(); await M._test.fueraListo();
+      // leer no escribe, y la copia no es el tablero abierto
+      const c = await fcContar(async () => [await T.leer(okey), await T.leer(nkey), await T.leerCliente(CLIENTE)]);
+      igual([c.idb, c.ls], [0, 0], 'leer las copias escribió: ' + json(c.que));
+      const [co, cn] = c.r;
+      ok(co && co.key === okey && co.slots.some(s => s.id === 'fc4-o1'), 'la copia de octubre: ' + json(co && co.key));
+      ok(cn && cn !== M._in.S && cn.slots !== M._in.S.slots, 'la copia de noviembre es el tablero abierto');
+      igual(T.ver(okey), co, 'ver no da la copia leída');
+      igual(Object.keys(c.r[2]).sort(), [nkey, okey].sort(), 'leerCliente no da sus dos tableros');
+      ok(!('tray' in co) && !('carpetas' in co), 'una copia lleva su bandeja o sus carpetas: son del cliente');
+      // «Ya se publicó» de la vencida de octubre, desde noviembre: su copia se suelta y, leída otra vez, está publicada
+      await revisarV(); abrirV();
+      await hasta(() => filaV('fc4-o1'), 3000, 'la fila de la vencida de octubre');
+      enFilaV('fc4-o1', 'v-pub'); await M._test.fueraListo(); M._in.closeDetail();
+      ok(!T.ver(okey), '«Ya se publicó» no soltó la copia de octubre');
+      igual(((await T.leer(okey)).slots.find(s => s.id === 'fc4-o1').estado || {}).v, 'publicado', 'la copia de octubre no la trae publicada');
+      // la collab: guardar r1 aquí escribe el tablero del otro cliente y suelta su copia
+      ok(await T.leer(k2), 'la copia del otro cliente');
+      ok(T.ver(okey), 'leer un tablero de otro cliente soltó las de este');
+      M._test.setNote('r1', 'Contexto nuevo fc4'); await M.flush();
+      ok(!T.ver(k2), 'guardar la collab no soltó la copia del otro tablero');
+      igual((await T.leer(k2)).slots.find(s => s.id === 'r1').note, 'Contexto nuevo fc4', 'la copia de la collab no trae el cambio');
+      // guardar el tablero abierto suelta su propia copia
+      await T.leer(nkey); ok(T.ver(nkey), 'la copia de noviembre');
+      M._test.setNote('r2', 'Otro contexto'); await M.flush();
+      ok(!T.ver(nkey), 'guardar noviembre no soltó su copia');
+      // cambiar de cliente las suelta todas
+      await T.leer(okey); ok(T.ver(okey), 'la copia de octubre otra vez');
+      await M.open(k2);
+      ok(!T.ver(okey) && !T.ver(nkey), 'abrir otro cliente no soltó las copias');
+      await T.leer(okey); T.soltar(); ok(!T.ver(okey), 'soltar no las suelta');
+    } finally { volverReloj(); M._in.closeDetail(); }
+  });
+
   prueba('FC5', 'Guarda de la trampa 4 (feed continuo, pieza 1): «Ya se publicó» de una vencida de octubre desde noviembre → ir a octubre → editarla → volver a leer: siguen las dos cosas (lo publicado y lo editado)', async () => {
     const OCT = '2026-10', okey = `${CLIENTE}-${OCT}`, nkey = `${CLIENTE}-${MES}`;
     try {

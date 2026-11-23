@@ -184,7 +184,7 @@
   }
   async function lockHere() {
     if (MOVIL) {   // the phone (D-268): another tab of this iPhone took over; this one stops (it writes nothing, its cloud sleeps)
-      movilTurno = false; movilParada = true; locked = true; if (held) { held(); held = null; }
+      movilTurno = false; movilParada = true; locked = true; memSoltar(); if (held) { held(); held = null; }
       try { if (M.nube && M.nube._dormir) M.nube._dormir(); } catch (e) { /* */ }
       const f = MOVIL_IN.alPestana; if (f) { try { f(); } catch (e) { /* */ } }
       return;
@@ -197,7 +197,7 @@
       // a tab that took the lock after waiting for this one in vain may have saved since: never write over it
       const B = S, fresh = B && await idbGet('boards', B.key).catch(() => null);
       if (!(fresh && fresh.savedAt && B.savedAt && fresh.savedAt > B.savedAt)) { try { await flushNow(); } catch (e) { /* */ } }
-    } finally { locked = true; locking = false; }
+    } finally { locked = true; locking = false; memSoltar(); }   // another tab writes now: the boards in memory go
     if (held) { held(); held = null; }                             // the other tab may read the board now
     if (!shellReady()) return;
     root.querySelectorAll('.lock').forEach(x => x.remove());
@@ -277,7 +277,7 @@
   }
   // Another tab opened a newer mesa, whose data this code must not touch: it stops here, without saving, until it is reloaded
   function versionNueva() {
-    locked = true; movilTurno = false; movilParada = true;
+    locked = true; movilTurno = false; movilParada = true; memSoltar();
     if (held) { held(); held = null; }   // the new tab needn't wait for this one
     if (MOVIL) { const f = MOVIL_IN.alVersion; if (f) { try { f(); } catch (e) { /* the phone's face */ } } return; }   // never over the phone's page (D-267)
     const m = 'Hay una versión nueva de la mesa';
@@ -356,6 +356,34 @@
     return false;
   }
   const copiaPropio = v => (M.copia && M.copia._propio ? M.copia._propio(v) : Promise.resolve(v));
+  // ---------- the client's boards in memory (feed continuo, pieza 1: nothing uses them yet) ----------
+  // One copy per board (key -> {tablero, savedAt}): the board as it opens (comoAbierto), never S, and without its tray and folders
+  // (they are the client's, D-041: in 'bandejas' and, while it is open, in S). Reading them writes nothing. Every write of a board
+  // goes through txCon: there each one lets its copy go (memTocado) in the same call that writes it, whoever writes (the open
+  // board's save, pushShared, escribirFuera, juntarBandeja, an import, purge, removeClient, what comes down from the server); another
+  // client opened, «Usar aquí», a pause or a newer tab let them all go (memSoltar). A copy read while its board was written is not kept.
+  const MEM = { tab: new Map(), gen: new Map(), epoca: 0 };
+  function memSoltar() { MEM.epoca++; MEM.tab.clear(); MEM.gen.clear(); }
+  function memTocado(clave) { if (typeof clave !== 'string') { memSoltar(); return; } MEM.gen.set(clave, (MEM.gen.get(clave) || 0) + 1); MEM.tab.delete(clave); }
+  // a store of 'boards' in a transaction that writes: each put, add, delete, clear and cursor's update or delete lets its copy go
+  function conMem(o, n, mode) {
+    if (mode !== 'readwrite' || n !== 'boards') return o;
+    const cursor = req => { req.addEventListener('success', () => {
+      const c = req.result; if (!c || c.__mem) return;
+      const up = c.update, del = c.delete; c.__mem = true;
+      if (up) c.update = v => { const r = up.call(c, v); memTocado(c.primaryKey); return r; };
+      if (del) c.delete = () => { const r = del.call(c); memTocado(c.primaryKey); return r; };
+    }, true); return req; };
+    const propios = {
+      put: (v, k) => { const r = o.put(v, k); memTocado(k); return r; },
+      add: (v, k) => { const r = o.add(v, k); memTocado(k); return r; },
+      delete: q => { const r = o.delete(q); memTocado(typeof q === 'string' ? q : null); return r; },   // a range: all of them
+      clear: () => { const r = o.clear(); memSoltar(); return r; },
+      openCursor: (...a) => cursor(o.openCursor(...a)),
+      openKeyCursor: (...a) => cursor(o.openKeyCursor(...a))
+    };
+    return new Proxy(o, { get: (x, p) => { if (Object.prototype.hasOwnProperty.call(propios, p)) return propios[p]; const v = Reflect.get(x, p, x); return typeof v === 'function' ? v.bind(x) : v; } });
+  }
   const tx = (store, mode, fn) => txCon(store, mode, fn, mode === 'readwrite');
   const txSinDiario = (store, mode, fn) => txCon(store, mode, fn, false);
   async function txCon(store, mode, fn, diario) {   // store: a name, or several (fn gets {name: objectStore}: one transaction for all)
@@ -377,7 +405,7 @@
         };
         const v = Reflect.get(x, p, x); return typeof v === 'function' ? v.bind(x) : v;
       } });
-      const st = n => { const o = t.objectStore(n); /* idb-crudo: wrapped here */ return sinTrozos(dj ? conDiario(o, n, dj) : o); };
+      const st = n => { const o = t.objectStore(n); /* idb-crudo: wrapped here */ return conMem(sinTrozos(dj ? conDiario(o, n, dj) : o), n, mode); };
       const req = fn(Array.isArray(store) ? Object.fromEntries(store.map(n => [n, st(n)])) : st(store));
       let out;
       if (req) req.onsuccess = () => { out = req.result; };
@@ -5467,7 +5495,7 @@ ${TK_FUENTES}
     else if (act === 'prevtotray') { prevToTray(a.dataset.id); openPast(a.dataset.id); }
     else if (act === 'prevrestore') { prevRestore(a.dataset.id); openPast(a.dataset.id); }
     else if (act === 'recargar') location.reload();
-    else if (act === 'takeover') { const k = S && S.key; S = null; PB = null; await claim(); cobLeer(true).then(() => cobAvisar(false)); mesLeer(true).then(() => mesAvisar(false)); entLeer(true).then(() => entAvisar(false)); if (k && (await idbGet('boards', k))) await M.open(k); else await M.boot(); }
+    else if (act === 'takeover') { const k = S && S.key; S = null; PB = null; memSoltar(); await claim(); cobLeer(true).then(() => cobAvisar(false)); mesLeer(true).then(() => mesAvisar(false)); entLeer(true).then(() => entAvisar(false)); if (k && (await idbGet('boards', k))) await M.open(k); else await M.boot(); }
     else if (act === 'delclient') {
       if (a.dataset.mira === '1') return;   // still finding out what goes with it: a second click waits (cold review)
       if (a.dataset.confirm !== '1') {   // its tray goes with it (D-072): the button says how much
@@ -6647,6 +6675,7 @@ ${TK_FUENTES}
     if (pick) return M.open(pick.key);
     if (S) { try { await flushNow(); } catch (e) { /* */ } }
     if (shellReady()) closeDetail(); else buildShell();
+    if (curClient !== id) memSoltar();
     S = null; PB = null; sel = null; curClient = id;
     lsSet('mesa-lastClient', id); lsSet('mesa-last', '');
     await refreshMonths(); render(); setSave('');
@@ -6802,6 +6831,21 @@ ${TK_FUENTES}
     const recCarp = await idbGet('bandejas', client);
     return armarTablero(rec, { cfg, key, client, month, span, cd, mirar: false, bandeja: ((recCarp || {}).tray || []).slice(), recCarp, todos: (await idbAll('boards')) || [], pend: pendienteLS(), refsBandejas: await trayRefs(), cargar: loadThumbs });
   }
+  // the copy of a board (MEM): as it opens, without its tray and folders; read once, until something writes it or it is let go
+  async function memLeer(key) {
+    const ya = MEM.tab.get(key); if (ya) return ya.tablero;
+    const ep = MEM.epoca, g0 = MEM.gen.get(key) || 0;
+    const r = await comoAbierto(key);
+    if (!r || !r.S) return null;
+    const { tray: _t, carpetas: _c, ...tablero } = r.S;
+    if (ep === MEM.epoca && (MEM.gen.get(key) || 0) === g0) MEM.tab.set(key, { tablero, savedAt: tablero.savedAt || null });   // written meanwhile: not kept
+    return tablero;
+  }
+  async function memLeerCliente(client) {   // every board of a client: {key: its copy}
+    const out = {};
+    for (const b of ((await idbAll('boards')) || []).filter(x => boardClient(x) === client)) { const t = await memLeer(b.key); if (t) out[b.key] = t; }
+    return out;
+  }
   // cfg = { client, month:'YYYY-MM', months?:1-3, slots:[{id,name,type,date}], past:[{id,name,type,date}] }  (key optional)
   // force: true lets a re-init drop months of the saved board (their photos go to the tray, their notes are lost)
   // months: how many months the board prepares from `month` (default: the saved board's, else 1); key = client-month.
@@ -6831,6 +6875,7 @@ ${TK_FUENTES}
       cl0 = await M.addClient({ id: client, name, handle: cfg.handle || '' });
       client = cl0.id;                                    // an existing client with that name keeps its id
     }
+    if (!MIRA && curClient !== client) memSoltar();   // the boards in memory are one client's (feed continuo, pieza 1)
     // a client of «Solo contenido» has no months (D-312): nothing is made nor opened, and it says so without an error
     if (servicioDe(cl0) === 'contenido') return { version: M.version, client: cl0.id, servicio: 'contenido', sinMeses: true, board: null };
     // cycle day: cfg's; else the saved board's own (a board keeps its cycles); else the client's; else 1 (calendar month)
@@ -7237,7 +7282,7 @@ ${TK_FUENTES}
   async function pausaNube(html) {
     if (M.diseno && M.diseno.volcar) { try { M.diseno.volcar(); } catch (e) { /* */ } }
     if (!locked) { try { await flushNow(); } catch (e) { /* */ } }
-    locked = true; NUBE.pausa = true; NUBE.alDia = false; NUBE.pausaHtml = html || '';   // paused: nothing writes, and no cleanup runs
+    locked = true; NUBE.pausa = true; NUBE.alDia = false; NUBE.pausaHtml = html || ''; memSoltar();   // paused: nothing writes, and no cleanup runs
     if (!shellReady()) return;   // buildShell paints it, at once (nothing can be written in between)
     root.querySelectorAll('.lock').forEach(x => x.remove());
     if (!html) return;
@@ -8273,7 +8318,7 @@ ${TK_FUENTES}
       setBusy('imp', 'Guardando la mesa importada…');
       back = { key: S && S.key, client: curClient };
       clearTimeout(saveTimer); saveTimer = null; clearTimeout(noteTimer); noteTimer = null;
-      S = null; PB = null; cleared = true; importEscribe = true;   // nothing in memory may overwrite what is written now
+      S = null; PB = null; memSoltar(); cleared = true; importEscribe = true;   // nothing in memory may overwrite what is written now
       if (d.copia) {                               // what isn't here goes in as it was: the files first, one by one, then the records
         const pr = root && root.querySelector('.detail .xprog'); let ultP = 0;
         const c = await copiaCrudo(d, parar, (i, n, esc, prev) => {
@@ -8978,7 +9023,10 @@ ${TK_FUENTES}
     hsDe, hNorm, adelantos, hProblemas, usoHistoria, askModoHistoria, tipoPost, hFecha, ts, isoDe, sameDate, inBoard, pick: () => sel, pickOff: () => { sel = null; render(); },   // for the stories (historias.js, mesa ≥ 3.53)
     estadoWeb, capFinal, cropSig, mesOtros,   // the client's decisions (D-244); what the client's web gets: the chosen caption, the crops' signature, no other client (web.js, D-241, mesa ≥ 4.28)
     cellHTML,   // a post's cell drawn with its own board (feed continuo, pieza 1): cellHTML(s, pill, B)
-    armarTablero, comoAbierto   // a board as it opens, without writing (feed continuo, pieza 1)
+    armarTablero, comoAbierto,   // a board as it opens, without writing (feed continuo, pieza 1)
+    // the client's boards in memory (feed continuo, pieza 1; nothing uses them yet): leer(key) and leerCliente(client) read the copies
+    // (without writing), ver(key) gives one already read or null, soltar() lets them all go
+    tablerosMem: { leer: conTableros(memLeer), leerCliente: conTableros(memLeerCliente), ver: k => (MEM.tab.get(k) || {}).tablero || null, soltar: memSoltar, claves: () => [...MEM.tab.keys()] }
   };
   M._test = {
     entBorrarTodo: async () => { if (NUBE.activa) throw new Error('con la nube encendida no se vacía nada (D-256)'); entGen++; await tx('entregas', 'readwrite', st => st.clear()); ENT = new Map(); entAvisar(false); },   // D-290

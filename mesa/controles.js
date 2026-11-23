@@ -15,7 +15,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.6';   // 1.6: the field's placeholder in --mute, text that is read (D-231). 1.5: an option that acts instead of being chosen (data-accion: «Nuevo esporádico», D-207) fires «mx-accion» on its native and leaves the value as it was. 1.4: «Sin fecha» in the date's calendar where a date can be left empty (data-sin-fecha: a task's, D-188); an option's data-dest in grey after it (D-191). 1.2: the list's text starts where the closed field's does, the ✓ of the chosen one on the right (D-150). 1.1: its calendar's measures are the mesa's --cx-* tokens, shared with the posts' calendar (D-147)
+  const VERSION = '1.7';   // 1.7: a calendar never narrows by the edge, it moves to the left whole; no compact field in the vencidas (D-301). 1.6: the field's placeholder in --mute, text that is read (D-231). 1.5: an option that acts instead of being chosen (data-accion: «Nuevo esporádico», D-207) fires «mx-accion» on its native and leaves the value as it was. 1.4: «Sin fecha» in the date's calendar where a date can be left empty (data-sin-fecha: a task's, D-188); an option's data-dest in grey after it (D-191). 1.2: the list's text starts where the closed field's does, the ✓ of the chosen one on the right (D-150). 1.1: its calendar's measures are the mesa's --cx-* tokens, shared with the posts' calendar (D-147)
   if (M.controles && M.controles._off) { try { M.controles._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const QS = 'select, input[type="date"], input[type="time"]';
   const FLECHA = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>';   // Lucide arrow-right (ISC)
@@ -204,15 +204,18 @@
     const a = g.getBoundingClientRect(), vw = document.documentElement.clientWidth, vh = window.innerHeight, m = 8, sep = 6;
     pop.style.maxHeight = ''; pop.style.maxWidth = ''; pop.style.left = '0px'; pop.style.top = '0px';
     // its text where the field's starts (D-150): with no room beside the field for its longest name, narrower (at most to the
-    // window's margin), the long ones cut with «…», rather than moved to the left; moved only with almost no room at all
-    const libre = vw - m - Math.max(m, a.left);
-    if (libre >= 120) { pop.style.minWidth = Math.min(parseFloat(pop.style.minWidth) || 0, libre) + 'px'; pop.style.maxWidth = libre + 'px'; }
+    // window's margin), the long ones cut with «…», rather than moved to the left; moved only with almost no room at all. A
+    // calendar never narrows (D-301): its days are drawn at their size, and beside the edge it goes to the left, whole
+    const libre = vw - m - Math.max(m, a.left), cal = pop.classList.contains('mx-calpop');
+    if (!cal && libre >= 120) { pop.style.minWidth = Math.min(parseFloat(pop.style.minWidth) || 0, libre) + 'px'; pop.style.maxWidth = libre + 'px'; }
     else pop.style.maxWidth = (vw - 2 * m) + 'px';
     const w = Math.min(pop.offsetWidth, vw - 2 * m), h = pop.offsetHeight;
     const abajo = vh - a.bottom - sep - m, arriba = a.top - sep - m, sube = h > abajo && arriba > abajo;
     const alto = Math.min(h, Math.max(120, sube ? arriba : abajo));
     if (alto < h) pop.style.maxHeight = alto + 'px';
-    pop.style.left = Math.round(Math.min(Math.max(m, a.left), vw - m - w)) + 'px';
+    const x = Math.round(Math.min(Math.max(m, a.left), vw - m - w));
+    pop.style.left = x + 'px';
+    pop.style.transformOrigin = x < a.left - 1 ? `${Math.round(Math.min(w, a.left - x + a.width / 2))}px ${sube ? '100%' : '0'}` : '';   // moved to the left: it grows from its field (D-301)
     pop.style.top = Math.round(sube ? a.top - sep - alto : a.bottom + sep) + 'px';
     pop.classList.toggle('arriba', sube);
   }
@@ -523,7 +526,6 @@
 #mesa .ubsel+.mx-sel{max-width:100%}#mesa .persel+.mx-sel:not(#mx){flex:none;width:10.6em;max-width:100%}
 #mesa .lb-sel+.mx-sel:not(#mx){display:flex;width:100%;min-height:32px;font-size:13px;padding:0 30px 0 10px}
 #mesa .hv-lin select+.mx-sel:not(#mx){flex:1;min-width:0;font-size:13px;font-weight:400}#mesa .hv-fh .mx-f{flex:1;min-width:0}#mesa .hv-fh .mx-in:not(#mx){font-size:13px;font-weight:400}
-#mesa .vform .mx-f{min-height:28px}#mesa .vform .mx-in:not(#mx){height:26px;font-size:12px}#mesa .vform .mx-cal:not(#mx){width:24px;height:24px}
 #mesa .mx-pop{position:fixed;z-index:80;box-sizing:border-box;margin:0;padding:5px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line2);border-radius:var(--r-md);box-shadow:var(--shadow-lg);font:13px/1.35 var(--font);opacity:0;transform:translateY(-6px) scale(.98);transform-origin:top left;transition:opacity var(--d2) var(--ease),transform var(--d-m) var(--ease-m);pointer-events:none}
 #mesa .mx-pop.arriba{transform:translateY(6px) scale(.98);transform-origin:bottom left}
 #mesa .mx-pop.on{opacity:1;transform:none;pointer-events:auto}

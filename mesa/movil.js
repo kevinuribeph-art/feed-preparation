@@ -6,7 +6,7 @@
 // Mesa cogida un momento (lote 4, más abajo).
 (function () {
   'use strict';
-  const VERSION = '1.5';   // 1.5: «Acuerdos» en Hoy, el aviso de renegociar (D-288); un cliente de solo contenido cuenta y lista sus entregas, y una pasada sale en Hoy (D-290). 1.4: «Cancelar · Guardar» tapa las marcas dibujadas al deslizar la hoja (D-286, probado en el iPhone). 1.3: la hoja sigue al teclado (resize y scroll del visualViewport), el campo del ordenador en notas, «Detalles» y textos de una sesión (D-286) y las marcas de estado del Mac (D-287). 1.2: las listas se leen como en el Mac: viñeta y número en terracota y el separador «⸻» como una línea (D-283). 1.1: los ajustes tras probarla en el iPhone (D-271), editar tareas (D-272) y la sesión entera (D-275)
+  const VERSION = '1.6';   // 1.6: las marcas del Mac en Hoy y en Tareas, leídas del núcleo (D-300); el aviso en terracota, el error con su triángulo rojo en un disco blanco (D-303). 1.5: «Acuerdos» en Hoy, el aviso de renegociar (D-288); un cliente de solo contenido cuenta y lista sus entregas, y una pasada sale en Hoy (D-290). 1.4: «Cancelar · Guardar» tapa las marcas dibujadas al deslizar la hoja (D-286, probado en el iPhone). 1.3: la hoja sigue al teclado (resize y scroll del visualViewport), el campo del ordenador en notas, «Detalles» y textos de una sesión (D-286) y las marcas de estado del Mac (D-287). 1.2: las listas se leen como en el Mac: viñeta y número en terracota y el separador «⸻» como una línea (D-283). 1.1: los ajustes tras probarla en el iPhone (D-271), editar tareas (D-272) y la sesión entera (D-275)
   const M = window.MESA, D = document, W = window;
   const fallo = t => { (W.MESA_CARGA = W.MESA_CARGA || {}).movil = 'fallo'; const p = D.getElementById('arranque'); if (p) p.textContent = t; };
   if (!M || !M._in || !M._in.movil || !M._in.movil.activo) { fallo('No se pudo cargar la Mesa. Cierra la app y vuelve a abrirla.'); return; }
@@ -112,7 +112,7 @@
 #movil .titulo{padding:6px var(--pad) 2px}
 #movil .titulo h1{margin:0;font-weight:800;font-size:32px;line-height:1.08;letter-spacing:-.025em}
 #movil .titulo p{margin:6px 0 0;color:var(--mute);font-size:15px}
-#movil .titulo p .acc{color:var(--acc-ink);font-weight:600}
+#movil .titulo p .acc{color:var(--acc-ink);font-weight:600}#movil .titulo p .roja{color:var(--red);font-weight:600}
 #movil .sec{margin:26px 0 0}
 #movil .sec-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:0 var(--pad) 10px}
 #movil .sec-h h2{margin:0;font-size:19px;font-weight:800;letter-spacing:-.015em}
@@ -140,6 +140,9 @@
 #movil .fila .t2 .roja{color:var(--red);font-weight:600}
 #movil .fila .chev{flex:none;width:20px;height:20px;color:var(--faint)}
 #movil .fila .hr{flex:none;font-size:15px;font-weight:600;color:var(--ink-2);text-align:right;min-width:44px}
+#movil .fila.mk-hoy,#movil .tarea.mk-hoy{background:var(--chg-soft);box-shadow:inset 3px 0 0 var(--chg)}#movil .fila:is(.mk-hoy,.mk-man) .hr{color:var(--chg)}#movil :is(.fila,.tarea).mk-man{box-shadow:inset 3px 0 0 var(--chg)}
+#movil .fila.mk-pasado,#movil .tarea.mk-pasado{background:var(--red-soft);box-shadow:inset 3px 0 0 var(--red)}#movil .fila:is(.mk-hoy,.mk-pasado) .ft.ico{background:transparent}
+#movil .fila.hecha .t1{text-decoration:line-through;color:var(--mute);font-weight:400}   /* D-300: the Mac's marks, from the core; a task done, struck out */
 #movil .av{flex:none;width:22px;height:22px;border-radius:50%;display:inline-grid;place-items:center;font-size:11px;font-weight:800;color:#fff}
 #movil .av.g{width:40px;height:40px;font-size:17px}
 #movil .ty{display:inline-flex;align-items:center;vertical-align:2px;margin-left:4px;height:22px;padding:0 8px;border-radius:6px;font-size:12px;font-weight:600;flex:none}
@@ -337,9 +340,9 @@
 #movil .llave{display:flex;align-items:center;gap:10px;margin:14px 0 0;padding:12px 14px;border-radius:14px;background:var(--bg-2);font-size:14px;color:var(--ink-2)}
 #movil .llave svg{width:22px;height:22px;flex:none}
 #movil .pie{margin-top:18px;text-align:center;font-size:14px;color:var(--mute)}
-#movil .toast{position:fixed;left:var(--pad);right:var(--pad);bottom:calc(76px + var(--sa-b));z-index:45;display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:14px;background:var(--tip);color:var(--bg);font-size:15px;box-shadow:var(--shadow-md)}
-#movil .toast svg{width:20px;height:20px;flex:none;color:#86C795}
-:root[data-theme="dark"] #movil .toast svg{color:var(--ok-on-ink)}
+#movil .toast{position:fixed;left:var(--pad);right:var(--pad);bottom:calc(76px + var(--sa-b));z-index:45;display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:14px;background:var(--acc);color:var(--on-acc);font-size:15px;box-shadow:var(--shadow-md)}
+#movil .toast svg{width:20px;height:20px;flex:none;color:currentColor}
+#movil .toast.error svg{box-sizing:border-box;padding:3px;border-radius:50%;background:var(--on-acc);color:var(--red-fijo)}   /* D-303: on the terracotta, white; an error's triangle red in a white disc (5.59:1) */
 #movil .ph{background:var(--g)}
 #movil .ft .ph,#movil .hc .ph{position:absolute;inset:0}
 #movil .car .ph{display:block}
@@ -519,7 +522,7 @@
 #movil .tarea .tm .cn{display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 #movil .top-in{grid-template-columns:minmax(max-content,1fr) minmax(0,auto) minmax(max-content,1fr);column-gap:6px}#movil .top-r{justify-self:end}#movil .top-t{max-width:none;min-width:0}#movil .back{min-width:0;max-width:34vw}#movil .back>span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 #movil .fila{touch-action:manipulation}
-#movil .fila:active{background:var(--bg-2)}
+#movil .fila:active{background:var(--bg-2)}#movil .fila.mk-hoy:active{background:var(--chg-soft);box-shadow:inset 3px 0 0 var(--chg),inset 0 0 0 1px var(--chg)}#movil .fila.mk-pasado:active{background:var(--red-soft);box-shadow:inset 3px 0 0 var(--red),inset 0 0 0 1px var(--red)}#movil .fila.mk-man:active{box-shadow:inset 3px 0 0 var(--chg),inset 0 0 0 1px var(--chg)}   /* D-300: a touch keeps the tint, as the Mac's mouse */
 #movil .fila .hr.roja{color:var(--red)}
 #movil .t1 .ty{vertical-align:1px}
 #movil .vacio{margin:18px var(--pad) 0;padding:22px 18px;border-radius:16px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2);color:var(--mute);font-size:15px;text-align:center}
@@ -611,7 +614,6 @@
 #movil .estado-op .porque{display:block;font-size:13px;color:var(--red);font-weight:400}
 #movil .toast{transform:translateY(12px);opacity:0;transition:transform .3s var(--ease),opacity .3s var(--ease);pointer-events:none}
 #movil .toast.on{transform:none;opacity:1}
-#movil .toast.error svg,:root[data-theme="dark"] #movil .toast.error svg{color:var(--rojo-tinta)}
 #movil .toast.sin-tabs{bottom:calc(20px + var(--sa-b))}
 #movil .ver{position:fixed;inset:0;z-index:70;background:#000;display:flex;flex-direction:column;touch-action:pan-y}
 #movil .ver .lam{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
@@ -892,7 +894,7 @@
     const t = (k, i, txt) => `<button type="button" class="tab${on === k ? ' on' : ''}" data-ir="${k}"${on === k ? ' aria-current="page"' : ''}>${ic(i, on === k ? 2 : 1.75)}${txt}${k === 'tareas' && n ? `<span class="badge num" aria-label="${plural(n, 'tarea se ha pasado', 'tareas se han pasado')}">${n}</span>` : ''}</button>`;
     return `<nav class="tabs" aria-label="Secciones"><div class="tabs-in">${t('hoy', 'casa', 'Hoy')}${t('clientes', 'gente', 'Clientes')}${t('tareas', 'tareas', 'Tareas')}</div></nav>`;
   }
-  const fila = o => `<button type="button" class="fila" ${o.a}>${o.izq || ''}<span class="tx"><span class="t1">${o.t1}</span><span class="t2">${o.t2}</span></span>${o.hr ? `<span class="hr num${o.hrRoja ? ' roja' : ''}">${esc(o.hr)}</span>` : ''}<span class="chev">${ic('der')}</span></button>`;
+  const fila = o => `<button type="button" class="fila${o.cls || ''}" ${o.a}>${o.izq || ''}<span class="tx"><span class="t1">${o.t1}</span><span class="t2">${o.t2}</span></span>${o.hr ? `<span class="hr num${o.hrRoja ? ' roja' : ''}">${esc(o.hr)}</span>` : ''}<span class="chev">${ic('der')}</span></button>`;
   const miniFila = (id, ico) => `<span class="ft">${foto(id, 60)}${ico ? `<span class="tyi">${ico}</span>` : ''}</span>`;
   const icoFila = (n, roja) => `<span class="ft ico${roja ? ' roja' : ''}"><span>${ic(n)}</span></span>`;
   const iniciales = n => String(n || '?').trim().split(/\s+/).slice(0, 2).map(w => w.charAt(0)).join('').toUpperCase();
@@ -982,36 +984,37 @@
   const GRUPOS = [['acuerdos', 'Acuerdos'], ['pasado', 'Se ha pasado'], ['hoy', 'Hoy'], ['espera', 'Esperando al cliente'], ['falta', 'Falta programar']];   // «Acuerdos», as the Mac's (D-288)
   const CIFRAS = [['pasado', 'Se ha pasado'], ['hoy', 'Hoy'], ['man', 'Mañana'], ['espera', 'Esperando al cliente'], ['falta', 'Falta programar']];
   let FILTRO = null, VER_TODO = {}, AVT = false;   // AVT: el interruptor «Tareas» de Hoy, apagado al abrir la app (D-271, punto 2; D-180)
+  const mkFila = x => `${x.marca ? ' mk-' + x.marca : ''}${x.hecha ? ' hecha' : ''}`;   // la marca del núcleo, como en los Avisos del Mac (D-287, D-300)
   function lineaAviso(x) {
-    const quien = x.clientes.map(nombreCli).join(x.tipo === 'sesion' ? ' · ' : ' × ');
+    const quien = x.clientes.map(nombreCli).join(x.tipo === 'sesion' ? ' · ' : ' × '), cls = mkFila(x);
     if (x.tipo === 'entrega') {   // una entrega pasada sin entregar (D-290): su mes, para mirarla
       const r = x.r;
-      const f = fila({ a: x.B ? `data-ir="mes/${esc(x.B.key)}/lista/${esc(r.fecha.slice(0, 7))}"` : 'disabled', izq: icoFila('paquete', true), t1: esc(r.que || 'Entrega sin título'), t2: `${esc(quien)} · <span class="roja">sin entregar · ${esc(corto(r.fecha))}</span>` });
+      const f = fila({ cls, a: x.B ? `data-ir="mes/${esc(x.B.key)}/lista/${esc(r.fecha.slice(0, 7))}"` : 'disabled', izq: icoFila('paquete', true), t1: esc(r.que || 'Entrega sin título'), t2: `${esc(quien)} · <span class="roja">sin entregar · ${esc(corto(r.fecha))}</span>` });
       return x.B ? f : sinFlecha(f);
     }
     if (x.tipo === 'acuerdo') {   // renegociar (D-288): lo dice el núcleo (personal.js); se abre en el escritorio, como una factura
       const pas = x.cat === 'pasado', cu = M.personal._p && M.personal._p.acuerdoCuando ? M.personal._p.acuerdoCuando(x) : corto(x.dia);
-      return fila({ a: `data-a="cobro"`, izq: icoFila('reloj', pas), t1: 'Renegociar el acuerdo', t2: `${esc(quien)} · ${pas ? `<span class="roja">${esc(cu)}</span>` : esc(cu)}` });
+      return fila({ cls, a: `data-a="cobro"`, izq: icoFila('reloj', pas), t1: 'Renegociar el acuerdo', t2: `${esc(quien)} · ${pas ? `<span class="roja">${esc(cu)}</span>` : esc(cu)}` });
     }
     if (x.tipo === 'cobro') {
       const C = X().cob, r = x.r, nf = r.factura ? 'Factura ' + r.factura : 'Factura de ' + C.nombre(r).toLowerCase();
-      return fila({ a: `data-a="cobro"`, izq: icoFila('euro', true), t1: `${esc(nf)} · ${esc(C.eur(r.importe))}`, t2: `${esc(quien)} · <span class="roja">${esc(x.dias === 1 ? 'retrasada 1 día' : `retrasada ${x.dias} días`)}</span>` });
+      return fila({ cls, a: `data-a="cobro"`, izq: icoFila('euro', true), t1: `${esc(nf)} · ${esc(C.eur(r.importe))}`, t2: `${esc(quien)} · <span class="roja">${esc(x.dias === 1 ? 'retrasada 1 día' : `retrasada ${x.dias} días`)}</span>` });
     }
     if (x.tipo === 'tarea' || x.tipo === 'sesion') {
       const pas = x.cat === 'pasado';
       const reu = x.tipo === 'sesion' && x.k.sesion && x.k.sesion.clase === 'reunion';   // a meeting, its own drawing and word (D-291)
-      return fila({ a: `data-a="tver" data-id="${esc(x.k.id)}"`, izq: icoFila(reu ? 'gente' : x.tipo === 'sesion' ? 'claqueta' : 'tareas', pas), t1: esc(x.k.txt), t2: `${reu ? 'Reunión' : x.tipo === 'sesion' ? 'Sesión' : 'Tarea'}${quien ? ' · ' + esc(quien) : ''}${pas ? ` · <span class="roja">${esc(corto(x.dia))}</span>` : x.hora ? ' · ' + esc(x.hora) : ''}` });
+      return fila({ cls, a: `data-a="tver" data-id="${esc(x.k.id)}"`, izq: icoFila(reu ? 'gente' : x.tipo === 'sesion' ? 'claqueta' : 'tareas', pas), t1: esc(x.k.txt), t2: `${reu ? 'Reunión' : x.tipo === 'sesion' ? 'Sesión' : 'Tarea'}${quien ? ' · ' + esc(quien) : ''}${pas ? ` · <span class="roja">${esc(corto(x.dia))}</span>` : x.hora ? ' · ' + esc(x.hora) : ''}` });
     }
     if (x.tipo === 'historias') return fila({ a: `data-ir="mes/${esc(x.B.key)}/hist"`, izq: icoFila('historias'), t1: esc(plural(x.n, 'historia', 'historias')), t2: `${esc(quien)} · ${esc(plural(x.sin, 'sin programar', 'sin programar'))}` });
     const s = x.s, tp = X().tipoPost(s), esOtro = tp.txt === 'Foto' ? '' : tp.ico;
     const estado = x.e === 'publicado' || !x.e ? '' : est({ k: x.e, txt: (X().ESTADOS.find(z => z[0] === x.e) || [x.e, x.e])[1] });
     let t2;
-    if (x.cat === 'pasado') t2 = `${esc(diaCorto(x.dia))}${x.hora ? ' ' + esc(x.hora) : ''} · ${x.mano ? '<span class="roja">publicar a mano</span>' : x.e !== 'programado' ? '<span class="roja">sin programar</span>' : '<span class="roja">vencida</span>'}`;
+    if (x.cat === 'pasado') t2 = `${esc(diaCorto(x.dia))}${x.hora ? ' ' + esc(x.hora) : ''} · ${x.mano ? '<span class="roja">publicar a mano</span>' : x.marca === 'pasado' ? '<span class="roja">sin programar</span>' : '<span class="roja">vencida</span>'}`;
     else if (x.cat === 'espera') { const w = M.web && M.web.contestado ? M.web.contestado(x.B.client, s.id) : ''; t2 = `${w ? `<span class="acc">${esc(cap1(w))} en su web</span>` : x.e === 'noaprobado' ? '<span class="roja">Pidió cambios</span>' : estado} · ${esc(corto(x.dia))}${x.lleva ? ` · lleva ${x.lleva} días` : ''}`; }
     else if (x.cat === 'falta') t2 = `${esc(corto(x.dia))} · ${estado}${x.aMano ? ' · se programa a mano' : ''}`;
     else t2 = x.mano ? '<span class="acc">publicar a mano</span>' : estado;
     const tyTxt = isReelTxt(s.type) ? s.type : tp.txt;
-    return fila({ a: `data-ir="pub/${esc(x.B.key)}/${esc(s.id)}"`, izq: miniFila(s.photos && s.photos[0], esOtro), t1: `${esc(s.name)} <span class="ty ${TY[tyTxt] || 'foto'}">${esc(tyTxt)}</span>`, t2, hr: x.cat === 'hoy' || x.cat === 'man' ? x.hora : '' });
+    return fila({ cls, a: `data-ir="pub/${esc(x.B.key)}/${esc(s.id)}"`, izq: miniFila(s.photos && s.photos[0], esOtro), t1: `${esc(s.name)} <span class="ty ${TY[tyTxt] || 'foto'}">${esc(tyTxt)}</span>`, t2, hr: x.cat === 'hoy' || x.cat === 'man' ? x.hora : '' });
   }
   const isReelTxt = t => /reel/i.test(String(t || ''));
   function pantHoy() {
@@ -1244,7 +1247,7 @@
     const l0 = L.tareas;
     if (!l0) return html + `<div class="titulo"><h1>Tareas</h1></div>` + (L.error.tareas ? mal(L.error.tareas) : `<div class="lugar">Leyendo…</div>`) + '</main>' + tabs('tareas');
     const l = l0.filter(x => !FILTRO_T || x.clientes.includes(FILTRO_T)), nHoy = l.filter(x => x.grupo === 'hoy' && !x.hecha).length, nPas = l.filter(x => x.grupo === 'pasado').length;
-    html += `<div class="titulo"><h1>Tareas</h1><p>${esc(plural(nHoy, 'para hoy', 'para hoy'))}${nPas ? ` · <span class="acc">${esc(plural(nPas, 'se ha pasado', 'se han pasado'))}</span>` : ''}</p></div>`;
+    html += `<div class="titulo"><h1>Tareas</h1><p>${esc(plural(nHoy, 'para hoy', 'para hoy'))}${nPas ? ` · <span class="roja">${esc(plural(nPas, 'se ha pasado', 'se han pasado'))}</span>` : ''}</p></div>`;
     html += nuevaHTML();
     const nuevas = opsLeer().filter(o => o.estado === 'nueva' && o.campo === 'tareaNueva');   // las que se están creando, ya a la vista
     if (nuevas.length) html += `<div class="lista" style="margin-top:14px">${nuevas.map(o => `<div class="tarea mv-nueva">${GIRA}<span class="tx"><span class="tt">${esc(String(o.valor.txt).split('\n')[0])}</span><span class="tm">${o.valor.tipo === 'nota' ? 'Nota' : 'Tarea'} · guardando</span></span></div>`).join('')}</div>`;
@@ -1260,6 +1263,7 @@
     const hop = enCurso(null, x.id, 'tarea'); if (hop) x = { ...x, hecha: hop.valor.hecha ? x.hecha || new Date().toISOString() : null };   // marcada, mientras se guarda (D-271, punto 9)
     const tex = enCurso(null, x.id, 'tareaTexto'), fop = enCurso(null, x.id, 'tareaFecha'), edita = !!(tex || fop || opsLeer().some(o => o.estado === 'nueva' && o.slot === x.id && NUEVOS.test(o.campo)));
     if (tex) x = { ...x, txt: tex.valor }; if (fop) x = { ...x, fecha: fop.valor || null };   // lo editado, ya a la vista (D-272)
+    if ((fop || hop) && x.tipo === 'tarea' && M.personal._p && M.personal._p.marcaT) x = { ...x, marca: M.personal._p.marcaT(x, hoy()) };   // mientras se guarda (otra fecha, hecha o desmarcada), su marca del núcleo (D-300)
     const nota = x.tipo === 'nota', ses = x.tipo === 'sesion';
     const meta = [];
     if (nota) meta.push(`Nota · ${esc(plural(String(x.txt).split('\n').length, 'línea', 'líneas'))}`);
@@ -1271,7 +1275,7 @@
     if (x.subtareas) meta.push(`${x.subtareas.hechas}/${x.subtareas.n}`);
     const titulo = nota ? String(x.txt).split('\n')[0] : x.txt;
     const casilla = nota ? `<span class="nota-ic">${ic('nota')}</span>` : `<button type="button" class="casilla" data-a="hecha" data-id="${esc(x.id)}" role="checkbox" aria-checked="${!!x.hecha}" aria-label="${esc(x.hecha ? 'Hecha: ' + titulo : 'Marcar como hecha: ' + titulo)}"${sinRed() || hop ? ' disabled' : ''}${hop ? ' aria-busy="true"' : ''}>${ic('check', 2.5)}</button>`;
-    return `<div class="tarea${x.hecha && !nota ? ' hecha' : ''}${nota ? ' nota' : ''}">${casilla}<span class="tx" data-a="tver" data-id="${esc(x.id)}" role="button" tabindex="0"><span class="tt">${esc(titulo)}${edita ? ' ' + GIRA : ''}</span><span class="tm">${meta.join('')}</span></span></div>`;
+    return `<div class="tarea${x.hecha && !nota ? ' hecha' : ''}${nota ? ' nota' : ''}${!x.hecha && x.marca ? ' mk-' + x.marca : ''}">${casilla}<span class="tx" data-a="tver" data-id="${esc(x.id)}" role="button" tabindex="0"><span class="tt">${esc(titulo)}${edita ? ' ' + GIRA : ''}</span><span class="tm">${meta.join('')}</span></span></div>`;
   }
   const NUEVA = { txt: '', fecha: '', cliente: '' };
   function nuevaHTML() {

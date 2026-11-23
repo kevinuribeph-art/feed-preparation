@@ -89,6 +89,8 @@
     const chips = (l || []).map((t, i) => `<li><span>${esc(t)}</span>${ed ? `<button type="button" class="co-ix" data-co="inc-quitar" data-i="${i}" aria-label="Quitar «${esc(t)}»" title="Quitar">${IC.x}</button>` : ''}</li>`).join('');
     return `<ul class="co-inc${ed ? '' : ' ro'}" data-co-inc="${de}" data-id="${esc(id)}" aria-label="Lo que incluye">${chips}${ed && (l || []).length < 20 ? `<li class="co-inc-mas"><input type="text" class="co-inc-in" data-co="inc-nuevo" maxlength="80" autocomplete="off" placeholder="Añadir…" aria-label="Añadir a lo que incluye"></li>` : ''}</ul>`;
   }
+  // what an agreement's package includes (D-311): of the catalog, a line of text (read only); «Personalizado», its chips under «Incluye»
+  const incluyeAcu = (p, a) => p.id === 'personalizado' ? `<div class="co-inc-f"><span class="co-inc-t">Incluye</span>${incluyeHTML(p.incluye, true, 'acu', a.id)}</div>` : p.incluye && p.incluye.length ? `<p class="co-acu-inc">Incluye ${esc(p.incluye.join(' · '))}</p>` : '';
   // the fields of an agreement (D-288, D-304 to D-307); sx: what makes their ids unique in the list
   function camposHTML(a, sx) {
     const pago = a ? a.pago : 'mensual', renueva = !a || a.renueva !== false, sinFin = !a || !a.meses;
@@ -99,15 +101,15 @@
       + `<div><label for="co-a-paquete${sx}">Paquete</label>${paqueteSel(a, sx)}</div>`
       + `<div><label for="co-a-pago${sx}">Pago</label><select id="co-a-pago${sx}" class="co-q" data-co="cuota" data-k="pago">${(C().PAGOS || [['mensual', 'Cada mes']]).map(([v, t]) => `<option value="${v}"${v === pago ? ' selected' : ''}>${t}</option>`).join('')}</select></div>`
       + campo('importe', 'Importe de cada pago', 'Importe', 'decimal')
+      + `<div><label for="co-a-plazo${sx}">Vence a los</label>${plazoSel(a && a.plazo != null ? a.plazo : null, sx)}</div>`   // in pairs: Paquete · Pago · Importe · Vence a los (D-311)
       + `<div><label for="co-a-dia${sx}">Se emite el día</label>${dia}</div>`
       + `<div><label for="co-a-adelanto${sx}">Se factura</label><select id="co-a-adelanto${sx}" class="co-q" data-co="cuota" data-k="adelanto"><option value="no"${a && a.adelanto ? '' : ' selected'}>El mismo mes</option><option value="si"${a && a.adelanto ? ' selected' : ''}>El mes antes</option></select></div>`   // D-309
-      + `<div><label for="co-a-plazo${sx}">Vence a los</label>${plazoSel(a && a.plazo != null ? a.plazo : null, sx)}</div>`
       + `<div><label for="co-a-desde${sx}">Cubre desde</label><input id="co-a-desde${sx}" type="month" class="co-q" data-co="cuota" data-k="desde" data-sin-fecha value="${esc((a && a.desde) || '')}" aria-label="Cubre desde"></div>`
       + `<div><label for="co-a-meses${sx}">Duración</label>${mesesSel(a, sx)}</div>`
       + `<div><label for="co-a-renueva${sx}">Al acabar</label><select id="co-a-renueva${sx}" class="co-q" data-co="cuota" data-k="renueva"${sinFin ? ' disabled title="Sin duración, no acaba"' : ''}><option value="si"${renueva ? ' selected' : ''}>Se renueva</option><option value="no"${renueva ? '' : ' selected'}>Se acaba</option></select></div>`
-      + `<div><label for="co-a-renegociar${sx}">Renegociar el</label><input id="co-a-renegociar${sx}" type="date" class="co-q" data-co="cuota" data-k="renegociar" data-sin-fecha value="${esc((a && a.renegociar) || '')}" aria-label="Renegociar el acuerdo el"></div>`
       + `<div><label for="co-a-termina${sx}">Termina en</label><input id="co-a-termina${sx}" type="month" class="co-q" data-co="cuota" data-k="termina" data-sin-fecha placeholder="Sigue" value="${esc((a && a.termina) || '')}"${a && a.desde ? ` min="${a.desde}"` : ''} aria-label="Termina en" title="Vacío: sigue. Manda sobre «Duración» y «Al acabar»"></div>`
-      + `</div>${p ? incluyeHTML(p.incluye, p.id === 'personalizado', 'acu', a.id) : ''}<p class="co-acu-n"${res ? '' : ' hidden'}${tit ? ` title="${esc(tit)}"` : ''}>${esc(res)}</p>`;
+      + `<div><label for="co-a-renegociar${sx}">Renegociar el</label><input id="co-a-renegociar${sx}" type="date" class="co-q" data-co="cuota" data-k="renegociar" data-sin-fecha value="${esc((a && a.renegociar) || '')}" aria-label="Renegociar el acuerdo el"></div>`
+      + `</div>${p ? incluyeAcu(p, a) : ''}<p class="co-acu-n"${res ? '' : ' hidden'}${tit ? ` title="${esc(tit)}"` : ''}>${esc(res)}</p>`;
   }
   // a month written as «may 2026», «mayo 2026», «05/2026» or «2026-05»; '' empty; undefined, not a month
   function leerMes(v) {
@@ -481,9 +483,9 @@
     // stretch of today (D-297); the next one by its date, never its month: it's issued the month before (D-304)
     const rg = q && C().rango ? C().rango(q, h.slice(0, 7)) : null, nb = m => mesC0(m).replace(' ', '\u00a0'), rgT = rg ? (rg.hasta ? (rg.hasta === rg.de ? nb(rg.de) : `${nb(rg.de)} – ${nb(rg.hasta)}`) : `desde ${nb(rg.de)}`) : '';   // one month once, never split (revisión del lote B)
     const sig = prox ? (prox.emitida >= h ? 'el ' + corto(prox.emitida, h) : 'en unos días') : '';
-    const sigue = tramo && q.pago !== 'unico' && prox && prox.emitida >= h ? ` · el siguiente, ${esc(sig)}` : '';
+    const sigue = tramo && q.pago !== 'unico' && prox && prox.emitida >= h ? ` · próxima factura, ${esc(sig)}` : '';   // D-311
     const cubre = tr ? `<p class="co-vcubre">Cubre <b>${esc(tramoTxt(tr.de, tr.hasta))}</b>${sigue}</p>` : '';
-    const px = prox && !tramo ? `<p class="co-vprox">${IC.doc}El siguiente, ${esc(sig)}</p>` : '';   // with a stretch, it's in «Cubre …»
+    const px = prox && !tramo ? `<p class="co-vprox">${IC.doc}Próxima factura, ${esc(sig)}</p>` : '';   // with a stretch, it's in «Cubre …»
     const inc = q && q.paquete && q.paquete.incluye && q.paquete.incluye.length ? `<p class="co-vinc">Incluye ${esc(q.paquete.incluye.join(' · '))}</p>` : '';   // what its package includes (D-307)
     const sub = q && q.pago === 'mensual' ? `${eur(q.importe)} al mes${rgT ? ' · ' + rgT : ''}` : tramo ? `${PAGO_VC[q.pago] || 'Pago'} · ${eur(q.importe)}${rgT ? ' · ' + rgT + (q.pago !== 'unico' && q.renueva && !q.cubreHasta ? ', se\u00a0renueva' : '') : ''}` : '';
     return `<div class="co-pagos"><h2 class="co-vh">Tus pagos${sub ? ` <span>${esc(sub)}</span>` : ''}</h2>${inc}${cubre}`
@@ -726,6 +728,7 @@
 #mesa .co-inc{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px;padding:0;list-style:none}
 #mesa .co-inc li{display:inline-flex;align-items:center;gap:2px;min-height:24px;box-sizing:border-box;padding:0 3px 0 10px;border-radius:var(--r-pill);background:var(--bg-2);font-size:12.5px;color:var(--ink-2)}
 #mesa .co-inc.ro li{padding:0 10px}
+#mesa .co-inc-t{display:block;margin:0 0 6px;font-size:12.5px;font-weight:600}#mesa .co-acu-inc{margin:0 0 8px;font-size:12.5px;line-height:1.45;color:var(--ink-2)}
 #mesa .co-ix{display:inline-grid;place-items:center;width:22px;height:22px;padding:0;border:0;border-radius:var(--r-pill);background:none;color:var(--mute);cursor:pointer;transition:background var(--d1) ease-out,color var(--d1) ease-out}
 #mesa .co-ix:hover{background:var(--line2);color:var(--ink)}#mesa .co-ix svg{width:12px;height:12px}
 #mesa .co-inc li.co-inc-mas{padding:0;background:none}

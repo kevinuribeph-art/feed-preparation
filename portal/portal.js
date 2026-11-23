@@ -397,8 +397,8 @@
     const dia = d => diaCorto(d).replace(' ', '\u00a0') + (d.slice(0, 4) !== H.slice(0, 4) ? '\u00a0' + d.slice(0, 4) : ''), reciente = prox && prox < H && (Date.parse(H) - Date.parse(prox)) / 864e5 <= 10;
     const sig = prox ? (prox >= H ? 'el ' + dia(prox) : reciente ? 'en unos días' : '') : '';
     const mesA = m => `${mesC(m)}\u00a0${m.slice(0, 4)}`, rg = cli && /^\d{4}-\d{2}$/.test(cli.acuerdo_de || '') ? (/^\d{4}-\d{2}$/.test(cli.acuerdo_hasta || '') ? (cli.acuerdo_hasta === cli.acuerdo_de ? mesA(cli.acuerdo_de) : `${mesA(cli.acuerdo_de)} – ${mesA(cli.acuerdo_hasta)}`) : `desde ${mesA(cli.acuerdo_de)}`) : '';
-    const emite = sig && !tramo ? h('p', { class: 'emite' }, ico('file'), `El siguiente, ${sig}`) : null;   // con tramo, va en «Cubre …»
-    const cubre = tramo && cli.cubre_de && cli.cubre_hasta ? h('p', { class: 'cubre' }, 'Cubre ', h('b', { text: tramoTxt(cli.cubre_de, cli.cubre_hasta) }), cli.pago !== 'unico' && prox && prox >= H ? ` · el siguiente, ${sig}` : '') : null;
+    const emite = sig && !tramo ? h('p', { class: 'emite' }, ico('file'), `Próxima factura, ${sig}`) : null;   // con tramo, va en «Cubre …»
+    const cubre = tramo && cli.cubre_de && cli.cubre_hasta ? h('p', { class: 'cubre' }, 'Cubre ', h('b', { text: tramoTxt(cli.cubre_de, cli.cubre_hasta) }), cli.pago !== 'unico' && prox && prox >= H ? ` · próxima factura, ${sig}` : '') : null;
     const inc = cli && Array.isArray(cli.incluye) && cli.incluye.length ? h('p', { class: 'incluye', text: 'Incluye ' + cli.incluye.join(' · ') }) : null;   // lo que incluye su paquete (D-307)
     const mas = N ? h('button', { type: 'button', class: 'lnk ver-ant', 'aria-expanded': String(ver), text: ver ? 'Ocultar las anteriores' : `Ver las anteriores (${N})`, onclick: () => { st.verAnt = ver ? null : st.cli; pintar(); } }) : null;
     return h('section', { class: 'card', 'aria-labelledby': 'h-pagos' },

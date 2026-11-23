@@ -16068,7 +16068,7 @@
         ['Septiembre · 450 €', 'Factura 2026-022 · pagada el 23 sep', 'Pagada', 'ok', true], ['Agosto · 450 €', 'Factura 2026-018 · pagada el 22 ago', 'Pagada', 'ok', true], ['Julio · 450 €', 'Factura 2026-015 · pagada el 22 jul', 'Pagada', 'ok', true]], 'las líneas y su orden');
       const dw = p.querySelector('.co-dw'); igual([dw.title, dw.getAttribute('aria-label')], ['Descargar la factura 2026-027 (PDF)', 'Descargar la factura 2026-027 (PDF)'], 'el botón de descarga');
       cerca(dw.getBoundingClientRect().width, 32, 0.5, 'el botón de descarga no mide 32 px');
-      igual(p.querySelector('.co-vprox').textContent, 'El siguiente, el 15 dic', 'la próxima');   // por su fecha, sin nombrar el mes (D-308); la de diciembre se emite en diciembre (D-309), a propósito
+      igual(p.querySelector('.co-vprox').textContent, 'Próxima factura, el 15 dic', 'la próxima');   // «Próxima factura» (D-311), a propósito;   // por su fecha, sin nombrar el mes (D-308); la de diciembre se emite en diciembre (D-309), a propósito
       // «Ver las anteriores (3)»
       const ver = p.querySelector('[data-co="ver-ant"]'); igual([ver.textContent, ver.getAttribute('aria-expanded')], ['Ver las anteriores (3)', 'false'], '«Ver las anteriores»');
       ver.click(); await espera(80); igual(lado().querySelectorAll('.co-vl li').length, 8, 'no despliega las anteriores');
@@ -21654,7 +21654,7 @@
       await vistaCliente(true); M._in.render(); await espera(120);
       const p = await hasta(() => q('.main > .vc-lado [data-vc="pagos"]'), 3000, '«Tus pagos»');
       igual(p.querySelector('.co-vh').textContent, 'Tus pagos Pago semestral · 2700 € · may\u00a02026 – abr\u00a02027, se\u00a0renueva', 'el título');   // el acuerdo de cuándo a cuándo (D-308); sin partir las fechas (D-310), a propósito
-      igual(p.querySelector('.co-vcubre') && p.querySelector('.co-vcubre').textContent, 'Cubre may – oct 2026 · el siguiente, el 1 nov', 'el tramo');   // el siguiente se emite el 1 nov, su primer mes (D-309), a propósito
+      igual(p.querySelector('.co-vcubre') && p.querySelector('.co-vcubre').textContent, 'Cubre may – oct 2026 · próxima factura, el 1 nov', 'el tramo');   // «próxima factura» (D-311), a propósito;   // el siguiente se emite el 1 nov, su primer mes (D-309), a propósito
       igual(p.querySelector('.co-vl li .m').textContent, 'Mayo – octubre · 2700 €', 'la factura');
       ok(!p.querySelector('.co-vprox'), 'la siguiente se repite abajo');
       ok(!/1 abr|renegoci/i.test(p.textContent), 'sale la fecha de renegociar: ' + p.textContent);   // «abr 2027» es el final del acuerdo (D-308); renegociar sería «1 abr», a propósito
@@ -22153,7 +22153,7 @@
       ok(/Desde may 2026 · cada mes · se renueva cada 6 meses/.test(c0.textContent) && /Ahora/.test(c0.querySelector('.co-ach').textContent) && !c0.classList.contains('pleg'), 'el de hoy: ' + c0.textContent.slice(0, 120));
       ok(c0.querySelector('tr.co-f[data-id="al2-nov"]') && !c0.querySelector('tr.co-f[data-id="al2-feb"]'), 'las facturas del de hoy');
       ok(c1.classList.contains('pleg') && /ene 2026 – abr 2026/.test(c1.textContent) && /Personalizado/.test(c1.textContent) && /cuatro pagos de 380 €/.test(c1.textContent) && /Terminado/.test(c1.textContent), 'el terminado: ' + c1.textContent);
-      ok(/12 fotos al mes/.test(c0.querySelector('.co-inc.ro').textContent), 'lo que incluye el paquete');
+      ok(/Incluye 12 fotos al mes/.test(c0.querySelector('.co-acu-inc').textContent), 'lo que incluye el paquete');   // en una línea de texto (D-311), a propósito
       c1.querySelector('[data-co="acu-pleg"]').click(); await hasta(() => !cards()[1].classList.contains('pleg') && cards()[1].querySelector('tr.co-f[data-id="al2-feb"]'), 3000, 'desplegar el terminado');
       // «Nuevo acuerdo»: empieza el mes que viene, abierto, con «Cubre desde» listo
       q('.detail [data-co="acu-nuevo"]').click();
@@ -22167,7 +22167,7 @@
       igual([...sel().options].filter(o => !o.hidden).map(o => o.textContent), ['Paquete A', 'Paquete B', 'Paquete C', 'Personalizado', 'Editar paquetes…'], 'las opciones de «Paquete»');
       // elegir «Paquete C» con el importe de «Paquete B» (copiado): pasa al de C
       coCambiar(sel(), cat.find(p => p.nombre === 'Paquete C').id); await hasta(() => { const a = CB().acuerdos(CLIENTE).find(x => x.id === idN); return a && a.paquete && a.paquete.nombre === 'Paquete C' && a.importe === 700; }, 3000, '«Paquete C» con su precio');
-      await hasta(() => /20 fotos al mes/.test((q(`.detail [data-acu="${idN}"] .co-inc`) || {}).textContent || ''), 3000, 'lo que incluye C');
+      await hasta(() => /20 fotos al mes/.test((q(`.detail [data-acu="${idN}"] .co-acu-inc`) || {}).textContent || ''), 3000, 'lo que incluye C');   // en una línea de texto (D-311), a propósito
       // «Personalizado»: se escribe
       coCambiar(sel(), 'personalizado'); await hasta(() => q(`.detail [data-acu="${idN}"] .co-inc:not(.ro) [data-co="inc-nuevo"]`), 3000, 'lo que incluye, para escribir');
       const ai = q(`.detail [data-acu="${idN}"] [data-co="inc-nuevo"]`); ai.value = '3 vídeos'; tecla('Enter', { en: ai });
@@ -22209,7 +22209,7 @@
       const p = await hasta(() => q('.main > .vc-lado [data-vc="pagos"]'), 3000, '«Tus pagos»');
       igual(p.querySelector('.co-vh').textContent, 'Tus pagos 450 € al mes · nov\u00a02026 – abr\u00a02027', 'el título de un mensual');   // sin partir las fechas (D-310), a propósito
       ok(/Incluye 12 fotos al mes · 4 reels/.test(p.textContent), 'sin lo que incluye: ' + p.textContent);
-      igual(p.querySelector('.co-vprox').textContent, 'El siguiente, el 10 dic', 'la siguiente por su fecha');
+      igual(p.querySelector('.co-vprox').textContent, 'Próxima factura, el 10 dic', 'la siguiente por su fecha');   // «Próxima factura» (D-311), a propósito
       ok(!/abr 2027 ·|15 abr|renegoci/i.test(p.textContent.replace(/\u00a0/g, ' ').replace('nov 2026 – abr 2027', '')), 'sale la fecha de renegociar: ' + p.textContent);
       // sin fin
       await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 450, dia: 10, plazo: 15, desde: '2026-05', meses: null, renueva: true }); M._in.render(); await espera(120);
@@ -22218,7 +22218,7 @@
       await CB().acuGuardar(CLIENTE, { ...AU_ACU, meses: null }); await M.cobros.cargar([{ id: 'ax-s', cliente: CLIENTE, periodo: '2026-11', hasta: '2027-04', importe: 2700, factura: 'AX-S', emitida: '2026-10-01', cobrada: '2026-10-05' }]); M._in.render(); await espera(120);
       const pt = await hasta(() => { const x = q('.main > .vc-lado [data-vc="pagos"]'); return x && /Pago semestral/.test(x.textContent) && x; }, 3000, 'el semestral');
       igual(pt.querySelector('.co-vh').textContent, 'Tus pagos Pago semestral · 2700 € · desde may\u00a02026, se\u00a0renueva', 'el título de uno por tramos');   // sin partir (D-310), a propósito
-      igual(pt.querySelector('.co-vcubre').textContent, 'Cubre nov 2026 – abr 2027 · el siguiente, el 1 abr 2027', 'el tramo de hoy y la siguiente');
+      igual(pt.querySelector('.co-vcubre').textContent, 'Cubre nov 2026 – abr 2027 · próxima factura, el 1 abr 2027', 'el tramo de hoy y la siguiente');   // «próxima factura» (D-311), a propósito
       ok(!pt.querySelector('.co-vprox'), 'la siguiente se repite abajo');
       // sin «Cubre desde»: como siempre
       await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 500, dia: 5, plazo: 15 }); M._in.render(); await espera(120);
@@ -22445,6 +22445,28 @@
       igual([W.getComputedStyle(ch).borderRadius, W.getComputedStyle(ch).fontSize], [W.getComputedStyle(ce).borderRadius, W.getComputedStyle(ce).fontSize], 'la marca «Ahora» y la de estado');
       igual(W.getComputedStyle(arCampo('importe')).fontSize, W.getComputedStyle(M.controles.gemelo(arCampo('plazo'))).fontSize, 'la letra de «Importe»');
     } finally { relojVuelve(); W.document.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); M._in.closeDetail(); }
+  });
+  prueba('AR10', 'Lo que eligió Kevin tras las revisiones del lote B (D-311): los campos en parejas (Paquete · Pago · Importe · Vence a los / Se emite el día · Se factura · Cubre desde · Duración / Al acabar · Termina en · Renegociar el); con un paquete del catálogo, «Incluye …» en una línea de texto, y las pastillas solo con «Personalizado», bajo su rótulo «Incluye»; «Próxima factura, el 10 dic» en «Tus pagos»', async () => {
+    await tablero([pub(1)]);
+    relojEn('2026-11-20T10:00:00+01:00');
+    try {
+      await hasta(() => M.cobrosUI && M.controles, 8000, 'cobros.js'); await M._test.cobBorrarTodo();
+      await M.cobros.paquetes([{ nombre: 'Paquete A', precio: 300, incluye: ['8 fotos al mes', '2 reels'] }]);
+      const pa = (await M.cobros.paquetes()).find(x => x.nombre === 'Paquete A');
+      await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 450, dia: 25, plazo: 15, desde: '2026-05', meses: 6, renueva: true, paquete: { id: pa.id, nombre: pa.nombre, incluye: pa.incluye } });
+      await CB().dlgCliente(CLIENTE, 'cobros'); await hasta(() => arCampo('meses'), 3000, 'los campos');
+      igual(qa('.detail .co-ac:not(.pleg) .co-acu [data-k]').map(x => x.dataset.k), ['paquete', 'pago', 'importe', 'plazo', 'dia', 'adelanto', 'desde', 'meses', 'renueva', 'termina', 'renegociar'], 'el orden de los campos');
+      const card = q('.detail .co-ac:not(.pleg)');
+      ok(!card.querySelector('.co-inc li') && /Incluye 8 fotos al mes · 2 reels/.test((card.querySelector('.co-acu-inc') || { textContent: '' }).textContent), 'lo que incluye un paquete del catálogo: ' + card.textContent.slice(0, 200));
+      await arElegir('paquete', 'Personalizado');
+      await hasta(() => (CB().acuerdos(CLIENTE)[0].paquete || {}).id === 'personalizado', 3000, '«Personalizado»');
+      const c2 = await hasta(() => { const x = q('.detail .co-ac:not(.pleg)'); return x && x.querySelector('.co-inc-in') && x; }, 3000, 'las pastillas de «Personalizado»');
+      igual((c2.querySelector('.co-inc-t') || { textContent: '' }).textContent, 'Incluye', 'el rótulo de las pastillas');
+      M._in.closeDetail(); await espera(40);
+      await vistaCliente(true); M._in.render(); await espera(120);
+      const px = await hasta(() => q('.main > .vc-lado [data-vc="pagos"] .co-vprox'), 3000, 'la próxima');
+      igual(px.textContent.replace(/ /g, ' '), 'Próxima factura, el 25 nov', 'la próxima factura');
+    } finally { relojVuelve(); M._in.closeDetail(); await vistaCliente(false); }
   });
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;

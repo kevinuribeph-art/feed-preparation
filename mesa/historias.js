@@ -35,7 +35,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.20';   // 1.20: a client of «Solo contenido» has no stories: cargarHistorias refuses them (D-289). 1.19: without the notes' icon of the bar (D-282), the switch goes back next to «Descargar», «Revisar» or «Vista cliente». 1.18: the story's photo big through getBlob: in another computer it comes down if it hasn't yet (lot 4 of the traspaso, D-259). 1.17: in the vista cliente, no «Feed / Historias» in a month without a story it sees, and back to «Feed» (D-228). 1.16: the posts' hours without tabular figures (D-175). 1.14: no «N historias en este mes» when there are some (D-156)
+  const VERSION = '1.21';   // 1.21: the page of a «Solo contenido» client: no stories (D-312). 1.20: a client of «Solo contenido» has no stories: cargarHistorias refuses them (D-289). 1.19: without the notes' icon of the bar (D-282), the switch goes back next to «Descargar», «Revisar» or «Vista cliente». 1.18: the story's photo big through getBlob: in another computer it comes down if it hasn't yet (lot 4 of the traspaso, D-259). 1.17: in the vista cliente, no «Feed / Historias» in a month without a story it sees, and back to «Feed» (D-228). 1.16: the posts' hours without tabular figures (D-175). 1.14: no «N historias en este mes» when there are some (D-156)
   if (M.hs && M.hs._off) { try { M.hs._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const { esc, cssq, utc } = M._in;   // the mesa's own helpers
   const DOW = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];

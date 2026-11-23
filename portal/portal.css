@@ -9,11 +9,11 @@
 --chg:#8A5A14;--chg-soft:#F3E8D4;--st-aprobar:#5E86B8;--st-aprobar-soft:#E3ECF6;--on-ink:#F4EFE8;--on-acc:#FFFFFF;--barra:#998F85;--barra-top:var(--acc);--sep:var(--line2);
 --ty-reel:#DDE8D8;--ty-reel-ink:#1E3A26;--ty-collab:#BFD6C2;--ty-collab-ink:#12321C;--ty-foto:#F6DFD7;--ty-foto-ink:#5E2418;--ty-carr:#E6DDEA;--ty-carr-ink:#42284E;--ty-ses:#DCE4EE;--ty-ses-ink:#24385A;--ty-trial:#E7E1D9;--ty-trial-ink:#3A322B;
 --shadow-sm:0 1px 3px rgba(22,17,14,.08),0 1px 2px rgba(22,17,14,.06);--shadow-lg:0 24px 60px -18px rgba(22,17,14,.32),0 8px 18px -8px rgba(22,17,14,.18);--veil:rgba(22,17,14,.42);
---r-sm:8px;--r-md:12px;--r-lg:16px;--r-xl:22px;--r-pill:999px;--ease:cubic-bezier(.22,1,.36,1);--d2:.2s}
+--r-sm:8px;--r-md:12px;--r-lg:16px;--r-xl:22px;--r-pill:999px;--ease:cubic-bezier(.22,1,.36,1);--d1:.12s;--d2:.2s;--cx-hov:var(--bg-2)}
 @media (prefers-color-scheme:dark){:root{color-scheme:dark;--ink:#F1EBE3;--ink-2:#D3C9BD;--mute:#A89C8F;--faint:#7A6F64;--bg:#15110E;--bg-2:#29221D;--bg-3:#352D26;--panel:#1E1915;--panel-2:#2F2822;
 --line:#3D352E;--line2:#2F2822;--line-strong:#574C42;--acc-ink:#D9805F;--acc-soft:#3B241B;--focus:#D9805F;--ok:#6FBF85;--ok-soft:#1F2E22;--red:#F0727A;--red-soft:#3A1E21;
 --chg:#E0B25C;--chg-soft:#33291A;--st-aprobar:#8FB4E0;--st-aprobar-soft:#22303F;--on-ink:#16110E;--barra:#726960;--barra-top:var(--acc-ink);--sep:var(--line);
---ty-reel:#23352A;--ty-reel-ink:#CFE6D3;--ty-collab:#2D4834;--ty-collab-ink:#DDF0E1;--ty-foto:#46271F;--ty-foto-ink:#F5D7CC;--ty-carr:#392C42;--ty-carr-ink:#E6DAEE;--ty-ses:#27323F;--ty-ses-ink:#D2DDEB;--ty-trial:#2E2823;--ty-trial-ink:#E2D9CE;--veil:rgba(0,0,0,.6)}}
+--ty-reel:#23352A;--ty-reel-ink:#CFE6D3;--ty-collab:#2D4834;--ty-collab-ink:#DDF0E1;--ty-foto:#46271F;--ty-foto-ink:#F5D7CC;--ty-carr:#392C42;--ty-carr-ink:#E6DAEE;--ty-ses:#27323F;--ty-ses-ink:#D2DDEB;--ty-trial:#2E2823;--ty-trial-ink:#E2D9CE;--veil:rgba(0,0,0,.6);--cx-hov:var(--bg-2)}}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html{-webkit-text-size-adjust:100%}
@@ -120,6 +120,8 @@ svg.i *{vector-effect:non-scaling-stroke}
 .dia.fuera .n{color:var(--faint)}
 .dia.hoy{box-shadow:inset 0 0 0 1px var(--line-strong)}
 .dia.hoy .n{font-weight:600}
+@media (hover:hover){.dia:hover{background:var(--cx-hov);transition:background-color var(--d1) var(--ease)}}   /* each day under the mouse, as the vista cliente (D-313); not on a phone */
+@media (hover:hover) and (prefers-reduced-motion:reduce){.dia:hover{transition:none}}
 .chip{display:flex;align-items:center;flex-wrap:wrap;column-gap:4px;width:100%;min-width:0;border:0;border-radius:6px;padding:2px 6px;text-align:left;font-size:11px;line-height:15px;transition:filter var(--d2)}
 .chip:hover{filter:brightness(.97)}
 .chip .cl{flex:1 1 auto;min-width:0;max-width:100%;display:flex;align-items:center;gap:4px}

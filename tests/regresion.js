@@ -22083,7 +22083,7 @@
       const rh = reglasDe(/\.cell\.filler:not\(\.over\):hover::after/);
       ok(rh.length && rh.every(r => r.style.opacity === '1' && /#mesa:not\(\.client\)/.test(r.selectorText)), 'el hueco: sin su anillo al pasar, o también en «Vista cliente»: ' + rh.map(r => r.cssText).join(' | '));
       const rd = reglasDe(/\.cday\[data-day\]:not\(\.cover\):not\(\.cno\):hover/);
-      ok(rd.length && rd.every(r => /#mesa:not\(\.client\)/.test(r.selectorText) && /--cx-hov/.test(r.style.getPropertyValue('background') || r.style.getPropertyValue('background-color'))), 'el día: sin el fondo de pasar el ratón, o también en «Vista cliente»: ' + rd.map(r => r.cssText).join(' | '));
+      ok(rd.length && rd.every(r => !/:not\(\.client\)/.test(r.selectorText) && /--cx-hov/.test(r.style.getPropertyValue('background') || r.style.getPropertyValue('background-color'))), 'el día: sin el fondo de pasar el ratón, o sin él en «Vista cliente»: ' + rd.map(r => r.cssText).join(' | '));   // al día a propósito: también en «Vista cliente» (D-313)
       ok(rd.some(r => /background-color/.test(r.style.getPropertyValue('transition')) && /--d1/.test(r.style.getPropertyValue('transition'))), 'el día no aparece con --d1: ' + rd.map(r => r.cssText).join(' | '));
       const dia = q('.side > .cal .cday[data-day]');
       igual(msDe(cs(dia).transitionDuration.split(',')[0]), 0, 'el fondo del día no se va al instante (deja estela al soltar)');
@@ -22093,6 +22093,49 @@
     } finally { if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes); }
   });
 
+  prueba('HV1', 'El ratón en todos los calendarios (D-313, sustituye en parte D-302): cada día toma el fondo --cx-hov al pasar el ratón, que aparece con --d1 y se va al instante, también los que no responden al clic: el calendario del tablero también en la «Vista cliente», el de la página de solo contenido, Semana y Mes de Tareas, la tira de días de cada cliente y el calendario del portal; con «reducir movimiento», al instante; el cursor no promete un clic', async () => {
+    const sin = t => t.replace(/:hover/g, '');
+    const conFondo = (re, n) => { const rs = reglasDe(re); ok(rs.length && rs.every(r => /--cx-hov/.test(r.style.getPropertyValue('background') || r.style.getPropertyValue('background-color')) && /background-color/.test(r.style.getPropertyValue('transition')) && /--d1/.test(r.style.getPropertyValue('transition'))), `${n}: sin el fondo al pasar o sin --d1: ` + rs.map(r => r.cssText).join(' | ')); return rs; };
+    const reposo0 = (el, n) => igual(msDe(W.getComputedStyle(el).transitionDuration.split(',')[0]), 0, `${n}: el fondo no se va al instante`);
+    const cursor = (el, n) => ok(['auto', 'default'].includes(W.getComputedStyle(el).cursor), `${n}: el cursor promete un clic: ` + W.getComputedStyle(el).cursor);
+    const LS = 'mesa-cal-plegado', antes = W.localStorage.getItem(LS); W.localStorage.setItem(LS, '0');
+    try {
+      await tablero([pub(1)]); M._in.render();
+      await hasta(() => q('.side > .cal .cday[data-day]'), 4000, 'el calendario del tablero');
+      const rd = conFondo(/\.cday\[data-day\]:not\(\.cover\):not\(\.cno\):hover/, 'el día del tablero');
+      ok(rd.every(r => !/:not\(\.client\)/.test(r.selectorText)), 'sin el fondo en la «Vista cliente»: ' + rd.map(r => r.selectorText).join(' | '));
+      ok(reglasReduce(/\.cday\[data-day\]:not\(\.cover\):not\(\.cno\):hover/).some(r => r.style.transition === 'none' && !/:not\(\.client\)/.test(r.selectorText)), 'el día con «reducir movimiento», con otro selector');
+      await vistaCliente(true);
+      try {
+        const d = await hasta(() => q('.side > .cal .cday[data-day]'), 3000, 'el calendario en la «Vista cliente»');
+        ok(rd.some(r => d.matches(sin(r.selectorText))), 'en la «Vista cliente» el fondo no llega al día'); reposo0(d, 'la «Vista cliente»'); cursor(d, 'un día en la «Vista cliente»');
+        const otro = q('.side > .cal .cday.off[data-day], .side > .cal .cday.prevc[data-day], .side > .cal .cday.otromes[data-day]'); if (otro) ok(rd.some(r => otro.matches(sin(r.selectorText))), 'un día de otro mes, sin el fondo');
+      } finally { await vistaCliente(false); }
+      // la página de un cliente de solo contenido
+      await tableroContenido();
+      const dc = await hasta(() => q('.side > .cal .cday[data-day]'), 3000, 'su calendario');
+      ok(rd.some(r => dc.matches(sin(r.selectorText))), 'en su página el fondo no llega al día'); reposo0(dc, 'su página'); cursor(dc, 'un día de su página');
+    } finally { if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes); }
+    // la página personal: la tira de días de cada cliente, Semana y Mes de Tareas
+    const rp = conFondo(/\.pp-(sd|md|dia):hover/, 'la página personal');
+    for (const k of ['sd', 'md', 'dia']) ok(rp.some(r => new RegExp(`\\.pp-${k}:hover`).test(r.selectorText)), `sin el fondo en .pp-${k}`);
+    ok(reglasReduce(/\.pp-(sd|md|dia):hover/).some(r => r.style.transition === 'none' && ['sd', 'md', 'dia'].every(k => new RegExp(`\\.pp-${k}:hover`).test(r.selectorText))), 'la página personal con «reducir movimiento» sigue animando');
+    await paginaAbierta();
+    try {
+      const tira = await hasta(() => q('.pp-blq .pp-dia'), 3000, 'la tira de un cliente'); ok(rp.some(r => tira.matches(sin(r.selectorText))), 'la tira sin el fondo'); reposo0(tira, 'la tira');
+      await ppClic('[data-pp="plegar"][data-p="tareas"]');
+      await ppClic('.pp-tvs [data-v="semana"]'); const sd = await hasta(() => q('.pp-sd'), 3000, 'Semana'); ok(rp.some(r => sd.matches(sin(r.selectorText))), 'Semana sin el fondo'); reposo0(sd, 'Semana'); cursor(sd, 'un día de Semana');
+      await ppClic('.pp-tvs [data-v="mes"]'); const md = await hasta(() => q('.pp-md'), 3000, 'Mes'); ok(rp.some(r => md.matches(sin(r.selectorText))), 'Mes sin el fondo'); reposo0(md, 'Mes'); cursor(md, 'un día de Mes');
+      const fuera = q('.pp-md.fuera'); if (fuera) ok(rp.some(r => fuera.matches(sin(r.selectorText))), 'un día de otro mes, sin el fondo');
+      await ppClic('.pp-tvs [data-v="lista"]');
+    } finally { paginaCerrada(); }
+    // el portal: sus dos tokens con los valores de la Mesa, en claro y en oscuro, y la regla, solo con ratón
+    const css = await (await W.fetch('../portal/portal.css?hv1=' + Date.now(), { cache: 'no-store' })).text();
+    const claro = (css.match(/:root\{color-scheme:light;[^}]*\}/) || [''])[0], oscuro = (css.match(/prefers-color-scheme:dark\)\{:root\{[^}]*\}/) || [''])[0];
+    ok(/--d1:\.12s/.test(claro) && /--cx-hov:var\(--bg-2\)/.test(claro) && /--cx-hov:var\(--bg-2\)/.test(oscuro), 'el portal sin --d1 o --cx-hov en claro y oscuro');
+    ok(/@media \(hover:hover\)\{\.dia:hover\{background:var\(--cx-hov\);transition:background-color var\(--d1\) var\(--ease\)\}\}/.test(css) && /prefers-reduced-motion:reduce\)\{\.dia:hover\{transition:none\}\}/.test(css), 'el portal sin el fondo de sus días al pasar el ratón');
+    ok(!/style=/.test(css), 'estilos en línea en el portal');
+  });
   prueba('AN5', 'Los avisos de abajo en la terracota de la marca (D-303): fondo --acc y texto blanco (5,12:1) en claro y en oscuro; su botón, blanco y subrayado, con el foco blanco; en el iPhone igual, el de error con su triángulo rojo en un disco blanco; el portal, como la «Vista cliente»', async () => {
     await tablero([pub(1)]);
     const cs = e => W.getComputedStyle(e);

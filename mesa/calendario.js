@@ -672,8 +672,8 @@
 #mesa .chip.calhi{box-shadow:0 0 0 2px var(--ink)}
 /* D-302: the ring of a cell lives in mesa.js (also on a hole); a day of the board, under the mouse, the date calendar's hover
    background, appearing in --d1; nothing in «Vista cliente» (the pause's veil covers it) nor while something is dropped */
-#mesa:not(.client) .side>.cal .cday[data-day]:not(.cover):not(.cno):hover{background:var(--cx-hov);transition:background-color var(--d1) var(--ease)}   /* it appears in --d1, goes at once: where something is dropped, as before */
-@media (prefers-reduced-motion:reduce){#mesa:not(.client) .side>.cal .cday[data-day]:not(.cover):not(.cno):hover{transition:none}}
+#mesa .side>.cal .cday[data-day]:not(.cover):not(.cno):hover{background:var(--cx-hov);transition:background-color var(--d1) var(--ease)}   /* it appears in --d1, goes at once: where something is dropped, as before; also in the vista cliente and on the page of a client of «Solo contenido» (D-313) */
+@media (prefers-reduced-motion:reduce){#mesa .side>.cal .cday[data-day]:not(.cover):not(.cno):hover{transition:none}}
 #mesa .ctot{grid-column:1/-1;padding:4px 6px 0;text-align:right;font-size:11px;color:var(--mute)}#mesa .ctot b{margin-left:4px;font-weight:600;color:var(--ink)}   /* the month's total, its own row (D-229) */
 /* the vista cliente's structure (D-230): «Calendario» and the other tabs; the right column, 360 px */
 #mesa .cal.vctabs .calhead{flex-wrap:wrap;padding:12px 14px 4px;gap:6px}

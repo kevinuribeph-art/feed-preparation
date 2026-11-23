@@ -111,7 +111,7 @@
     const cli = I().S.client, c = I().CL.find(x => x.id === cli), h = hoy(), a = C().acuerdo(c);
     const linea = [a && a.importe != null ? `${C().eur(a.importe)} ${PAGO[a.pago] || ''}`.trim() : 'Sin acuerdo: ponlo en «Cobros»', c && c.entregasDia ? `entregas antes del día ${c.entregasDia}` : ''].filter(Boolean).join(' · ');
     const l = C().vivos(cli).sort(C().orden), prox = C().proxima(cli, h), filas = [];
-    if (prox && prox.virtual) filas.push({ t: `${C().nombre({ periodo: prox.mes, hasta: prox.hasta }, h)} · ${C().eur(prox.importe)}`, s: `se emite el ${corto(prox.emitida, h)}`, e: 'Sin emitir', k: 'sin' });
+    if (prox && prox.virtual) filas.push({ t: `${C().nombre({ periodo: prox.mes, hasta: prox.hasta }, h)} · ${C().eur(prox.importe)}`, s: prox.tarde ? `con retraso: tocaba el ${corto(prox.emitida, h)}` : `se emite el ${corto(prox.emitida, h)}`, e: 'Sin emitir', k: 'sin' });   // D-304
     for (const r of l.slice(0, 6)) {
       const e = C().estado(r, h);
       filas.push({ t: `${C().nombre(r, h)} · ${C().eur(r.importe)}`, s: [r.factura ? 'Factura ' + r.factura : '', e.k === 'cobrada' ? 'cobrada el ' + corto(r.cobrada, h) : r.vence ? 'vence el ' + corto(r.vence, h) : r.emitida ? 'se emite el ' + corto(r.emitida, h) : ''].filter(Boolean).join(' · '),

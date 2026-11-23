@@ -10923,9 +10923,9 @@
     await tablero([pub(1, 'Carrusel'), pub(2)]);
     await poner('r1', [await foto('lz3-a.jpg'), await foto('lz3-b.jpg')]);
     await nuevoCliente(); let t = dialogo().textContent;
-    ok(!/pestaña vacía|día del mes,/.test(t) && /\(1-28\)/.test(t), 'Nuevo cliente: ' + t); M._in.closeDetail();
+    ok(!/pestaña vacía|día del mes,/.test(t) && /Inicio de ciclo/.test(t), 'Nuevo cliente: ' + t); M._in.closeDetail();   // «(1-28)» se fue con el selector de día (D-304), a propósito
     q('.tabs .tedit').click(); await hasta(() => q('.detail [data-form="editclient"]'), 3000, 'Editar cliente'); t = dialogo().textContent;
-    ok(!/la de su Instagram|día del mes/.test(t) && /Foto de perfil/.test(t) && /\(1-28; los meses ya cargados conservan el suyo\)/.test(t), 'Editar cliente: ' + t); M._in.closeDetail();
+    ok(!/la de su Instagram|día del mes/.test(t) && /Foto de perfil/.test(t) && /\(los meses ya cargados conservan el suyo\)/.test(t), 'Editar cliente: ' + t); M._in.closeDetail();   // D-304, a propósito
     t = mcAbrir().textContent;   // el menú de copias (D-263) dice lo que decía ⇅
     ok(!/En el otro Mac/.test(t) && /Una copia de toda la Mesa/.test(t), 'copias: ' + t); mcCerrar();   // «Exportar…» (D-284)
     M.carpetasUI.accion('cp-nueva'); await hasta(() => q('.detail [data-form="cp-nueva"]'), 2000, 'Nueva carpeta'); t = dialogo().textContent;
@@ -15898,15 +15898,15 @@
       const qi = q('[data-co="cuota"][data-k="importe"]'); coCambiar(qi, '1.470,50'); await hasta(() => (CB().acuerdo(M._in.CL.find(c => c.id === CLIENTE)) || {}).importe === 1470.5, 3000, 'la cuota «1.470,50»');   // el acuerdo, desde la 4.47 (D-288)
       igual(qi.value, '1470,50 €', 'la cuota no se ve como se guarda');
       coCambiar(qi, 'mucho'); await espera(60); igual(CB().acuerdo(M._in.CL.find(c => c.id === CLIENTE)).importe, 1470.5, 'una cuota no válida se guarda'); ok(/importe/.test(coToast()), 'sin aviso de una cuota no válida');
-      coCambiar(q('[data-co="cuota"][data-k="importe"]'), '450 €'); coCambiar(q('[data-co="cuota"][data-k="dia"]'), '15'); coCambiar(q('[data-co="cuota"][data-k="plazo"]'), '10');
+      coCambiar(q('[data-co="cuota"][data-k="importe"]'), '450 €'); coCambiar(q('[data-co="cuota"][data-k="dia"]'), '15'); coCambiar(q('[data-co="cuota"][data-k="plazo"]'), '15');   // «Vence a los», 7 · 15 · 30 · Otro… (D-304)
       await hasta(() => M._in.cob.cuota(M._in.CL.find(c => c.id === CLIENTE)), 3000, 'la cuota entera');
-      igual(M._in.CL.find(c => c.id === CLIENTE).acuerdo, { pago: 'mensual', importe: 450, dia: 15, plazo: 10, renueva: true }, 'la cuota guardada (el acuerdo mensual, D-288)');
+      igual(M._in.CL.find(c => c.id === CLIENTE).acuerdo, { pago: 'mensual', importe: 450, dia: 15, plazo: 15, renueva: true }, 'la cuota guardada (el acuerdo mensual, D-288)');
       // «+ Factura de octubre» (none yet: this month, with the clock at 1 Oct), then «noviembre»
       await hasta(() => !q('.co-mas[data-co="nueva"]').disabled, 2000, '«+ Factura» con cuota');
       ok(/Factura de octubre/.test(q('.co-mas[data-co="nueva"]').textContent), '«+ Factura» no es la del mes en curso: ' + q('.co-mas').textContent);
       { const bn = q('.co-mas[data-co="nueva"]'); bn.dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 })); bn.dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true, detail: 2 })); }   // a double click: one invoice (lesson 57)
       await hasta(() => M.cobros.ver(CLIENTE).length === 1, 3000, 'la factura nueva'); await espera(150); igual(M.cobros.ver(CLIENTE).length, 1, 'un doble clic en «+ Factura» crea dos');
-      let f1 = M.cobros.ver(CLIENTE)[0]; igual([f1.periodo, f1.importe, f1.emitida, f1.vence, f1.estado], ['2026-10', 450, '2026-10-15', '2026-10-25', 'sinemitir'], 'la factura nueva y sus fechas');
+      let f1 = M.cobros.ver(CLIENTE)[0]; igual([f1.periodo, f1.importe, f1.emitida, f1.vence, f1.estado], ['2026-10', 450, '2026-09-15', '2026-09-30', 'retrasada'], 'la factura nueva y sus fechas');   // la de octubre se emite en septiembre (D-304), a propósito
       await hasta(() => D.activeElement === q(`tr.co-f[data-id="${f1.id}"] [data-co="num"]`), 2000, 'el foco en su número');
       ok(/Factura de noviembre/.test(q('.co-mas[data-co="nueva"]').textContent), 'la siguiente no es la de noviembre');
       // number and amount in place; Esc puts a field back first
@@ -15918,7 +15918,7 @@
       q(`tr.co-f[data-id="${f1.id}"] [data-co="fechas"]`).click(); await espera(60);
       const det = await hasta(() => q(`tr.co-det[data-id="${f1.id}"]`), 2000, 'las fechas de la fila');
       igual(qa(`tr.co-det[data-id="${f1.id}"] input[type=date]`).map(i => [i.dataset.k, i.hasAttribute('data-sin-fecha')]), [['emitida', true], ['vence', true], ['cobrada', true]], 'las tres fechas');
-      coCambiar(det.querySelector('[data-k="vence"]'), '2026-10-01'); await espera(80); igual(M.cobros.ver(CLIENTE)[0].vence, '2026-10-25', 'vence antes de emitirse y se guarda');
+      coCambiar(det.querySelector('[data-k="vence"]'), '2026-09-01'); await espera(80); igual(M.cobros.ver(CLIENTE)[0].vence, '2026-09-30', 'vence antes de emitirse y se guarda');   // la de octubre, emitida el 15 sep (D-304)
       coCambiar(q(`tr.co-det[data-id="${f1.id}"] [data-k="vence"]`), '2026-10-30'); await hasta(() => M.cobros.ver(CLIENTE)[0].vence === '2026-10-30', 2000, 'vence cambiado');
       // a PDF dropped on the row: only PDF
       await coSoltar(coFila(f1.id), new W.File(['hola'], 'nota.txt', { type: 'text/plain' }));
@@ -15973,7 +15973,7 @@
       await hasta(() => linea() && /Factura sin emitir · 300 €/.test(linea().textContent), 3000, 'la línea «Factura sin emitir»');
       // paid ones: the last one paid, with its date
       await M.cobros.cargar([{ id: 'c3-a', cliente: CLIENTE, periodo: '2026-11', importe: 600, factura: 'A', emitida: '2026-11-01', vence: '2026-11-11', cobrada: '2026-11-06' },
-        { id: 'c3-b', cliente: CLIENTE, periodo: '2026-10', importe: 600, factura: 'B', emitida: '2026-10-01', vence: '2026-10-11', cobrada: '2026-10-08' }]);
+        { id: 'c3-b', cliente: CLIENTE, periodo: '2026-12', importe: 600, factura: 'B', emitida: '2026-10-01', vence: '2026-10-11', cobrada: '2026-10-08' }]);   // diciembre, pagada: la del mes que viene ya sale «sin emitir» (D-304)
       await hasta(() => /Cobrada · 600 € · 6 nov/.test(linea().textContent), 3000, 'la última cobrada con su fecha');
       // pending beats paid, retrasada beats pending; red with its icon
       await M.cobros.cargar([{ id: 'c3-c', cliente: CLIENTE, periodo: '2026-12', importe: 450, factura: 'C', emitida: '2026-11-15', vence: '2026-11-25' }]);
@@ -16068,7 +16068,7 @@
         ['Septiembre · 450 €', 'Factura 2026-022 · pagada el 23 sep', 'Pagada', 'ok', true], ['Agosto · 450 €', 'Factura 2026-018 · pagada el 22 ago', 'Pagada', 'ok', true], ['Julio · 450 €', 'Factura 2026-015 · pagada el 22 jul', 'Pagada', 'ok', true]], 'las líneas y su orden');
       const dw = p.querySelector('.co-dw'); igual([dw.title, dw.getAttribute('aria-label')], ['Descargar la factura 2026-027 (PDF)', 'Descargar la factura 2026-027 (PDF)'], 'el botón de descarga');
       cerca(dw.getBoundingClientRect().width, 32, 0.5, 'el botón de descarga no mide 32 px');
-      igual(p.querySelector('.co-vprox').textContent, 'La de diciembre se emite el 15 dic', 'la próxima');
+      igual(p.querySelector('.co-vprox').textContent, 'La de diciembre se emite en unos días', 'la próxima');   // se emite el 15 nov (D-304), a propósito
       // «Ver las anteriores (3)»
       const ver = p.querySelector('[data-co="ver-ant"]'); igual([ver.textContent, ver.getAttribute('aria-expanded')], ['Ver las anteriores (3)', 'false'], '«Ver las anteriores»');
       ver.click(); await espera(80); igual(lado().querySelectorAll('.co-vl li').length, 8, 'no despliega las anteriores');
@@ -21118,7 +21118,7 @@
     await CB().acuGuardar(CLIENTE, AU_ACU);
     let rec = await M._in.idbGet('clients', CLIENTE);
     igual(rec.acuerdo, AU_ACU, 'el acuerdo guardado'); ok(rec.acuerdoAt && !('cuota' in rec) && !('cuotaAt' in rec), 'la cuota sigue junto al acuerdo: ' + json(rec));
-    ok(/Cubre may 2026 – abr 2027/.test(CB().resumen(cli())) && /dos pagos de 2700 €/.test(CB().resumen(cli())) && /se renueva el 1 may 2027/.test(CB().resumen(cli())), 'la línea del acuerdo: ' + CB().resumen(cli()));
+    ok(/cubre may 2026 – abr 2027/i.test(CB().resumen(cli())) && /dos pagos de 2700 €/.test(CB().resumen(cli())) && /se facturan el día 1 del mes anterior/.test(CB().resumen(cli())), 'la línea del acuerdo: ' + CB().resumen(cli()));   // «Ahora cubre» y cuándo se factura (D-304), a propósito
     // la factura de su tramo
     let r = await M.cobros.cargar([{ id: 'au-1', cliente: CLIENTE, periodo: '2026-05', hasta: '2026-04', importe: 2700 }]); ok(r.error, 'entra un tramo que acaba antes de empezar');
     r = await M.cobros.cargar([{ id: 'au-1', cliente: CLIENTE, periodo: '2026-05', hasta: 'octubre', importe: 2700 }]); ok(r.error, 'entra un tramo mal escrito');
@@ -21129,13 +21129,13 @@
     try {
       relojEn('2026-08-10T10:00:00+02:00');
       igual(CB().urgente(CLIENTE).e.k, 'cobrada', 'en agosto, cubierto por su tramo, sale «sin emitir»');
-      const px = CB().proxima(CLIENTE); igual([px.mes, px.hasta, px.importe, px.emitida, px.vence], ['2026-11', '2027-04', 2700, '2026-11-01', '2026-11-16'], 'la siguiente no es la del tramo de noviembre');
+      const px = CB().proxima(CLIENTE); igual([px.mes, px.hasta, px.importe, px.emitida, px.vence], ['2026-11', '2027-04', 2700, '2026-10-01', '2026-10-16'], 'la siguiente no es la del tramo de noviembre');   // se emite el mes de antes (D-304)
       relojEn('2026-11-03T10:00:00+01:00');
       const u = CB().urgente(CLIENTE); ok(u.e.k === 'sinemitir' && u.r.virtual && u.r.periodo === '2026-11' && u.r.hasta === '2027-04', 'en noviembre, el tramo nuevo sin factura no sale «sin emitir»: ' + json(u));
       relojEn('2026-12-03T10:00:00+01:00'); igual(CB().urgente(CLIENTE).r.periodo, '2026-11', 'en diciembre sigue sin emitir el tramo de noviembre');
       // un pago único y un acuerdo que acaba sin renovarse
       await CB().acuGuardar(CLIENTE, { pago: 'unico', importe: 900, dia: 5, plazo: 10, desde: '2026-12', meses: 3 });
-      relojEn('2026-11-20T10:00:00+01:00'); const pu = CB().proxima(CLIENTE); igual([pu.mes, pu.hasta, pu.emitida], ['2026-12', '2027-02', '2026-12-05'], 'el pago único');
+      relojEn('2026-11-20T10:00:00+01:00'); const pu = CB().proxima(CLIENTE); igual([pu.mes, pu.hasta, pu.emitida], ['2026-12', '2027-02', '2026-11-05'], 'el pago único');   // D-304
       await M.cobros.cargar([{ id: 'au-2', cliente: CLIENTE, periodo: '2026-12', hasta: '2027-02', importe: 900, emitida: '2026-12-05' }]);
       relojEn('2027-03-02T10:00:00+01:00'); ok(!CB().proxima(CLIENTE) && CB().urgente(CLIENTE).r.id === 'au-2', 'tras el pago único sale otra factura: ' + json(CB().proxima(CLIENTE)));
       await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 300, dia: 1, plazo: 10, desde: '2026-10', meses: 2, renueva: false });
@@ -21246,11 +21246,11 @@
       await CB().dlgCliente(CLIENTE, 'cobros');
       await hasta(() => campo('importe'), 4000, 'el acuerdo en «Cobros»');
       ok(!/Cuota mensual/.test(q('.detail').textContent) && /Acuerdo/.test(q('.detail .co-acu-t').textContent), 'no dice «Acuerdo»');
-      igual(['pago', 'importe', 'dia', 'plazo', 'desde', 'meses', 'renueva', 'renegociar'].map(k => campo(k) && campo(k).value), ['semestral', '2700 €', '1', '15 días', 'may 2026', '12 meses', 'si', '2026-11-30'], 'los campos del acuerdo');
-      ok(/Cubre may 2026 – abr 2027/.test(q('.detail .co-acu-n').textContent), 'la línea del acuerdo: ' + q('.detail .co-acu-n').textContent);
-      // uno no válido avisa y no se guarda; sin duración, «Al acabar» se apaga
-      coCambiar(campo('desde'), 'pronto'); await espera(80); igual(CB().acuerdo(cli()).desde, '2026-05', 'un mes no válido se guarda'); ok(/may 2026/.test(coToast()), 'sin aviso de un mes no válido');
-      igual(campo('desde').value, 'may 2026', 'el campo no vuelve a lo guardado');
+      igual(['pago', 'importe', 'dia', 'plazo', 'desde', 'meses', 'renueva', 'renegociar'].map(k => campo(k) && campo(k).value), ['semestral', '2700 €', '1', '15', '2026-05', '12', 'si', '2026-11-30'], 'los campos del acuerdo');   // los nativos de los selectores y del campo de mes (D-304)
+      ok(/cubre may 2026 – abr 2027/i.test(q('.detail .co-acu-n').textContent), 'la línea del acuerdo: ' + q('.detail .co-acu-n').textContent);
+      // uno no válido no se guarda (el campo de mes vuelve a lo guardado, D-304); sin duración, «Al acabar» se apaga
+      { const gdi = M.controles.gemelo(campo('desde')).querySelector('.mx-in'); gdi.focus(); gdi.value = 'pronto'; tecla('Enter', { en: gdi }); await espera(80);
+        igual(CB().acuerdo(cli()).desde, '2026-05', 'un mes no válido se guarda'); igual(gdi.value, 'may 2026', 'el campo no vuelve a lo guardado'); }
       coCambiar(campo('meses'), ''); await hasta(() => CB().acuerdo(cli()).meses === null, 3000, 'sin duración');
       ok(campo('renueva').disabled, '«Al acabar» sin duración se puede pulsar'); ok(/Cubre desde may 2026/.test(q('.detail .co-acu-n').textContent), 'la línea no cambia: ' + q('.detail .co-acu-n').textContent);
       coCambiar(campo('meses'), '12'); await hasta(() => CB().acuerdo(cli()).meses === 12, 3000, 'la duración'); ok(!campo('renueva').disabled, '«Al acabar» sigue apagado');
@@ -21258,7 +21258,7 @@
       coCambiar(campo('renueva'), 'si'); await hasta(() => CB().acuerdo(cli()).renueva === true, 3000, '«Se renueva»');
       // la factura de su tramo
       const mas = q('.detail .co-mas[data-co="nueva"]'); ok(mas && !mas.disabled && /Factura de noviembre 2026 – abril 2027/.test(mas.textContent), '«+ Factura» no es la de su tramo: ' + (mas && mas.textContent));
-      mas.click(); await hasta(() => M.cobros.ver(CLIENTE).some(r => r.periodo === '2026-11' && r.hasta === '2027-04' && r.importe === 2700 && r.emitida === '2026-11-01'), 3000, 'la factura del tramo');
+      mas.click(); await hasta(() => M.cobros.ver(CLIENTE).some(r => r.periodo === '2026-11' && r.hasta === '2027-04' && r.importe === 2700 && r.emitida === '2026-10-01'), 3000, 'la factura del tramo');   // se emite el mes de antes (D-304)
       await hasta(() => /Noviembre 2026 – abril 2027/.test(q('.detail .co-t').textContent), 3000, 'el nombre del tramo en la tabla');
       M._in.closeDetail(); await espera(40);
       // Avisos
@@ -21275,7 +21275,7 @@
       relojEn('2026-11-20T10:00:00+01:00');
       await M.open(`${CLIENTE}-${MES}`); await vistaCliente(true); await espera(80);
       const lado = await hasta(() => q('.main > .vc-lado [data-vc="pagos"]'), 3000, '«Tus pagos»');
-      ok(!/al mes/.test(lado.textContent) && /Pago semestral · 2700 €/.test(lado.textContent) && /Mayo – octubre · 2700 €/.test(lado.textContent) && !/abr 2027 · el siguiente, el 1 abr/.test(lado.textContent), '«Tus pagos» de un pago semestral: ' + lado.textContent);   // al día a propósito: su tramo desde el lote D (D-297)
+      ok(!/al mes/.test(lado.textContent) && /Pago semestral · 2700 €/.test(lado.textContent) && /Mayo – octubre · 2700 €/.test(lado.textContent) && !/30 nov/.test(lado.textContent), '«Tus pagos» de un pago semestral: ' + lado.textContent);   // nunca la fecha de renegociar (30 nov); la siguiente se emite el 1 abr 2027 (D-304), a propósito   // al día a propósito: su tramo desde el lote D (D-297)
       await vistaCliente(false);
       if (M.web && M.web.paquete) { const P = await M.web.paquete(M._in.S); igual(P.cliente.cuota_cent, null, 'la web recibe la cuota de un pago semestral'); ok(P.pagos.find(x => x.id === 'au-1').periodo === '2026-05', 'la web recibe otro mes'); }
     } finally { relojVuelve(); M._in.closeDetail(); paginaCerrada(); }
@@ -21298,17 +21298,16 @@
       q('.detail [data-act="nc-atras"]').click(); const f2 = await hasta(() => q('.detail form.nctipos'), 2000, '«Atrás»');
       ok(f2.querySelector('input[value="contenido"]').checked, '«Atrás» no recuerda el tipo'); f2.requestSubmit();
       fm = await hasta(() => q('.detail [data-form="newclient"]'), 2000, 'los datos otra vez');
-      fm.elements.name.value = 'Contenido NV1'; fm.elements.pago.value = 'semestral'; fm.elements.entregasDia.value = '31'; fm.requestSubmit(); await espera(80);
-      ok(!M._in.CL.some(c => c.name === 'Contenido NV1') && (!fm.checkValidity() || /día del 1 al 28/.test(q('.detail .ferr').textContent)), 'un día de entregas no válido entra');
+      fm.elements.name.value = 'Contenido NV1'; fm.elements.pago.value = 'semestral'; fm.elements.entregasDia.value = '31'; ok(fm.elements.entregasDia.value !== '31', 'el día 31 se puede elegir');   // el selector de día (D-304): un día no válido no se elige, a propósito
       fm.elements.entregasDia.value = '5'; fm.requestSubmit();
       const c1 = await hasta(() => M._in.CL.find(c => c.name === 'Contenido NV1'), 3000, 'el cliente de solo contenido'); hechos.push(c1.id);
       ok(c1.servicio === 'contenido' && c1.entregasDia === 5 && c1.acuerdo && c1.acuerdo.pago === 'semestral' && c1.cycleDay === 1, 'el cliente de solo contenido: ' + json(c1));
       // gestión de redes
       await nuevoCliente('redes'); fm = q('.detail [data-form="newclient"]');
       igual(q('.detail h3').textContent, 'Gestión de redes', 'el título'); ok(fm.elements.cycleDay && fm.elements.pago && !fm.elements.entregasDia, 'los campos de gestión de redes');
-      fm.elements.name.value = 'Redes NV1'; fm.elements.cycleDay.value = '12'; fm.elements.pago.value = 'trimestral'; fm.requestSubmit();
+      fm.elements.name.value = 'Redes NV1'; fm.elements.cycleDay.value = '15'; fm.elements.pago.value = 'trimestral'; fm.requestSubmit();   // Día 15 del selector (D-304)
       const c2 = await hasta(() => M._in.CL.find(c => c.name === 'Redes NV1'), 3000, 'el cliente de redes'); hechos.push(c2.id);
-      ok(!c2.servicio && c2.cycleDay === 12 && c2.acuerdo && c2.acuerdo.pago === 'trimestral', 'el cliente de redes: ' + json(c2));
+      ok(!c2.servicio && c2.cycleDay === 15 && c2.acuerdo && c2.acuerdo.pago === 'trimestral', 'el cliente de redes: ' + json(c2));
       // esporádico
       await nuevoCliente('esporadico'); fm = q('.detail [data-form="newclient"]');
       ok(!fm.elements.handle && !fm.elements.pago && /Crear esporádico/.test(fm.textContent), 'los campos del esporádico');
@@ -21393,7 +21392,7 @@
       ok(/no tiene bandeja/.test(coToast()) && json(((await M._in.idbGet('bandejas', CLIENTE)) || {}).tray || []) === tr0, 'las fotos soltadas entran en una bandeja que no se ve');
       // el día de entregas, en «Editar cliente · Datos»
       q('.tabs .tedit').click(); const ie = await hasta(() => q('.detail [data-form="editclient"] #ec-entregas'), 3000, '«Entregas antes del día» en «Editar cliente»');
-      ie.value = '10'; q('.detail [data-form="editclient"]').requestSubmit(); await hasta(() => M._in.CL.find(c => c.id === CLIENTE).entregasDia === 10, 3000, 'el día de entregas no se guarda');
+      ie.value = '15'; q('.detail [data-form="editclient"]').requestSubmit(); await hasta(() => M._in.CL.find(c => c.id === CLIENTE).entregasDia === 15, 3000, 'el día de entregas no se guarda');   // Día 15 del selector (D-304)
       await M.updateClient(CLIENTE, { entregasDia: 5, cycleDay: 1 });
       // pasada
       const e2 = await M._in.ent.nueva({ cliente: CLIENTE, fecha: '2026-11-04', que: 'Vídeo de la terraza' });
@@ -21654,7 +21653,7 @@
       await vistaCliente(true); M._in.render(); await espera(120);
       const p = await hasta(() => q('.main > .vc-lado [data-vc="pagos"]'), 3000, '«Tus pagos»');
       igual(p.querySelector('.co-vh').textContent, 'Tus pagos Pago semestral · 2700 €', 'el título');
-      igual(p.querySelector('.co-vcubre') && p.querySelector('.co-vcubre').textContent, 'Cubre may – oct 2026 · el siguiente, el 1 nov', 'el tramo');
+      igual(p.querySelector('.co-vcubre') && p.querySelector('.co-vcubre').textContent, 'Cubre may – oct 2026', 'el tramo');   // el siguiente se emitía el 1 oct (D-304), a propósito
       igual(p.querySelector('.co-vl li .m').textContent, 'Mayo – octubre · 2700 €', 'la factura');
       ok(!p.querySelector('.co-vprox'), 'la siguiente se repite abajo');
       ok(!/abr|2027/.test(p.textContent), 'sale la fecha de renegociar: ' + p.textContent);
@@ -21933,6 +21932,136 @@
     ok(/(^|\n)\.toast\{[^}]*width:max-content/.test(css), 'el aviso del portal no usa el ancho que necesita (a 375 se encoge a media pantalla)');
   });
 
+  // ---------- ajustes de la 4.49, lote B, punto 3: los campos del acuerdo y el cobro por adelantado (D-304) ----------
+  const aqCli = () => M._in.CL.find(c => c.id === CLIENTE);
+  const aqTk = (el, key, o = {}) => el.dispatchEvent(new W.KeyboardEvent('keydown', { key, altKey: !!o.alt, shiftKey: !!o.shift, bubbles: true, cancelable: true }));
+  async function aqOpcion(g, texto) {             // a dropdown of the Mesa: open its list and click an option by its text
+    g.click(); const l = await hasta(() => q('.mx-pop.mx-list.on'), 2000, 'la lista de ' + texto);
+    const o = [...l.querySelectorAll('.mx-o')].find(x => x.textContent === texto); ok(o, 'la lista no tiene «' + texto + '»'); o.click();
+  }
+  prueba('AQ1', 'El cobro por adelantado (D-304): la factura de un tramo se emite su día del mes de antes; «sin emitir» la del tramo que empieza el mes que viene, desde el día 1; con retraso una de este mes sin factura o una cuyo día ya pasó (también un acuerdo que nace el 20 desde el mes que viene con el día 5); la línea del acuerdo dice el ciclo en curso («Ahora cubre») y cuándo se factura, y su título cuándo renegociar (A49-1)', async () => {
+    await tablero([pub(1)]);
+    try {
+      await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 450, dia: 10, plazo: 15, desde: '2026-05', meses: 6, renueva: true, renegociar: '2027-04-15' });
+      igual(CB().fechas('2026-12', CB().cuota(aqCli())), { emitida: '2026-11-10', vence: '2026-11-25' }, 'la de diciembre no se emite el 10 nov');
+      await M.cobros.cargar([{ id: 'aq-11', cliente: CLIENTE, periodo: '2026-11', importe: 450, emitida: '2026-10-10', vence: '2026-10-25', cobrada: '2026-10-20' }]);
+      relojEn('2026-11-03T10:00:00+01:00');
+      let u = CB().urgente(CLIENTE); ok(u.e.k === 'sinemitir' && u.r.virtual && u.r.periodo === '2026-12' && u.r.emitida === '2026-11-10' && !u.r.tarde, 'el 3 nov, la de diciembre no sale «sin emitir» a tiempo: ' + json(u));
+      let px = CB().proxima(CLIENTE); igual([px.mes, px.emitida, !!px.tarde], ['2026-12', '2026-11-10', false], 'la siguiente');
+      relojEn('2026-11-20T10:00:00+01:00');
+      u = CB().urgente(CLIENTE); ok(u.r.periodo === '2026-12' && u.r.tarde, 'el 20 nov, la de diciembre sin emitir no va con retraso: ' + json(u));
+      ok(CB().proxima(CLIENTE).tarde, 'la siguiente pasada su fecha no va con retraso');
+      await CB().borrar('aq-11');
+      u = CB().urgente(CLIENTE); ok(u.e.k === 'sinemitir' && u.r.periodo === '2026-11' && u.r.tarde, 'noviembre sin factura no va con retraso: ' + json(u));
+      await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 300, dia: 5, plazo: 10, desde: '2026-12' });
+      u = CB().urgente(CLIENTE); ok(u.r.periodo === '2026-12' && u.r.emitida === '2026-11-05' && u.r.tarde, 'un acuerdo que nace tarde: ' + json(u));
+      // un semestral: el tramo de noviembre a abril se factura el 1 oct
+      await CB().acuGuardar(CLIENTE, AU_ACU);
+      await M.cobros.cargar([{ id: 'aq-s1', cliente: CLIENTE, periodo: '2026-05', hasta: '2026-10', importe: 2700, emitida: '2026-04-01', cobrada: '2026-04-10' }]);
+      relojEn('2026-08-10T10:00:00+02:00'); igual(CB().urgente(CLIENTE).e.k, 'cobrada', 'en agosto pide factura');
+      px = CB().proxima(CLIENTE); igual([px.mes, px.hasta, px.emitida, px.vence], ['2026-11', '2027-04', '2026-10-01', '2026-10-16'], 'la siguiente del semestral');
+      relojEn('2026-10-01T10:00:00+02:00'); u = CB().urgente(CLIENTE); ok(u.e.k === 'sinemitir' && u.r.periodo === '2026-11' && u.r.hasta === '2027-04' && !u.r.tarde, 'el 1 oct, el tramo de noviembre no sale «sin emitir»: ' + json(u));
+      relojEn('2026-09-20T10:00:00+02:00'); igual(CB().urgente(CLIENTE).e.k, 'cobrada', 'en septiembre ya pide la de noviembre');
+      // la línea: el ciclo en curso (A49-1) y cuándo se factura; renegociar, en su título
+      relojEn('2026-11-20T10:00:00+01:00');
+      const l1 = CB().resumen(aqCli()); ok(/^Ahora cubre may 2026 – abr 2027 · dos pagos de 2700 € · se facturan el día 1 del mes anterior$/.test(l1), 'la línea: ' + l1);
+      relojEn('2027-06-10T10:00:00+02:00'); const l2 = CB().resumen(aqCli()); ok(/^Ahora cubre may 2027 – abr 2028 ·/.test(l2), 'la línea mezcla dos ciclos: ' + l2);
+      relojEn('2026-03-10T10:00:00+01:00'); const l3 = CB().resumen(aqCli()); ok(/^Cubre may 2026 – abr 2027 ·/.test(l3), 'antes de empezar: ' + l3);
+      ok(CB().titulo && /^Renegociar el 1 abr 2027/.test(CB().titulo(aqCli())), 'el título no dice cuándo renegociar: ' + (CB().titulo && CB().titulo(aqCli())));
+      ok(!/renegociar/i.test(l3), 'la línea habla de renegociar');
+    } finally { relojVuelve(); }
+  });
+  prueba('AQ2', 'Los campos del acuerdo, con opciones y calendario (D-304): «Se emite el día» Día 1 · 5 · 15 · Otro… (los días 1–28 en el aspecto del calendario; el elegido sale como opción); «Vence a los» 7 · 15 · 30 días · Otro… (un número en su sitio); «Cubre desde» un campo de mes que se escribe con su calendario de meses (‹ año ›, «Sin mes», «Este mes»); «Duración» 1 mes · 3 meses · 6 meses · 1 año · Sin fin · Otra… (el último mes, en el calendario de meses; sin «Cubre desde», apagada); lo guardado fuera de la lista se ve tal cual; la línea con su título', async () => {
+    await tablero([pub(1)]);
+    await hasta(() => M.cobrosUI && M.personal && M.controles, 8000, 'cobros.js, personal.js y controles.js');
+    const campo = k => q(`.detail [data-co="cuota"][data-k="${k}"]`), gem = k => campo(k) && M.controles.gemelo(campo(k));
+    const txt = k => { const g = gem(k); return !g ? null : g.classList.contains('mx-f') ? g.querySelector('.mx-in').value : (g.querySelector('.mx-t') || g).textContent.trim(); };
+    await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 450, dia: 10, plazo: 10, desde: '2026-05', meses: 24, renueva: true, renegociar: '2027-04-15' });
+    relojEn('2026-11-20T10:00:00+01:00');
+    try {
+      await CB().dlgCliente(CLIENTE, 'cobros');
+      await hasta(() => campo('dia') && campo('dia').tagName === 'SELECT' && gem('dia') && gem('plazo') && gem('desde') && gem('meses'), 4000, 'los campos del acuerdo con sus controles');
+      igual(['dia', 'plazo', 'desde', 'meses'].map(txt), ['Día 10', '10 días', 'may 2026', '2 años'], 'lo guardado fuera de la lista');
+      ok(/^Renegociar el 15 abr 2027/.test(q('.detail .co-acu-n').title), 'el título de la línea: ' + q('.detail .co-acu-n').title);
+      const ops = k => [...campo(k).options].filter(o => !o.hidden).map(o => o.textContent);
+      igual(ops('dia'), ['Día 1', 'Día 5', 'Día 10', 'Día 15', 'Otro…'], 'las opciones del día');
+      igual(ops('plazo'), ['7 días', '10 días', '15 días', '30 días', 'Otro…'], 'las opciones de «Vence a los»');
+      igual(ops('meses'), ['1 mes', '3 meses', '6 meses', '1 año', '2 años', 'Sin fin', 'Otra…'], 'las opciones de la duración');
+      // «Otro…» del día: los días 1–28
+      await aqOpcion(gem('dia'), 'Otro…');
+      const rej = await hasta(() => q('.mx-pop.mx-rejpop.on'), 2000, 'los días del mes');
+      igual([rej.querySelectorAll('.mx-d').length, rej.offsetWidth], [28, 280], 'los días 1–28 a 280 px'); ok(/Día de cada mes/.test(rej.textContent), 'el título de los días');
+      rej.querySelector('.mx-d[data-v="12"]').click();
+      await hasta(() => CB().acuerdo(aqCli()).dia === 12, 3000, 'el día 12'); await hasta(() => txt('dia') === 'Día 12', 3000, '«Día 12» en el campo');
+      // «Otro…» de «Vence a los»: un número en su sitio
+      await aqOpcion(gem('plazo'), 'Otro…');
+      const otro = await hasta(() => q('.detail .co-otro'), 2000, 'el número de «Otro…»'); ok(D.activeElement === otro, 'el número no tiene el foco');
+      otro.value = '20'; aqTk(otro, 'Enter');
+      await hasta(() => CB().acuerdo(aqCli()).plazo === 20, 3000, 'vence a los 20'); await hasta(() => txt('plazo') === '20 días' && !q('.detail .co-otro'), 3000, '«20 días» en su sitio');
+      // «Cubre desde»: se escribe, y su calendario de meses
+      const mi = gem('desde').querySelector('.mx-in'); mi.focus(); mi.value = 'jun 2026'; aqTk(mi, 'Enter');
+      await hasta(() => CB().acuerdo(aqCli()).desde === '2026-06', 3000, 'escribir «jun 2026»');
+      gem('desde').querySelector('.mx-cal').click(); const cm = await hasta(() => q('.mx-pop.mx-mespop.on'), 2000, 'el calendario de meses');
+      igual([cm.querySelector('.mx-ch b').textContent, cm.querySelectorAll('.mx-d').length, cm.offsetWidth], ['2026', 12, 280], 'el calendario de meses');
+      ok(/Sin mes/.test(cm.textContent) && /Este mes/.test(cm.textContent), 'sin «Sin mes» ni «Este mes»');
+      ok(cm.querySelector('.mx-d[data-v="2026-06"][aria-selected="true"]'), 'el mes guardado no va marcado');
+      cm.querySelector('.mx-d[data-v="2026-07"]').click(); await hasta(() => CB().acuerdo(aqCli()).desde === '2026-07', 3000, 'julio desde el calendario');
+      // «Duración · Otra…»: el último mes de cada ciclo (sin fin, el calendario empieza en «Cubre desde»)
+      coCambiar(campo('meses'), ''); await hasta(() => CB().acuerdo(aqCli()).meses === null, 3000, 'sin fin');
+      await aqOpcion(gem('meses'), 'Otra…');
+      const cm2 = await hasta(() => q('.mx-pop.mx-mespop.on'), 2000, 'los meses de «Otra…»');
+      ok(cm2.querySelector('.mx-d[data-v="2026-06"]').disabled, 'un mes antes de «Cubre desde» se puede elegir');
+      cm2.querySelector('.mx-nav.sig').click(); cm2.querySelector('.mx-d[data-v="2027-04"]').click();
+      await hasta(() => CB().acuerdo(aqCli()).meses === 10, 3000, '«Otra…» hasta abril: 10 meses'); await hasta(() => txt('meses') === '10 meses', 3000, '«10 meses» en el campo');
+      coCambiar(campo('meses'), '12'); await hasta(() => CB().acuerdo(aqCli()).meses === 12, 3000, '1 año'); await hasta(() => txt('meses') === '1 año', 3000, '«1 año»');
+      coCambiar(campo('meses'), ''); await hasta(() => CB().acuerdo(aqCli()).meses === null, 3000, 'sin fin'); await hasta(() => campo('renueva').disabled, 3000, '«Al acabar» sin fin');
+      coCambiar(campo('desde'), ''); await hasta(() => CB().acuerdo(aqCli()).desde === '', 3000, 'sin «Cubre desde»');
+      await hasta(() => campo('meses').querySelector('option[data-accion="mes"]').disabled, 3000, '«Otra…» sin «Cubre desde» apagada');
+    } finally { relojVuelve(); if (M.controles) M.controles.cerrar(); M._in.closeDetail(); }
+  });
+  prueba('AQ3', '«Inicio de ciclo» y «Entregas antes del día» con el selector de día (D-304): en «Nuevo cliente» y en «Datos», Día 1 · 5 · 15 · Otro… (y «Sin día» en las entregas); «Otro…» elige otro día y se guarda; el doble clic de «Inicio de ciclo» vuelve al día 1 (D-159); las teclas del campo de mes: ↑ ↓ un mes, ⇧ un año, ⌥↓ abre los meses (← → un mes, ↑ ↓ tres, Intro elige, Esc vuelve al campo)', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    const hechos = [];
+    try {
+      await nuevoCliente('redes'); let fm = q('.detail [data-form="newclient"]');
+      igual([fm.elements.cycleDay.tagName, fm.elements.cycleDay.value, [...fm.elements.cycleDay.options].map(o => o.textContent)], ['SELECT', '1', ['Día 1', 'Día 5', 'Día 15', 'Otro…']], 'el inicio de ciclo');
+      await aqOpcion(M.controles.gemelo(fm.elements.cycleDay), 'Otro…');
+      const rej = await hasta(() => q('.mx-pop.mx-rejpop.on'), 2000, 'los días'); rej.querySelector('.mx-d[data-v="12"]').click();
+      await hasta(() => fm.elements.cycleDay.value === '12', 2000, 'el día 12');
+      q('.detail label.dcl[for="nc-cycle"]').dispatchEvent(new W.MouseEvent('dblclick', { bubbles: true, cancelable: true, detail: 2 }));
+      await hasta(() => fm.elements.cycleDay.value === '1', 2000, 'el doble clic, día 1');
+      fm.elements.cycleDay.value = '12'; fm.elements.name.value = 'Ciclo AQ3'; fm.requestSubmit();
+      const c1 = await hasta(() => M._in.CL.find(c => c.name === 'Ciclo AQ3'), 3000, 'el cliente'); hechos.push(c1.id); igual(c1.cycleDay, 12, 'el inicio de ciclo elegido');
+      await nuevoCliente('contenido'); fm = q('.detail [data-form="newclient"]');
+      igual([fm.elements.entregasDia.tagName, fm.elements.entregasDia.value, [...fm.elements.entregasDia.options].map(o => o.textContent)], ['SELECT', '', ['Sin día', 'Día 1', 'Día 5', 'Día 15', 'Otro…']], 'las entregas');
+      fm.elements.name.value = 'Contenido AQ3'; fm.elements.entregasDia.value = '15'; fm.requestSubmit();
+      const c2 = await hasta(() => M._in.CL.find(c => c.name === 'Contenido AQ3'), 3000, 'el de solo contenido'); hechos.push(c2.id); igual(c2.entregasDia, 15, 'el día de entregas');
+      await CB().dlgCliente(c1.id, 'datos'); const fd = await hasta(() => q('.detail [data-form="editclient"]'), 3000, '«Datos»');
+      igual([fd.elements.cycleDay.tagName, fd.elements.cycleDay.value], ['SELECT', '12'], 'el inicio de ciclo guardado, en «Datos»');
+      M._in.closeDetail(); await espera(40);
+      await CB().dlgCliente(c2.id, 'datos'); const fe = await hasta(() => q('.detail [data-form="editclient"]'), 3000, '«Datos» del de solo contenido');
+      igual([fe.elements.entregasDia.tagName, fe.elements.entregasDia.value], ['SELECT', '15'], 'el día de entregas, en «Datos»');
+      M._in.closeDetail(); await espera(40);
+      // las teclas del campo de mes
+      await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 450, dia: 1, plazo: 15, desde: '2026-05' });
+      await CB().dlgCliente(CLIENTE, 'cobros');
+      const gm = await hasta(() => { const n = q('.detail [data-co="cuota"][data-k="desde"]'); return n && n.type === 'month' && M.controles.gemelo(n); }, 4000, 'el campo de mes');
+      gm.querySelector('.mx-in').focus();
+      const desde = () => CB().acuerdo(aqCli()).desde, mi = () => M.controles.gemelo(q('.detail [data-co="cuota"][data-k="desde"]')).querySelector('.mx-in');
+      aqTk(mi(), 'ArrowUp'); await hasta(() => desde() === '2026-06', 3000, '↑ un mes');
+      await hasta(() => D.activeElement === mi(), 2000, 'el campo de mes, dibujado otra vez, no conserva el foco');
+      aqTk(mi(), 'ArrowDown', { shift: true }); await hasta(() => desde() === '2025-06', 3000, '⇧↓ un año');
+      await hasta(() => D.activeElement === mi(), 2000, 'el foco tras ⇧↓');
+      aqTk(mi(), 'ArrowDown', { alt: true }); await hasta(() => q('.mx-pop.mx-mespop.on'), 2000, '⌥↓ abre los meses');
+      await hasta(() => D.activeElement && D.activeElement.dataset && D.activeElement.dataset.v === '2025-06', 2000, 'el foco en el mes');
+      aqTk(D.activeElement, 'ArrowRight'); igual(D.activeElement.dataset.v, '2025-07', '→ un mes');
+      aqTk(D.activeElement, 'ArrowDown'); igual(D.activeElement.dataset.v, '2025-10', '↓ tres meses');
+      aqTk(D.activeElement, 'Enter'); await hasta(() => desde() === '2025-10', 3000, 'Intro elige');
+      await hasta(() => D.activeElement === mi(), 2000, 'el foco tras Intro');
+      aqTk(mi(), 'ArrowDown', { alt: true }); await hasta(() => q('.mx-pop.mx-mespop.on'), 2000, 'otra vez');
+      aqTk(D.activeElement, 'Escape'); await hasta(() => !q('.mx-pop.mx-mespop.on'), 2000, 'Esc no cierra'); ok(D.activeElement === mi(), 'Esc no vuelve al campo');
+    } finally { if (M.controles) M.controles.cerrar(); M._in.closeDetail(); for (const id of hechos) await M.removeClient(id); await sinTareas(); }
+  });
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;
   $('resumen').textContent = `${T.length} pruebas listas.`;

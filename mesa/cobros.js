@@ -53,26 +53,44 @@
   // the agreement (D-288): how often it pays, each payment, the day it's issued and its term; from when, for how long, whether it
   // renews and when to renegotiate (only Kevin's); a line that sums it up under them
   const MESC = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
-  const acuVal = (a, k) => {                     // what each field shows, as it's kept
+  const acuVal = (a, k) => {                     // what each field holds, as it's kept (D-304: the dropdowns and the month, their values)
     if (!a) return '';
     if (k === 'importe') return a.importe != null ? eur(a.importe) : '';
     if (k === 'dia') return a.dia != null ? String(a.dia) : '';
-    if (k === 'plazo') return a.plazo != null ? `${a.plazo} ${a.plazo === 1 ? 'día' : 'días'}` : '';
-    if (k === 'desde') return a.desde ? `${MESC[+a.desde.slice(5, 7) - 1]} ${a.desde.slice(0, 4)}` : '';
-    if (k === 'meses') return a.meses ? `${a.meses} ${a.meses === 1 ? 'mes' : 'meses'}` : '';
+    if (k === 'plazo') return a.plazo != null ? String(a.plazo) : '';
+    if (k === 'desde') return a.desde || '';
+    if (k === 'meses') return a.meses ? String(a.meses) : '';
     return '';
   };
+  const mesesEntre = (a, b) => (+b.slice(0, 4) - +a.slice(0, 4)) * 12 + (+b.slice(5, 7) - +a.slice(5, 7));
+  // «Vence a los»: 7 · 15 · 30 días · Otro… (a number in its place); a term kept outside the list, an option of its own (D-304)
+  function plazoSel(v) {
+    const l = [7, 15, 30]; if (v != null && !l.includes(v)) l.push(v); l.sort((x, y) => x - y);
+    return `<select id="co-a-plazo" class="co-q" data-co="cuota" data-k="plazo">${v == null ? '<option value="" selected hidden>Elige</option>' : ''}${l.map(d => `<option value="${d}"${d === v ? ' selected' : ''}>${d} ${d === 1 ? 'día' : 'días'}</option>`).join('')}<option value="otro" data-accion="numero">Otro…</option></select>`;
+  }
+  // «Duración»: 1 mes · 3 meses · 6 meses · 1 año · Sin fin · Otra… (the last month of each cycle in a calendar of months, kept
+  // in months; without «Cubre desde», it can't be counted: off) (D-304)
+  function mesesSel(a) {
+    const v = a && a.meses ? a.meses : null, l = [[1, '1 mes'], [3, '3 meses'], [6, '6 meses'], [12, '1 año']];
+    if (v && !l.some(x => x[0] === v)) l.push([v, v % 12 === 0 ? `${v / 12} años` : `${v} meses`]); l.sort((x, y) => x[0] - y[0]);
+    const desde = a && a.desde ? a.desde : '', marca = desde && v ? I().addMonths(desde, v - 1) : '';
+    return `<select id="co-a-meses" class="co-q" data-co="cuota" data-k="meses" data-mes-t="Último mes de cada ciclo"${desde ? ` data-min="${desde}"` : ''}${marca ? ` data-mes="${marca}"` : ''}>${l.map(([n, t]) => `<option value="${n}"${n === v ? ' selected' : ''}>${t}</option>`).join('')}<option value=""${v ? '' : ' selected'}>Sin fin</option><option value="otra" data-accion="mes"${desde ? '' : ' disabled'}>Otra…</option></select>`;
+  }
   function cuotaHTML(c) {
     const a = C().acuerdo ? C().acuerdo(c) : null, pago = a ? a.pago : 'mensual', renueva = !a || a.renueva !== false, sinFin = !a || !a.meses;
     const campo = (k, l, ph, im) => `<div><label for="co-a-${k}">${l}</label><input id="co-a-${k}" type="text" class="co-q" data-co="cuota" data-k="${k}" inputmode="${im}" autocomplete="off" value="${esc(acuVal(a, k))}" placeholder="${ph}"></div>`;
-    const res = C().resumen ? C().resumen(c) : '';
+    const res = C().resumen ? C().resumen(c) : '', tit = C().titulo ? C().titulo(c) : '';
+    const dia = I().diaSel ? I().diaSel('id="co-a-dia" class="co-q" data-co="cuota" data-k="dia"', a && a.dia != null ? a.dia : '', !(a && a.dia != null)) : '';
     return `<div class="co-acu-t"><h4>Acuerdo</h4><span>«Renegociar el» solo lo ves tú</span></div><div class="co-cuota co-acu">`
       + `<div><label for="co-a-pago">Pago</label><select id="co-a-pago" class="co-q" data-co="cuota" data-k="pago">${(C().PAGOS || [['mensual', 'Cada mes']]).map(([v, t]) => `<option value="${v}"${v === pago ? ' selected' : ''}>${t}</option>`).join('')}</select></div>`
-      + campo('importe', 'Importe de cada pago', 'Importe', 'decimal') + campo('dia', 'Se emite el día', '1-28', 'numeric') + campo('plazo', 'Vence a los', 'Días', 'numeric')
-      + campo('desde', 'Cubre desde', 'may 2026', 'text') + campo('meses', 'Duración', 'Sin fin', 'numeric')
+      + campo('importe', 'Importe de cada pago', 'Importe', 'decimal')
+      + `<div><label for="co-a-dia">Se emite el día</label>${dia}</div>`
+      + `<div><label for="co-a-plazo">Vence a los</label>${plazoSel(a && a.plazo != null ? a.plazo : null)}</div>`
+      + `<div><label for="co-a-desde">Cubre desde</label><input id="co-a-desde" type="month" class="co-q" data-co="cuota" data-k="desde" data-sin-fecha value="${esc((a && a.desde) || '')}" aria-label="Cubre desde"></div>`
+      + `<div><label for="co-a-meses">Duración</label>${mesesSel(a)}</div>`
       + `<div><label for="co-a-renueva">Al acabar</label><select id="co-a-renueva" class="co-q" data-co="cuota" data-k="renueva"${sinFin ? ' disabled title="Sin duración, no acaba"' : ''}><option value="si"${renueva ? ' selected' : ''}>Se renueva</option><option value="no"${renueva ? '' : ' selected'}>Se acaba</option></select></div>`
       + `<div><label for="co-a-renegociar">Renegociar el</label><input id="co-a-renegociar" type="date" class="co-q" data-co="cuota" data-k="renegociar" data-sin-fecha value="${esc((a && a.renegociar) || '')}" aria-label="Renegociar el acuerdo el"></div>`
-      + `</div><p class="co-acu-n"${res ? '' : ' hidden'}>${esc(res)}</p>`;
+      + `</div><p class="co-acu-n"${res ? '' : ' hidden'}${tit ? ` title="${esc(tit)}"` : ''}>${esc(res)}</p>`;
   }
   // a month written as «may 2026», «mayo 2026», «05/2026» or «2026-05»; '' empty; undefined, not a month
   function leerMes(v) {
@@ -147,9 +165,10 @@
   async function guardar(id, cambio) {               // over the record as it is when written (D-232)
     try { return await C().parche(id, cambio); } catch (e) { fallo(e); return null; }
   }
-  async function cuota(inp) {                      // a field of the agreement (D-288), saved on its own
-    const cid = cliDe(inp), c = cliRec(cid); if (!c) return;
-    const a0 = C().acuerdo(c) || { pago: 'mensual', importe: null, dia: null, plazo: null, desde: '', meses: null, renueva: true, renegociar: '' }, k = inp.dataset.k, v = String(inp.value || '').trim();
+  // ctx: its client and value when it changed (one after another in a queue: a field drawn again meanwhile is no longer in the page)
+  async function cuota(inp, ctx) {                 // a field of the agreement (D-288), saved on its own
+    const cid = (ctx && ctx.cid) || cliDe(inp), c = cliRec(cid); if (!c) return;
+    const a0 = C().acuerdo(c) || { pago: 'mensual', importe: null, dia: null, plazo: null, desde: '', meses: null, renueva: true, renegociar: '' }, k = inp.dataset.k, v = String((ctx && ctx.v != null ? ctx.v : inp.value) || '').trim();
     let val = null;
     if (k === 'pago') val = v || 'mensual';
     else if (k === 'renueva') val = v !== 'no';
@@ -172,10 +191,39 @@
     try { await C().acuGuardar(cid, vacia ? null : a); } catch (e) { fallo(e); }
     const c2 = cliRec(cid); pintarCuota(inp, c2);
     const caja = inp.closest('.co'); if (caja) {     // its line, «Al acabar» and «+ Factura» change with it (the fields stay as they are)
-      const n = caja.querySelector('.co-acu-n'), res = C().resumen ? C().resumen(c2) : ''; if (n) { n.textContent = res; n.hidden = !res; }
+      const n = caja.querySelector('.co-acu-n'), res = C().resumen ? C().resumen(c2) : '', tit = C().titulo ? C().titulo(c2) : ''; if (n) { n.textContent = res; n.hidden = !res; if (tit) n.title = tit; else n.removeAttribute('title'); }
       const ren = caja.querySelector('[data-k="renueva"]'), a = C().acuerdo(c2); if (ren) { ren.disabled = !(a && a.meses); ren.title = ren.disabled ? 'Sin duración, no acaba' : ''; }
       const pie = caja.querySelector('.co-pie'); if (pie) pie.innerHTML = pieMensual(cid, hoy());
     }
+  }
+  // «Duración · Otra…»: the last month of each cycle, chosen in a calendar of months, kept as months from «Cubre desde» (D-304)
+  async function duracionHasta(n, ult) {
+    const c = cliRec(cliDe(n)), a = c && C().acuerdo(c); if (!a || !a.desde || !/^\d{4}-\d{2}$/.test(ult || '')) return;
+    if (ult < a.desde) { toast('El último mes no puede ir antes de «Cubre desde».'); return; }
+    const m = mesesEntre(a.desde, ult) + 1; if (m > 120) { toast('La duración va hasta 10 años.'); return; }
+    await cuota({ dataset: n.dataset, value: String(m), closest: s => n.closest(s) });
+  }
+  // «Vence a los · Otro…»: a number in its place; Intro or leaving it saves it, Esc goes back as it was (D-304)
+  function otroNumero(n) {
+    const tw = n._mx; if (!tw || !tw.isConnected) return;
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.className = 'co-q co-otro'; inp.inputMode = 'numeric'; inp.autocomplete = 'off'; inp.placeholder = 'Días'; inp.dataset.co = 'cuota-otro';
+    inp.setAttribute('aria-label', 'Vence a los (días)');
+    tw.style.display = 'none'; tw.after(inp); inp.focus();
+    let hecho = false;
+    const volver = foco => { if (hecho) return; hecho = true; inp.remove(); tw.style.display = ''; if (foco && tw.isConnected) tw.focus({ preventScroll: true }); };
+    const guardarOtro = () => {
+      if (hecho) return; const v = inp.value.trim(); if (!v) { volver(true); return; }
+      const m = v.match(/^(\d{1,3})\s*(d[ií]as?)?$/i); if (!m || +m[1] > 365) { toast('El plazo son los días hasta que vence (de 0 a 365).'); inp.select(); return; }
+      volver(true); colaQ = colaQ.then(() => cuota({ dataset: n.dataset, value: m[1], closest: s => n.closest(s) })).catch(() => {});
+    };
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); guardarOtro(); } else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); volver(true); } });
+    inp.addEventListener('blur', () => setTimeout(guardarOtro, 0));
+  }
+  function alAccion(e) {
+    const n = e.target, d = e.detail || {}; if (!n || !n.dataset || n.dataset.co !== 'cuota') return;
+    if (d.accion === 'mes' && n.dataset.k === 'meses') colaQ = colaQ.then(() => duracionHasta(n, d.valor)).catch(() => {});
+    else if (d.accion === 'numero') otroNumero(n);
   }
   function pintarCuota(inp, c) {                    // the field as it's kept (also the one with the focus)
     const a = C().acuerdo(c), k = inp.dataset.k;
@@ -336,7 +384,7 @@
   function alCambiar(e) {
     const t = e.target; if (!t.dataset || !t.dataset.co) return;
     const k = t.dataset.co;
-    if (k === 'cuota') { colaQ = colaQ.then(() => cuota(t)).catch(() => {}); } else if (k === 'num') numero(t); else if (k === 'imp') importe(t); else if (k === 'fecha') fecha(t);
+    if (k === 'cuota') { const ctx = { cid: cliDe(t), v: t.value }; colaQ = colaQ.then(() => cuota(t, ctx)).catch(() => {}); } else if (k === 'num') numero(t); else if (k === 'imp') importe(t); else if (k === 'fecha') fecha(t);
   }
   function alTecla(e) {
     const t = e.target;
@@ -392,6 +440,7 @@
   listo().then(() => {
     on(document, 'click', alClic);
     on(document, 'change', alCambiar);
+    on(document, 'mx-accion', alAccion);
     on(document, 'keydown', alTecla, true);
     on(document, 'contextmenu', alMenu, true);
     for (const ty of ['dragenter', 'dragover', 'dragleave', 'drop']) on(document, ty, alArrastre, true);

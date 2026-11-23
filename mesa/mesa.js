@@ -532,6 +532,13 @@
   // starts in ('YYYY-MM': kamaya-2026-10 = 22 oct-21 nov). CD 1 = the calendar month. Days are Madrid days ('YYYY-MM-DD').
   const cdOf = v => { const n = +v; return Number.isInteger(n) && n >= 1 && n <= 28 ? n : 1; };
   const okCd = v => v == null || v === '' || (Number.isInteger(+v) && +v >= 1 && +v <= 28);
+  // a day of each month as a dropdown (D-304): Día 1 · Día 5 · Día 15 · Otro… («Otro…» opens the days 1–28 in the calendar's
+  // look, controles.js); a day kept outside the list is an option of its own; vacio: «Sin día» first (an optional one)
+  function diaSel(attrs, valor, vacio) {
+    const v = valor == null || valor === '' ? '' : String(+valor), dias = ['1', '5', '15']; if (v && !dias.includes(v)) dias.push(v);
+    dias.sort((a, b) => a - b);
+    return `<select ${attrs} data-fmt="Día" data-rejilla-t="Día de cada mes" data-rejilla-n="Del 1 al 28: así existe en todos los meses.">${vacio ? `<option value=""${v ? '' : ' selected'}>Sin día</option>` : ''}${dias.map(d => `<option value="${d}"${d === v ? ' selected' : ''}>Día ${d}</option>`).join('')}<option value="otro" data-accion="rejilla">Otro…</option></select>`;
+  }
   const curCd = () => cdOf(S && S.cycleDay);
   const cycleOfDay = (day, cd) => !day ? null : +day.slice(8, 10) >= cdOf(cd) ? day.slice(0, 7) : prevMonth(day.slice(0, 7));
   const cycleOf = (iso, cd) => cycleOfDay(localDay(iso), cd);
@@ -2780,7 +2787,7 @@ ${TK_FUENTES}
 #mesa .cpmenu hr{width:100%;height:1px;margin:5px 0;border:0;background:var(--line-strong)}#mesa .feed > .grid:focus-visible{outline-offset:-2px}#mesa .cpmenu button:disabled .kb{color:var(--faint)}
 #mesa .cpmenu.cp-copias{min-width:264px}
 #mesa .expops{display:flex;flex-direction:column;gap:8px;margin:4px 0 16px}
-#mesa .form .ncfila{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 12px}#mesa .form .ncfila .mx-sel{display:flex;width:100%}   /* «Nuevo cliente» (D-289): two fields side by side */
+#mesa .form .ncfila{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 12px}#mesa .form .ncfila .mx-sel{display:flex;width:100%}#mesa .form .ecdia .mx-sel{min-width:150px}   /* «Nuevo cliente» (D-289): two fields side by side */
 #mesa .form .expop{position:relative;display:flex;gap:12px;align-items:flex-start;margin:0;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel);cursor:pointer;font-weight:400;transition:background var(--d1) ease-out,border-color var(--d1) ease-out}
 #mesa .expop:hover{border-color:var(--line-strong)}
 #mesa .expop input{flex:none;width:16px;height:16px;margin:2px 0 0;-webkit-appearance:none;appearance:none;box-sizing:border-box;border:1.5px solid var(--mute);border-radius:50%;background:var(--panel-2);cursor:pointer}#mesa .expop input:checked{border:4.5px solid var(--acc)}   /* the Mesa's radio (.caplab) */
@@ -4713,8 +4720,8 @@ ${TK_FUENTES}
     const t = NC_TIPOS.find(x => x[0] === ncTipo) || NC_TIPOS[0], esp = ncTipo === 'esporadico';
     const nombre = `<label for="nc-name">Nombre</label><input id="nc-name" name="name" type="text" maxlength="60" placeholder="${esp ? 'Ej.: Boda de Clara y Pau' : 'Ej.: daGiorgio'}" required>`;
     const handle = `<label for="nc-handle">Usuario de Instagram <span>(opcional)</span></label><input id="nc-handle" name="handle" type="text" maxlength="120" placeholder="@usuario">`;
-    const ciclo = `<div><label for="nc-cycle" class="dcl" data-v="1" title="Inicio de ciclo · doble clic: día 1">Inicio de ciclo <span>(1-28)</span></label><input id="nc-cycle" name="cycleDay" type="number" min="1" max="28" step="1" value="1" required></div>`;
-    const entregas = `<div><label for="nc-entregas">Entregas antes del día <span>(1-28)</span></label><input id="nc-entregas" name="entregasDia" type="number" min="1" max="28" step="1" placeholder="1-28"></div>`;
+    const ciclo = `<div><label for="nc-cycle" class="dcl" data-v="1" title="Inicio de ciclo · doble clic: día 1">Inicio de ciclo</label>${diaSel('id="nc-cycle" name="cycleDay" required', 1)}</div>`;   // D-304
+    const entregas = `<div><label for="nc-entregas">Entregas antes del día</label>${diaSel('id="nc-entregas" name="entregasDia"', '', true)}</div>`;
     const campos = esp ? nombre : ncTipo === 'contenido' ? `${nombre}${handle}<div class="ncfila"><div>${ncPago()}</div>${entregas}</div>` : `${nombre}${handle}<div class="ncfila">${ciclo}<div>${ncPago()}</div></div>`;
     showDialog('newclient', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>${esc(t[1])}</h3>
       <form class="form" data-form="newclient" data-tipo="${ncTipo}" autocomplete="off">${campos}
@@ -4733,8 +4740,8 @@ ${TK_FUENTES}
       <form class="form" data-form="editclient" autocomplete="off"${U ? ` id="ecp-datos" role="tabpanel" aria-labelledby="ect-datos"${co ? ' hidden' : ''}` : ''}><label for="ec-name">Nombre</label><input id="ec-name" name="name" type="text" maxlength="60" value="${esc(c.name)}" required>
       <label for="ec-handle">Usuario de Instagram</label><input id="ec-handle" name="handle" type="text" maxlength="120" value="${esc(c.handle || '')}" placeholder="@usuario">
       <label for="ec-metricas">Enlace de métricas (Zernio) <span>(opcional)</span></label><input id="ec-metricas" name="metricas" type="text" inputmode="url" maxlength="500" value="${esc(c.metricas || '')}" placeholder="https://" autocomplete="off" spellcheck="false">
-      ${esContenido(cid) ? `<label for="ec-entregas">Entregas antes del día <span>(1-28, opcional)</span></label><input id="ec-entregas" name="entregasDia" type="text" inputmode="numeric" maxlength="2" value="${esc(c.entregasDia || '')}" placeholder="1-28" autocomplete="off">` : ''}
-      <label for="ec-cycle" class="dcl" data-v="${cdOf(c.cycleDay)}" title="Inicio de ciclo · doble clic: el guardado">Inicio de ciclo <span>(1-28; los meses ya cargados conservan el suyo)</span></label><input id="ec-cycle" name="cycleDay" type="number" min="1" max="28" step="1" value="${cdOf(c.cycleDay)}" required>
+      ${esContenido(cid) ? `<label for="ec-entregas">Entregas antes del día <span>(opcional)</span></label><div class="ecdia">${diaSel('id="ec-entregas" name="entregasDia"', okCd(c.entregasDia) ? c.entregasDia || '' : '', true)}</div>` : ''}
+      <label for="ec-cycle" class="dcl" data-v="${cdOf(c.cycleDay)}" title="Inicio de ciclo · doble clic: el guardado">Inicio de ciclo <span>(los meses ya cargados conservan el suyo)</span></label><div class="ecdia">${diaSel('id="ec-cycle" name="cycleDay" required', cdOf(c.cycleDay))}</div>
       <label>Foto de perfil</label><div class="avrow">${avatarHTML(c, 'avprev')}<button type="button" class="btn2" data-act="avpick">Elegir foto…</button><button type="button" class="lnk" data-act="avdel"${c.foto ? '' : ' hidden'}>Quitar</button><input type="file" class="avin" accept="image/jpeg,image/png,image/webp" hidden></div>
       <div class="ecnot" title="Apagada, la Mesa no compara con Notion ni invita a subir."><b>Usa Notion</b><label class="sw"><span class="ecnot-e" aria-hidden="true"><span class="ecnot-si">Conectado</span><span class="ecnot-no">Desconectado</span></span><input type="checkbox" name="notion" role="switch" aria-label="Usa Notion"${c.notion === false ? '' : ' checked'}></label></div>
       <p class="ferr" hidden></p>
@@ -5743,10 +5750,15 @@ ${TK_FUENTES}
     const d = m && m > a.desde ? mesesEntre(a.desde, m) : 0, c = a.renueva ? Math.floor(d / a.meses) : 0;
     return addMonths(a.desde, (c + 1) * a.meses - 1);
   }
-  function acuResumen(c) {
+  // the line, short (D-304): the cycle it covers (the one in course: «Ahora cubre»; one not begun or ended, «Cubre»), its
+  // payments and when they're invoiced — Kevin bills in advance, the month before; renegotiating, in its title (acuTitulo)
+  function acuResumen(c, hoyM) {
     const a = acuerdoDe(c); if (!a) return '';
-    const fin = acuFin(a), n = acuPaso(a), out = [];
-    if (a.desde) out.push(fin ? `Cubre ${acuMes(a.desde)} – ${acuMes(fin)}` : `Cubre desde ${acuMes(a.desde)}`);
+    hoyM = hoyM || madParts(ahora()).day.slice(0, 7);
+    const n = acuPaso(a), out = [];
+    let de = a.desde, fin = acuFin(a);
+    if (a.desde && a.meses && a.renueva && hoyM > a.desde) { fin = acuFinCiclo(a, hoyM); de = addMonths(fin, -(a.meses - 1)); }   // the cycle in course (A49-1)
+    if (a.desde) out.push(fin ? `${de <= hoyM && hoyM <= fin ? 'Ahora cubre' : 'Cubre'} ${acuMes(de)} – ${acuMes(fin)}` : `Cubre desde ${acuMes(a.desde)}`);
     if (a.importe != null) {
       if (a.pago === 'unico') out.push(`un pago de ${cobEur(a.importe)}`);
       else if (fin) {   // whole payments and, if its length isn't a multiple, a last one in proportion (as its invoices)
@@ -5755,11 +5767,14 @@ ${TK_FUENTES}
       }
       else out.push(`${cobEur(a.importe)} ${a.pago === 'mensual' ? 'al mes' : (ACU_PAGOS.find(x => x[0] === a.pago) || [, ''])[1].toLowerCase()}`);
     }
-    if (fin && a.pago !== 'unico') out.push(a.renueva ? `se renueva el 1 ${acuMes(addMonths(acuFinCiclo(a, madParts(ahora()).day.slice(0, 7)), 1))}` : `acaba en ${acuMes(fin)}`);   // the cycle in course
-    if (a.renegociar) out.push('aviso en tu página 14 días antes de renegociar');
+    if (a.dia != null) out.push(`${a.pago === 'unico' || (fin && a.meses <= n) ? 'se factura' : 'se facturan'} el día ${a.dia} del mes anterior`);
+    if (fin && a.pago !== 'unico' && !a.renueva) out.push(`acaba en ${acuMes(fin)}`);
     return out.join(' · ');
   }
-  const cobFechas = (mes, q) => { const emitida = `${mes}-${String(q.dia).padStart(2, '0')}`; return { emitida, vence: cobMasDias(emitida, q.plazo) }; };
+  // what the line's title says: when to renegotiate, only Kevin's
+  function acuTitulo(c) { const a = acuerdoDe(c); return a && a.renegociar ? `Renegociar el ${cobCorto(a.renegociar)} ${a.renegociar.slice(0, 4)}: aviso en tu página 14 días antes` : ''; }
+  // an invoice of a stretch is issued on its day of the month before the stretch: Kevin bills in advance (D-304)
+  const cobFechas = (mes, q) => { const emitida = `${addMonths(mes, -1)}-${String(q.dia).padStart(2, '0')}`; return { emitida, vence: cobMasDias(emitida, q.plazo) }; };
   // what goes first in a list: its date of issue, else its month, else when it was written
   const cobClave = r => r.emitida || (COB_MES.test(r.periodo || '') ? r.periodo + '-01' : '') || r.vence || '';
   const cobOrden = (a, b) => cobClave(b).localeCompare(cobClave(a)) || String(b.id).localeCompare(String(a.id));   // never by `at`: a row being written doesn't jump
@@ -5772,7 +5787,7 @@ ${TK_FUENTES}
     let virt = null;
     if (q) {                                     // the first stretch from this month on with no invoice that covers it (D-288)
       const t = acuLibre(q, l, hoy.slice(0, 7));
-      if (t) virt = { mes: t.de, ...(t.hasta !== t.de ? { hasta: t.hasta } : {}), importe: t.importe, ...cobFechas(t.de, q), virtual: true };
+      if (t) { virt = { mes: t.de, ...(t.hasta !== t.de ? { hasta: t.hasta } : {}), importe: t.importe, ...cobFechas(t.de, q), virtual: true }; if (virt.emitida < hoy) virt.tarde = true; }   // its day passed without it: con retraso (D-304)
     }
     if (guard && (!virt || guard.emitida <= virt.emitida)) return { mes: COB_MES.test(guard.periodo || '') ? guard.periodo : guard.emitida.slice(0, 7), ...(COB_MES.test(guard.periodo || '') && cobHasta(guard) !== guard.periodo ? { hasta: cobHasta(guard) } : {}), importe: +guard.importe || 0, emitida: guard.emitida, vence: guard.vence, rec: guard };
     return virt;
@@ -5784,9 +5799,12 @@ ${TK_FUENTES}
     const l = cobVivos(cli).map(r => ({ r, e: cobEstado(r, hoy) })), por = k => l.filter(x => x.e.k === k);
     const asc = (a, b) => cobClave(a.r).localeCompare(cobClave(b.r));
     const t = por('retrasada').sort(asc)[0] || por('pendiente').sort(asc)[0]; if (t) return t;
-    const c = CL.find(x => x.id === cli), q = cuotaDe(c), mes = hoy.slice(0, 7), tr = q && acuTramo(q, mes), rs = l.map(x => x.r);   // the stretch of this month (D-288)
-    const fa = tr && !cobCubre(rs, mes) ? acuFalta(rs, tr) : null;   // what of it no invoice covers (a monthly one of before may cover its start)
-    if (fa) return { r: { cliente: cli, periodo: fa.de, ...(fa.hasta !== fa.de ? { hasta: fa.hasta } : {}), importe: acuImporte(q, fa), ...cobFechas(fa.de, q), virtual: true }, e: { k: 'sinemitir' } };
+    // Kevin bills in advance (D-304): the stretch of this month without an invoice is late; the one that starts next month is
+    // issued this month, «sin emitir» from the 1st (also late once its day passed)
+    const c = CL.find(x => x.id === cli), q = cuotaDe(c), mes = hoy.slice(0, 7), sig = addMonths(mes, 1), rs = l.map(x => x.r);
+    const virt = (tr, m) => { const fa = tr && !cobCubre(rs, m) ? acuFalta(rs, tr) : null; if (!fa) return null; const r = { cliente: cli, periodo: fa.de, ...(fa.hasta !== fa.de ? { hasta: fa.hasta } : {}), importe: acuImporte(q, fa), ...cobFechas(fa.de, q), virtual: true }; if (r.emitida < hoy) r.tarde = true; return { r, e: { k: 'sinemitir' } }; };
+    const trS = q && acuTramo(q, sig);
+    const v = q && (virt(acuTramo(q, mes), mes) || (trS && trS.de === sig ? virt(trS, sig) : null)); if (v) return v;
     const s = por('sinemitir').sort(asc)[0]; if (s) return s;
     const ok = por('cobrada').sort((a, b) => String(b.r.cobrada).localeCompare(String(a.r.cobrada)) || cobOrden(a.r, b.r))[0];
     return ok || null;
@@ -8622,9 +8640,9 @@ ${TK_FUENTES}
       dlgCliente: async (cid, tab) => { await loadClientPhotos(); return dlgEditClient(cid, tab); },   // «Editar cliente» of any client, in its tab (D-233)
       guardar: cobGuardar, parche: cobParche, pdfVolver: cobPdfVolver, borrar: cobBorrar, devolver: cobDevolver, pdfPoner: cobPdfPoner, pdfValido: cobPdfValido, pdfLibre: cobPdfLibre, nuevoId: cobId, cuotaGuardar, cuotaTxt, avisar: cobAvisar, MES: COB_MES,
       // the agreement (D-288): as kept, its stretches, its line, its save; an invoice's last month and whether one covers a month
-      acuerdo: acuerdoDe, tramo: acuTramo, libre: acuLibre, falta: acuFalta, importeDe: acuImporte, resumen: acuResumen, acuGuardar, acuLimpio, PAGOS: ACU_PAGOS, paso: acuPaso, fin: acuFin, finCiclo: acuFinCiclo, mesCorto: acuMes, hasta: cobHasta, cubre: cobCubre },
+      acuerdo: acuerdoDe, tramo: acuTramo, libre: acuLibre, falta: acuFalta, importeDe: acuImporte, resumen: acuResumen, titulo: acuTitulo, acuGuardar, acuLimpio, PAGOS: ACU_PAGOS, paso: acuPaso, fin: acuFin, finCiclo: acuFinCiclo, mesCorto: acuMes, hasta: cobHasta, cubre: cobCubre },
     // a «Solo contenido» client (D-289) and its deliveries (D-290): for entregas.js, personal.js, calendario.js and movil.js
-    servicio: servicioDe, esContenido, metricasOk,
+    servicio: servicioDe, esContenido, metricasOk, diaSel,
     ent: { leer: entLeer, esperar: () => entPend, listo: () => !!ENT, vivas: entVivas, get: id => ENT && ENT.get(id), estado: entEstado, propuesta: entPropuesta, nueva: entNueva, cambiar: entCambiar, borrar: entBorrar, devolver: entDevolver, avisar: entAvisar, url: entUrl },
     get S() { return S; }, get CL() { return CL; }, get curClient() { return curClient; }, get locked() { return locked; },
     root: () => root, colPliegue, trayFold, shellReady, slot, changed, save, flushNow, render, renderFeed, renderBar, renderTray, refreshDetail, openDetail, closeDetail,

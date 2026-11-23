@@ -21851,6 +21851,38 @@
     } finally { caja.remove(); vf.remove(); M._in.closeDetail(); }
   });
 
+  prueba('AN4', 'Dónde está el ratón, también en lo vacío (D-302): un hueco lleva el mismo anillo que una publicación, salvo en «Vista cliente»; una publicación sin foto, el suyo; los dos aparecen y se van con --d1; un día del calendario del tablero, el fondo de pasar el ratón del calendario de fechas, salvo en «Vista cliente» y mientras se suelta algo; con «reducir movimiento», al instante', async () => {
+    const LS = 'mesa-cal-plegado', antes = W.localStorage.getItem(LS); W.localStorage.setItem(LS, '0');
+    try {
+      await tablero([pub(1), pub(2)]);
+      await poner('r1', [await foto('an4.jpg')]);
+      await huecoMas();
+      await hasta(() => M.calendario && q('.side > .cal .cgrid'), 4000, 'el calendario');
+      const cs = (e, p) => W.getComputedStyle(e, p), d1 = msDe(cs(q('#mesa')).getPropertyValue('--d1'));
+      const hueco = q('.feed .grid .cell.filler'), vacia = celda('r2');
+      ok(hueco && vacia && vacia.classList.contains('empty'), 'falta el hueco o la publicación sin foto');
+      for (const [c, n] of [[hueco, 'el hueco'], [vacia, 'la publicación sin foto'], [celda('r1'), 'la publicación']]) {
+        const a = cs(c, '::after');
+        ok(a.content !== 'none' && a.opacity === '0' && /inset/.test(a.boxShadow), `${n}: sin su anillo guardado en reposo (${a.content}, ${a.opacity})`);
+        igual(msDe(a.transitionDuration), d1, `${n}: el anillo no aparece con --d1`);
+      }
+      vacia.dispatchEvent(new W.PointerEvent('pointerover', { bubbles: true }));
+      await hasta(() => vacia.classList.contains('calhi'), 2000, 'el enlace de la publicación sin foto'); await espera(d1 + 150);
+      igual(cs(vacia, '::after').opacity, '1', 'la publicación sin foto no lleva el anillo');
+      q('.side > .cal .calhead').dispatchEvent(new W.PointerEvent('pointerover', { bubbles: true })); await espera(d1 + 150);
+      igual(cs(vacia, '::after').opacity, '0', 'el anillo no se va');
+      const rh = reglasDe(/\.cell\.filler:not\(\.over\):hover::after/);
+      ok(rh.length && rh.every(r => r.style.opacity === '1' && /#mesa:not\(\.client\)/.test(r.selectorText)), 'el hueco: sin su anillo al pasar, o también en «Vista cliente»: ' + rh.map(r => r.cssText).join(' | '));
+      const rd = reglasDe(/\.cday\[data-day\]:not\(\.cover\):not\(\.cno\):hover/);
+      ok(rd.length && rd.every(r => /#mesa:not\(\.client\)/.test(r.selectorText) && /--cx-hov/.test(r.style.getPropertyValue('background') || r.style.getPropertyValue('background-color'))), 'el día: sin el fondo de pasar el ratón, o también en «Vista cliente»: ' + rd.map(r => r.cssText).join(' | '));
+      const dia = q('.side > .cal .cday[data-day]');
+      ok(/background-color/.test(cs(dia).transitionProperty) && msDe(cs(dia).transitionDuration.split(',')[0]) === d1, 'el día no cambia con --d1: ' + cs(dia).transitionProperty + ' ' + cs(dia).transitionDuration);
+      for (const k of ['cover', 'cno']) { dia.classList.add(k); const bg = cs(dia).backgroundColor; dia.classList.remove(k); ok(rgbDe(bg).join() === rgbDe(cs(q('#mesa')).getPropertyValue(k === 'cover' ? '--acc-soft' : '--red-soft').trim()).join(), `al soltar (${k}), el resaltado no sale al momento: ${bg}`); }
+      const rr = reglasReduce(/\.cell::after|\.cday\[data-day\]/);
+      ok(rr.some(r => /\.cell::after/.test(r.selectorText) && r.style.transition === 'none') && rr.some(r => /\.cday\[data-day\]/.test(r.selectorText) && r.style.transition === 'none'), 'con «reducir movimiento» sigue la animación: ' + rr.map(r => r.cssText).join(' | '));
+    } finally { if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes); }
+  });
+
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;
   $('resumen').textContent = `${T.length} pruebas listas.`;

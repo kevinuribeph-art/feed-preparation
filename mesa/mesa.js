@@ -2691,6 +2691,11 @@ ${TK_FUENTES}
 #mesa .cell.past.nophoto .ph b{color:var(--cell-past)}
 #mesa .cell.over{outline:3px solid var(--acc) !important;outline-offset:-3px !important}
 #mesa .cell.over::after{content:'';position:absolute;inset:0;z-index:6;border:3px solid var(--acc);pointer-events:none}
+/* D-302: the ring under the mouse, a post's (calhi, from the calendar) and a hole's (not in «Vista cliente»): always there,
+   seen in --d1 (D-173), so a sweep leaves no trail; with «reducir movimiento», at once */
+#mesa .feed .grid .cell:not(.over)::after{content:'';position:absolute;inset:0;z-index:6;pointer-events:none;box-shadow:inset 0 0 0 2px var(--on-photo),inset 0 0 0 4px var(--ink);opacity:0;transition:opacity var(--d1) var(--ease)}
+#mesa .feed .grid .cell.calhi:not(.over)::after,#mesa:not(.client) .feed .grid .cell.filler:not(.over):hover::after{opacity:1}
+@media (prefers-reduced-motion:reduce){#mesa .feed .grid .cell::after{transition:none}}
 #mesa .cell.dragging,#mesa .titem.dragging{opacity:.35}
 #mesa.picking .cell:not(.past){cursor:copy}
 /* ===== Bandeja ===== */

@@ -373,7 +373,8 @@
 
   // ---------- the view ----------
   // in the vista cliente, a month without a story it can see has no «Feed / Historias»; seeing «Historias», back to «Feed» (D-228)
-  const barra = () => { const cl = cliente(), n = lista().filter(cl ? paraCliente : h => !h.cancelada).length; if (cl && !n) { if (ON) { ON = false; queueMicrotask(render); } return ''; } return `<div class="hvsw" role="group" aria-label="Qué se ve"><button type="button" data-hv="ver" data-v="0" aria-pressed="${!ON}"${ON ? '' : ' class="on"'}>Feed</button><button type="button" data-hv="ver" data-v="1" aria-pressed="${ON}"${ON ? ' class="on"' : ''}>Historias${n ? ` <i>${n}</i>` : ''}</button></div>`; };
+  const barra = () => { if (!I() || !I().S) return ''; const cl = cliente(),   // no board (the page of a client of «Solo contenido», D-312): no switch
+     n = lista().filter(cl ? paraCliente : h => !h.cancelada).length; if (cl && !n) { if (ON) { ON = false; queueMicrotask(render); } return ''; } return `<div class="hvsw" role="group" aria-label="Qué se ve"><button type="button" data-hv="ver" data-v="0" aria-pressed="${!ON}"${ON ? '' : ' class="on"'}>Feed</button><button type="button" data-hv="ver" data-v="1" aria-pressed="${ON}"${ON ? ' class="on"' : ''}>Historias${n ? ` <i>${n}</i>` : ''}</button></div>`; };
   function ver(on) { ON = !!on; const X = I(); if (!X) return; render(); X.renderBar(); }
   function dias() {                            // the board's days, and any a story has moved beyond them (with its post)
     const X = I(), ms = X.boardMonths(), cd = X.curCd(), lo = X.cycleStart(ms[0], cd), hi = X.cycleEnd(ms[ms.length - 1], cd), out = new Set();

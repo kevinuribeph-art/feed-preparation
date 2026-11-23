@@ -180,7 +180,9 @@
     : `<p class="co-vacio">Aún sin ${esp ? 'cobros' : 'facturas'}</p>`;
   // one agreement: its head, and open, its fields, what its package includes, its line, its invoices and «+ Factura» (D-305)
   function cardHTML(cli, a, rows, h, abierta, est, i, varios) {
-    const hd = a ? cabeza(a, est) : null, aid = a ? esc(a.id) : '';
+    const hd0 = a ? cabeza(a, est) : null, aid = a ? esc(a.id) : '';
+    const nb = t => String(t || '').replace(/(\d) (?=(meses|mes|años|año|€)(\b|$))/g, '$1\u00a0').replace(/\b(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic) (\d{4})/g, '$1\u00a0$2');   // «cada 3 meses», «900 €», «may 2026» never split (D-314)
+    const hd = hd0 && { ...hd0, t: nb(hd0.t), sub: nb(hd0.sub) };
     const hh = hd ? `<b>${esc(hd.t)}</b>${!abierta && hd.sub ? `<span class="co-acs">· ${esc(hd.sub)}</span>` : ''}<span class="co-sp"></span>${hd.chip}` : '<b>Acuerdo</b><span class="co-acs">sin rellenar</span>';
     const cab = varios && a ? `<button type="button" class="co-ac-h" data-co="acu-pleg" aria-expanded="${abierta}" title="${abierta ? 'Plegar' : 'Ver este acuerdo'}">${IC.chev}${hh}</button>` : `<div class="co-ac-h"${a ? ' tabindex="0" title="Clic derecho o ⇧F10: borrar el acuerdo"' : ''}>${hh}</div>`;
     if (!abierta) return `<section class="co-ac pleg" data-acu="${aid}">${cab}</section>`;
@@ -719,6 +721,7 @@
 #mesa button.co-ac-h{cursor:pointer;transition:background var(--d1) ease-out}#mesa button.co-ac-h:hover{background:var(--co-hov,var(--bg-2))}
 #mesa .co-ac-h b{flex:0 1 auto;min-width:0;font-size:14px;font-weight:600;overflow-wrap:anywhere}   /* narrow (280–340 px): it goes on below, never cut; its chip stays on the right (D-314) */
 #mesa .co-ac-h .co-ach{align-self:center}
+@container (max-width:420px){#mesa .co-ac-h{flex-wrap:wrap}#mesa .co-ac-h b{flex:1 1 0}#mesa .co-ac-h .co-acs{order:9;flex:1 1 100%;padding-left:24px;white-space:normal}}   /* folded, its summary below the title, whole (D-314) */
 #mesa .co-ac-h svg{flex:none;width:16px;height:16px;color:var(--mute);transition:transform var(--d-m) var(--ease-m)}#mesa .co-ac-h[aria-expanded="true"] svg{transform:rotate(90deg)}
 #mesa .co-acs{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;color:var(--mute)}
 #mesa .co-ach{flex:none;padding:2px 8px;border-radius:var(--r-xs);font-size:12.5px;font-weight:600;line-height:18px}

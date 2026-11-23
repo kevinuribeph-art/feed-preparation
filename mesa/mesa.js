@@ -2717,8 +2717,9 @@ ${TK_FUENTES}
 /* a client of «Solo contenido» (D-290, tablero A): deliveries and sessions · calendar · agreement and payments, each column its own scroll */
 #mesa .cont{flex:1;min-width:0;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr) minmax(280px,340px);gap:12px}
 #mesa .cont>.cont-izq,#mesa .cont>.cont-der,#mesa .cont>.cont-side>.cont-ses{min-width:0;min-height:0;overflow-y:auto;background:var(--panel);border-radius:var(--r-lg);padding:16px 18px;overscroll-behavior:contain}
-#mesa .cont>.cont-side{min-height:0;display:grid;grid-template-rows:minmax(0,1fr) minmax(0,1fr);gap:12px;background:none}#mesa .cont>.cont-side>.cal{min-height:0;border-top:0;border-radius:var(--r-lg)}   /* the calendar at half height, the sessions under it (D-312) */
+#mesa .cont>.cont-side{min-height:0;display:grid;grid-template-rows:minmax(0,auto) minmax(160px,1fr);gap:12px;background:none}#mesa.cont-on .bar .sw{margin-left:auto}#mesa .cont>.cont-side>.cal{min-height:0;border-top:0;border-radius:var(--r-lg)}   /* the calendar at half height, the sessions under it (D-312) */
 #mesa .cont-espera{margin:0;font-size:13px;color:var(--mute)}
+@media (max-width:1099px){#mesa.client .cont{display:flex;flex-direction:column;overflow-y:auto;gap:12px}#mesa.client .cont>*{flex:none;overflow:visible}}   /* its vista cliente in one column below 1100 px, as the portal (D-312, lesson 178) */
 @media (max-width:980px){#mesa .cont{display:flex;flex-direction:column;overflow-y:auto;gap:12px}#mesa .cont>*{flex:none;overflow:visible}#mesa .cont>.cont-side{display:flex;flex-direction:column}#mesa .cont>.cont-side>*{flex:none;overflow:visible}#mesa .cont>.cont-side>.cal{min-height:420px}}   /* one column: deliveries, calendar, sessions, agreement */
 #mesa .csplit{display:none;flex:none;position:relative;height:11px;cursor:row-resize;touch-action:none;background:var(--panel)}
 #mesa .csplit::before{content:'';position:absolute;left:0;right:0;top:5px;height:1px;background:var(--line);transition:background var(--d1) ease-out}
@@ -2795,7 +2796,7 @@ ${TK_FUENTES}
 #mesa .expop:hover{border-color:var(--line-strong)}
 #mesa .expop input{flex:none;width:16px;height:16px;margin:2px 0 0;-webkit-appearance:none;appearance:none;box-sizing:border-box;border:1.5px solid var(--mute);border-radius:50%;background:var(--panel-2);cursor:pointer}#mesa .expop input:checked{border:4.5px solid var(--acc)}   /* the Mesa's radio (.caplab) */
 #mesa .form .expop.on{border-color:var(--acc);background:var(--acc-soft)}
-#mesa .expd{display:flex;flex-direction:column;gap:2px;min-width:0}#mesa .expd b{font-size:13.5px;font-weight:600;color:var(--ink)}#mesa .expd span{font-size:12.5px;line-height:1.4;color:var(--mute)}#mesa .cp-copias button{flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;padding:7px 10px}
+#mesa .expd{display:flex;flex-direction:column;gap:2px;min-width:0}#mesa .expd span{text-wrap:pretty}#mesa .expd b{font-size:13.5px;font-weight:600;color:var(--ink)}#mesa .expd span{font-size:12.5px;line-height:1.4;color:var(--mute)}#mesa .cp-copias button{flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;padding:7px 10px}
 #mesa .cp-copias button .sub{font-size:12px;color:var(--mute)}
 #mesa .cp-copias .nota{display:flex;gap:7px;max-width:250px;margin:2px 4px;padding:6px 6px 4px;font-size:12px;line-height:1.4;color:var(--ink-2)}
 #mesa .cp-copias .nota::before{content:'';flex:none;width:14px;height:14px;margin-top:1px;background:var(--chg);-webkit-mask:var(--i-alerta) center/contain no-repeat;mask:var(--i-alerta) center/contain no-repeat}
@@ -5471,14 +5472,16 @@ ${TK_FUENTES}
     else if (act === 'recargar') location.reload();
     else if (act === 'takeover') { const k = S && S.key; S = null; PB = null; await claim(); cobLeer(true).then(() => cobAvisar(false)); mesLeer(true).then(() => mesAvisar(false)); entLeer(true).then(() => entAvisar(false)); if (k && (await idbGet('boards', k))) await M.open(k); else await M.boot(); }
     else if (act === 'delclient') {
+      if (a.dataset.mira === '1') return;   // still finding out what goes with it: a second click waits (cold review)
       if (a.dataset.confirm !== '1') {   // its tray goes with it (D-072): the button says how much
-        a.dataset.confirm = '1'; a.textContent = 'Confirmar: eliminar';
+        a.dataset.mira = '1'; a.textContent = 'Confirmar: eliminar';
         const cid0 = edCid || curClient, r = await resumenBandeja(cid0);
         // a client of «Solo contenido» with its old boards, empty (D-312): the button says they go with it; with posts or photos,
         // the confirmation says why it can't be deleted
         const vj = esContenido(cid0) ? ((await idbAll('boards')) || []).filter(b => b.client === cid0 && !tableroLleno(b)) : [];
         const partes = [r.fotos ? `${nOf(r.fotos, 'foto', 'fotos')} de su bandeja${r.carpetas ? ` y ${nOf(r.carpetas, 'carpeta', 'carpetas')}` : ''} (${pesoTxt(r.bytes)})` : '', vj.length ? (vj.length === 1 ? 'su tablero viejo, vacío' : `sus ${vj.length} tableros viejos, vacíos`) : ''].filter(Boolean);
         if (a.isConnected) { a.dataset.viejos = vj.length ? '1' : ''; if (partes.length) a.textContent = `Confirmar: eliminar y borrar ${partes.join(' y ')}`; }
+        a.dataset.confirm = '1'; a.dataset.mira = '';
         return;
       }
       const cid = edCid || curClient, c = CL.find(x => x.id === cid);
@@ -6292,14 +6295,15 @@ ${TK_FUENTES}
   // nor the portal). The rule is its address, we.tl or wetransfer.com: by it the free one isn't told from the paid one
   const entCaduca = u => { try { const x = new URL(String(u || '')); return x.protocol === 'https:' && /(^|\.)(we\.tl|wetransfer\.com)$/i.test(x.hostname); } catch (e) { return false; } };
   // a client's sessions (D-312), also those it shares with others: the next ones (today's and one still going on too) by their
-  // day and time, and apart those gone past, from the newest. visibles: only those with the eye open, as the client sees them (D-297)
+  // day and time, one without a date first (its date is optional: it would vanish), and apart those gone past, from the newest.
+  // visibles: only those with the eye open and a date, as the client sees them (D-297; its web gets no session without a day)
   function sesListas(l, cli, h, o = {}) {
-    const fin = t => t.fin && /^\d{4}-\d{2}-\d{2}$/.test(t.fin.fecha || '') && t.fin.fecha > t.fecha ? t.fin.fecha : t.fecha;
-    const k = t => t.fecha + (/^\d\d:\d\d$/.test(t.hora || '') ? t.hora : '');
-    const mias = (l || []).filter(t => t && t.tipo === 'sesion' && t.id && /^\d{4}-\d{2}-\d{2}$/.test(t.fecha || '') && (Array.isArray(t.clientes) ? t.clientes : t.cliente ? [t.cliente] : []).includes(cli)
-      && !(o.visibles && t.sesion && t.sesion.visible === false));
-    return { proximas: mias.filter(t => fin(t) >= h).sort((a, b) => k(a).localeCompare(k(b)) || String(a.id).localeCompare(String(b.id))),
-      pasadas: mias.filter(t => fin(t) < h).sort((a, b) => k(b).localeCompare(k(a)) || String(a.id).localeCompare(String(b.id))) };
+    const dia = d => /^\d{4}-\d{2}-\d{2}$/.test(d || ''), fin = t => t.fin && dia(t.fin.fecha) && t.fin.fecha > t.fecha ? t.fin.fecha : t.fecha;
+    const k = t => (t.fecha || '') + (/^\d\d:\d\d$/.test(t.hora || '') ? t.hora : '');
+    const mias = (l || []).filter(t => t && t.tipo === 'sesion' && t.id && (dia(t.fecha) || !t.fecha) && (Array.isArray(t.clientes) ? t.clientes : t.cliente ? [t.cliente] : []).includes(cli)
+      && !(o.visibles && ((t.sesion && t.sesion.visible === false) || !t.fecha)));
+    return { proximas: mias.filter(t => !t.fecha || fin(t) >= h).sort((a, b) => k(a).localeCompare(k(b)) || String(a.id).localeCompare(String(b.id))),
+      pasadas: mias.filter(t => t.fecha && fin(t) < h).sort((a, b) => k(b).localeCompare(k(a)) || String(a.id).localeCompare(String(b.id))) };
   }
   const entId = () => 'en-' +(crypto.randomUUID ? crypto.randomUUID().slice(0, 13) : Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
   // written over the record as it is now (a change from another tab while this one was being edited stays), one at a time
@@ -6602,7 +6606,7 @@ ${TK_FUENTES}
     if (n) {
       const llenos = viejos.filter(tableroLleno).length;
       if (llenos) return `No se puede eliminar: ${llenos === n ? (n === 1 ? 'su tablero viejo lleva' : 'sus tableros viejos llevan') : `${llenos} de sus ${n} tableros viejos llevan`} publicaciones o fotos.`;
-      if (!o.tableros) return `No se puede eliminar sin borrar con él ${n === 1 ? 'su tablero viejo' : `sus ${n} tableros viejos`}, sin publicaciones ni fotos: pásalo con {tableros: true}.`;
+      if (!o.tableros) return `Tiene ${n === 1 ? 'un tablero viejo' : `${n} tableros viejos`} sin publicaciones ni fotos: confirma para borrar${n === 1 ? 'lo' : 'los'} con él.`;   // the API: removeClient(id, {tableros: true}) (D-312)
     }
     await cobLeer(true); if (cobMal) return 'No se puede eliminar: no se pudieron leer sus facturas.';
     if (acuMal) return 'No se puede eliminar: no se pudieron leer sus acuerdos.';   // a client made again with its id would take them (revisión del lote B)

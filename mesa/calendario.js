@@ -242,7 +242,7 @@
   // total, steps nor Notion. In the vista cliente there is no calendar: its list and «Tus pagos» (D-297)
   function renderCont(X, root, sec, cli) {
     const client = root.classList.contains('client'), today = X.hoy();
-    if (client) { sec.hidden = true; sec.innerHTML = ''; vcLado(X, root, vcPartes(X, today.slice(0, 7), cli).lado); return; }
+    if (client) { sec.hidden = true; sec.innerHTML = ''; sec._h = null; vcLado(X, root, vcPartes(X, today.slice(0, 7), cli).lado); return; }   // its cache goes with it: back from the view, drawn again (cold review)
     vcLado(X, root, []);
     if (view.key !== 'cli:' + cli || view.sec !== sec) view = { key: 'cli:' + cli, m: today.slice(0, 7), sec };   // each time its page opens, today's month
     if (!SES && !sesLee) leerSes();

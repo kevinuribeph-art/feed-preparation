@@ -41,12 +41,12 @@
   const colSes = () => { const r = I().root && I().root(); return r ? r.querySelector('.main > .cont > .cont-side > .cont-ses') : null; };
   const cliAbierto = () => { const X = I(); return X && X.contCli ? X.contCli() : null; };   // the client whose page is open (D-312)
   // the sessions of the client (read from 'tareas', as the posts' calendar, D-219), and again when one changes
-  let SES = null, sesLee = null;
+  let SES = null, sesLee = null, SES_MAL = false;   // SES_MAL: its reading failed (never «none», lesson 94)
   async function leerSes() {
     if (sesLee) { sesLee.otra = true; return; }
     const yo = sesLee = { otra: false };
     try {
-      do { yo.otra = false; SES = ((await I().idbAll('tareas').catch(() => [])) || []).filter(t => t && t.tipo === 'sesion' && t.id && /^\d{4}-\d{2}-\d{2}$/.test(t.fecha || '')); } while (yo.otra);
+      do { yo.otra = false; let l = null; try { l = (await I().idbAll('tareas')) || []; SES_MAL = false; } catch (e) { SES_MAL = true; } if (l) SES = l.filter(t => t && t.tipo === 'sesion' && t.id); } while (yo.otra);   // also one without a date (D-312): sesListas sorts them
     } finally { if (sesLee === yo) sesLee = null; }
     pintar();
   }
@@ -84,15 +84,16 @@
   const sesFila = (t, h, pasada, ro) => {
     // the client sees «Sesión» or «Reunión» and its time, as its web (lesson 178); Kevin, its kind, or «sin hora»
     const reu = t.sesion && t.sesion.clase === 'reunion', sub = ro ? [reu ? 'Reunión' : 'Sesión', t.hora].filter(Boolean).join(' · ') : [CLASE_SES(t), t.hora].filter(x => x && x !== t.txt).join(' · ') || 'sin hora';
-    const dentro = `${ro ? '<span class="en-sd">' : ''}${reu ? IC.reu : IC.ses}<span class="en-d">${esc(corto(t.fecha, h))}</span>${ro ? '</span>' : ''}<span class="en-t"><b>${esc(t.txt || (reu ? 'Reunión' : 'Sesión'))}</b><span>${esc(sub)}</span></span>`;
+    const dentro = `${ro ? '<span class="en-sd">' : ''}${reu ? IC.reu : IC.ses}<span class="en-d">${t.fecha ? esc(corto(t.fecha, h)) : 'Sin fecha'}</span>${ro ? '</span>' : ''}<span class="en-t"><b>${esc(t.txt || (reu ? 'Reunión' : 'Sesión'))}</b><span>${esc(sub)}</span></span>`;
     return ro ? `<div class="en-s ro${pasada ? ' pasada' : ''}">${dentro}</div>` : `<button type="button" class="en-s${pasada ? ' pasada' : ''}" data-en="sesion" data-id="${esc(t.id)}">${dentro}</button>`;
   };
   function sesHTML(cli) {
     const h = hoy(), L = I().sesListas(SES || [], cli, h);
+    const vacio = SES_MAL ? 'No se pudieron leer sus sesiones: recarga la página.' : SES === null ? 'Leyendo sus sesiones…' : 'Ninguna próxima';
     return `<h2 class="en-h">Sesiones <span>${L.proximas.length ? esc(nDe(L.proximas.length, 'próxima', 'próximas')) : ''}</span></h2>`
-      + (L.proximas.length ? `<div class="en-lista">${L.proximas.map(t => sesFila(t, h)).join('')}</div>` : `<p class="en-vacio">${SES === null ? 'Leyendo sus sesiones…' : 'Ninguna próxima'}</p>`)
-      + (L.pasadas.length ? `<p class="en-mh">Pasadas</p><div class="en-lista">${L.pasadas.map(t => sesFila(t, h, true)).join('')}</div>` : '')
-      + `<div class="en-mases"><button type="button" class="en-mas" data-en="nueva-sesion">${IC.mas}Sesión</button><button type="button" class="en-mas" data-en="nueva-reunion">${IC.mas}Reunión</button></div>`;
+      + (L.proximas.length && !SES_MAL ? `<div class="en-lista">${L.proximas.map(t => sesFila(t, h)).join('')}</div>` : `<p class="en-vacio">${vacio}</p>`)
+      + `<div class="en-mases"><button type="button" class="en-mas" data-en="nueva-sesion">${IC.mas}Sesión</button><button type="button" class="en-mas" data-en="nueva-reunion">${IC.mas}Reunión</button></div>`   // under the next ones, never at the foot of «Pasadas» (lesson 247)
+      + (L.pasadas.length && !SES_MAL ? `<p class="en-mh">Pasadas</p><div class="en-lista">${L.pasadas.map(t => sesFila(t, h, true)).join('')}</div>` : '');
   }
   // ---------- the vista cliente (D-297, D-312): as the client's web shows them, only to look ----------
   // The same list, without the calendar: what is on its way by deadline («En camino», never «sin entregar»: that's Kevin's) and,
@@ -106,10 +107,10 @@
   function vcIzqHTML(cli) {
     const h = hoy(), L = E().listas(cli), con = r => String(r.que || '').trim();
     const pend = L.pendientes.filter(con), grupos = L.entregadas.map(g => ({ m: g.m, l: g.l.filter(con) })).filter(g => g.l.length), nH = grupos.reduce((n, g) => n + g.l.length, 0);
-    const ses = I().sesListas(SES || [], cli, h, { visibles: true }).proximas;
+    const ses = SES_MAL ? [] : I().sesListas(SES || [], cli, h, { visibles: true }).proximas;
     const cuenta = [pend.length ? `${pend.length} en camino` : '', nH ? nDe(nH, 'entregada', 'entregadas') : ''].filter(Boolean).join(' · ');
     return `<div class="en-vc"><h2 class="en-h">Tus entregas <span>${esc(cuenta)}</span></h2>`
-      + (pend.length ? `<div class="en-lista">${pend.map(r => vcFila(r, h)).join('')}</div>` : !nH ? '<p class="en-vacio">Aún no hay entregas</p>' : '')
+      + (pend.length ? `<div class="en-lista">${pend.map(r => vcFila(r, h)).join('')}</div>` : !nH ? '<p class="en-vacio">Aún no hay entregas.</p>' : '')
       + grupos.map(g => `<p class="en-mh">${esc(may(nombreMes(g.m)))} ${g.m.slice(0, 4)}</p><div class="en-lista">${g.l.map(r => vcFila(r, h)).join('')}</div>`).join('')
       + (ses.length ? `<p class="en-mh">Sesiones y reuniones</p><div class="en-lista">${ses.map(t => sesFila(t, h, false, true)).join('')}</div>` : '') + '</div>';
   }
@@ -120,6 +121,7 @@
   const PAGO = { mensual: 'al mes', trimestral: 'cada 3 meses', semestral: 'cada 6 meses', anual: 'al año', unico: 'en un solo pago' };
   function derHTML(cli) {
     const c = I().CL.find(x => x.id === cli), h = hoy(), a = C().acuerdo(c);
+    if (C().mal && C().mal()) return `<h2 class="en-h">Acuerdo y pagos</h2><p class="en-vacio">No se pudieron leer sus acuerdos o sus facturas: recarga la página.</p>`;   // never «Sin acuerdo» over a failed reading (lesson 94)
     const linea = [a && a.importe != null ? `${C().eur(a.importe)} ${PAGO[a.pago] || ''}`.trim() : 'Sin acuerdo: ponlo en «Cobros»', c && c.entregasDia ? `entregas antes del día ${c.entregasDia}` : ''].filter(Boolean).join(' · ');
     const l = C().vivos(cli).sort(C().orden), prox = C().proxima(cli, h), filas = [];
     if (prox && prox.virtual) filas.push({ t: `${C().nombre({ periodo: prox.mes, hasta: prox.hasta }, h)} · ${eurJ(prox.importe)}`, s: prox.tarde ? `con retraso: tocaba el ${corto(prox.emitida, h)}` : `se emite el ${corto(prox.emitida, h)}`, e: 'Sin emitir', k: 'sin' });   // D-304
@@ -284,11 +286,11 @@
 #mesa .en-mases{display:flex;flex-wrap:wrap;gap:4px 16px}
 #mesa .en-f{display:grid;grid-template-columns:24px minmax(0,1fr) auto;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line-2,var(--line))}
 #mesa .en-ck{justify-self:center}
-#mesa .en-q,#mesa .en-s,#mesa .en-p{display:grid;grid-template-columns:56px minmax(0,1fr);align-items:center;gap:10px;min-height:44px;margin:0;padding:4px 6px;border:0;border-radius:var(--r-sm);background:none;font:inherit;text-align:left;color:var(--ink);cursor:pointer;transition:background var(--d1) ease-out}
+#mesa .en-q,#mesa .en-s,#mesa .en-p{display:grid;grid-template-columns:56px minmax(0,1fr);align-items:center;gap:10px;min-height:44px;margin:0;padding:4px 6px;border:0;border-radius:var(--r-sm);background:none;font:inherit;text-align:left;color:var(--ink);cursor:pointer}
 #mesa .en-s{grid-template-columns:18px 56px minmax(0,1fr);border-top:1px solid var(--line-2,var(--line));border-radius:0}#mesa .en-s svg{width:16px;height:16px;color:var(--mute)}
-#mesa .en-s.ro{grid-template-columns:64px minmax(0,1fr);cursor:default;min-height:52px;padding:8px 0}#mesa .en-s.ro:hover{background:none}#mesa .en-sd{display:inline-flex;align-items:center;gap:6px}   /* the client's: its date where the deliveries' is (D-312) */
+#mesa .en-s.ro{grid-template-columns:64px minmax(0,1fr);cursor:default;min-height:52px;padding:8px 0}#mesa .en-s.ro:first-child{border-top:0}#mesa .en-s.ro:hover{background:none}#mesa .en-sd{display:inline-flex;align-items:center;gap:6px}   /* the client's: its date where the deliveries' is (D-312) */
 #mesa .en-p{grid-template-columns:minmax(0,1fr) auto;border-top:1px solid var(--line-2,var(--line));border-radius:0;padding:8px 0}
-#mesa .en-q:hover,#mesa .en-s:hover,#mesa .en-p:hover{background:var(--bg-2)}
+#mesa .en-q:hover,#mesa .en-s:hover,#mesa .en-p:hover{background:var(--bg-2);transition:background-color var(--d1) var(--ease)}   /* it appears in --d1, goes at once: no trail down a list (A49-10) */
 #mesa .en-q:focus-visible,#mesa .en-s:focus-visible,#mesa .en-p:focus-visible,#mesa .en-acu:focus-visible,#mesa .en-mas:focus-visible,#mesa .en-l:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
 #mesa .en-d{font-size:13px;color:var(--ink-2);font-variant-numeric:tabular-nums;white-space:nowrap}
 #mesa .en-f.pasada .en-d{color:var(--red);font-weight:600}
@@ -313,8 +315,8 @@
 #mesa .en-e{font-size:12.5px;font-weight:600;white-space:nowrap}#mesa .en-e.ok{color:var(--ok)}#mesa .en-e.tarde{color:var(--red)}#mesa .en-e.pend{color:var(--chg)}#mesa .en-e.sin{color:var(--mute);font-weight:400}
 #mesa .en-q svg,#mesa .en-mas svg,#mesa .en-l svg,#mesa .en-s svg{fill:none;stroke:currentColor;stroke-width:1.33;stroke-linecap:round;stroke-linejoin:round}
 #mesa .en-q svg :is(path,circle),#mesa .en-mas svg path,#mesa .en-l svg path,#mesa .en-s svg :is(path,circle){vector-effect:non-scaling-stroke}
-#mesa .en-f .en-t span.en-cad{display:inline;color:var(--acc-ink);font-weight:600}   /* a WeTransfer link expires: only Kevin sees it (D-312) */
+#mesa .en-f .en-t span.en-cad{display:inline;color:var(--chg);font-weight:600}   /* a WeTransfer link expires: only Kevin sees it (D-312) */
 #mesa .cont>.cont-der .en-t b,#mesa .cont>.cont-der .en-t span{white-space:normal;overflow:visible;text-overflow:clip}   /* the agreement's column, 280–340 px: its lines go on below, never cut (D-312) */
-@media (prefers-reduced-motion:reduce){#mesa :is(.en-q,.en-s,.en-p){transition:none}}
+@media (prefers-reduced-motion:reduce){#mesa .en-q:hover,#mesa .en-s:hover,#mesa .en-p:hover{transition:none}}
 `;
 })();

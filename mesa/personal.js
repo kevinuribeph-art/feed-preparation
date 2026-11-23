@@ -1834,6 +1834,7 @@
 #mesa .pp-md{display:flex;flex-direction:column;gap:2px;min-width:0;min-height:68px;padding:4px;border-radius:var(--cx-r);background:var(--panel)}
 #mesa .pp-md.hoy{box-shadow:var(--cx-hoy)}#mesa .pp-md.fuera{background:none}
 #mesa .pp-sd:hover,#mesa .pp-md:hover,#mesa .pp-dia:hover{background:var(--cx-hov);transition:background-color var(--d1) var(--ease)}   /* each day under the mouse, as the date's calendar: in --d1, gone at once (D-313, A49-10) */
+#mesa .pp-sd:hover,#mesa .pp-md:hover,#mesa .pp-dia:hover{background:var(--bg-3)}   /* Semana and Mes sit on a card of --bg-2, --cx-hov's tone, and the strip on a block that turns --bg-2 under the mouse: one step deeper, or the day would melt into it (D-313) */
 @media (prefers-reduced-motion:reduce){#mesa .pp-sd:hover,#mesa .pp-md:hover,#mesa .pp-dia:hover{transition:none}}
 #mesa .pp-mn{font-size:10.5px;color:var(--mute);line-height:1.2}#mesa .pp-md.hoy .pp-mn{color:var(--ink);font-weight:600}#mesa .pp-md.fuera .pp-mn{color:var(--cx-otro)}
 #mesa .pp-mt{display:block;min-width:0;padding:2px 5px;border-radius:var(--r-xs);background:var(--panel-2);box-shadow:var(--shadow-xs);font-size:11.5px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

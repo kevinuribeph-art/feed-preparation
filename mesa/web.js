@@ -118,7 +118,7 @@
       && (Array.isArray(t.clientes) ? t.clientes : t.cliente ? [t.cliente] : []).includes(cli) && (B.contenido || meses.includes(t.fecha.slice(0, 7))))   // de solo contenido, todas las suyas (D-312)
       .map(t => {
         const fin = t.fin && /^\d{4}-\d{2}-\d{2}$/.test(t.fin.fecha || '') && t.fin.fecha >= t.fecha ? t.fin.fecha : null;
-        return { cliente_id: cli, id: String(t.id).slice(0, 60), mes: t.fecha.slice(0, 7), nombre: String(t.txt || 'Sesión').slice(0, 80),
+        return { cliente_id: cli, id: String(t.id).slice(0, 60), mes: t.fecha.slice(0, 7), nombre: String(t.txt || (t.sesion && t.sesion.clase === 'reunion' ? 'Reunión' : 'Sesión')).slice(0, 80),
           inicio: X.madridISO(t.fecha, /^\d\d:\d\d$/.test(t.hora || '') ? t.hora : '00:00'), fin: fin ? X.madridISO(fin, '23:59') : null, sin_hora: !/^\d\d:\d\d$/.test(t.hora || ''),
           clase: t.sesion && t.sesion.clase === 'reunion' ? 'reunion' : 'sesion' };
       });

@@ -21291,7 +21291,7 @@
       ok(b && /Mensual o esporádico/.test(b.textContent), 'el menú no dice «Mensual o esporádico»: ' + (b && b.textContent)); mcCerrar(); await espera(40);
       mcElegir('Nuevo cliente'); const f = await hasta(() => q('.detail form.nctipos'), 2000, 'las tarjetas');
       igual(qa('.detail .nctipos .expop b').map(x => x.textContent), ['Gestión de redes', 'Solo contenido', 'Esporádico'], 'las tres tarjetas');
-      { const t = f.querySelector('input[value="contenido"]').closest('label').textContent; ok(/sin feed ni meses/.test(t) && !/Cada mes/.test(t), 'la tarjeta de solo contenido promete meses: ' + t); }   // al día a propósito (D-312)
+      { const l = f.querySelector('input[value="contenido"]').closest('label'), t = l.textContent, cs = W.getComputedStyle(l.querySelector('.expd span')); ok(/sin feed ni meses/.test(t) && !/Cada mes/.test(t), 'la tarjeta de solo contenido promete meses: ' + t); ok(/pretty/.test(cs.textWrapStyle || cs.textWrap || ''), 'la tarjeta deja una palabra sola (text-wrap)'); }   // al día a propósito (D-312)
       ok(f.querySelector('input[value="redes"]').checked, 'no empieza en «Gestión de redes»'); ok(!q('.detail [data-form="newclient"]'), 'pide los datos antes del tipo');
       // solo contenido
       f.querySelector('input[value="contenido"]').click(); f.requestSubmit();
@@ -21762,6 +21762,7 @@
       await hasta(() => M.sesiones && M.sesiones._test, 8000, 'sesiones.js');
       await M.sesiones._test.crear({ txt: 'Reunión de temporada', clase: 'reunion', fecha: '2026-12-03', hora: '11:00', clientes: [CLIENTE] });
       await M.sesiones._test.crear({ txt: 'Sesión vieja', clase: 'foto', fecha: '2026-11-12', hora: '10:00', clientes: [CLIENTE] });
+      await M.sesiones._test.crear({ txt: 'Sesión sin fecha', clase: 'foto', clientes: [CLIENTE] });   // su fecha es opcional: no puede desaparecer (lo vio el ratón real)
       M._in.render();
       const iz = () => q('.main > .cont > .cont-izq');
       await hasta(() => /Reels de diciembre/.test(iz().textContent) && /Fotos de marzo/.test(iz().textContent), 3000, 'todas sus entregas en su columna: ' + iz().textContent.slice(0, 200));
@@ -21781,8 +21782,9 @@
       ok(!q('.side > .cal .cfold') && !q('.side > .cal .ctot') && !q('.side > .cal .csync') && !q('.side > .cal .cpaso'), 'el calendario con pliegue, total, Notion o pasos');
       // sus sesiones, debajo
       const se = q('.main > .cont > .cont-side > .cont-ses');
-      await hasta(() => /Sesión vieja/.test(se.textContent), 3000, 'sus sesiones leídas');
-      ok(se && /Sesiones 1 próxima/.test(se.querySelector('.en-h').textContent) && /Reunión de temporada/.test(se.textContent) && /Pasadas/.test(se.textContent) && /Sesión vieja/.test(se.textContent), 'sus sesiones: ' + (se && se.textContent));
+      await hasta(() => /Sesión vieja/.test(se.textContent) && /Sesión sin fecha/.test(se.textContent), 3000, 'sus sesiones leídas: ' + se.textContent);
+      ok(se && /Sesiones 2 próximas/.test(se.querySelector('.en-h').textContent) && /Reunión de temporada/.test(se.textContent) && /Pasadas/.test(se.textContent) && /Sesión vieja/.test(se.textContent), 'sus sesiones: ' + (se && se.textContent));
+      igual([...se.querySelector('.en-lista').querySelectorAll('.en-s')].map(x => x.querySelector('.en-d').textContent + ' ' + x.querySelector('b').textContent), ['Sin fecha Sesión sin fecha', '3 dic Reunión de temporada'], 'las próximas, la sin fecha arriba');
       ok(se.querySelector('[data-en="nueva-sesion"]') && se.querySelector('[data-en="nueva-reunion"]'), 'sin «+ Sesión» o «+ Reunión»');
       se.querySelector('[data-en="nueva-reunion"]').click();
       const d = await hasta(() => dialogo() && dialogo().dataset.dlg === 'pp-sesion' && dialogo(), 4000, '«+ Reunión»');
@@ -21828,6 +21830,7 @@
       ok(/Entregas/.test(t()) && /Reunión SM4/.test(t()) && /Fotos de otoño/.test(t()) && /entregada el 27 sep/.test(t()) && /Septiembre/.test(t()), 'su página: ' + t().slice(0, 400));
       ok(W.document.querySelector('#movil .fila.mk-pasado'), 'la pasada sin su rojo');
       ok(W.document.querySelector('#movil [data-a="enlace"][data-u="https://ejemplo.test/otono"]'), 'la entregada sin su enlace');
+      ok((W.document.querySelector('#movil [data-a="enlace"] .chev') || { innerHTML: '' }).innerHTML.includes('M15 3h6v6'), 'su enlace, que se abre fuera, lleva «›» (revisión en frío)');
       ok(W.document.querySelector('#movil [data-ir^="ses/"]'), 'su sesión no se abre');
       W.location.hash = '#hoy'; await espera(200); W.location.hash = `#mes/${CLIENTE}-2025-01/lista`;   // un tablero suyo que ya no está: por su clave
       await hasta(() => W.location.hash === '#cli/' + CLIENTE, 6000, 'la ruta de un tablero que ya no está no lleva a su página: ' + W.location.hash);
@@ -21893,6 +21896,7 @@
       ok(/2 en camino · 2 entregadas/.test(v.querySelector('.en-h').textContent), 'la cuenta: ' + v.querySelector('.en-h').textContent);
       ok(!/Sesión oculta|Sesión pasada|sin entregar|caduca|sin enlace/.test(v.innerText), 'se ve algo que no: ' + v.innerText.slice(0, 400));
       ok(v.querySelector('a[href="https://ejemplo.test/ago"]') && /En camino/.test(v.innerText), 'lo entregado sin su enlace o lo que viene sin «En camino»');
+      const s1 = v.querySelector('.en-lista .en-s.ro'); ok(s1 && W.getComputedStyle(s1).borderTopWidth === '0px', 'su primera sesión lleva la raya de arriba (el portal no)');
       const lado = q('.main > .cont > .vc-lado'); ok(lado && lado.querySelector('[data-vc="pagos"]') && lado.getBoundingClientRect().left >= v.getBoundingClientRect().right - 1, 'sin «Tus pagos» a la derecha');
       ok(!q('.main > .cont > .cont-der').getClientRects().length && !q('.main > .cont > .cont-side').getClientRects().length, 'se ve lo de Kevin');
     } finally { relojVuelve(); await vistaCliente(false); }
@@ -21903,18 +21907,75 @@
     await M.sesiones._test.crear({ txt: 'Sesión de marzo', clase: 'foto', fecha: '2027-03-10', clientes: [CLIENTE] });
     await M.sesiones._test.crear({ txt: 'Sesión de agosto', clase: 'foto', fecha: '2026-08-10', clientes: [CLIENTE] });
     await M.sesiones._test.crear({ txt: 'Oculta', clase: 'foto', fecha: '2026-11-10', clientes: [CLIENTE], visible: false });
+    await M.sesiones._test.crear({ txt: 'Sin nombre', clase: 'reunion', fecha: '2026-12-01', clientes: [CLIENTE], visible: true });
+    { const r = (await M.personal.tareas()).find(x => x.txt === 'Sin nombre'), raw = await M._in.idbGet('tareas', r.id); raw.txt = ''; await M._in.idbPut('tareas', r.id, raw); }   // una reunión sin nombre: «Reunión», como la «Vista cliente» (revisión en frío)
     await conWeb(async sv => {
       wbSesion(); M._in.renderBar(); await espera(60);
       ok(q('.bar .webbtn'), 'sin «Web del cliente» en su página');
       const P = await M.web.paquete(); ok(P && !P.error, 'el paquete sin tablero: ' + json(P && P.error));
-      igual((P.sesiones || []).map(x => x.nombre).sort(), ['Sesión de agosto', 'Sesión de marzo'], 'las sesiones de cualquier mes');
+      igual((P.sesiones || []).map(x => x.nombre).sort(), ['Reunión', 'Sesión de agosto', 'Sesión de marzo'], 'las sesiones de cualquier mes (la reunión sin nombre, «Reunión»)');
       const r = await M.web.enviar(); ok(r.ok, 'no se envió: ' + json(r));
-      igual((sv.db.sesiones || []).map(x => x.nombre).sort(), ['Sesión de agosto', 'Sesión de marzo'], 'las sesiones en la web');
+      igual((sv.db.sesiones || []).map(x => x.nombre).sort(), ['Reunión', 'Sesión de agosto', 'Sesión de marzo'], 'las sesiones en la web');
       ok(Object.keys(W.localStorage).some(k => /^mesa-web-huella:/.test(k) && k.endsWith(':cliente:' + CLIENTE)), 'la huella no es por cliente: ' + Object.keys(W.localStorage).filter(k => /huella/.test(k)).join(' '));
       const ag = (await M.personal.tareas()).find(x => x.txt === 'Sesión de agosto'); await M.personal.borrarSesion(ag.id); await espera(120);
       const r2 = await M.web.enviar(); ok(r2.ok, 'no se envió otra vez: ' + json(r2));
-      igual((sv.db.sesiones || []).map(x => x.nombre), ['Sesión de marzo'], 'la sesión quitada sigue en la web');
+      igual((sv.db.sesiones || []).map(x => x.nombre).sort(), ['Reunión', 'Sesión de marzo'], 'la sesión quitada sigue en la web');
     });
+  });
+  prueba('SM9', 'Arreglos de las revisiones en frío del lote C (D-312): su calendario vuelve tras la «Vista cliente» y sin «Feed · Historias» en su barra; «+ Sesión» y «+ Reunión» bajo las próximas, antes de «Pasadas»; una lectura fallida de sus sesiones o de sus acuerdos no se toma por «ninguna»; el calendario a su alto, sin cortarse; el interruptor a la derecha a 720; «caduca» en el ámbar de aviso; las filas sin estela; su «Vista cliente» en una columna bajo 1100 px, como el portal; borrar el cliente, un clic cada vez', async () => {
+    await tableroContenido();
+    relojEn('2026-11-24T10:00:00+01:00');
+    const marco = W.frameElement, ancho0 = marco.style.width;
+    try {
+      const E = M._in.ent, a = await E.nueva({ cliente: CLIENTE, fecha: '2026-11-05', que: 'Con WeTransfer', enlace: 'https://we.tl/t-sm9' }); await E.cambiar(a.id, { entregada: '2026-11-04' });
+      await hasta(() => M.sesiones && M.sesiones._test, 8000, 'sesiones.js');
+      await M.sesiones._test.crear({ txt: 'Reunión con hora', clase: 'reunion', fecha: '2026-11-11', hora: '11:00', clientes: [CLIENTE] });
+      await M.sesiones._test.crear({ txt: 'Vieja', clase: 'foto', fecha: '2026-10-02', clientes: [CLIENTE] });
+      await M.sesiones._test.crear({ txt: 'Próxima', clase: 'foto', fecha: '2026-12-02', clientes: [CLIENTE] });
+      await coCliente({ importe: 500, dia: 1, plazo: 15 });   // «Tus pagos» en su «Vista cliente»
+      await M.addClient({ id: CLIENTE2, name: NOMBRE2 }); await M.openClient(CLIENTE2); await M.openClient(CLIENTE);   // its page again, with the test's clock
+      const se = () => q('.main > .cont > .cont-side > .cont-ses'), cal = () => q('.main > .cont > .cont-side > .cal');
+      await hasta(() => /Próxima/.test(se().textContent) && /Vieja/.test(se().textContent), 3000, 'sus sesiones');
+      // the buttons under the next ones, before «Pasadas» (lesson 247)
+      const pas = [...se().querySelectorAll('.en-mh')].find(x => x.textContent === 'Pasadas'), bt = se().querySelector('[data-en="nueva-sesion"]');
+      ok(pas && bt && bt.compareDocumentPosition(pas) & 4, '«+ Sesión» va al pie de «Pasadas»');
+      // the calendar at its own height: nothing cut (November, six weeks, a chip with its time)
+      const cb = cal().querySelector('.calbody'); if (q('.main > .cont > .cont-side').clientHeight > 560) ok(cb.scrollHeight <= cb.clientHeight + 1, 'el calendario se corta: ' + json([cb.scrollHeight, cb.clientHeight]));
+      // the rows: their background only in the state on (no trail, A49-10)
+      igual(msDe(W.getComputedStyle(q('.cont-izq .en-q')).transitionDuration.split(',')[0]), 0, 'una fila deja estela');
+      // «caduca», in the amber of a notice (--chg), never the terracotta of an action
+      const cad = q('.cont-izq .en-cad'); ok(cad && rgbDe(W.getComputedStyle(cad).color).join() === rgbDe(W.getComputedStyle(q('#mesa')).getPropertyValue('--chg')).join(), '«caduca» no va en --chg: ' + (cad && W.getComputedStyle(cad).color));
+      // the vista cliente and back: its calendar drawn again, no «Feed · Historias» in its bar
+      await vistaCliente(true); await espera(150); await vistaCliente(false); await espera(200);
+      await hasta(() => cal().querySelectorAll('.cday[data-day]').length >= 28 && !cal().hidden, 3000, 'su calendario no vuelve tras la «Vista cliente»: ' + cal().querySelectorAll('.cday').length);
+      ok(!q('.bar .hvsw'), '«Feed · Historias» en su barra');
+      // a failed reading of its sessions, never «Ninguna próxima»; of its agreements, never «Sin acuerdo»
+      const idbAll0 = M._in.idbAll, mal0 = M._in.cob.mal;
+      try {
+        M._in.idbAll = st => st === 'tareas' ? Promise.reject(new Error('fallo SM9')) : idbAll0(st);
+        W.document.dispatchEvent(new W.CustomEvent('mesa-tareas'));
+        await hasta(() => /No se pudieron leer sus sesiones/.test(se().textContent), 3000, 'una lectura fallida de las sesiones: ' + se().textContent);
+        ok(!/Ninguna próxima|Pasadas/.test(se().textContent), 'con la lectura fallida dice «ninguna» o enseña las de antes');
+        M._in.cob.mal = () => true; M._in.render(); await espera(80);
+        ok(/No se pudieron leer sus acuerdos/.test(q('.cont-der').textContent) && !/Sin acuerdo/.test(q('.cont-der').textContent), 'con los acuerdos sin leer: ' + q('.cont-der').textContent);
+      } finally { M._in.idbAll = idbAll0; M._in.cob.mal = mal0; W.document.dispatchEvent(new W.CustomEvent('mesa-tareas')); M._in.render(); }
+      await hasta(() => /Próxima/.test(se().textContent), 3000, 'las sesiones de vuelta');
+      // its vista cliente below 1100 px, in one column, as the portal (lesson 178)
+      marco.style.width = '1050px'; W.dispatchEvent(new W.Event('resize')); await vistaCliente(true); await espera(200);
+      const iz = q('.main > .cont > .cont-izq').getBoundingClientRect(), la = q('.main > .cont > .vc-lado').getBoundingClientRect();
+      ok(la.top >= iz.bottom - 1, 'a 1050 px la «Vista cliente» no va en una columna: ' + json([iz.bottom, la.top]));
+      await vistaCliente(false);
+      // at 720 px the switch on the right, as at 1440
+      marco.style.width = '720px'; W.dispatchEvent(new W.Event('resize')); await espera(150);
+      const sw = q('.bar .sw').getBoundingClientRect(), br = q('.bar').getBoundingClientRect();
+      ok(br.right - sw.right < 40, 'a 720 el interruptor no va a la derecha: ' + json([sw.right, br.right]));
+    } finally { marco.style.width = ancho0; W.dispatchEvent(new W.Event('resize')); relojVuelve(); await vistaCliente(false); }
+    // deleting the client: a second click while it finds out what goes with it waits (no message of the API to Kevin)
+    q('.tabs .tedit').click(); const del = await hasta(() => q('.detail [data-act="delclient"]'), 3000, '«Eliminar»');
+    del.click(); del.click(); await espera(250);
+    ok(M._in.CL.find(c => c.id === CLIENTE) && q('.detail [data-act="delclient"]') && !/tableros: true/.test(coToast() || ''), 'un segundo clic borra antes de tiempo o enseña el mensaje de la API');
+    await hasta(() => /tablero viejo, vacío/.test(del.textContent), 3000, 'el botón no avisa de su tablero: ' + del.textContent);
+    M._in.closeDetail();
   });
   prueba('VD7', 'La ventana de la «Vista cliente», tras la revisión en frío (D-295): sin nada leído de su web no dice «Aún no hay comentarios» (no sale «Comentarios»); con una foto horizontal en una ventana mediana, nunca menos de 520 px de alto, la foto entera dentro; en un cliente de solo contenido, la columna derecha va como la del portal (360 px; sin calendario desde D-312, la lista y «Tus pagos» en 1,6 : 1)', async () => {
     await tablero([pub(1), pub(2)]);
@@ -22117,14 +22178,19 @@
       ok(rd.some(r => dc.matches(sin(r.selectorText))), 'en su página el fondo no llega al día'); reposo0(dc, 'su página'); cursor(dc, 'un día de su página');
     } finally { if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes); }
     // la página personal: la tira de días de cada cliente, Semana y Mes de Tareas
-    const rp = conFondo(/\.pp-(sd|md|dia):hover/, 'la página personal');
-    for (const k of ['sd', 'md', 'dia']) ok(rp.some(r => new RegExp(`\\.pp-${k}:hover`).test(r.selectorText)), `sin el fondo en .pp-${k}`);
+    const rp = reglasDe(/\.pp-(sd|md|dia):hover/), fondo = r => r.style.getPropertyValue('background') || r.style.getPropertyValue('background-color');
+    ok(['sd', 'md', 'dia'].every(k => rp.some(r => new RegExp(`\\.pp-${k}:hover`).test(r.selectorText) && /background-color/.test(r.style.getPropertyValue('transition')) && /--d1/.test(r.style.getPropertyValue('transition')))), 'la página personal: un día sin aparecer con --d1');
+    ok(['sd', 'md', 'dia'].every(k => rp.some(r => new RegExp(`\\.pp-${k}:hover`).test(r.selectorText) && /--bg-3/.test(fondo(r)))), 'la página personal: un día sin su tono propio (va sobre un fondo del tono de --cx-hov: la tarjeta de Tareas, el bloque al pasar)');
     ok(reglasReduce(/\.pp-(sd|md|dia):hover/).some(r => r.style.transition === 'none' && ['sd', 'md', 'dia'].every(k => new RegExp(`\\.pp-${k}:hover`).test(r.selectorText))), 'la página personal con «reducir movimiento» sigue animando');
     await paginaAbierta();
     try {
       const tira = await hasta(() => q('.pp-blq .pp-dia'), 3000, 'la tira de un cliente'); ok(rp.some(r => tira.matches(sin(r.selectorText))), 'la tira sin el fondo'); reposo0(tira, 'la tira');
       await ppClic('[data-pp="plegar"][data-p="tareas"]');
-      await ppClic('.pp-tvs [data-v="semana"]'); const sd = await hasta(() => q('.pp-sd'), 3000, 'Semana'); ok(rp.some(r => sd.matches(sin(r.selectorText))), 'Semana sin el fondo'); reposo0(sd, 'Semana'); cursor(sd, 'un día de Semana');
+      // el fondo al pasar se distingue del día y de lo que hay detrás: si no, el día se funde y no «hace algo»
+      const hondo = M._in.root() && W.getComputedStyle(q('#mesa')).getPropertyValue('--bg-3').trim(), tarjeta = W.getComputedStyle(q('.pp-tareas')).backgroundColor;
+      ok(rgbDe(tarjeta).join() !== rgbDe(hondo).join(), 'Semana y Mes: su fondo al pasar es el de su tarjeta');
+      await ppClic('.pp-tvs [data-v="semana"]'); const sd = await hasta(() => q('.pp-sd'), 3000, 'Semana');
+      ok(rgbDe(W.getComputedStyle(q('.pp-sd:not(.pas):not(.hoy)') || sd).backgroundColor).join() !== rgbDe(hondo).join(), 'Semana: su fondo al pasar es el de reposo'); ok(rp.some(r => sd.matches(sin(r.selectorText))), 'Semana sin el fondo'); reposo0(sd, 'Semana'); cursor(sd, 'un día de Semana');
       await ppClic('.pp-tvs [data-v="mes"]'); const md = await hasta(() => q('.pp-md'), 3000, 'Mes'); ok(rp.some(r => md.matches(sin(r.selectorText))), 'Mes sin el fondo'); reposo0(md, 'Mes'); cursor(md, 'un día de Mes');
       const fuera = q('.pp-md.fuera'); if (fuera) ok(rp.some(r => fuera.matches(sin(r.selectorText))), 'un día de otro mes, sin el fondo');
       await ppClic('.pp-tvs [data-v="lista"]');
@@ -22140,6 +22206,7 @@
     await tableroContenido();
     await hasta(() => M.cobrosUI, 8000, 'cobros.js');
     await CB().acuGuardar(CLIENTE, AU_ACU);
+    const n2 = await CB().acuNuevo(CLIENTE, '2027-01'); await CB().acuCambiar(CLIENTE, n2.id, { importe: 3000, dia: 1, meses: 3, renueva: true });   // two: the old one folded, with its summary
     ok((await M.cobros.cargar([{ id: 'cb1-1', cliente: CLIENTE, periodo: '2026-05', hasta: '2026-10', importe: 2700, factura: 'CB1-1', emitida: '2026-05-01', vence: '2026-05-16', cobrada: '2026-05-10' }])).ok, 'cargar');
     const dentro = (cont, els, n) => { const c = cont.getBoundingClientRect(); for (const e of els) { const r = e.getBoundingClientRect(); ok(r.right <= c.right + .5 && r.left >= c.left - .5, `${n}: «${e.textContent.trim().slice(0, 40)}» se sale (${Math.round(r.left)}–${Math.round(r.right)} de ${Math.round(c.left)}–${Math.round(c.right)})`); } };
     const entero = (els, n) => { for (const e of els) ok(e.scrollWidth <= e.clientWidth + 1, `${n}: «${e.textContent.trim().slice(0, 40)}» se corta`); };
@@ -22147,10 +22214,14 @@
       await coFicha(CLIENTE, 'cobros');
       const pane = await hasta(() => q('.detail[data-dlg="editclient"] .co-pane .co-ac-h'), 3000, '«Cobros»') && q('.detail[data-dlg="editclient"] .co-pane');
       pane.style.width = '280px'; pane.style.maxWidth = '280px'; await espera(60);
-      const h = q('.co-pane .co-ac-h'), b = h.querySelector('b'), ch = h.querySelector('.co-ach');
-      ok(/Desde/.test(b.textContent) && ch, 'la cabecera: ' + h.textContent);
-      dentro(h, [b, ch], 'la cabecera del acuerdo'); entero([b], 'la cabecera del acuerdo');
-      ok(ch.getBoundingClientRect().left >= b.getBoundingClientRect().right - 1, '«Ahora» no va a la derecha');
+      for (const h of qa('.co-pane .co-ac-h')) {
+        const b = h.querySelector('b'), ch = h.querySelector('.co-ach'), sub = h.querySelector('.co-acs');
+        if (!ch) continue;
+        dentro(h, [b, ch, ...(sub ? [sub] : [])], 'la cabecera de un acuerdo'); entero([b, ...(sub ? [sub] : [])], 'la cabecera de un acuerdo');
+        ok(ch.getBoundingClientRect().left >= b.getBoundingClientRect().right - 1, '«Ahora» o «Terminado» no van a la derecha');
+        ok(!/\d (meses|mes|año|años|€)\b/.test(b.textContent) && !/\b(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic) \d{4}/.test(b.textContent), 'una cifra se puede separar de su unidad: ' + JSON.stringify(b.textContent));
+      }
+      ok(qa('.co-pane .co-ac-h .co-acs').length, 'sin un acuerdo plegado con su resumen');
       dentro(pane, [...q('.co-pane .co-acu-t').children].filter(e => e.getClientRects().length), 'el título');
     } finally { M._in.closeDetail(); }
     // «Acuerdo y pagos» de su página, a 280 px
@@ -22413,15 +22484,15 @@
       await hasta(() => cards().length === 2, 4000, 'las dos tarjetas');
       ok(/Acuerdos/.test(q('.detail .co-acu-t h4').textContent), 'el título no es «Acuerdos»');
       const [c0, c1] = cards(); igual([c0.dataset.acu, c1.dataset.acu], [n2.id, CLIENTE + '-a1'], 'el orden, del más nuevo al más viejo');
-      ok(/Desde may 2026 · cada mes · se renueva cada 6 meses/.test(c0.textContent) && /Ahora/.test(c0.querySelector('.co-ach').textContent) && !c0.classList.contains('pleg'), 'el de hoy: ' + c0.textContent.slice(0, 120));
+      ok(/Desde may 2026 · cada mes · se renueva cada 6 meses/.test(c0.textContent.replace(/\u00a0/g, ' ')) && /Ahora/.test(c0.querySelector('.co-ach').textContent) && !c0.classList.contains('pleg'), 'el de hoy: ' + c0.textContent.slice(0, 120));
       ok(c0.querySelector('tr.co-f[data-id="al2-nov"]') && !c0.querySelector('tr.co-f[data-id="al2-feb"]'), 'las facturas del de hoy');
-      ok(c1.classList.contains('pleg') && /ene 2026 – abr 2026/.test(c1.textContent) && /Personalizado/.test(c1.textContent) && /cuatro pagos de 380 €/.test(c1.textContent) && /Terminado/.test(c1.textContent), 'el terminado: ' + c1.textContent);
+      { const t1 = c1.textContent.replace(/\u00a0/g, ' '); ok(c1.classList.contains('pleg') && /ene 2026 – abr 2026/.test(t1) && /Personalizado/.test(t1) && /cuatro pagos de 380 €/.test(t1) && /Terminado/.test(t1), 'el terminado: ' + c1.textContent); }   // al día a propósito: espacios duros (D-315)
       ok(/Incluye 12 fotos al mes/.test(c0.querySelector('.co-acu-inc').textContent), 'lo que incluye el paquete');   // en una línea de texto (D-311), a propósito
       c1.querySelector('[data-co="acu-pleg"]').click(); await hasta(() => !cards()[1].classList.contains('pleg') && cards()[1].querySelector('tr.co-f[data-id="al2-feb"]'), 3000, 'desplegar el terminado');
       // «Nuevo acuerdo»: empieza el mes que viene, abierto, con «Cubre desde» listo
       q('.detail [data-co="acu-nuevo"]').click();
       await hasta(() => cards().length === 3, 3000, 'el acuerdo nuevo'); const nv = cards()[0];
-      ok(/Desde dic 2026/.test(nv.textContent) && /Empieza/.test(nv.querySelector('.co-ach').textContent), 'el nuevo: ' + nv.textContent.slice(0, 80));
+      ok(/Desde dic 2026/.test(nv.textContent.replace(/\u00a0/g, ' ')) && /Empieza/.test(nv.querySelector('.co-ach').textContent), 'el nuevo: ' + nv.textContent.slice(0, 80));
       await hasta(() => D.activeElement && D.activeElement.closest && D.activeElement.closest(`[data-acu="${nv.dataset.acu}"]`) && D.activeElement.classList.contains('mx-in'), 2000, 'el foco en «Cubre desde»');
       ok(nv.querySelector('[data-k="termina"]') && nv.querySelector('[data-k="termina"]').type === 'month', 'sin «Termina en»');
       const idN = nv.dataset.acu;
@@ -22546,12 +22617,12 @@
       await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 450, dia: 10, plazo: 15, desde: '2026-05', meses: 6, renueva: true });
       const hoy = () => CB().acuerdos(CLIENTE).find(a => a.desde === '2026-05');
       await CB().dlgCliente(CLIENTE, 'cobros'); let h = await hasta(() => q('.detail .co-ac:not(.pleg) .co-ac-h'), 3000, 'la cabecera');
-      ok(/cada mes · se renueva cada 6 meses/.test(h.textContent), 'la cabecera de uno que se renueva: ' + h.textContent);
+      ok(/cada mes · se renueva cada 6 meses/.test(h.textContent.replace(/\u00a0/g, ' ')), 'la cabecera de uno que se renueva: ' + h.textContent);   // al día a propósito: las unidades con espacio duro (D-315)
       M._in.closeDetail(); await espera(40);
       await CB().acuNuevo(CLIENTE, '2026-12');
       const l = CB().resumenA(hoy()); ok(/Ahora cubre nov 2026 ·/.test(l) && !/nov 2026 – nov 2026/.test(l) && /un pago de 450 €/.test(l) && !/seis pagos/.test(l), 'la línea del cortado: ' + l);
-      await CB().dlgCliente(CLIENTE, 'cobros'); h = await hasta(() => qa('.detail .co-ac-h').find(x => /may 2026/.test(x.textContent)), 3000, 'la cabecera del cortado');
-      ok(/hasta nov 2026/.test(h.textContent) && !/se renueva/.test(h.textContent), 'la cabecera del cortado: ' + h.textContent);
+      await CB().dlgCliente(CLIENTE, 'cobros'); h = await hasta(() => qa('.detail .co-ac-h').find(x => /may 2026/.test(x.textContent.replace(/\u00a0/g, ' '))), 3000, 'la cabecera del cortado');
+      ok(/hasta nov 2026/.test(h.textContent.replace(/\u00a0/g, ' ')) && !/se renueva/.test(h.textContent), 'la cabecera del cortado: ' + h.textContent);
       M._in.closeDetail(); await espera(40);
       await vistaCliente(true); M._in.render(); await espera(120);
       const p = await hasta(() => q('.main > .vc-lado [data-vc="pagos"] .co-vh'), 3000, '«Tus pagos»');
@@ -22566,7 +22637,7 @@
       ok(/ago 2026 – nov 2026/.test(sm) && /un pago de 1800 €/.test(sm) && !/dos pagos/.test(sm) && /se factura el día 1/.test(sm), 'el semestral cortado: ' + sm);
       await M._test.cobBorrarTodo(); await CB().acuGuardar(CLIENTE, { pago: 'semestral', importe: 2700, dia: 1, plazo: 15, desde: '2026-05', meses: 6, renueva: true });
       await CB().dlgCliente(CLIENTE, 'cobros'); h = await hasta(() => q('.detail .co-ac:not(.pleg) .co-ac-h'), 3000, 'la cabecera del semestral');
-      ok(/cada 6 meses · se renueva/.test(h.textContent) && !/se renueva cada/.test(h.textContent), 'la cabecera repite el ciclo: ' + h.textContent);
+      ok(/cada 6 meses · se renueva/.test(h.textContent.replace(/\u00a0/g, ' ')) && !/se renueva cada/.test(h.textContent), 'la cabecera repite el ciclo: ' + h.textContent);
     } finally { relojVuelve(); M._in.closeDetail(); await vistaCliente(false); }
   });
   prueba('AR2', '«+ Factura» de un acuerdo busca su hueco entre sus facturas (revisión del lote B, D-305): con la factura de diciembre del acuerdo nuevo ya hecha, el de ahora sigue ofreciendo «Factura de noviembre»', async () => {

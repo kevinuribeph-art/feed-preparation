@@ -23768,6 +23768,47 @@
     } finally { M._in.closeDetail(); await limpiar(); }
   });
 
+  // el color de una casilla de la imagen del feed (D-005): la media de un cuadrado de 9 px dentro de su foto, lejos de su texto
+  async function ffColor(blob, i) {
+    const bmp = await W.createImageBitmap(blob), c = D.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
+    const x = c.getContext('2d'); x.drawImage(bmp, 0, 0); bmp.close();
+    const px = (i % 3) * 361 + Math.round(358 * 0.62), py = 250 + Math.floor(i / 3) * 480 + Math.round(477 * 0.8), d = x.getImageData(px, py, 9, 9).data;
+    const m = [0, 0, 0]; for (let k = 0; k < d.length; k += 4) { m[0] += d[k]; m[1] += d[k + 1]; m[2] += d[k + 2]; }
+    return m.map(v => Math.round(v / (d.length / 4)));
+  }
+  prueba('FF6', 'La imagen del feed enseña lo que el feed (feed continuo, pieza 3b; D-005, respuesta 7.4): el mes anterior sale de su propio tablero, con lo oculto otra vez y sin lo cambiado solo en la franja; con un tablero que no es el más nuevo, sin sus fijadas ni sus huecos', async () => {
+    try {
+      await limpiar();
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: FD_OCT, cycleDay: 1, slots: [fcSlot('ff6-o1', '4.1', 20, FD_OCT), fcSlot('ff6-o2', '4.2', 22, FD_OCT), fcSlot('ff6-o3', '4.3', 24, FD_OCT)], past: [], force: true });
+      await poner('ff6-o1', [await foto('ff6-o1.jpg', 1200, 1500, '#c03030')]);
+      await poner('ff6-o2', [await foto('ff6-o2.jpg', 1200, 1500, '#c03030')]);
+      await poner('ff6-o3', [await foto('ff6-o3.jpg', 1200, 1500, '#c03030')]);
+      M._in.S.fillers = 1; M._in.S.pins = ['ff6-o3']; M._in.save(); await M.flush();   // octubre con un hueco y una fijada de antes
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, cycleDay: 1, slots: [pub(1), pub(2), pub(3)], past: [], force: true });
+      for (const n of [1, 2, 3]) await poner(`r${n}`, [await foto(`ff6-n${n}.jpg`, 1200, 1500, '#30a040')]);
+      const [azul] = await M.addFiles([await foto('ff6-azul.jpg', 1200, 1500, '#3040c0')]);
+      await M.flush();
+      // en la franja de antes: o1 cambiada por la azul (solo en la franja) y o2 oculta
+      const pv = M._in.S.prev, p1 = pv.find(p => p.id === 'ff6-o1'), p2 = pv.find(p => p.id === 'ff6-o2');
+      ok(p1 && p2, 'noviembre no tiene octubre en S.prev: ' + json(pv.map(p => p.id)));
+      Object.assign(p1, { own: true, photos: [azul] }); p2.hidden = true; M._in.save(); await M.flush();
+      let r = await M.render('clean');
+      ok(r && !r.error && r.check.ok, 'la imagen no cuadra: ' + json(r));
+      igual([r.posts, r.fresh], [6, 3], 'la imagen no enseña las tres de octubre (la oculta, otra vez)');
+      const cols = []; for (let i = 3; i < 6; i++) cols.push(await ffColor(M.out.clean, i));
+      ok(cols.every(c => c[0] > c[2] + 60), 'debajo no van las fotos de octubre de su tablero (lo cambiado en la franja no cuenta): ' + json(cols));
+      // octubre abierto (no es el más nuevo): sin su hueco ni su fijada; noviembre (el de después) no sale
+      await fdAct(fdO);
+      r = await M.render('clean');
+      ok(r && !r.error && r.check.ok, 'la imagen de octubre no cuadra: ' + json(r));
+      igual([r.pinned, r.posts, r.height], [0, 3, 250 + 477 + 40], 'octubre (no es el más nuevo) lleva su fijada o su hueco');
+      // noviembre (el más nuevo), con su hueco y su fijada: como siempre
+      await fdAct(fdN); M._in.S.fillers = 1; M._in.S.pins = ['r2']; M._in.save(); await M.flush();
+      r = await M.render('clean');
+      igual([r.pinned, r.posts, r.check.ok], [1, 6, true], 'noviembre (el más nuevo) sin su fijada');
+    } finally { await limpiar(); }
+  });
+
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;
   $('resumen').textContent = `${T.length} pruebas listas.`;

@@ -8165,22 +8165,38 @@ ${TK_FUENTES}
   // The later months are not drawn, but their place is kept: blank cells at the start (their count mod 3) so every
   // photo sits in the same row/column as in the mesa. Fillers («+ Hueco») drawn black after the pinned posts, with their
   // preview if they have one (D-049), as in the mesa. `check` compares each drawn post with its mesa position.
+  // Since the feed continuo (pieza 3b, D-322) it shows what the feed shows under that month: the month before the board's first comes
+  // from its own board (the one that owns it in the feed, D-318: its posts of that month, as they are, with what was hidden or changed
+  // only in the strip, S.prev, not applied), or Notion's when no board holds it; one board back, as before. The pinned posts and the
+  // fillers only when the open board is the newest (those of an older board go by their date, as in the feed).
+  async function mesAnteriorFeed() {
+    const pm = prevMonth(S.month), k = MB.some(b => monthsOf(b.month, b.span).includes(pm)) ? feedDueno(pm) : null;
+    if (k && k !== S.key) {
+      const T = feedTablero(k) || await memLeer(k); if (!T || !S) return [];
+      return T.slots.filter(s => vivo(s) && mesDe(s, T) === pm && !S.slots.some(x => x.id === s.id)).map(s => {
+        const f = s.photos[0] && M.files[s.photos[0]] ? s.photos[0] : null;
+        return { name: s.name, type: s.type, date: s.date, photos: s.photos, fid: f, item: s, B: T, thumb: null, pin: isPinned(s, T) };
+      });
+    }
+    return pastPosts(S).slice().sort((a, b) => ts(b.date) - ts(a.date)).map(p => ({ name: p.name, type: p.type, date: p.date, photos: [], fid: null, item: p, B: null, thumb: M.pastThumbs[p.id] || M.pastPending[p.id] ? p.id : null }));
+  }
   M.render = async (mode = 'clean', opts = {}) => {
     if (!S) return { error: 'no hay mesa abierta' };
     const only = opts && opts.month ? String(opts.month) : null;
     if (only && !boardMonths().includes(only)) return { error: `${only} no está en esta mesa (${boardMonths().join(', ')})` };
     const W = 1080, GAP = 3, COLS = 3, TW = 358, TH = 477, HEADER = 250, FOOT = 40;
     const c0 = CL.find(c => c.id === S.client) || {};
-    const past = pastList(false);
+    const nuevo = esNuevo(), past = await mesAnteriorFeed();   // what the feed shows under it (pieza 3b)
+    if (!S) return { error: 'no hay mesa abierta' };
     const cd = curCd(), cyc = iso => cycleOf(iso, cd);     // opts.month = a cycle of the board ('YYYY-MM' of its start)
     // pinned posts (B8) first, as in the mesa; a pinned one of a later month keeps its place as a blank cell
-    const order = feedOrder(), pinned = new Set(pinsOf()), un = order.filter(s => !pinned.has(s.id));
+    const order = nuevo ? feedOrder() : S.slots.filter(vivo), pinned = new Set(nuevo ? pinsOf() : []), un = order.filter(s => !pinned.has(s.id));   // an older board's pinned posts, by their date
     const mOf = s => cyc(s.date), inM = s => !only || mOf(s) === only, isLater = s => !!only && !!mOf(s) && mOf(s) > only;
     const fresh = un.filter(inM);
     const earlier = only ? un.filter(s => { const m = mOf(s); return m && m < only; }) : [];
     const later = only ? un.filter(isLater).length : 0;
-    const lead = later % COLS, F = fillersOf();
-    const slotPost = (s, isNew) => ({ mesaIdx: order.indexOf(s) + (pinned.has(s.id) ? 0 : F), name: s.name, type: s.type, n: s.photos.length, date: s.date, isNew, planned: !isNew, pin: pinned.has(s.id), blob: s.photos.length ? M.thumbBlobs[s.photos[0]] : null, rect: s.photos.length && M.files[s.photos[0]] ? { g: gridRect(s.photos[0], s), f: M.files[s.photos[0]] } : null });
+    const lead = later % COLS, F = nuevo ? fillersOf() : 0;
+    const slotPost = (s, isNew) => ({ mesaIdx: order.indexOf(s) + (pinned.has(s.id) ? 0 : F), name: s.name, type: s.type, n: s.photos.length, date: s.date, isNew, planned: !isNew, pin: pinned.has(s.id) || (!nuevo && isPinned(s)), blob: s.photos.length ? M.thumbBlobs[s.photos[0]] : null, rect: s.photos.length && M.files[s.photos[0]] ? { g: gridRect(s.photos[0], s), f: M.files[s.photos[0]] } : null });
     const pinPosts = order.filter(s => pinned.has(s.id)).map(s => isLater(s) ? { blank: true, mesaIdx: null } : slotPost(s, inM(s)));
     const nuevas = fresh.length + order.filter(s => pinned.has(s.id) && !isLater(s) && inM(s)).length;
     const posts = [
@@ -8190,7 +8206,7 @@ ${TK_FUENTES}
       ...fresh.map(s => slotPost(s, true)),
       ...earlier.map(s => slotPost(s, false)),
       ...past.map((p, j) => (p.fid
-        ? { mesaIdx: order.length + F + j, name: p.name, type: p.type, n: (p.photos || []).length, date: p.date, isNew: false, blob: M.thumbBlobs[p.fid] || null, rect: M.files[p.fid] ? { g: gridRect(p.fid, p.item, p.B), f: M.files[p.fid] } : null }
+        ? { mesaIdx: order.length + F + j, name: p.name, type: p.type, n: (p.photos || []).length, date: p.date, isNew: false, pin: !!p.pin, blob: M.thumbBlobs[p.fid] || null, rect: M.files[p.fid] ? { g: gridRect(p.fid, p.item, p.B), f: M.files[p.fid] } : null }
         : { mesaIdx: order.length + F + j, name: p.name, type: p.type, date: p.date, isNew: false, blob: p.thumb ? (M.pastBlobs[p.thumb] || null) : null }))
     ];
     const N = pinPosts.length + F + lead + fresh.length;   // first cell below the line

@@ -24520,14 +24520,14 @@
     const V = M._in.vc;
     try {
       await fjSeis();
-      // a mitad de un gesto (en mi Mesa y en la vista): el mes activo no cambia y el feed vuelve a su punto
-      await fgPulsar(fgHueco('Oct')); await fjQuieto(700);
-      fjGesto(); fjFeed().scrollTop += 6; await fjCuadro(); await vistaCliente(true); await fjQuieto(900);
-      igual(fgActivo(), [FJ_SO, '2026-10'], 'poner la vista a mitad de un gesto');
-      igual(fjFeed().scrollTop, fjP('2026-10'), 'poner la vista: el feed fuera del punto'); cerca(fjX(), fjXde(fjJ('2026-10')), 1, 'poner la vista: la tira');
-      fjGesto(); fjFeed().scrollTop -= 6; await fjCuadro(); await vistaCliente(false); await fjQuieto(900);
-      igual(fgActivo(), [FJ_SO, '2026-10'], 'quitar la vista a mitad de un gesto');
-      igual(fjFeed().scrollTop, fjP('2026-10'), 'quitar la vista: el feed fuera del punto'); cerca(fjX(), fjXde(fjJ('2026-10')), 1, 'quitar la vista: la tira');
+      // a mitad de un gesto (0,2 de fila del punto de julio, sin parar): poner o quitar la vista cambia el dibujo, no el mes activo, y el feed vuelve a su punto
+      for (const [que, pon] of [['quitar la vista', false], ['poner la vista', true]]) {
+        await vistaCliente(!pon); await fgPulsar(fgHueco('Jul')); await fjQuieto(700);
+        await fjA(fjP('2026-07') - Math.round(.2 * fjMov().filaH)); await vistaCliente(pon); await fjQuieto(900);
+        igual(fgActivo(), [FJ_JL, '2026-07'], `${que} a mitad de un gesto`);
+        igual(fjFeed().scrollTop, fjP('2026-07'), `${que}: el feed fuera del punto de julio`); cerca(fjX(), fjXde(fjJ('2026-07')), 1, `${que}: la tira`);
+      }
+      await vistaCliente(false);
       V.poner('lado', { id: 'fk4l', orden: 10, html: () => '<h2>Tus pagos</h2>' });
       await vistaCliente(true); await fjQuieto(300);
       const f = fjFeed().getBoundingClientRect(), l = q('.main > .vc-lado').getBoundingClientRect();

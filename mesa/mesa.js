@@ -3763,6 +3763,9 @@ ${TK_FUENTES}
       },
       reindex(f) { if (ancla) { const j = f(ancla.j); ancla = j >= 0 ? { j, st: ancla.st } : null; } pts = []; },
       quieto: () => !anim && !glide && !huboScroll && !tocando && !tAs,
+      anclar(j) {                         // a gesture cut by a change of layout (the vista cliente, pieza 6): no settling on what the new layout puts under it; at rest on month j, its point measured again (medir)
+        cancelar(); paraGlide(); clearTimeout(tAs); tAs = 0; huboScroll = false; tInt = -1e9; desv = null; ancla = { j, st: sC }; vu = null; pintar();
+      },
       estado: () => ({ v: v(), st: sC, ancla: ancla && { ...ancla }, anim: !!anim, glide: !!glide, desv: desv && { ...desv }, gesto: huboScroll, tocando, puntos: pts.map(x => ({ ...x })), filaH, max }),
       destruir() { vivo = false; cancelar(); paraGlide(); clearTimeout(tAs); cancelAnimationFrame(rafP); on.forEach(([t, f]) => sc.removeEventListener(t, f, { passive: true })); },
     };
@@ -6138,6 +6141,7 @@ ${TK_FUENTES}
       else if (e.target.matches('.tysel')) setType(e.target.dataset.slot, e.target.value);
       else if (e.target.matches('.essel')) pickEstado(e.target.dataset.slot, e.target.value || null);
       else if (e.target.matches('.clientToggle')) {
+        if (MOVM && !MOVM.quieto() && cabJ(mesActivo) >= 0) MOVM.anclar(cabJ(mesActivo));   // in the middle of a gesture the active month stays, and the feed on its point (pieza 6, D-327)
         root.classList.toggle('client', e.target.checked); menuCerrar(); { const g = root.querySelector('.feed .grid'); if (g) g.tabIndex = e.target.checked ? -1 : 0; }   // the feed's menu: not in the vista cliente (D-282)
         cabRender(); cabPedir();   // the months' header: without «sin crear» nor «N de M con foto» in the vista cliente (D-323)
         // the calendar drawn again at once: without the notice on opening (D-160), «N vencidas» of its header must be there as

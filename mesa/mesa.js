@@ -5874,10 +5874,13 @@ ${TK_FUENTES}
     if (!pd || e.pointerId !== pd.id) return;
     const p = pd, tg = p.on ? dragTarget(document.elementFromPoint(e.clientX, e.clientY), p.d) : null;
     pdEnd();
-    const x = tg && tg.cell && p.d.from === 'tray' ? celdaTocada(tg.cell) : null;
-    if (otroTablero(x)) {                // its month first (pieza 3a); then the photo goes on it, in its board
-      const sid = x.c.dataset.slot;
-      tocar(x).then(ok => { const c = ok && S && root.querySelector(`.feed .grid .cell[data-slot="${cssq(sid)}"]`); if (c) { dropOn(p.d, { ...tg, cell: c }); flushRender(); } });
+    const x = tg && (tg.cell || tg.hueco) && p.d.from === 'tray' ? celdaTocada(tg.cell || tg.hueco) : null;
+    if (otroTablero(x)) {                // its month first (pieza 3a; a hole, the newest board's: pieza 8, D-332); then the photo goes on it, in its board
+      const sid = x.c.dataset.slot, fk = x.c.dataset.filler, kb = x.key;
+      tocar(x).then(ok => {
+        const c = ok && S && root.querySelector(sid ? `.feed .grid .cell[data-slot="${cssq(sid)}"]` : `.feed .grid > .fmes[data-tablero="${cssq(kb)}"] .cell.filler[data-filler="${cssq(fk)}"]`);
+        if (c) { dropOn(p.d, sid ? { ...tg, cell: c } : { ...tg, hueco: c }); flushRender(); }
+      });
     } else if (tg && S) dropOn(p.d, tg);
     if (p.on) flushRender();
   }

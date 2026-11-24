@@ -24747,6 +24747,28 @@
       mirar('claro'); await fgOscuro(async () => mirar('oscuro'));
     } finally { await limpiar(); }
   });
+  prueba('FM4', 'Una foto de la bandeja soltada en un hueco con un mes anterior abierto (feed continuo, pieza 8; D-049, D-321, D-332): como en una casilla de otro mes, activa el tablero más nuevo (el de los huecos) y la pone de portada del hueco; si no puede cambiar de mes, no hace nada y dice por qué', async () => {
+    try {
+      await fdDos();
+      M._in.S.fillers = 1; M._in.save(); await M.flush();
+      const [g] = await M.addFiles([await foto('fm4-portada.jpg')]); await M.flush();
+      await fdAct(fdO); await espera(80);
+      const item = () => q(`.side > .tray .titem[data-file="${g}"]`), hueco = () => q(`.feed .grid > .fmes[data-tablero="${fdN}"] .cell.filler[data-filler="0"]`);
+      await hasta(() => item() && hueco(), 3000, 'la foto en la bandeja y el hueco de noviembre');
+      // con una skill trabajando en octubre: no cambia de mes y lo dice
+      if (M._in.skill) {
+        M.plan(); M._in.clearToasts();
+        await ffArrastrar(item(), hueco()); await espera(300);
+        igual(M._in.S.key, fdO, 'con una skill trabajando, el hueco cambió el mes abierto');
+        ok(/No se cambia de mes ahora/.test(qa('.toasts .toast').map(t => t.textContent).join(' | ')), 'no dijo por qué');
+        M._in.skill.cerrar();
+      }
+      await ffArrastrar(item(), hueco()); await hasta(() => M._in.S.key === fdN && (M._in.S.previews || [])[0] === g, 3000, 'el hueco de noviembre con la foto').catch(() => null);
+      igual([M._in.S.key, (M._in.S.previews || [])[0]], [fdN, g], 'el hueco no tomó la foto ni activó noviembre');
+      await M.flush(); igual(((await M._in.idbGet('boards', fdN)) || {}).previews, [g], 'lo guardado de noviembre');
+      ok(!M.board().tray.includes(g), 'la foto sigue en la bandeja');
+    } finally { if (M._in.skill) M._in.skill.cerrar(); M._in.clearToasts(); await limpiar(); }
+  });
 
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;

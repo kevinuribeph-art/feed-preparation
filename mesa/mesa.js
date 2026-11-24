@@ -1811,8 +1811,17 @@
   const pinsOf = (B = S) => (B && B.pins ? B.pins.filter(id => B.slots.some(x => x.id === id && vivo(x))) : []);   // a cancelled post is not in the feed; B: the board (the open one if not given)
   const isPinned = (s, B = S) => !!(s && B && B.pins && B.pins.includes(s.id));
   function feedOrder(B = S) { const p = pinsOf(B); return [...p.map(id => B.slots.find(x => x.id === id)), ...B.slots.filter(x => !p.includes(x.id) && vivo(x))]; }
+  // the pinned posts and the fillers are the newest board's (they go on top of the feed, D-318): «Fijar» and «+ Hueco» only add there;
+  // in another month they are off and say why. Taking out one that already is (an old board's) always can (feed continuo, pieza 3b)
+  const NUEVO_TXT = 'Los huecos y las fijadas son del mes más nuevo.';
+  function tableroNuevo() {            // the newest board of the open client: the one that owns its newest month in the feed (D-318)
+    let m = null; for (const b of MB) for (const x of monthsOf(b.month, b.span)) if (!m || x > m) m = x;
+    return m ? feedDueno(m) : null;
+  }
+  const esNuevo = () => !S || !MB.some(b => b.key === S.key) || tableroNuevo() === S.key;   // without its months listed (the iPhone, a skill before drawing), as before
   function setPin(slotId, on) {
     const s = S && S.slots.find(x => x.id === slotId); if (!s) return false;
+    if (on && !isPinned(s) && !esNuevo()) { toast(NUEVO_TXT, { key: 'solo-nuevo' }); return false; }
     const p = pinsOf().filter(id => id !== slotId);
     if (on) { if (p.length >= MAX_PINS) { toast('Como en Instagram, se pueden fijar como mucho 3 publicaciones: quita la fijación de otra antes.', { ms: 6000 }); return false; } p.unshift(slotId); }
     if (p.length) S.pins = p; else delete S.pins;
@@ -1935,6 +1944,7 @@
   function setFillers(n) {
     if (!S) return false;
     if (n > MAX_FILLERS) { toast(`Como mucho ${MAX_FILLERS} huecos: con ellos ya cuadran las filas de 3.`, { ms: 6000 }); return false; }
+    if (n > fillersOf() && !esNuevo()) { toast(NUEVO_TXT, { key: 'solo-nuevo' }); return false; }   // adding only in the newest board; taking out, always
     if (n > 0) S.fillers = n; else delete S.fillers;
     save(); renderFeed(); return true;
   }
@@ -3100,6 +3110,7 @@ ${TK_FUENTES}
 #mesa .pe-fijar input::after{content:'';position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:var(--r-pill);background:var(--knob);box-shadow:var(--shadow-xs);transition:transform var(--d-m) var(--ease-m),width var(--d-m) var(--ease-m)}
 #mesa .pe-fijar input:checked{background:var(--sw-on)}#mesa .pe-fijar input:checked::after{transform:translateX(48px)}#mesa .pe-fijar input:active::after{width:25px}#mesa .pe-fijar input:checked:active::after{transform:translateX(45px)}
 #mesa .pe-fijar input:focus-visible{outline:0;box-shadow:0 0 0 3px var(--ring)}
+#mesa .pe-fijar.solonuevo,#mesa .pe-fijar.solonuevo input{cursor:default}#mesa .pe-fijar.solonuevo input{opacity:.4}
 #mesa .pe-f0,#mesa .pe-f1{position:absolute;top:0;bottom:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;line-height:1;white-space:nowrap;pointer-events:none;transition:opacity var(--d2) ease-out}
 #mesa .pe-f0{left:25px;right:3px;color:var(--ink-2)}#mesa .pe-f1{left:3px;right:25px;color:var(--knob);opacity:0}#mesa .pe-fijar input:checked~.pe-f0{opacity:0}#mesa .pe-fijar input:checked~.pe-f1{opacity:1}
 @media (prefers-reduced-motion:reduce){#mesa .pe-fijar input:not(#mx),#mesa .pe-fijar input:not(#mx)::after{transition:background-color .15s linear !important}#mesa .pe-f0:not(#mx),#mesa .pe-f1:not(#mx){transition:opacity .15s linear !important}}
@@ -3826,7 +3837,7 @@ ${TK_FUENTES}
   function feedMeses() {
     const own = new Map();
     for (const b of MB) for (const m of monthsOf(b.month, b.span)) if (!own.has(m)) own.set(m, feedDueno(m));
-    const ms = [...own.keys()].sort().reverse(), out = [], newest = ms.length ? own.get(ms[0]) : null;
+    const ms = [...own.keys()].sort().reverse(), out = [], newest = ms.length ? tableroNuevo() : null;   // the owner of the newest month
     ms.forEach((m, i) => {
       const key = own.get(m), B = feedTablero(key);
       let aviso = 0;                    // another board of this month with posts of it that this one hasn't: only Kevin is told
@@ -4643,7 +4654,8 @@ ${TK_FUENTES}
     const dz = !edB ? (ubB ? `<div class="pdz">${ubB}</div>` : '') : `<div class="pdz">${ubB}${lbT}${dst === 'ok' ? '<span class="muted">Diseño aplicado · se sube tal cual</span>' : dst === 'nc' ? '<span class="muted">Diseño aplicado · se sube tal cual (sin comprobar: el diseñador no está cargado)</span>' : dst ? `<span class="muted" style="color:var(--chg)">Diseño con cambios sin aplicar · se aplica en «Editar»</span>` : ''}${dav.length ? `<ul class="pdzav">${dav.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}</div>`;
     // the header first (Tab: Fijar, ×, EDITAR, then its fields; the grid places it): «Fijar en el perfil» left of the ×, EDITAR right of
     // date / time and type / state, as tall as both rows (D-142)
-    const pinB = `<label class="pinsw pe-fijar" title="Como en Instagram: arriba del todo, con la chincheta. Solo cambia cómo se ve el feed (no la fecha${sinNotion() ? '' : ' ni Notion'})."><input type="checkbox" class="pinToggle" role="switch" aria-label="Fijar en el perfil" data-slot="${esc(id)}"${isPinned(s) ? ' checked' : ''}><span class="pe-f0" aria-hidden="true">Fijar</span><span class="pe-f1" aria-hidden="true">Fijada</span></label>`;
+    const pinNo = !isPinned(s) && !esNuevo();   // off in another month than the newest's, with why (a pinned one can always be taken out)
+    const pinB = `<label class="pinsw pe-fijar${pinNo ? ' solonuevo' : ''}" title="${pinNo ? NUEVO_TXT : `Como en Instagram: arriba del todo, con la chincheta. Solo cambia cómo se ve el feed (no la fecha${sinNotion() ? '' : ' ni Notion'}).`}"><input type="checkbox" class="pinToggle" role="switch" aria-label="Fijar en el perfil" data-slot="${esc(id)}"${isPinned(s) ? ' checked' : ''}${pinNo ? ' aria-disabled="true"' : ''}><span class="pe-f0" aria-hidden="true">Fijar</span><span class="pe-f1" aria-hidden="true">Fijada</span></label>`;
     d.innerHTML = `<div class="card post hascap" role="dialog" aria-label="${esc(s.name)}">
       <div class="pbody"><div class="phead"><div class="pe-top"><h3>${esc(s.name)}</h3>${pinB}</div><button class="x" data-act="close" title="Cerrar" aria-label="Cerrar">×</button>${edB ? `<div class="pe-fila pe-con"><div class="pe-in">${edB}<p>${whenHTML(s)}${typeHTML(s)}${estadoHTML(s)}${statusBadge(s)}</p></div></div>` : `<div class="pe-fila"><p>${whenHTML(s)}${typeHTML(s)}${estadoHTML(s)}${statusBadge(s)}</p></div>`}${pnotHTML(s)}${linkLine(s)}</div>
         <div class="pleft">${left}</div>
@@ -5652,6 +5664,7 @@ ${TK_FUENTES}
     ['gesturestart', 'gesturechange', 'gestureend'].forEach(t => root.addEventListener(t, e => { if ((tamG && tamG.gesto && t !== 'gesturestart') || (e.target.closest && e.target.closest('.side > .tray'))) tamGesto(e); }, { passive: false }));   // Safari's pinch over the tray (D-118)
     root.addEventListener('click', e => {
       if (e.target.matches && e.target.matches('.cappick')) { unsetCapPick(e.target.dataset.slot, +e.target.dataset.k); return; }   // before its change: a 2nd click on the chosen one
+      if (e.target.closest && e.target.closest('.pe-fijar.solonuevo')) { e.preventDefault(); toast(NUEVO_TXT, { key: 'solo-nuevo' }); return; }   // «Fijar» off (aria-disabled: a disabled input gets no click to say why): it doesn't change, and says why (pieza 3b)
       const elegible = (e.metaKey || e.ctrlKey) && e.target.closest('.tray') && !e.target.closest('.x') && e.target.closest('.titem[data-file], .tcarpeta[data-id]');
       if (elegible) { e.preventDefault(); trayElegir(elegible); return; }
       if (e.target.closest('.side > .tray.fold > .trayhead') && !e.target.closest('[data-act]') && colPestanas(colSide())) { trayPlegar(false); return; }   // the tray's tab (D-148)
@@ -9039,7 +9052,8 @@ ${TK_FUENTES}
     if (k != null && k < n) { if (previewAt(k)) l.push({ t: 'Quitar portada', hacer: () => delPreview(k) }); l.push({ t: 'Quitar hueco', hacer: () => quitarHueco(k) }, '-'); }
     l.push({ t: memosOpen ? 'Cerrar todas las notas' : 'Abrir todas las notas', off: !hay && !memosOpen, tip: hay || memosOpen ? '' : 'Ninguna publicación tiene Nota', hacer: alternarNotas });
     const mas = '<span class="i-mas">+</span> Hueco';
-    l.push(n >= MAX_FILLERS ? { html: mas, kb: 'máximo 2', off: true, tip: `Ya hay ${MAX_FILLERS} huecos: es el máximo` }
+    l.push(!esNuevo() ? { html: mas, kb: 'mes más nuevo', off: true, tip: NUEVO_TXT }   // only in the newest board (pieza 3b)
+      : n >= MAX_FILLERS ? { html: mas, kb: 'máximo 2', off: true, tip: `Ya hay ${MAX_FILLERS} huecos: es el máximo` }
       : { html: mas, tip: 'Una casilla negra arriba del grid para cuadrar las filas de 3 (no es una publicación)', hacer: () => setFillers(n + 1) });
     return !!menuMesa(x, y, l, { foco, label: 'Feed' });
   }

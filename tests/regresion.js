@@ -23731,6 +23731,43 @@
     } finally { volverReloj(); await limpiar(); }
   });
 
+  const ffMenuHueco = async () => {   // el «+ Hueco» del clic derecho del feed (D-282), sin pulsarlo
+    const g = await hasta(() => q('.feed .grid'), 4000, 'el feed'), r = g.getBoundingClientRect();
+    g.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: r.x + 5, clientY: r.y + 5, view: W }));
+    const m = await hasta(() => q('.cpmenu[aria-label="Feed"]'), 2000, 'el menú del feed');
+    return [...m.querySelectorAll('[role="menuitem"]')].find(x => /Hueco/.test(x.textContent) && !/Quitar/.test(x.textContent));
+  };
+  const ffFijar = async id => { M._in.closeDetail(); M._in.openDetail(id); return hasta(() => q(`.detail:not([hidden]) .pinToggle[data-slot="${id}"]`), 3000, 'el interruptor «Fijar» de ' + id); };
+
+  prueba('FF5', '«+ Hueco» y «Fijar», solo en el tablero más nuevo (feed continuo, pieza 3b; D-095, D-318): con noviembre (el más nuevo) abierto, como siempre; con octubre, apagados y con su motivo (en su título y, al pulsar «Fijar», un aviso); quitar una fijada que ya tenía octubre sí se puede', async () => {
+    try {
+      await ffDosMeses();
+      // noviembre, el más nuevo: como siempre
+      let b = await ffMenuHueco(); ok(b && !b.disabled, '«+ Hueco» apagado en el tablero más nuevo'); b.click(); await espera(40);
+      igual(M._in.S.fillers, 1, '«+ Hueco» no añadió el hueco en el más nuevo');
+      let t = await ffFijar('ff-n1'); ok(!t.disabled && !t.getAttribute('aria-disabled'), '«Fijar» apagado en el más nuevo'); t.click(); await espera(40);
+      igual(M._in.S.pins, ['ff-n1'], '«Fijar» no fijó en el más nuevo');
+      M._in.closeDetail(); await M.flush();
+      // una fijada de antes en octubre (de cuando cada mes se abría solo)
+      await fdAct(fdO); M._in.S.pins = ['ff-o2']; M._in.save(); await M.flush(); M._in.clearToasts();
+      b = await ffMenuHueco();
+      ok(b && b.disabled && /mes más nuevo/.test(b.title || ''), '«+ Hueco» de octubre no está apagado con su motivo: ' + (b && b.outerHTML));
+      tecla('Escape', { en: D.activeElement || D.body }); await espera(30);
+      ok(!M._in.S.fillers, 'octubre tiene un hueco');
+      t = await ffFijar('ff-o1');
+      ok(t.getAttribute('aria-disabled') === 'true' && /mes más nuevo/.test(t.closest('label').title || ''), '«Fijar» de octubre no está apagado con su motivo');
+      t.click(); await espera(40);
+      ok(/huecos y las fijadas son del mes más nuevo/.test(qa('.toasts .toast').map(x => x.textContent).join(' | ')), 'sin el aviso al pulsar «Fijar» apagado');
+      igual(M._in.S.pins, ['ff-o2'], 'se fijó en octubre');
+      t = await ffFijar('ff-o2'); ok(!t.getAttribute('aria-disabled') && t.checked, 'la fijada de octubre no se puede quitar'); t.click(); await espera(40);
+      ok(!M._in.S.pins, 'no se quitó la fijada de octubre');
+      M._in.closeDetail(); await M.flush();
+      igual((await ffDisco(fdO)).pins || null, null, 'la fijada quitada, guardada');
+      await fdAct(fdN);
+      b = await ffMenuHueco(); ok(b && !b.disabled, 'de vuelta en noviembre, «+ Hueco» sigue apagado'); tecla('Escape', { en: D.activeElement || D.body });
+    } finally { M._in.closeDetail(); await limpiar(); }
+  });
+
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;
   $('resumen').textContent = `${T.length} pruebas listas.`;

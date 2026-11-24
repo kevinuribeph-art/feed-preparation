@@ -3743,7 +3743,7 @@ ${TK_FUENTES}
     function alScroll() {
       sC = sc.scrollTop;
       if (anim) { pedir(); return; }     // our animation's frames (a gesture of Kevin stops it before its scroll)
-      if (Math.abs(sC - ultimaEsc) >= MOV.ECO && viva()) {   // Kevin's
+      if (Math.abs(sC - ultimaEsc) >= MOV.ECO && (viva() || huboScroll)) {   // Kevin's: with a gesture alive or, his scroll already started, while it goes on (inertia can last over 2,5 s: Safari, a trackpad; pieza 10, D-340, as the portal's D-P13)
         huboScroll = true; ultimaEsc = -9;
         if (ancla && Math.abs(sC - ancla.st) >= 1) ancla = null;
         if (desv && !desv.fijo && filaH > 0 && Math.abs(sC - desv.sR) >= filaH) desv = null;

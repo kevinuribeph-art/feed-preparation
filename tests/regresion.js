@@ -24920,6 +24920,22 @@
       ok(!/Ya está publicada/.test(fnAviso()), 'una sin publicar avisó como Publicada');
     } finally { M._in.closeDetail(); M._in.clearToasts(); await limpiar(); }
   });
+  prueba('FN3', 'Un desplazamiento con inercia de más de 2,5 s (feed continuo, pieza 10; D-340): sigue contando como de Kevin mientras dura, no se asienta a mitad y, al parar cerca del punto de un mes, el imán actúa', async () => {
+    try {
+      await fjSeis(); const P = fjPuntos(), fila = fjMov().filaH, feed = fjFeed();
+      const y0 = P[MES], y1 = Math.round(P['2026-09'] - .2 * fila), pasos = 36;
+      // un solo golpe de rueda (o de dedo) y después la inercia, sin más gestos; sin «scrollend» por medio (Safari no siempre lo
+      // tiene, y con una inercia de verdad llega solo al final): aquí cada scrollTop por código lo lanzaría y lo taparía todo
+      const tapa = e => { if (e.target === feed) e.stopImmediatePropagation(); };
+      W.addEventListener('scrollend', tapa, true);
+      const meses = new Set();
+      try { fjGesto(); for (let i = 1; i <= pasos; i++) { feed.scrollTop = Math.round(y0 + (y1 - y0) * i / pasos); await espera(100); meses.add(M._in.mesActivo.lee()); } }
+      finally { W.removeEventListener('scrollend', tapa, true); }
+      igual([...meses], [MES], 'el mes activo cambió mientras seguía la inercia (se asentó a mitad)');
+      await fjQuieto(1000);
+      igual([feed.scrollTop, M._in.mesActivo.lee()], [P['2026-09'], '2026-09'], 'al parar, el imán no actuó o no se asentó en septiembre');
+    } finally { await limpiar(); }
+  });
 
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;

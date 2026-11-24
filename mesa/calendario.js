@@ -162,7 +162,9 @@
     if (cc) { renderCont(X, root, sec, cc); return; }   // the page of a client of «Solo contenido», without a board (D-312)
     if (!S) { sec.hidden = true; return; }
     const client = root.classList.contains('client'), sp = span(X);
-    if (view.key !== S.key || !sp.list.includes(view.m)) { if (view.key !== S.key) vcTab = 'cal'; view = { key: S.key, m: mesInicial(X, sp) }; }
+    // the active month (feed continuo, pieza 3a): its month, not today's, when it changes; ‹ › still move only the calendar
+    const act = X.mesActivo && X.mesActivo.lee ? X.mesActivo.lee() : null;
+    if (view.key !== S.key || view.act !== act || !sp.list.includes(view.m)) { if (view.key !== S.key) vcTab = 'cal'; view = { key: S.key, act, m: act && sp.list.includes(act) ? act : mesInicial(X, sp) }; }
     // ‹ › only with another month of the board's own days to go to, in the vista cliente (D-228); without, its month (also when
     // the view comes on while my calendar shows the previous month)
     const propios = sp.list.filter(x => x >= sp.lo.slice(0, 7)), flechas = !client || propios.length > 1;

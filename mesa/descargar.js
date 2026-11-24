@@ -25,12 +25,16 @@
 
   // ---------- the choice: posts of the open board, in the order chosen ----------
   let eleg = [], elegKey = null;
-  const piezas = s => I().publishList(s).filter(f => M.files[f]);   // what is published of it: slides, pages or a reel's cover
+  const piezas = s => I().publishList(s).filter(f => M.files[f]);
+  const deX = id => { const X = I(); return X.feedSlot ? X.feedSlot(id) : (X.S && X.S.slots.find(x => x.id === id) ? { s: X.S.slots.find(x => x.id === id), B: X.S } : null); };
+  const slotDe = id => (deX(id) || {}).s;                  // a post of any month of the client (pieza 3a)
+  const tabDe = s => (s && deX(s.id) || {}).B || I().S;   // and its board: its crops   // what is published of it: slides, pages or a reel's cover
   function vigentes() {                        // the chosen still there, alive and with a photo; another board empties it
     const X = I(), B = X && X.S;
     if (!B) { eleg = []; elegKey = null; return eleg; }
-    if (elegKey !== B.key) { eleg = []; elegKey = B.key; }
-    eleg = eleg.filter(id => { const s = B.slots.find(x => x.id === id); return s && X.vivo(s) && piezas(s).length; });
+    const c = B.client || X.curClient;   // the client's: it stays from one month to another and empties with another client (pieza 3a)
+    if (elegKey !== c) { eleg = []; elegKey = c; }
+    eleg = eleg.filter(id => { const s = slotDe(id); return s && X.vivo(s) && piezas(s).length; });
     return eleg;
   }
   function marcar() {                          // after every redraw of the grid (renderFeed)
@@ -44,7 +48,7 @@
   }
   function redibujar() { const X = I(); marcar(); if (X && X.renderBar) X.renderBar(); }
   function elegir(id) {
-    const X = I(), s = X.S && X.S.slots.find(x => x.id === id); if (!s) return;
+    const X = I(), s = X.S && slotDe(id); if (!s) return;
     vigentes();
     const k = eleg.indexOf(id);
     if (k >= 0) eleg.splice(k, 1);
@@ -71,7 +75,7 @@
   }
   function abrir() {
     const X = I(), B = X.S, ids = vigentes(); if (!ids.length || job) return;
-    const posts = ids.map(id => B.slots.find(x => x.id === id)).sort((a, b) => lejania(a) - lejania(b) || String(a.date).localeCompare(String(b.date)));
+    const posts = ids.map(id => slotDe(id)).sort((a, b) => lejania(a) - lejania(b) || String(a.date).localeCompare(String(b.date)));
     const lista = posts.map(s => {
       const reel = X.isReel(s.type), pz = piezas(s), tipo = X.tipoPost(s).txt;
       return `<section class="dl-post" data-slot="${esc(s.id)}"><div class="dl-ph"><b>${esc(s.name)}</b><span>${esc(X.fmtDate(s.date))} · ${esc(tipo)}</span>`   // no «· N piezas» / «· su portada»: its thumbnails say it (D-156)
@@ -96,7 +100,7 @@
     d.querySelectorAll('[data-dl="todas"]').forEach(t => { const any = d.querySelector(`.dl-pz input[data-slot="${cssq(t.dataset.slot)}"]:checked`); t.textContent = any ? 'Ninguna' : 'Todas'; });
     // «Con textos / Solo la foto» only while a ticked piece has texts: unticked, both would give the same (D-162)
     const tx = d.querySelector('.dl-op[aria-label="Textos"]');
-    if (tx) { const B = I().S; tx.hidden = ![...d.querySelectorAll('.dl-pz input:checked')].some(i => { const s = B && B.slots.find(x => x.id === i.dataset.slot); return s && conTextos(s, i.dataset.f); }); }
+    if (tx) { const B = I().S; tx.hidden = ![...d.querySelectorAll('.dl-pz input:checked')].some(i => { const s = B && slotDe(i.dataset.slot); return s && conTextos(s, i.dataset.f); }); }
   }
 
   // ---------- one piece as a JPEG ----------
@@ -140,10 +144,10 @@
     }
     if (f.design) {                             // drawn by «Diseñar» (diseno.js): as it was drawn; without texts, its photo
       const d = s.design, k = d && d.out ? d.out.indexOf(fid) : -1, src = !o.textos && k >= 0 && d.slides[k] ? d.slides[k].src : null;
-      if (src && M.files[src]) { const p = M.files[src]; return recorte(src, X.rectFor(p.w, p.h, f.w / f.h, (X.S.crops || {})[src] || { cx: 0.5, cy: 0.5, z: 1 }), o.ancho); }
+      if (src && M.files[src]) { const p = M.files[src]; return recorte(src, X.rectFor(p.w, p.h, f.w / f.h, (tabDe(s).crops || {})[src] || { cx: 0.5, cy: 0.5, z: 1 }), o.ancho); }
       return recorte(fid, { x: 0, y: 0, w: f.w, h: f.h }, o.ancho);
     }
-    return recorte(fid, X.postRect(fid, s), o.ancho);   // a photo with the mesa's crop
+    return recorte(fid, X.postRect(fid, s, tabDe(s)), o.ancho);   // a photo with the mesa's crop
   }
 
   // ---------- the ZIP: stored entries, CRC-32, UTF-8 names ----------
@@ -193,7 +197,7 @@
   let job = null;
   async function ir(card) {
     const X = I(), B = X.S; if (job || !B) return;
-    const sel = [...card.querySelectorAll('.dl-pz input:checked')].map(i => ({ s: B.slots.find(x => x.id === i.dataset.slot), f: i.dataset.f, i: +i.dataset.i })).filter(x => x.s);
+    const sel = [...card.querySelectorAll('.dl-pz input:checked')].map(i => ({ s: slotDe(i.dataset.slot), f: i.dataset.f, i: +i.dataset.i })).filter(x => x.s);
     if (!sel.length) return;
     const tg = card.querySelector('.dl-op[aria-label="Textos"]'), o = { textos: !tg || tg.hidden || val(card, 'dl-txt') !== 'sin', ancho: val(card, 'dl-res') || 'orig' };
     if (o.ancho === 'orig' && card.dataset.conCopia !== '1') {   // one line, and go on with the copy or stop

@@ -23480,6 +23480,29 @@
     } finally { M._in.closeDetail(); await limpiar(); }
   });
 
+  prueba('FE9', 'El calendario y «Descargar» siguen al mes activo (pieza 3a): el calendario enseña el mes activo (no salta a hoy); «Descargar» conserva lo elegido entre meses del mismo cliente y lo vacía con otro cliente', async () => {
+    try {
+      await limpiar();
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, months: 2, cycleDay: 1, slots: [pub(1), pub(2, 'Foto', 20, '2026-12')], past: [], force: true }); await M.flush();
+      const cmes = () => (q('.side > .cal .cmes') || { textContent: '' }).textContent;
+      await hasta(() => /Noviembre/i.test(cmes()), 3000, 'el calendario en noviembre');
+      const r = await M._in.mesActivo.pon('2026-12'); ok(r && r.ok, json(r));
+      await hasta(() => /Diciembre/i.test(cmes()), 3000, 'el calendario no siguió a diciembre: ' + cmes());
+      // descargar, entre dos tableros
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: FD_OCT, cycleDay: 1, slots: [fcSlot('fd-o1', '4.1', 20, FD_OCT)], past: [], force: true });
+      await poner('fd-o1', [await foto('fe9-o.jpg')]); await M.flush();
+      await M.open(`${CLIENTE}-${MES}`); await M.flush();
+      await poner('r1', [await foto('fe9-n.jpg')]); await M.flush();
+      M.descargar.elegir('r1');
+      await fdAct(fdO);
+      igual(M.descargar.elegidas ? M.descargar.elegidas() : qa('.feed .cell.dlsel').map(c => c.dataset.slot), ['r1'], 'cambiar de mes vació lo elegido');
+      M.descargar.elegir('fd-o1');
+      igual(qa('.feed .cell.dlsel').map(c => c.dataset.slot).sort(), ['fd-o1', 'r1'], 'lo elegido en los dos meses');
+      ok(/Descargar \(2\)/.test((q('.bar .dlbtn') || { textContent: '' }).textContent), 'el botón no cuenta las dos');
+      await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 1, slots: [pub(1)], past: [], force: true }); await M.flush();
+      ok(!q('.bar .dlbtn'), 'otro cliente conserva lo elegido');
+    } finally { M.descargar.vaciar(); await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 1, slots: [], past: [], force: true }); await limpiar(); }
+  });
 
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;

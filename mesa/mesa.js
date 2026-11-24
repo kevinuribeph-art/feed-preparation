@@ -3355,7 +3355,7 @@ ${TK_FUENTES}
           + '<div class="tbody"><div class="drop">Arrastra aquí tus fotos o carpetas (JPG o PNG) o pulsa «Añadir fotos».</div><div class="tgrid"></div></div></aside>'
           + '<div class="csplit" aria-hidden="true" title="Arrastra para repartir la columna · doble clic: mitad y mitad"></div><section class="cal" aria-label="Calendario" hidden></section></div>';   // filled by calendario.js (none: the tray takes it all)
         watchFeed(); tamVigilar(); tamAplicar(); fijoAlto();
-        { const t = main.querySelector('.tray'); t.addEventListener('scroll', dondeAlDeslizar, { passive: true }); t.querySelector('.tbody').addEventListener('scroll', dondeAlDeslizar, { passive: true }); }
+        { const t = main.querySelector('.tray'); t.addEventListener('wheel', alRueda, { passive: false }); t.addEventListener('scroll', dondeAlDeslizar, { passive: true }); t.querySelector('.tbody').addEventListener('scroll', dondeAlDeslizar, { passive: true }); }
       } else if (CL.length) {
         const c = CL.find(x => x.id === curClient);
         main.innerHTML = `<div class="empty"><div class="ecard">${IC.grid}<h3>${esc(c ? c.name : 'Elige un cliente')}${c ? ': aún no hay ningún mes en la mesa' : ''}</h3>${c && c.notion === false ? 'Los meses de este cliente los crea Claude con lo que le digas: nombre, tipo, fecha y hora de cada publicación. Pídeselo en el chat:' : 'Los meses se cargan desde Notion, con las publicaciones del calendario ya creado. Pídeselo a Claude en el chat:'}<br><span class="say">«Carga ${esc(nextMonthName(c && c.cycleDay))} de ${esc(c ? c.name : 'este cliente')} en la mesa»</span></div></div>`;
@@ -5408,6 +5408,14 @@ ${TK_FUENTES}
       M.addFiles(files, sid);
     });
   }
+  // the wheel over the tray (Ctrl: its size, D-118) and over the narrow strips (sideways). Only on the bar and on the tray, never on an
+  // ancestor of the feed: a listener that isn't passive there would make the feed's scrolling wait for the main thread (pieza 3a)
+  function alRueda(e) {
+    if (e.ctrlKey && e.target.closest && e.target.closest('.side > .tray')) { tamRueda(e); return; }   // a pinch over the tray: its size (D-118)
+    const tb = e.target.closest && e.target.closest('.tbody, .bar .months');   // narrow strips: the wheel scrolls them sideways
+    if (!tb || tb.scrollWidth <= tb.clientWidth + 1 || tb.scrollHeight > tb.clientHeight + 1 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+    tb.scrollLeft += e.deltaY; e.preventDefault();
+  }
   function wire() {
     if (!M._winWired) {
       M._winWired = true;
@@ -5549,12 +5557,7 @@ ${TK_FUENTES}
     root.addEventListener('pointerdown', e => { downOnBackdrop = !!(e.target.classList && e.target.classList.contains('detail')); }, true);
     root.addEventListener('pointerdown', e => { if (e.target.closest && e.target.closest('.main .side > .csplit')) repEmpezar(e); });   // the column's separator (D-148)
     root.addEventListener('pointermove', repMover); root.addEventListener('pointerup', repSoltar); root.addEventListener('pointercancel', repSoltar); root.addEventListener('lostpointercapture', repSoltar);
-    root.addEventListener('wheel', e => {
-      if (e.ctrlKey && e.target.closest && e.target.closest('.side > .tray')) { tamRueda(e); return; }   // a pinch over the tray: its size (D-118)
-      const tb = e.target.closest && e.target.closest('.tbody, .bar .months');   // narrow strips: the wheel scrolls them sideways
-      if (!tb || tb.scrollWidth <= tb.clientWidth + 1 || tb.scrollHeight > tb.clientHeight + 1 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
-      tb.scrollLeft += e.deltaY; e.preventDefault();
-    }, { passive: false });
+    { const bar = root.querySelector('.bar'); if (bar) bar.addEventListener('wheel', alRueda, { passive: false }); }   // not on the root: the feed's wheel never waits for it (pieza 3a)
     ['gesturestart', 'gesturechange', 'gestureend'].forEach(t => root.addEventListener(t, e => { if ((tamG && tamG.gesto && t !== 'gesturestart') || (e.target.closest && e.target.closest('.side > .tray'))) tamGesto(e); }, { passive: false }));   // Safari's pinch over the tray (D-118)
     root.addEventListener('click', e => {
       if (e.target.matches && e.target.matches('.cappick')) { unsetCapPick(e.target.dataset.slot, +e.target.dataset.k); return; }   // before its change: a 2nd click on the chosen one
@@ -7234,7 +7237,7 @@ ${TK_FUENTES}
     BODY.set(S, boardBody(S));
     if (!BASE_IDB.has(key)) BASE_IDB.set(key, S.savedAt || null);
     prevOnce = false; pendingUnlock = null; usoS = null; vencSig = '';
-    mesFijar(mes || null, quien);   // its month asked, else its first (pieza 3a)
+    mesFijar(mes || null, quien);   // its month asked, else today's or the nearest to it (pieza 3a)
     activado();
     if (!shellReady()) return;
     renderBar(); renderMain();           // the same .main (by client): its feed, tray and calendar drawn for this month
@@ -7245,12 +7248,14 @@ ${TK_FUENTES}
   function activado() { histBase(); }
   // ---------- the active month (feed continuo, pieza 3a) ----------
   // mesActivo: the month the Mesa works on ('YYYY-MM', its cycle's start), one of the open board's (S): a board of 2–3 months has
-  // several. Set by MESA.open / MESA.init (the month asked, else the board's first), opening a client (today's, D-121) and touching a
+  // several. Set by MESA.open / MESA.init (the month asked, else today's or the board's nearest to it, D-121), opening a client (today's, D-121) and touching a
   // post of another month; never by drawing. mesQuien: who set it last ('open' | 'init' | 'cliente' | 'tocar' | 'paso' | …).
   let mesActivo = null, mesQuien = null;
   const mesesTab = B => (B && B.month ? monthsOf(B.month, B.span) : []);
   function mesDeHoy(B) { const m = cycleOfDay(madParts(ahora()).day, B && B.cycleDay); return mesesTab(B).includes(m) ? m : null; }
-  function mesFijar(m, quien, B = S) { const ms = mesesTab(B); mesActivo = ms.includes(m) ? m : ms[0] || null; mesQuien = quien || null; return mesActivo; }
+  // none asked: today's, or the board's month nearest to it (as the calendar opened since D-121)
+  function mesCercano(B) { const ms = mesesTab(B); if (!ms.length) return null; const t = cycleOfDay(madParts(ahora()).day, B.cycleDay); return t < ms[0] ? ms[0] : t > ms[ms.length - 1] ? ms[ms.length - 1] : ms.includes(t) ? t : ms[0]; }
+  function mesFijar(m, quien, B = S) { const ms = mesesTab(B); mesActivo = ms.includes(m) ? m : mesCercano(B); mesQuien = quien || null; return mesActivo; }
   // pon(m): makes month m active; with another board, through activar (it can say no: {error}); the feed doesn't move
   async function mesPoner(m, quien = 'pon') {
     if (!S || !/^\d{4}-\d{2}$/.test(String(m || ''))) return { error: 'no es un mes' };
@@ -7354,7 +7359,7 @@ ${TK_FUENTES}
     const { faltan: missing, retyped, won, deadRenders } = A;
     CLI = { c: client, tray: A.S.tray, carpetas: A.S.carpetas };   // the client's tray, one object for all its months (pieza 2)
     S = atarBandeja(A.S); PB = A.PB; IDX = A.IDX;
-    if (!MIRA) mesFijar(cfg.mes || null, cfg.mes ? cfg.quien || 'open' : cfg.reopen ? 'open' : 'init');   // the active month (pieza 3a): the one asked, else the board's first
+    if (!MIRA) mesFijar(cfg.mes || null, cfg.mes ? cfg.quien || 'open' : cfg.reopen ? 'open' : 'init');   // the active month (pieza 3a): the one asked, else today's or the nearest
     if (A.aDel.length) delList(l => [...new Set([...l, ...A.aDel])]);   // images the editor drew that were in the tray (D-101): deleted once nothing uses them
     A.borrar.forEach(id => { deleteIfUnused(id).catch(() => null); });   // a photo twice in the tray: the copy left out (D-041)
     if (PB && !MIRA) await loadThumbs([...new Set(PB.slots.flatMap(s => publishList(s)))]);
@@ -9494,6 +9499,7 @@ ${TK_FUENTES}
     // the client's boards in memory (feed continuo, pieza 1; nothing uses them yet): leer(key) and leerCliente(client) read the copies
     // (without writing), ver(key) gives one already read or null, soltar() lets them all go
     mesActivo: { lee: () => mesActivo, quien: () => mesQuien, pon: (m, quien) => mesPoner(m, quien) },   // the active month (feed continuo, pieza 3a)
+    feedSlot: id => { if (!S) return null; const s0 = S.slots.find(x => x.id === id); if (s0) return { s: s0, B: S }; for (const b of MB) { const B = feedTablero(b.key), s1 = B && B !== S && B.slots.find(x => x.id === id); if (s1) return { s: s1, B }; } return null; },   // a post of the client's feed and its board (pieza 3a)
     feedPunto, feedIr: (m, o) => feedIr(m, o), feedDueno, feedHTMLEntero, feedHTMLGuardado, feedCargar: () => feedCargarResto() || Promise.resolve(),   // a month's point in the feed and going there (pieza 3a; pieza 5 animates it)
     activar,   // another month of the open client becomes the open board, without opening it again (feed continuo, pieza 2)
     tablerosMem: { leer: conTableros(memLeer), leerCliente: conTableros(memLeerCliente), ver: k => (MEM.tab.get(k) || {}).tablero || null, soltar: memSoltar, claves: () => [...MEM.tab.keys()] }

@@ -291,7 +291,7 @@
     const pv = app.querySelector('.pv'), cols = pv && pv.querySelector('.cols'); if (!cols) return;
     const si = app.clientWidth >= 1100 && window.innerHeight >= 700, antes = pv.classList.contains('lleno');
     pv.classList.toggle('lleno', si);
-    if (si !== antes && st.feed && st.feed.puesto) { const y = feedPuntoDe(st.mes); if (y != null) feedEscribir(y); }   // cambia quién desliza el feed: vuelve a su mes
+    if (si !== antes && st.feed && st.feed.puesto && movMontar()) { movMedir(); feedColocar(); }   // cambia quién desliza el feed: el feed vuelve al punto de su mes
     if (si) pv.style.setProperty('--cols-top', Math.round(cols.getBoundingClientRect().top + window.scrollY) + 'px');   // CSSOM: la CSP lo deja (lección 243)
   }
   // A pantalla completa cada columna se desliza dentro: repintar (una pestaña, «Ver las anteriores», aprobar, el repaso de cada
@@ -337,7 +337,7 @@
     for (const p of L) { if (!por.has(p.mes)) por.set(p.mes, []); por.get(p.mes).push(p); }
     return [...por.keys()].sort().reverse().map(m => ({ m, items: por.get(m).sort((a, b) => a.orden - b.orden).map((p, i) => ({ p, et: i ? null : mesEt(m) })) }));
   }
-  function limpiarFeed() { if (st.feed && st.feed.ro) st.feed.ro.disconnect(); st.feed = null; }
+  function limpiarFeed() { const F = st.feed; if (F) { if (F.ro) F.ro.disconnect(); if (F.mov) F.mov.destruir(); } st.feed = null; }
   function feedNodo() {
     let F = st.feed;
     if (!F || F.cli !== st.cli) {
@@ -382,32 +382,72 @@
     const vh = F.host.querySelector('.fm-svh').offsetHeight || innerHeight, max = document.documentElement.scrollHeight - innerHeight;
     return Math.max(0, Math.min(max, Math.round(scrollY + b - vh + 8)));
   }
-  // el punto al que va el feed para un mes: el suyo o, si no tiene casillas, el del mes con casillas más cercano (antes el más nuevo)
-  function feedPuntoDe(key) {
-    const ms = feedMeses().map(m => m.key), i = ms.indexOf(key);
-    for (let d = 0; d < ms.length; d++) for (const j of [i + d, i - d]) { if (j < 0 || j >= ms.length) continue; const p = feedPunto(ms[j]); if (p != null) return p; }
-    return null;
+  // ---------- el movimiento (feed continuo; el motor de la Mesa, feed-mov.js) ----------
+  // La tira sigue al feed; el mes activo cambia una vez, al asentarse; el imán suave; pulsar un mes o una flecha, un salto de
+  // duración fija (--d-m, --ease-m); con «reducir movimiento», todo al instante y sin imán. Un motor por cliente y por quien
+  // desliza (el panel o la página): al cruzar 1100 px o 700 de alto se monta otro y el feed vuelve al punto de su mes.
+  const RM = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
+  const mesNo = () => !!(st.abierta || document.querySelector('.dlg'));   // con la ventana o un diálogo abiertos, el mes activo no cambia
+  // con la página, mirando lo de debajo del feed (calendario, «Tus pagos»): ni el mes activo cambia ni actúa el imán
+  const pasado = () => { const F = st.feed; return !!(F && F.movModo === 'win' && F.ultimo != null && scrollY > F.ultimo + 1); };
+  function movMontar() {
+    const F = st.feed; if (!F || !F.nodo.isConnected) return false;
+    const modo = feedModo(); if (F.mov && F.movModo === modo) return false;
+    if (F.mov) F.mov.destruir();
+    const tk = FeedMov.tokens();
+    F.movModo = modo;
+    F.mov = FeedMov.motor(modo === 'el' ? F.sc : FeedMov.ventana(), {
+      pintar: v => F.cab.mover(v), jFijo: () => Math.max(0, F.cab.indice(st.mes)), reducir: () => !!RM.matches,
+      imanNo: () => mesNo() || pasado(), asentado: v => seguro(() => movAsentado(v)), dur: tk.dur, ease: tk.ease });
+    return true;
   }
-  const feedEscribir = y => { if (feedModo() === 'el') st.feed.sc.scrollTop = y; else window.scrollTo(0, y); };
-  // la cabecera, al día: sus meses y el activo; colocada sobre la rejilla en el cuadro siguiente; la primera vez, el feed en el mes
+  // los puntos de los meses (una lectura de diseño: al montar y cuando cambian el tamaño o el contenido, nunca al deslizar)
+  function movMedir() {
+    const F = st.feed; if (!F || !F.mov || !F.nodo.isConnected) return;
+    const pts = []; F.cab.meses().forEach((m, j) => { const p = feedPunto(m.key, F.movModo); if (p != null) pts.push({ j, st: p }); });
+    const c0 = F.grid.querySelector('.cel'), fh = c0 ? c0.offsetHeight + 2 : 0;
+    const max = F.movModo === 'el' ? F.sc.scrollHeight - F.sc.clientHeight : document.documentElement.scrollHeight - innerHeight;
+    F.ultimo = pts.length ? Math.max(...pts.map(p => p.st)) : null;
+    F.mov.medir(pts, fh, Math.max(0, max), F.mov.sc.scrollTop);
+  }
+  // el feed en el mes activo, al instante (al abrir, al cambiar quién desliza); un mes sin casillas: el feed en el más cercano y la
+  // tira en el suyo
+  function feedColocar() {
+    const F = st.feed; if (!F || !F.mov) return;
+    const ms = F.cab.meses().map(m => m.key), j = ms.indexOf(st.mes); let jn = -1, y = null;
+    for (let d = 0; d < ms.length && y == null; d++) for (const k of [j + d, j - d]) { if (k < 0 || k >= ms.length) continue; const p = feedPunto(ms[k], F.movModo); if (p != null) { jn = k; y = p; break; } }
+    if (y == null) return;
+    F.mov.ir(y, jn, { instantaneo: true }); if (jn !== j && j >= 0) F.mov.volver(j, true);
+  }
+  // la cabecera, al día: sus meses y el activo; colocada sobre la rejilla; la primera vez, el feed en el punto de su mes
   function cabPoner() {
     const F = st.feed; if (!F) return;
-    F.cab.poner(feedMeses()); F.cab.marcar(st.mes); F.cab.mover(Math.max(0, F.cab.indice(st.mes)));
-    if (!F.ro && typeof ResizeObserver === 'function') { F.ro = new ResizeObserver(() => cabColocar()); F.ro.observe(F.grid); F.ro.observe(F.host); }
-    cabColocar();
-    if (!F.puesto) {
-      F.puesto = true; const y = feedPuntoDe(st.mes); if (y != null) feedEscribir(y);
-      // con las letras ya cargadas lo de encima puede medir otra cosa: si nadie ha movido el feed, otra vez a su punto
-      if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (st.feed !== F || y == null) return; const s = feedModo() === 'el' ? F.sc.scrollTop : scrollY; if (Math.abs(s - y) < 1) { const y2 = feedPuntoDe(st.mes); if (y2 != null) feedEscribir(y2); } });
-    }
+    const antes = F.cab.meses().map(m => m.key);
+    if (F.cab.poner(feedMeses()) && F.mov) { const ahora = F.cab.meses().map(m => m.key); F.mov.reindex(j => ahora.indexOf(antes[j])); }
+    F.cab.marcar(st.mes);
+    if (!F.ro && typeof ResizeObserver === 'function') { F.ro = new ResizeObserver(() => seguro(cabColocar)); [F.grid, F.host, F.sc, document.body].forEach(e => F.ro.observe(e)); }
+    movMontar(); cabColocar();
+    if (!F.puesto) { F.puesto = true; feedColocar(); } else movActivo();
   }
-  function cabColocar() { const F = st.feed; if (!F || !F.nodo.isConnected) return; F.cab.colocar(F.grid); F.cab.mover(Math.max(0, F.cab.indice(st.mes))); }
-  // pulsar un mes o una flecha: el mes activo al momento, y el feed a su punto
+  function cabColocar() { const F = st.feed; if (!F || !F.nodo.isConnected) return; F.cab.colocar(F.grid); movMedir(); }
+  // en reposo, la tira en el mes activo (si tocaste una publicación de otro mes o el mes no pudo cambiar): vuelve sola, sin mover el feed
+  function movActivo() { const F = st.feed, i = F ? F.cab.indice(st.mes) : -1; if (!F || !F.mov || i < 0 || !F.mov.quieto()) return; if (Math.round(F.mov.v()) !== i) F.mov.volver(i); }
+  // el desplazamiento se asentó en v: el mes activo, una vez, al del mes con casillas más cercano (un empate: el más nuevo); nada
+  // se escribe; solo cambia lo que cuelga del mes
+  function movAsentado(v) {
+    const F = st.feed; if (!F || pasado()) return;
+    const ms = F.cab.meses(); let b = -1;
+    ms.forEach((m, j) => { if (F.envs.has(m.key) && (b < 0 || Math.abs(j - v) < Math.abs(b - v) || (Math.abs(j - v) === Math.abs(b - v) && j > b))) b = j; });
+    if (b >= 0 && ms[b].key !== st.mes && !mesNo()) { st.mes = ms[b].key; pintarMes(); F.cab.marcar(st.mes); }
+    movActivo();
+  }
+  // pulsar un mes o una flecha: el mes activo al momento; el feed, con el salto, a su punto (un mes sin casillas: el feed no se mueve)
   function irMes(key) {
     const F = st.feed; if (!F) return;
     if (key !== st.mes) { st.mes = key; pintarMes(); }
-    F.cab.marcar(key); F.cab.mover(F.cab.indice(key));
-    const y = feedPunto(key); if (y != null) feedEscribir(y);
+    F.cab.marcar(key); movMontar();
+    const j = F.cab.indice(key), y = feedPunto(key, F.movModo);
+    if (y != null) F.mov.ir(y, j); else F.mov.volver(j);
   }
   // Las entregas de un cliente de solo contenido (D-297), en el sitio del feed: las del mes, «N de M entregadas»; cada una con
   // qué, cuánto y su fecha; entregada, su enlace (solo entonces) y el día; si no, «En camino»; las del mes siguiente, aparte.

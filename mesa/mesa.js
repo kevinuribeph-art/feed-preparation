@@ -9875,7 +9875,7 @@ ${TK_FUENTES}
   for (const k of ['openClient', 'open', 'init']) { const f = M[k]; M[k] = async (...a) => {
     SKILL = null;                        // a month opened: a skill's concession ends (its next call starts it on its board, D-329)
     if (importEscribe) { const m = 'Espera: se está importando la mesa.'; toast(m); return k === 'init' ? Promise.reject(new Error(m)) : { error: m }; }   // what is in memory would overwrite what the import writes (D-249)
-    switching++; try { return await f(...a); } finally { switching--; } }; }
+    switching++; try { await fueraQ.catch(() => null); return await f(...a); } finally { switching--; } }; }   // a copy of another month still being written goes in first (pieza 9, D-337; as activar)
   // internal bridge for the designer (diseno.js): the open board and the mesa's own helpers (getters for what changes)
   // ---------- the vista cliente's structure (D-230) ----------
   // Besides the feed and the calendar, the vista cliente has tabs over the calendar («Calendario» and the parts of 'pestana')
@@ -10118,7 +10118,7 @@ ${TK_FUENTES}
     cobBorrarTodo: async () => { if (NUBE.activa) throw new Error('con la nube encendida no se vacía nada (D-256)'); cobGen++; acuGen++; await tx(['cobros', 'cfacturas', 'acuerdos', 'paquetes'], 'readwrite', o => { o.cobros.clear(); o.cfacturas.clear(); o.acuerdos.clear(); o.paquetes.clear(); }); COB = new Map(); ACU = new Map(); PAQ = new Map(); for (const c of CL) if (c.cuota || c.cuotaAt || c.acuerdo || c.acuerdoAt) await editarCliente(c.id, x => { delete x.cuota; delete x.cuotaAt; delete x.acuerdo; delete x.acuerdoAt; return x; }); await loadClients(); cobAvisar(false); },   // the battery's invoices, fees and agreements go (D-232, D-288)
     // the battery's clients as made: no service, day of deliveries nor link of metrics (D-289, D-290, D-292)
     camposBorrar: async ids => { for (const id of ids) { const c = CL.find(x => x.id === id); if (c && CAMPOS_CLI.some(([k, kAt]) => k in c || kAt in c)) await editarCliente(id, x => { CAMPOS_CLI.forEach(([k, kAt]) => { delete x[k]; delete x[kAt]; }); return x; }); } await loadClients(); },
-    reloj: t => { RELOJ = t == null ? null : +t; }, vencRevisar: abrir => vencRevisar(!!abrir), avisadas: () => new Set(), fueraListo: () => fueraQ,   // a fixed clock for the battery (D-120)
+    reloj: t => { RELOJ = t == null ? null : +t; }, vencRevisar: abrir => vencRevisar(!!abrir), avisadas: () => new Set(), fueraListo: () => fueraQ, fueraTapon: p => { fueraQ = fueraQ.then(() => p).catch(() => null); return fueraQ; },   // the battery: a write of another month that hasn't finished (D-337)   // a fixed clock for the battery (D-120)
     place, swap, unassign, move, movePhoto, setType, removeFile, setCover, setNote, setMemo, setMotivo, pastList, addToSlot, setPreview, refreshDetail,
     versionNueva, claim, nubeAbrir, escrito: k => ESCRITO.get(k), cuerpoNube: () => S && cuerpoNube(S),
     perBorrar: async () => { if (NUBE.activa) throw new Error('con la nube encendida no se vacía nada (D-256)'); for (const c of CL) if (c.personas) await editarCliente(c.id, o => { delete o.personas; delete o.personasAt; return o; }); await loadClients(); },   // the battery's lists of people go (D-130)

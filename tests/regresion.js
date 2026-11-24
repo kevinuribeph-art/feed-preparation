@@ -24817,6 +24817,18 @@
       ok(/cabecera/.test(avisos()[0].textContent), 'al tocar, el aviso no dice cómo cambiar de mes');
     } finally { SK.cerrar(); M._in.clearToasts(); await limpiar(); }
   });
+  prueba('FM10', 'Abrir un cliente o un mes espera a lo que se está escribiendo de otros meses (feed continuo, pieza 9; D-337): con una escritura de otro mes sin acabar, MESA.openClient, MESA.open y MESA.init esperan a que acabe, como ya hacía cambiar de mes (activar)', async () => {
+    try {
+      await fdDos();
+      ok(M._test.fueraTapon, 'no hay MESA._test.fueraTapon');
+      for (const [que, abrir] of [['openClient', () => M.openClient(CLIENTE)], ['open', () => M.open(fdO)], ['init', () => M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1), pub(2)], past: [], force: true })]]) {
+        let soltar; const tapon = new Promise(r => { soltar = r; }); M._test.fueraTapon(tapon);
+        let fin = false; const p = Promise.resolve(abrir()).then(() => { fin = true; });
+        await espera(250); ok(!fin, `${que} no esperó a la escritura de otro mes`);
+        soltar(); await p; ok(fin, `${que} no acabó`);
+      }
+    } finally { await limpiar(); }
+  });
 
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;

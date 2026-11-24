@@ -4,8 +4,9 @@
 // hace: aprobar, pedir cambios con motivo y comentar.
 (function portal() {
   'use strict';
-  const V = '1.8';   // 1.8: un cliente de solo contenido sin meses: su lista entera y sus sesiones que vienen, sin calendario, como la «Vista cliente» (D-312). 1.7: «Tus pagos» con el acuerdo de cuándo a cuándo, lo que incluye su paquete y la siguiente por su fecha (D-308). 1.6: a pantalla completa (D-293), «Ver más en Zernio» (D-294), la ventana de una publicación como Instagram (D-295), las flechas del carrusel (D-296), «Tus pagos» con su tramo, las entregas de un cliente de solo contenido y la reunión (D-297). 1.5: el aviso de demasiados intentos ya no promete un minuto (D-280). 1.4: la cuenta que solo mira: ve cada cliente como lo ve él, sin aprobar, pedir cambios ni comentar (D-266). 1.3: el monograma a la izquierda de la barra, sin pulsar, y la página con las medidas de la «Vista cliente» (D-264)
+  const V = '1.12';   // 1.12: al parar lejos del punto de un mes, la tira se centra sola en el mes activo (D-P14, como D-338 de la Mesa). 1.11: lo visto simulando el iPhone: girar no aleja la página, los puntos al cambiar el alto, la inercia larga (D-P11 a D-P13). 1.10: con algo por aprobar y la página deslizando, abre arriba, con el aviso a la vista (D-P10). 1.9: el feed seguido, con todos los meses, la cabecera de meses y su movimiento, como la «Vista cliente» (feed continuo; feed-mov.js 1.0). 1.8: un cliente de solo contenido sin meses: su lista entera y sus sesiones que vienen, sin calendario, como la «Vista cliente» (D-312). 1.7: «Tus pagos» con el acuerdo de cuándo a cuándo, lo que incluye su paquete y la siguiente por su fecha (D-308). 1.6: a pantalla completa (D-293), «Ver más en Zernio» (D-294), la ventana de una publicación como Instagram (D-295), las flechas del carrusel (D-296), «Tus pagos» con su tramo, las entregas de un cliente de solo contenido y la reunión (D-297). 1.5: el aviso de demasiados intentos ya no promete un minuto (D-280). 1.4: la cuenta que solo mira: ve cada cliente como lo ve él, sin aprobar, pedir cambios ni comentar (D-266). 1.3: el monograma a la izquierda de la barra, sin pulsar, y la página con las medidas de la «Vista cliente» (D-264)
   const app = document.getElementById('app');
+  try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (e) { /* */ }   // el feed se coloca solo en su mes: al recargar, el navegador no lo mueve a donde estaba
   const CFG = window.PORTAL_CONFIG || {};
   const TZ = 'Europe/Madrid';
   const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -34,14 +35,15 @@
     const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('class', 'i' + (cls ? ' ' + cls : '')); s.setAttribute('aria-hidden', 'true');
     const u = document.createElementNS('http://www.w3.org/2000/svg', 'use'); u.setAttribute('href', '#i-' + n); s.append(u); return s;
   }
-  const partes = (t, o) => Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: TZ, ...o }).formatToParts(t).map(p => [p.type, p.value]));
+  const FMT = new Map();   // un formateador por forma (crearlo cuesta: el feed seguido pinta todos los meses)
+  const partes = (t, o) => { const k = JSON.stringify(o); let f = FMT.get(k); if (!f) FMT.set(k, f = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, ...o })); return Object.fromEntries(f.formatToParts(t).map(p => [p.type, p.value])); };
   const hoy = () => { const p = partes(new Date(), { year: 'numeric', month: '2-digit', day: '2-digit' }); return `${p.year}-${p.month}-${p.day}`; };
   const diaDe = iso => { const p = partes(new Date(iso), { year: 'numeric', month: '2-digit', day: '2-digit' }); return `${p.year}-${p.month}-${p.day}`; };
   const horaDe = iso => { const p = partes(new Date(iso), { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }); return `${p.hour}:${p.minute}`; };
   const dsem = dia => DIAS[new Date(dia + 'T12:00:00Z').getUTCDay()];
   const madrid = dia => new Date(dia + 'T11:00:00Z').toISOString();   // una entrega, a mediodía de su día en Madrid (para ordenar la lista)
   const may = t => t ? t[0].toUpperCase() + t.slice(1) : t;
-  const mesCorto = m => may(MESES[+m.slice(5, 7) - 1].slice(0, 3)) + ' ' + m.slice(0, 4);
+  const mesEt = m => may(MESES[+m.slice(5, 7) - 1].slice(0, 3)) + (m.slice(0, 4) !== hoy().slice(0, 4) ? ' ' + m.slice(2, 4) : '');   // «Nov», «Ene 27»: el año solo si no es el de hoy
   const mesNom = m => MESES[+m.slice(5, 7) - 1] + (m.slice(0, 4) !== hoy().slice(0, 4) ? ' ' + m.slice(0, 4) : '');
   const mesAntes = m => { let [y, mo] = m.split('-').map(Number); mo--; if (!mo) { mo = 12; y--; } return `${y}-${String(mo).padStart(2, '0')}`; };
   const mesDespues = m => { let [y, mo] = m.split('-').map(Number); mo++; if (mo > 12) { mo = 1; y++; } return `${y}-${String(mo).padStart(2, '0')}`; };
@@ -68,7 +70,7 @@
   let S = null;
   try { S = window.Supa.crear({ url: CFG.url, publica: CFG.publica, clave: 'portal-sesion' }); } catch (e) { S = null; }
   const POR = 'Solo mirar: con esta cuenta no se aprueba, no se piden cambios ni se comenta.';   // D-266
-  const st = { observa: new Set(), todoMira: false, clientes: [], cli: null, d: null, mes: null, tab: 'cal', verAnt: null, urls: new Map(), cargando: false, error: '', abierta: null, gen: 0, carga: 0, sucio: false, codigoEn: 0, ys: new Map(), colsDe: '' };
+  const st = { observa: new Set(), todoMira: false, clientes: [], cli: null, d: null, mes: null, tab: 'cal', verAnt: null, urls: new Map(), cargando: false, error: '', abierta: null, gen: 0, carga: 0, sucio: false, codigoEn: 0, ys: new Map(), colsDe: '', mesDe: new Map() };
 
   async function cargarClientes() {
     // `observa` (D-266): una cuenta que solo mira; un servidor que aún no la tiene contesta 400 y se lee como siempre
@@ -126,7 +128,7 @@
   const legal = () => h('footer', { class: 'legal' }, h('a', { href: 'privacidad.html', text: 'Privacidad' }), h('a', { href: 'aviso-legal.html', text: 'Aviso legal' }));
   const entrada = c => h('div', { class: 'ent' }, c, legal());
   function pintarEntrada(paso, correo, error, tecleado) {
-    st.d = null; st.urls.clear(); cerrar(true);
+    st.d = null; st.urls.clear(); st.pvDe = ''; limpiarFeed(); cerrar(true);
     document.querySelectorAll('.dlg,.velo,.toast').forEach(x => x.remove());
     const err = error ? h('p', { class: 'err', id: 'ent-err' }, ico('alert'), error) : null;
     if (paso !== 'codigo') {
@@ -166,6 +168,16 @@
     const s = new Set([...visibles().map(p => p.mes), ...st.d.ses.map(x => x.mes), ...(st.d.ents || []).map(x => x.fecha.slice(0, 7))]);
     return [...s].sort().reverse();
   }
+  // El mes con el que se abre un cliente. Con la página como el que desliza (por debajo de 1100 × 700, opción B) y algo por aprobar,
+  // el portal abre ARRIBA del todo: se ven las cuentas, el aviso y «Revisarlas», con la cabecera y el feed debajo; el mes activo es
+  // el del punto más cercano a esa posición (el más nuevo con casillas). Si no, `mesInicial`, como siempre (D-P10).
+  const llenoSi = () => app.clientWidth >= 1100 && window.innerHeight >= 700;
+  function mesAbrir() {
+    st.abrirArriba = false;
+    const cli = st.clientes.find(c => c.id === st.cli);
+    if (!(cli && cli.servicio === 'contenido') && pendientes().length && !llenoSi()) { const g = feedGrupos()[0]; if (g) { st.abrirArriba = true; return g.m; } }
+    return mesInicial();
+  }
   function mesInicial() {
     const ms = mesesDisponibles(), p = pendientes()[0], h0 = hoy().slice(0, 7);
     if (p) return p.mes;
@@ -181,7 +193,7 @@
       const pref = lsGet('portal-cliente');
       st.cli = (st.clientes.find(c => c.id === pref) || st.clientes[0]).id;
       const n = ++st.carga, d = await cargarDatos(st.cli); if (n !== st.carga) return;
-      st.d = d; st.mes = mesInicial(); st.error = '';
+      st.d = d; st.mes = mesAbrir(); st.error = '';
       pintar();
     } catch (e) {
       if (e.status === 401 || e.codigo === 'sesion') return pintarEntrada('correo', lsGet('portal-correo') || '', 'Tu sesión ha caducado: vuelve a entrar.');
@@ -189,10 +201,12 @@
     }
   }
   function pintarSinCliente() {
+    st.pvDe = '';
     app.replaceChildren(entrada(h('div', { class: 'ent-c' }, logo(), h('h1', { text: 'Aún no hay nada que enseñarte' }),
       h('p', { text: 'Tu acceso todavía no tiene ningún calendario. Escríbele a Kevin.' }), h('button', { class: 'btn s', type: 'button', text: 'Salir', onclick: salir }))));
   }
   function pintarError(t) {
+    st.pvDe = '';
     app.replaceChildren(h('div', { class: 'pv' }, h('div', { class: 'aviso mal', role: 'alert' }, h('div', { class: 't' }, h('b', { text: 'No se pudo cargar tu calendario' }), h('span', { text: t })),
       h('button', { class: 'btn s', type: 'button', text: 'Reintentar', onclick: arrancar }))));
   }
@@ -201,44 +215,100 @@
     await S.salir(); st.urls.clear(); st.d = null; lsSet('portal-cliente', null); pintarEntrada('correo', lsGet('portal-correo') || '');
   }
 
+  // Pintar en su sitio (feed continuo): la primera vez de un cliente, la página entera (`pintarTodo`); después, solo lo que
+  // cambió: la barra y el aviso si cambiaron, las casillas del feed cuya firma cambió (el nodo del feed se conserva: ni se
+  // mueve ni pierde su posición) y lo que cuelga del mes (calendario o «Por qué», y la columna derecha). Lo llaman el repaso
+  // de cada minuto, aprobar, pedir cambios, deshacer, comentar y cerrar un diálogo con algo que llegó mientras tanto.
   function pintar() {
-    const cli = st.clientes.find(c => c.id === st.cli), cont = !!(cli && cli.servicio === 'contenido'), meses = cont ? [] : mesesDisponibles();   // de solo contenido, sin meses (D-312)
-    const top = h('header', { class: 'pv-top' },
+    const cli = st.clientes.find(c => c.id === st.cli), cont = !!(cli && cli.servicio === 'contenido');
+    const pv = app.querySelector(':scope > .pv');
+    if (!pv || st.pvDe !== st.cli + '|' + cont) return pintarTodo();
+    // con la página como el que desliza, lo de encima del feed (el aviso, la barra) puede cambiar de alto: el feed se queda donde se
+    // ve (el navegador lo hace solo donde sabe; Safari no) y el motor lo sabe (su ancla se mueve con él)
+    const F0 = !cont && st.feed && st.feed.mov && st.feed.movModo === 'win' ? st.feed : null, y0 = scrollY, g0 = F0 ? F0.grid.getBoundingClientRect().top + y0 : 0;
+    const top = pintarTop(cli, cont), tira = pintarTira();
+    if (top.sig !== st.sigTop) { pv.querySelector(':scope > .pv-top').replaceWith(top.nodo); st.sigTop = top.sig; }
+    if (tira.sig !== st.sigTira) { app.querySelector(':scope > .pv-obs')?.remove(); if (tira.nodo) app.prepend(tira.nodo); st.sigTira = tira.sig; }
+    const av = pintarAviso(), avV = pv.querySelector(':scope > .aviso');
+    if (av.sig !== st.sigAviso) { if (avV) avV.remove(); if (av.nodo) pv.querySelector(':scope > .pv-top').after(av.nodo); st.sigAviso = av.sig; }
+    if (F0 && F0 === st.feed) { const d = F0.grid.getBoundingClientRect().top + scrollY - g0; if (Math.abs(d) >= 1) F0.mov.corregir(Math.max(0, y0 + d), d); }
+    const cols = pv.querySelector(':scope > .cols'), k = st.cli + '|' + st.mes;
+    if (st.colsDe !== k) st.ys = new Map(); else scrollCols();   // otro mes: el calendario y la columna derecha, arriba
+    if (cont) { const e = seguro(pintarEntregas), v = cols.querySelector(':scope > .entw'); if (e && v) v.replaceWith(e); }
+    else { seguro(feedNodo); seguro(cabPoner); const c = seguro(pintarCentro), v = cols.querySelector(':scope > .cent'); if (c && v && c.outerHTML !== v.outerHTML) v.replaceWith(c); }
+    // la columna derecha: solo la tarjeta que cambió (la misma se queda, con lo que tocaste en ella)
+    const lado = pintarLado(cli), lv = cols.querySelector(':scope > .lado');
+    if (lv && lado) { const N = [...lado.children], V = [...lv.children]; if (N.length !== V.length || N.some((n, i) => n.dataset.p !== V[i].dataset.p)) lv.replaceWith(lado); else N.forEach((n, i) => { if (n.outerHTML !== V[i].outerHTML) V[i].replaceWith(n); }); }
+    else if (lv) lv.remove(); else if (lado) cols.append(lado);
+    cols.classList.toggle('con-lado', !!lado);
+    lleno(); scrollCols(true); st.colsDe = k;
+    pintarMinis();
+  }
+  // Cambió el mes activo: solo lo que cuelga del mes (el calendario o «Por qué», y «Cómo fue»). El feed, la cabecera y «Tus pagos»
+  // ni se tocan.
+  function pintarMes() {
+    const cols = app.querySelector('.pv > .cols'), cli = st.clientes.find(c => c.id === st.cli); if (!cols) return;
+    st.ys.forEach((v, k) => { if (k.startsWith('cent|') || k === 'h-comofue' || k === 'card') st.ys.delete(k); }); st.colsDe = st.cli + '|' + st.mes;
+    const c = seguro(pintarCentro), v = cols.querySelector(':scope > .cent'); if (c && v) v.replaceWith(c);
+    const cf = seguro(() => pintarComoFue(cli)); let lado = cols.querySelector(':scope > .lado'); const vcf = lado && lado.querySelector(':scope > [data-p="comofue"]');
+    if (cf && vcf) vcf.replaceWith(cf);
+    else if (cf) { if (!lado) { lado = h('div', { class: 'lado' }); cols.append(lado); } lado.append(cf); }
+    else if (vcf) { vcf.remove(); if (!lado.children.length) { lado.remove(); lado = null; } }
+    cols.classList.toggle('con-lado', !!lado);
+  }
+  const pintarLado = cli => { const l = [seguro(() => pintarPagos(cli)), seguro(() => pintarComoFue(cli))].filter(Boolean); return l.length ? h('div', { class: 'lado' }, l) : null; };
+  function pintarAviso() {
+    const pend = pendientes();
+    return { sig: String(pend.length), nodo: pend.length ? h('section', { class: 'aviso', 'aria-label': 'Por aprobar' }, h('span', { class: 'dot', 'aria-hidden': 'true' }),
+      h('div', { class: 't' }, h('b', { text: pend.length === 1 ? 'Una publicación espera tu visto bueno' : `${pend.length} publicaciones esperan tu visto bueno` }),
+        h('span', { text: 'Ábrelas una a una: puedes aprobar o pedir cambios.' })),
+      h('button', { type: 'button', class: 'btn p', text: pend.length === 1 ? 'Revisarla' : 'Revisarlas', onclick: () => { const p = pendientes()[0]; if (p) abrir(p.pid, true); } })) : null };
+  }
+  function pintarTira() {
+    const sig = st.todoMira ? st.cli + '|' + st.clientes.map(c => c.id + c.nombre).join(',') : '';
+    return { sig, nodo: st.todoMira ? h('div', { class: 'pv-obs', role: 'region', 'aria-label': 'Cuenta que solo mira' },
+      h('span', { class: 'pv-obs-t' }, h('b', { text: 'Solo mirar' }), ' · ves cada calendario como lo ve su cliente'),
+      st.clientes.length > 1 ? h('span', { class: 'pv-obs-l', text: 'Ver como' }) : null,
+      st.clientes.length > 1 ? st.clientes.map(c => h('button', { type: 'button', class: 'pv-obs-c' + (c.id === st.cli ? ' on' : ''), 'aria-pressed': String(c.id === st.cli), text: c.nombre, onclick: () => irA(c.id) })) : null) : null };
+  }
+  function pintarTop(cli, cont) {
+    // los meses ya no van aquí: la cabecera de meses va arriba del feed (feed continuo)
+    const sig = [st.cli, st.todoMira, st.clientes.map(c => c.id + c.nombre).join(',')].join('|');
+    return { sig, nodo: h('header', { class: 'pv-top' },
       h('img', { class: 'pv-marca', src: 'marca/monograma.svg', alt: 'Uribe Visuals', width: '24', height: '24' }),   // la marca, sin pulsar (D-264)
       // la cuenta que solo mira ve, como el cliente, solo su nombre; cambia de cliente en la tira (D-266)
       h('nav', { class: 'pv-clis', 'aria-label': 'Tus cuentas' }, (st.todoMira ? st.clientes.filter(c => c.id === st.cli) : st.clientes).map(c => h('button', { type: 'button', class: 'pv-cli' + (c.id === st.cli ? ' on' : ''), 'aria-current': c.id === st.cli ? 'page' : null, text: c.nombre,
         onclick: () => irA(c.id) }))),
-      h('button', { type: 'button', class: 'pv-salir', onclick: salir, 'aria-label': 'Salir' }, ico('out'), h('span', { class: 'tx', text: 'Salir' })),
-      meses.length > 1 ? h('nav', { class: 'pv-meses', 'aria-label': 'Meses' }, meses.map(m => h('button', { type: 'button', class: 'pv-mes' + (m === st.mes ? ' on' : ''), 'aria-pressed': String(m === st.mes), text: mesCorto(m), onclick: () => { st.mes = m; pintar(); } }))) : null);
-    const pend = pendientes();
-    const aviso = pend.length ? h('section', { class: 'aviso', 'aria-label': 'Por aprobar' }, h('span', { class: 'dot', 'aria-hidden': 'true' }),
-      h('div', { class: 't' }, h('b', { text: pend.length === 1 ? 'Una publicación espera tu visto bueno' : `${pend.length} publicaciones esperan tu visto bueno` }),
-        h('span', { text: 'Ábrelas una a una: puedes aprobar o pedir cambios.' })),
-      h('button', { type: 'button', class: 'btn p', text: pend.length === 1 ? 'Revisarla' : 'Revisarlas', onclick: () => abrir(pend[0].pid) })) : null;
+      h('button', { type: 'button', class: 'pv-salir', onclick: salir, 'aria-label': 'Salir' }, ico('out'), h('span', { class: 'tx', text: 'Salir' }))) };
+  }
+  // la página entera: al entrar, al cambiar de cliente o si pasa a ser (o deja de ser) de solo contenido
+  function pintarTodo() {
+    const cli = st.clientes.find(c => c.id === st.cli), cont = !!(cli && cli.servicio === 'contenido');
+    if (cont) limpiarFeed();
+    const top = pintarTop(cli, cont), tira = pintarTira(), av = pintarAviso();
     // la columna derecha solo si tiene algo; sin ella, el calendario ocupa su sitio (como la «Vista cliente» de la Mesa, D-230, D-246)
-    const lado = [seguro(() => pintarPagos(cli)), seguro(() => pintarComoFue(cli))].filter(Boolean);
+    const lado = pintarLado(cli);
     // de solo contenido (D-312): su lista entera, sin calendario ni meses, y «Tus pagos» a la derecha, como la «Vista cliente»
-    const cols = h('div', { class: 'cols' + (cont ? ' cont' : '') + (lado.length ? ' con-lado' : '') }, cont ? seguro(pintarEntregas) : pintarFeed(), cont ? null : seguro(pintarCentro), lado.length ? h('div', { class: 'lado' }, lado) : null);
+    const cols = h('div', { class: 'cols' + (cont ? ' cont' : '') + (lado ? ' con-lado' : '') }, cont ? seguro(pintarEntregas) : seguro(feedNodo), cont ? null : seguro(pintarCentro), lado);
     const pie = h('footer', { class: 'pie' }, h('a', { href: 'privacidad.html', text: 'Privacidad' }), h('a', { href: 'aviso-legal.html', text: 'Aviso legal' }), h('span', { text: 'Uribe Visuals' }));
-    const tira = st.todoMira ? h('div', { class: 'pv-obs', role: 'region', 'aria-label': 'Cuenta que solo mira' },
-      h('span', { class: 'pv-obs-t' }, h('b', { text: 'Solo mirar' }), ' · ves cada calendario como lo ve su cliente'),
-      st.clientes.length > 1 ? h('span', { class: 'pv-obs-l', text: 'Ver como' }) : null,
-      st.clientes.length > 1 ? st.clientes.map(c => h('button', { type: 'button', class: 'pv-obs-c' + (c.id === st.cli ? ' on' : ''), 'aria-pressed': String(c.id === st.cli), text: c.nombre, onclick: () => irA(c.id) })) : null) : null;
     const y = window.scrollY, k = st.cli + '|' + st.mes;
     if (st.colsDe !== k) st.ys = new Map(); else scrollCols();   // otro cliente u otro mes: arriba
-    app.replaceChildren(...[tira, h('div', { class: 'pv' }, top, aviso, cols, pie)].filter(Boolean));
+    app.replaceChildren(...[tira.nodo, h('div', { class: 'pv' }, top.nodo, av.nodo, cols, pie)].filter(Boolean));
+    st.sigTop = top.sig; st.sigTira = tira.sig; st.sigAviso = av.sig; st.pvDe = st.cli + '|' + cont;
     window.scrollTo(0, y);
     lleno();
     scrollCols(true);
     st.colsDe = k;
+    if (!cont) seguro(cabPoner);
     pintarMinis();
   }
   // A pantalla completa (D-293): con las tres columnas (desde 1100 px de ancho) y 700 px de alto o más, cada columna mide el
   // alto de la pantalla menos lo de encima (la cabecera, el aviso) y se desliza dentro (portal.css, `.pv.lleno`).
   function lleno() {
     const pv = app.querySelector('.pv'), cols = pv && pv.querySelector('.cols'); if (!cols) return;
-    const si = app.clientWidth >= 1100 && window.innerHeight >= 700;
+    const si = app.clientWidth >= 1100 && window.innerHeight >= 700, antes = pv.classList.contains('lleno');
     pv.classList.toggle('lleno', si);
+    if (si !== antes && st.feed && st.feed.puesto && movMontar()) { movMedir(); feedColocar(); }   // cambia quién desliza el feed: el feed vuelve al punto de su mes
     if (si) pv.style.setProperty('--cols-top', Math.round(cols.getBoundingClientRect().top + window.scrollY) + 'px');   // CSSOM: la CSP lo deja (lección 243)
   }
   // A pantalla completa cada columna se desliza dentro: repintar (una pestaña, «Ver las anteriores», aprobar, el repaso de cada
@@ -252,30 +322,168 @@
   }
   if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', () => lleno());   // la cabecera, con cada letra que llega (600 y 800 se piden al pintar)
   let llenoRaf = 0;
-  window.addEventListener('resize', () => { cancelAnimationFrame(llenoRaf); llenoRaf = requestAnimationFrame(lleno); });   // una vez por cuadro (lección 113)
+  // una vez por cuadro (lección 113); y los puntos de los meses otra vez: el alto de la pantalla cambió (sin esto, al bajar el alto de la
+  // ventana los puntos se quedaban en los de antes hasta otro cambio de tamaño del contenido; D-P12)
+  window.addEventListener('resize', () => { cancelAnimationFrame(llenoRaf); llenoRaf = requestAnimationFrame(() => { lleno(); seguro(cabColocar); }); });
 
   async function irA(id) {
     if (id === st.cli) return;
-    st.cli = id; lsSet('portal-cliente', id); const n = ++st.carga; cerrar(true);
+    if (st.cli && st.mes) st.mesDe.set(st.cli, st.mes);   // al volver a este cliente, su feed en el mes en que lo dejaste
+    st.cli = id; lsSet('portal-cliente', id); const n = ++st.carga; cerrar(true); limpiarFeed();
     const d = await cargarDatos(id).catch(e => { if (n === st.carga) pintarError(msgError(e)); return null; });
-    if (d && n === st.carga) { st.d = d; st.mes = mesInicial(); pintar(); }
+    if (d && n === st.carga) { st.d = d; const m = st.mesDe.get(id); st.mes = m && mesesDisponibles().includes(m) ? (st.abrirArriba = false, m) : mesAbrir(); pintar(); }
   }
   const soloMira = () => st.observa.has(st.cli);   // D-266
   function seguro(f) { try { return f(); } catch (e) { if (window.console) console.error(e); return null; } }
-  function pintarFeed() {
-    const ahora = delMes(st.mes), antes = delMes(mesAntes(st.mes)).filter(p => p.estado === 'publicada' || p.estado === 'programada');
-    const celda = (p, rotulo) => {
-      const n = st.d.coms.filter(c => c.pid === p.pid).length, im = p.imagenes[0];
-      return h('button', { type: 'button', class: 'cel' + (im ? '' : ' vacia'), 'data-pid': p.pid, 'aria-label': `${TIPO[p.tipo] || 'Publicación'} · ${fechaPub(p)} · ${ESTADO[p.estado][0]}`, onclick: () => abrir(p.pid) },
-        im ? h('img', { alt: '', 'data-ruta': im.mini, loading: 'lazy', decoding: 'async' }) : h('span', { class: 'pre', text: p.estado === 'preparando' ? 'En preparación' : 'Sin imagen aún' }),
-        p.tipo === 'carrusel' ? h('span', { class: 'ty' }, ico('copy')) : /reel/.test(p.tipo) ? h('span', { class: 'ty' }, ico('clap')) : null,
-        rotulo ? h('span', { class: 'pub' }, h('span', { class: 'l', text: rotulo[0] }), h('span', { class: 'c', text: rotulo[1] })) : null,
-        n ? h('span', { class: 'nc' }, ico('msg'), String(n), h('span', { class: 'sr', text: n === 1 ? ' comentario' : ' comentarios' })) : null);
-    };
-    const mA = MESES[+mesAntes(st.mes).slice(5, 7) - 1];
-    const celdas = [...ahora.map(p => celda(p)), ...antes.map((p, i) => celda(p, i === 0 ? [may(mA.slice(0, 3)) + '. · publicado', may(mA.slice(0, 3)) + '.'] : null))];
-    return h('section', { class: 'feedw', 'aria-label': 'Tu feed' },
-      celdas.length ? h('div', { class: 'feed' }, celdas) : h('p', { class: 'vacio', text: 'Este mes aún no tiene publicaciones.' }));
+  // ---------- el feed ----------
+  // Un nodo que se conserva por cliente (st.feed): `pintar()` no lo rehace; solo cambia las casillas cuya firma cambió (foto, estado,
+  // fecha, tipo, comentarios, etiqueta) y, si un mes cambia de publicaciones, solo ese mes. Cada mes, en su envoltorio `.fm-m`
+  // (display: contents: no rompe las filas de la rejilla).
+  const cuentaComs = () => { const n = new Map(); for (const c of st.d.coms) n.set(c.pid, (n.get(c.pid) || 0) + 1); return n; };
+  const sigCelda = (p, et, nc) => [p.estado, p.fecha, p.sin_hora, p.tipo, p.imagenes.length && p.imagenes[0].mini, nc.get(p.pid) || 0, JSON.stringify(et || '')].join('|');
+  function celda(p, et, nc) {
+    const n = nc.get(p.pid) || 0, im = p.imagenes[0];
+    return h('button', { type: 'button', class: 'cel' + (im ? '' : ' vacia'), 'data-pid': p.pid, 'aria-label': `${TIPO[p.tipo] || 'Publicación'} · ${fechaPub(p)} · ${ESTADO[p.estado][0]}`, onclick: () => abrir(p.pid) },
+      im ? h('img', { alt: '', 'data-ruta': im.mini, loading: 'lazy', decoding: 'async' }) : h('span', { class: 'pre', text: p.estado === 'preparando' ? 'En preparación' : 'Sin imagen aún' }),
+      p.tipo === 'carrusel' ? h('span', { class: 'ty' }, ico('copy')) : /reel/.test(p.tipo) ? h('span', { class: 'ty' }, ico('clap')) : null,
+      et ? h('span', { class: 'mes-et', text: et }) : null,   // el mes, en su casilla más nueva (como la «Vista cliente»)
+      n ? h('span', { class: 'nc' }, ico('msg'), String(n), h('span', { class: 'sr', text: n === 1 ? ' comentario' : ' comentarios' })) : null);
+  }
+  // el feed seguido (feed continuo): todos los meses del cliente, del más nuevo al más viejo, cada uno con todo lo suyo que Kevin
+  // envió (en el orden de su tablero, `orden`), uno detrás de otro sin empezar fila; la etiqueta del mes, solo en su casilla más
+  // nueva. Un mes sin publicaciones (solo una sesión o una entrega) no tiene sitio en el feed. [{m, items: [{p, et}]}]
+  function feedGrupos() {
+    const L = visibles(), por = new Map();
+    for (const p of L) { if (!por.has(p.mes)) por.set(p.mes, []); por.get(p.mes).push(p); }
+    return [...por.keys()].sort().reverse().map(m => ({ m, items: por.get(m).sort((a, b) => a.orden - b.orden).map((p, i) => ({ p, et: i ? null : mesEt(m) })) }));
+  }
+  function limpiarFeed() { const F = st.feed; if (F) { if (F.ro) F.ro.disconnect(); if (F.mov) F.mov.destruir(); } st.feed = null; }
+  function feedNodo() {
+    let F = st.feed;
+    if (!F || F.cli !== st.cli) {
+      const grid = h('div', { class: 'feed' }), vacio = h('p', { class: 'vacio', text: 'Aún no hay publicaciones.' }), sc = h('div', { class: 'fm-sc' });
+      const cab = FeedMov.cabecera({ icono: n => ico(n), alPulsar: k => irMes(k) });
+      const host = h('div', { class: 'fm-host' }, cab.nodo, h('div', { class: 'fm-svh', 'aria-hidden': 'true' }));
+      F = st.feed = { cli: st.cli, envs: new Map(), grid, vacio, sc, host, cab, puesto: false, arriba: !!st.abrirArriba, nodo: h('section', { class: 'feedw', 'aria-label': 'Tu feed' }, host, sc) };
+    }
+    const G = feedGrupos(), nc = cuentaComs(), vivos = new Set(); let ant = null;
+    for (const g of G) {
+      vivos.add(g.m);
+      let E = F.envs.get(g.m); const ids = g.items.map(x => x.p.pid).join(',');
+      if (!E || E.ids !== ids) {   // ese mes cambió de publicaciones (o de orden): se rehace solo él
+        const sigs = new Map(), n = h('div', { class: 'fm-m', 'data-mes': g.m }, g.items.map(x => { sigs.set(x.p.pid, sigCelda(x.p, x.et, nc)); return celda(x.p, x.et, nc); }));
+        if (E) E.nodo.replaceWith(n);
+        F.envs.set(g.m, E = { nodo: n, ids, sigs });
+      } else for (const x of g.items) {   // el mismo mes: solo la casilla que cambió
+        const s = sigCelda(x.p, x.et, nc); if (E.sigs.get(x.p.pid) === s) continue;
+        const v = E.nodo.querySelector(`.cel[data-pid="${CSS.escape(x.p.pid)}"]`); if (v) v.replaceWith(celda(x.p, x.et, nc)); E.sigs.set(x.p.pid, s);
+      }
+      const aqui = ant ? ant.nextSibling : F.grid.firstChild;
+      if (E.nodo !== aqui) F.grid.insertBefore(E.nodo, aqui);
+      ant = E.nodo;
+    }
+    for (const [m, E] of F.envs) if (!vivos.has(m)) { E.nodo.remove(); F.envs.delete(m); }
+    const dentro = G.length ? F.grid : F.vacio;
+    if (F.sc.firstChild !== dentro || F.sc.childNodes.length !== 1) F.sc.replaceChildren(dentro);
+    return F.nodo;
+  }
+  // ---------- la cabecera de meses y dónde está el feed ----------
+  // los meses de la cabecera, del más viejo al más nuevo: los que tienen publicaciones y los que solo tienen una sesión o una
+  // entrega (se eligen, pero no tienen sitio en el feed); un mes sin nada entre dos enviados, escondido (no llega)
+  const feedMeses = () => mesesDisponibles().slice().sort().map(m => ({ key: m, label: mesEt(m), title: may(MESES[+m.slice(5, 7) - 1]) + ' ' + m.slice(0, 4) }));
+  // quién desliza el feed: a pantalla completa, su panel; si no, la página (opción B)
+  const feedModo = () => (app.querySelector('.pv.lleno') ? 'el' : 'win');
+  // el punto de un mes: la posición en la que su primera publicación (la más vieja) queda en la fila de abajo de lo que se ve;
+  // null: el mes no tiene casillas. Con la página, el alto pequeño de la pantalla (100svh: la barra de Safari no lo mueve)
+  function feedPunto(key, modo) {
+    const F = st.feed, E = F && F.envs.get(key), c = E && E.nodo.lastElementChild; if (!c) return null;
+    const b = c.getBoundingClientRect().bottom;
+    if ((modo || feedModo()) === 'el') { const sc = F.sc, max = sc.scrollHeight - sc.clientHeight; return Math.max(0, Math.min(max, Math.round(sc.scrollTop + b - sc.getBoundingClientRect().top - sc.clientHeight))); }
+    const vh = F.host.querySelector('.fm-svh').offsetHeight || innerHeight, max = document.documentElement.scrollHeight - innerHeight;
+    return Math.max(0, Math.min(max, Math.round(scrollY + b - vh + 8)));
+  }
+  // ---------- el movimiento (feed continuo; el motor de la Mesa, feed-mov.js) ----------
+  // La tira sigue al feed; el mes activo cambia una vez, al asentarse; el imán suave; pulsar un mes o una flecha, un salto de
+  // duración fija (--d-m, --ease-m); con «reducir movimiento», todo al instante y sin imán. Un motor por cliente y por quien
+  // desliza (el panel o la página): al cruzar 1100 px o 700 de alto se monta otro y el feed vuelve al punto de su mes.
+  const RM = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
+  const mesNo = () => !!(st.abierta || document.querySelector('.dlg'));   // con la ventana o un diálogo abiertos, el mes activo no cambia
+  // con la página, mirando lo de debajo del feed (calendario, «Tus pagos»): ni el mes activo cambia ni actúa el imán
+  const pasado = () => { const F = st.feed; return !!(F && F.movModo === 'win' && F.ultimo != null && scrollY > F.ultimo + 1); };
+  function movMontar() {
+    const F = st.feed; if (!F || !F.nodo.isConnected) return false;
+    const modo = feedModo(); if (F.mov && F.movModo === modo) return false;
+    if (F.mov) F.mov.destruir();
+    const tk = FeedMov.tokens();
+    F.movModo = modo;
+    F.mov = FeedMov.motor(modo === 'el' ? F.sc : FeedMov.ventana(), {
+      pintar: v => F.cab.mover(v), jFijo: () => Math.max(0, F.cab.indice(st.mes)), reducir: () => !!RM.matches,
+      imanNo: () => mesNo() || pasado(), asentado: v => seguro(() => movAsentado(v)), dur: tk.dur, ease: tk.ease });
+    return true;
+  }
+  // los puntos de los meses (una lectura de diseño: al montar y cuando cambian el tamaño o el contenido, nunca al deslizar)
+  function movMedir() {
+    const F = st.feed; if (!F || !F.mov || !F.nodo.isConnected) return;
+    const pts = []; F.cab.meses().forEach((m, j) => { const p = feedPunto(m.key, F.movModo); if (p != null) pts.push({ j, st: p }); });
+    const c0 = F.grid.querySelector('.cel'), fh = c0 ? c0.offsetHeight + 2 : 0;
+    const max = F.movModo === 'el' ? F.sc.scrollHeight - F.sc.clientHeight : document.documentElement.scrollHeight - innerHeight;
+    F.ultimo = pts.length ? Math.max(...pts.map(p => p.st)) : null;
+    F.mov.medir(pts, fh, Math.max(0, max), F.mov.sc.scrollTop);
+  }
+  // el feed en el mes activo, al instante (al abrir, al cambiar quién desliza); un mes sin casillas: el feed en el más cercano y la
+  // tira en el suyo
+  function feedColocar() {
+    const F = st.feed; if (!F || !F.mov) return;
+    const ms = F.cab.meses().map(m => m.key), j = ms.indexOf(st.mes); let jn = -1, y = null;
+    for (let d = 0; d < ms.length && y == null; d++) for (const k of [j + d, j - d]) { if (k < 0 || k >= ms.length) continue; const p = feedPunto(ms[k], F.movModo); if (p != null) { jn = k; y = p; break; } }
+    if (y == null) return;
+    F.mov.ir(y, jn, { instantaneo: true }); if (jn !== j && j >= 0) F.mov.volver(j, true);
+  }
+  // la cabecera, al día: sus meses y el activo; colocada sobre la rejilla; la primera vez, el feed en el punto de su mes
+  function cabPoner() {
+    const F = st.feed; if (!F) return;
+    const antes = F.cab.meses().map(m => m.key);
+    if (F.cab.poner(feedMeses()) && F.mov) { const ahora = F.cab.meses().map(m => m.key); F.mov.reindex(j => ahora.indexOf(antes[j])); }
+    F.cab.marcar(st.mes);
+    if (!F.ro && typeof ResizeObserver === 'function') { F.ro = new ResizeObserver(() => seguro(cabColocar)); [F.grid, F.host, F.sc, document.body].forEach(e => F.ro.observe(e)); }
+    movMontar(); cabColocar();
+    if (!F.puesto) {   // la primera vez: el feed en el punto de su mes o, con algo por aprobar y la página deslizando, arriba del todo
+      F.puesto = true; st.abrirArriba = false;
+      if (F.arriba && F.movModo === 'win') { if (scrollY) window.scrollTo(0, 0); movMedir(); } else feedColocar();
+    } else movActivo();
+  }
+  function cabColocar() { const F = st.feed; if (!F || !F.nodo.isConnected) return; F.cab.colocar(F.grid); movMedir(); }
+  // en reposo, la tira en el mes activo (si tocaste una publicación de otro mes o el mes no pudo cambiar): vuelve sola, sin mover el feed
+  function movActivo() { const F = st.feed, i = F ? F.cab.indice(st.mes) : -1; if (!F || !F.mov || i < 0 || !F.mov.quieto()) return; if (Math.abs(F.mov.v() - i) > 0.002) F.mov.volver(i); }   // en reposo, el nombre del mes activo entero y centrado en la píldora, también entre dos puntos; el feed no se mueve (D-338 de la Mesa; D-P14)
+  // el desplazamiento se asentó en v: el mes activo, una vez, al del mes con casillas más cercano (un empate: el más nuevo); nada
+  // se escribe; solo cambia lo que cuelga del mes
+  function movAsentado(v) {
+    const F = st.feed; if (!F || pasado()) return;
+    const ms = F.cab.meses(); let b = -1;
+    ms.forEach((m, j) => { if (F.envs.has(m.key) && (b < 0 || Math.abs(j - v) < Math.abs(b - v) || (Math.abs(j - v) === Math.abs(b - v) && j > b))) b = j; });
+    if (b >= 0 && ms[b].key !== st.mes && !mesNo()) { st.mes = ms[b].key; pintarMes(); F.cab.marcar(st.mes); }
+    movActivo();
+  }
+  function feedA(p, llevar) {
+    const F = st.feed; if (!F || !F.mov) return;
+    const ms = mesesDisponibles();
+    if (p.mes !== st.mes && ms.includes(p.mes)) { st.mes = p.mes; pintarMes(); F.cab.marcar(p.mes); }
+    const c = F.grid.querySelector(`.cel[data-pid="${CSS.escape(p.pid)}"]`), j = F.cab.indice(p.mes);
+    if (!llevar || !c) { movActivo(); return; }
+    const r = c.getBoundingClientRect(), el = F.movModo === 'el';
+    const arriba = el ? F.sc.getBoundingClientRect().top : F.host.getBoundingClientRect().bottom, abajo = el ? F.sc.getBoundingClientRect().bottom : (F.host.querySelector('.fm-svh').offsetHeight || innerHeight) - 8;
+    const s = F.mov.sc.scrollTop, max = el ? F.sc.scrollHeight - F.sc.clientHeight : document.documentElement.scrollHeight - innerHeight;
+    const d = r.top < arriba ? r.top - arriba : r.bottom > abajo ? r.bottom - abajo : 0;
+    if (Math.abs(d) < 1) { movActivo(); return; }
+    F.mov.ir(Math.max(0, Math.min(max, Math.round(s + d))), j, { libre: true });
+  }
+  // pulsar un mes o una flecha: el mes activo al momento; el feed, con el salto, a su punto (un mes sin casillas: el feed no se mueve)
+  function irMes(key) {
+    const F = st.feed; if (!F) return;
+    if (key !== st.mes) { st.mes = key; pintarMes(); }
+    F.cab.marcar(key); movMontar();
+    const j = F.cab.indice(key), y = feedPunto(key, F.movModo);
+    if (y != null) F.mov.ir(y, j); else F.mov.volver(j);
   }
   // Las entregas de un cliente de solo contenido (D-297), en el sitio del feed: las del mes, «N de M entregadas»; cada una con
   // qué, cuánto y su fecha; entregada, su enlace (solo entonces) y el día; si no, «En camino»; las del mes siguiente, aparte.
@@ -309,7 +517,7 @@
     try { const m = await urls([r]); if (m[r] && i.isConnected) i.src = m[r]; } catch (x) { /* se queda el hueco */ }
   }
   async function pintarMinis() {
-    const imgs = [...app.querySelectorAll('img[data-ruta]')], rutas = imgs.map(i => i.dataset.ruta);
+    const imgs = [...app.querySelectorAll('img[data-ruta]:not([src])')], rutas = imgs.map(i => i.dataset.ruta);
     if (!rutas.length) return;
     try {
       const m = await urls(rutas);
@@ -366,10 +574,13 @@
     const hayPq = st.d.meses.some(x => x.mes === st.mes && x.porque) || (ultimoPq && st.mes > ultimoPq);
     if (!hayPq && st.tab === 'pq') st.tab = 'cal';
     const tabs = hayPq ? h('div', { class: 'tabs', role: 'tablist' },
-      h('button', { type: 'button', role: 'tab', class: 'tab' + (st.tab === 'cal' ? ' on' : ''), 'aria-selected': String(st.tab === 'cal'), text: 'Calendario', onclick: () => { st.tab = 'cal'; pintar(); } }),
-      h('button', { type: 'button', role: 'tab', class: 'tab' + (st.tab === 'pq' ? ' on' : ''), 'aria-selected': String(st.tab === 'pq'), text: 'Por qué este calendario', onclick: () => { st.tab = 'pq'; pintar(); } })) : null;
+      h('button', { type: 'button', role: 'tab', class: 'tab' + (st.tab === 'cal' ? ' on' : ''), 'aria-selected': String(st.tab === 'cal'), text: 'Calendario', onclick: () => { st.tab = 'cal'; pintarCentroSolo(); } }),
+      h('button', { type: 'button', role: 'tab', class: 'tab' + (st.tab === 'pq' ? ' on' : ''), 'aria-selected': String(st.tab === 'pq'), text: 'Por qué este calendario', onclick: () => { st.tab = 'pq'; pintarCentroSolo(); } })) : null;
     return h('section', { class: 'card cent', 'data-tab': st.tab, 'aria-label': st.tab === 'pq' ? 'Por qué este calendario' : 'Calendario' }, tabs, st.tab === 'pq' ? h('div', { class: 'pq-w' }, pintarPorque()) : pintarCalendario());
   }
+  // la pestaña «Calendario / Por qué»: solo esa columna; «Ver las anteriores»: solo «Tus pagos» (sin pintar la página)
+  function pintarCentroSolo() { const v = app.querySelector('.cols > .cent'), n = seguro(pintarCentro); if (!v || !n) return pintar(); scrollCols(); v.replaceWith(n); scrollCols(true); }
+  function pintarPagosSolo() { const v = app.querySelector('[data-p="pagos"]'), n = seguro(() => pintarPagos(st.clientes.find(c => c.id === st.cli))); if (!v || !n) return pintar(); scrollCols(); v.replaceWith(n); scrollCols(true); }
   function estadoPago(r, H) {
     if (r.cobrada) return ['Pagada', 'ok', 'check', 'pagada el ' + diaCorto(r.cobrada)];
     if (!r.emitida || r.emitida > H) return ['Sin emitir', 'sin', 'clock', r.emitida ? 'se emite el ' + diaCorto(r.emitida) : ''];
@@ -409,8 +620,8 @@
     const emite = sig && !tramo ? h('p', { class: 'emite' }, ico('file'), `Próxima factura, ${sig}`) : null;   // con tramo, va en «Cubre …»
     const cubre = tramo && cli.cubre_de && cli.cubre_hasta ? h('p', { class: 'cubre' }, 'Cubre ', h('b', { text: tramoTxt(cli.cubre_de, cli.cubre_hasta) }), cli.pago !== 'unico' && prox && prox >= H ? ` · próxima factura, ${sig}` : '') : null;
     const inc = cli && Array.isArray(cli.incluye) && cli.incluye.length ? h('p', { class: 'incluye', text: 'Incluye ' + cli.incluye.join(' · ') }) : null;   // lo que incluye su paquete (D-307)
-    const mas = N ? h('button', { type: 'button', class: 'lnk ver-ant', 'aria-expanded': String(ver), text: ver ? 'Ocultar las anteriores' : `Ver las anteriores (${N})`, onclick: () => { st.verAnt = ver ? null : st.cli; pintar(); } }) : null;
-    return h('section', { class: 'card', 'aria-labelledby': 'h-pagos' },
+    const mas = N ? h('button', { type: 'button', class: 'lnk ver-ant', 'aria-expanded': String(ver), text: ver ? 'Ocultar las anteriores' : `Ver las anteriores (${N})`, onclick: () => { st.verAnt = ver ? null : st.cli; pintarPagosSolo(); } }) : null;
+    return h('section', { class: 'card', 'aria-labelledby': 'h-pagos', 'data-p': 'pagos' },
       h('div', { class: 'ti pagos-ti' }, h('h2', { id: 'h-pagos', text: 'Tus pagos' }), tramo ? h('span', { text: `${PAGO[cli.pago] || 'Pago'} · ${eur(cli.pago_cent)}${rg ? ' · ' + rg + (cli.acuerdo_renueva ? ', se\u00a0renueva' : '') : ''}` }) : cli && cli.cuota_cent ? h('span', { text: eur(cli.cuota_cent) + ' al mes' + (rg ? ' · ' + rg : '') }) : null), inc, cubre,
       deber.length ? h('p', { class: 'pend-pago' }, 'Pendiente de pago ', h('b', { text: eur(deber.reduce((s, r) => s + r.importe_cent, 0)) }), venc ? h('em', { text: `· ${venc === 1 ? '1 vencida' : venc + ' vencidas'}` }) : null) : null,
       filas.map(fila), mas, emite);
@@ -430,8 +641,8 @@
     if (!ultimo) return null;
     const cab = x => h('div', { class: 'ti' }, h('h2', { text: 'Cómo fue ' + mesNom(p) }), x ? h('span', { text: x }) : null);
     if (!r) {
-      if (p >= hoy().slice(0, 7)) return h('section', { class: 'card' }, cab(''), zernio(cli), camino(`${may(MESES[+p.slice(5, 7) - 1])} aún no ha terminado: el resumen llega los primeros días de ${MESES[+st.mes.slice(5, 7) - 1]}.`));
-      if (p > ultimo) return h('section', { class: 'card' }, cab(''), zernio(cli), camino(`El resumen de ${MESES[+p.slice(5, 7) - 1]} llega en unos días.`));
+      if (p >= hoy().slice(0, 7)) return h('section', { class: 'card', 'data-p': 'comofue' }, cab(''), zernio(cli), camino(`${may(MESES[+p.slice(5, 7) - 1])} aún no ha terminado: el resumen llega los primeros días de ${MESES[+st.mes.slice(5, 7) - 1]}.`));
+      if (p > ultimo) return h('section', { class: 'card', 'data-p': 'comofue' }, cab(''), zernio(cli), camino(`El resumen de ${MESES[+p.slice(5, 7) - 1]} llega en unos días.`));
       return null;
     }
     const res = r.resumen, c = res.cifras, ant = mesAntes(p), n = c.publicaciones.valor;
@@ -451,7 +662,7 @@
       barras.append(h('button', { type: 'button', class: i === best ? 'top' : null, 'aria-pressed': 'false', 'aria-label': `${x.nombre}: ${num(x.alcance)} de alcance`, onclick: () => ver(i) }, bar));
     });
     const T = res.tipos || [], maxT = Math.max(1, ...T.map(t => t.alcance));
-    return h('section', { class: 'card', 'aria-labelledby': 'h-comofue' },
+    return h('section', { class: 'card', 'aria-labelledby': 'h-comofue', 'data-p': 'comofue' },
       h('div', { class: 'ti' }, h('h2', { id: 'h-comofue', text: 'Cómo fue ' + mesNom(p) }), h('span', { text: n === 1 ? '1 publicación' : num(n) + ' publicaciones' })),
       zernio(cli), h('div', { class: 'cif' }, fichas), h('p', { class: 'sub', text: 'Frente a ' + MESES[+ant.slice(5, 7) - 1] }),
       P.length ? [h('p', { class: 'h3', text: 'Alcance de cada publicación' }), barras, h('div', { class: 'fechas' }, h('span', { text: diaCorto(P[0].fecha) }), P.length > 1 ? h('span', { text: diaCorto(P[P.length - 1].fecha) }) : null), dato] : null,
@@ -461,8 +672,11 @@
 
   // ---------- una publicación ----------
   const borrador = pid => lsGet('portal-borrador-' + pid) || '';
-  function abrir(pid) {
+  // abrir una publicación. Tocar una casilla de otro mes lo hace activo, sin mover el feed (como en la Mesa); «Revisarla» y
+  // «Siguiente por aprobar» (llevar) lo hacen activo y llevan el feed, con el salto, hasta que su casilla se vea entera
+  function abrir(pid, llevar) {
     const p = st.d.pubs.find(x => x.pid === pid && x.visible); if (!p) return;
+    seguro(() => feedA(p, llevar));
     cerrar(true);
     st.abierta = { pid, slide: 1, origen: document.activeElement, version: null, tog: null };
     const velo = h('div', { class: 'velo', onclick: () => cerrar() });
@@ -559,7 +773,7 @@
     return a;
   }
   function accionesDe(p, ultima) {
-    const sig = siguientePendiente(p.pid), sigBtn = sig ? h('button', { type: 'button', class: 'lnk sig', onclick: () => abrir(sig.pid) }, 'Siguiente por aprobar', ico('right')) : null;
+    const sig = siguientePendiente(p.pid), sigBtn = sig ? h('button', { type: 'button', class: 'lnk sig', onclick: () => abrir(sig.pid, true) }, 'Siguiente por aprobar', ico('right')) : null;
     if (p.estado === 'por_aprobar') return h('div', { class: 'acc' },
       h('button', { type: 'button', class: 'btn s', onclick: () => pedirCambios(p) }, ico('pen'), 'Pedir cambios'),
       h('button', { type: 'button', class: 'btn p', onclick: e => decidir(p, 'aprobada', null, null, e.currentTarget) }, ico('check'), 'Aprobar'));

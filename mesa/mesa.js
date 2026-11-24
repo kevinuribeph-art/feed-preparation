@@ -3630,7 +3630,7 @@ ${TK_FUENTES}
     SKILL = null;                        // Kevin asked for a month: a skill's concession ends (pieza 8, D-329)
     if (mesesTab(S).includes(m)) { mesFijar(m, 'cabecera'); mesSigue(); feedMovido = false; feedIr(m); return true; }
     const k = feedDueno(m); if (!k) return false;
-    const r = await activar(k, { mes: m, quien: 'cabecera', claro: true });
+    const r = await activar(k, { mes: m, quien: 'cabecera' });
     if (!r || !r.ok) { if (r && r.error && !/^ya se está/.test(r.error)) toast(`No se cambia de mes ahora: ${r.error}.`); return false; }
     trasActivar(k, { animar: true }); return true;
   }
@@ -7709,9 +7709,9 @@ ${TK_FUENTES}
   // nothing, with a drag, a field being edited, a window, a menu, the editor or the designer, or a job going on.
   let activando = 0;
   const pendiente = () => !!(saveTimer || noteTimer || motTimer);
-  function activarNo(o = {}) {         // o.key: the board it would go to; o.claro: Kevin asked for it clearly (a month or an arrow of the header, MESA.open, ⌘Z)
+  function activarNo(o = {}) {         // o.key: the board it would go to; o.flojo: Kevin didn't ask for it clearly (settling a scroll, touching a post of another month)
     if (!S || locked) return 'no hay un mes abierto aquí';
-    if (o.key && o.key !== S.key && !o.claro && skillViva() && SKILL.key === S.key) return 'una skill está trabajando en este mes';   // pieza 8 (D-329)
+    if (o.key && o.key !== S.key && o.flojo && skillViva() && SKILL.key === S.key) return 'una skill está trabajando en este mes';   // pieza 8 (D-329)
     if (MOVIL) return 'en el iPhone se mira un tablero cada vez';
     if (importEscribe || importing || uploadsBusy() || xferRun) return 'hay un trabajo en marcha';
     if (M.web && M.web.estado && M.web.estado().enviando) return '«Web del cliente» está enviando';
@@ -7727,7 +7727,7 @@ ${TK_FUENTES}
   }
   async function activar(key, o = {}) {   // o.paso: for a step of ⌘Z (D-317): a window, a menu or a field don't stop it
     if (S && S.key === key) { if (o.mes && mesesTab(S).includes(o.mes) && o.mes !== mesActivo) { mesFijar(o.mes, o.quien || 'activar'); mesSigue(); } return { ok: true, key }; }
-    const no = () => { const w = activarNo({ key, claro: !!(o.claro || o.paso) }); return o.paso && /ventana|menú|campo/.test(w || '') ? null : w; };
+    const no = () => { const w = activarNo({ key, flojo: !o.paso && (o.quien === 'deslizar' || o.quien === 'tocar') }); return o.paso && /ventana|menú|campo/.test(w || '') ? null : w; };
     let why = no(); if (why) return { error: why };
     if (activando) return { error: 'ya se está cambiando de mes' };
     const c = S.client || boardClient(S);
@@ -7796,7 +7796,7 @@ ${TK_FUENTES}
     if (!S || !/^\d{4}-\d{2}$/.test(String(m || ''))) return { error: 'no es un mes' };
     if (mesesTab(S).includes(m)) { mesFijar(m, quien); mesSigue(); return { ok: true, mes: mesActivo, key: S.key }; }
     const k = feedDueno(m); if (!k) return { error: 'ese mes no tiene tablero' };
-    const r = await activar(k, { mes: m, quien, claro: true }); return r && r.ok ? { ...r, mes: mesActivo } : r;
+    const r = await activar(k, { mes: m, quien }); return r && r.ok ? { ...r, mes: mesActivo } : r;
   }
   // after activar of another board from MESA.open or the months' header: a reload comes back to it (as M.init), the last used owns a
   // month two boards hold (D-318) and the feed goes to the active month's point
@@ -7954,7 +7954,7 @@ ${TK_FUENTES}
     if (!MIRA && S && S.key !== key && !locked && shellReady() && MB.some(b => b.key === key) && boardClient(S) === curClient) {
       await claim();
       if (!locked && S && S.key !== key) {
-        const r = await activar(key, { mes: o.mes, quien: o.quien || 'open', claro: true });
+        const r = await activar(key, { mes: o.mes, quien: o.quien || 'open' });
         if (r && r.ok) { trasActivar(key); return M.status(); }
       }
     }

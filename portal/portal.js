@@ -4,7 +4,7 @@
 // hace: aprobar, pedir cambios con motivo y comentar.
 (function portal() {
   'use strict';
-  const V = '1.9';   // 1.9: el feed seguido, con todos los meses, la cabecera de meses y su movimiento, como la «Vista cliente» (feed continuo; feed-mov.js 1.0). 1.8: un cliente de solo contenido sin meses: su lista entera y sus sesiones que vienen, sin calendario, como la «Vista cliente» (D-312). 1.7: «Tus pagos» con el acuerdo de cuándo a cuándo, lo que incluye su paquete y la siguiente por su fecha (D-308). 1.6: a pantalla completa (D-293), «Ver más en Zernio» (D-294), la ventana de una publicación como Instagram (D-295), las flechas del carrusel (D-296), «Tus pagos» con su tramo, las entregas de un cliente de solo contenido y la reunión (D-297). 1.5: el aviso de demasiados intentos ya no promete un minuto (D-280). 1.4: la cuenta que solo mira: ve cada cliente como lo ve él, sin aprobar, pedir cambios ni comentar (D-266). 1.3: el monograma a la izquierda de la barra, sin pulsar, y la página con las medidas de la «Vista cliente» (D-264)
+  const V = '1.10';   // 1.10: con algo por aprobar y la página deslizando, abre arriba, con el aviso a la vista (D-P10). 1.9: el feed seguido, con todos los meses, la cabecera de meses y su movimiento, como la «Vista cliente» (feed continuo; feed-mov.js 1.0). 1.8: un cliente de solo contenido sin meses: su lista entera y sus sesiones que vienen, sin calendario, como la «Vista cliente» (D-312). 1.7: «Tus pagos» con el acuerdo de cuándo a cuándo, lo que incluye su paquete y la siguiente por su fecha (D-308). 1.6: a pantalla completa (D-293), «Ver más en Zernio» (D-294), la ventana de una publicación como Instagram (D-295), las flechas del carrusel (D-296), «Tus pagos» con su tramo, las entregas de un cliente de solo contenido y la reunión (D-297). 1.5: el aviso de demasiados intentos ya no promete un minuto (D-280). 1.4: la cuenta que solo mira: ve cada cliente como lo ve él, sin aprobar, pedir cambios ni comentar (D-266). 1.3: el monograma a la izquierda de la barra, sin pulsar, y la página con las medidas de la «Vista cliente» (D-264)
   const app = document.getElementById('app');
   try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (e) { /* */ }   // el feed se coloca solo en su mes: al recargar, el navegador no lo mueve a donde estaba
   const CFG = window.PORTAL_CONFIG || {};
@@ -168,6 +168,16 @@
     const s = new Set([...visibles().map(p => p.mes), ...st.d.ses.map(x => x.mes), ...(st.d.ents || []).map(x => x.fecha.slice(0, 7))]);
     return [...s].sort().reverse();
   }
+  // El mes con el que se abre un cliente. Con la página como el que desliza (por debajo de 1100 × 700, opción B) y algo por aprobar,
+  // el portal abre ARRIBA del todo: se ven las cuentas, el aviso y «Revisarlas», con la cabecera y el feed debajo; el mes activo es
+  // el del punto más cercano a esa posición (el más nuevo con casillas). Si no, `mesInicial`, como siempre (D-P10).
+  const llenoSi = () => app.clientWidth >= 1100 && window.innerHeight >= 700;
+  function mesAbrir() {
+    st.abrirArriba = false;
+    const cli = st.clientes.find(c => c.id === st.cli);
+    if (!(cli && cli.servicio === 'contenido') && pendientes().length && !llenoSi()) { const g = feedGrupos()[0]; if (g) { st.abrirArriba = true; return g.m; } }
+    return mesInicial();
+  }
   function mesInicial() {
     const ms = mesesDisponibles(), p = pendientes()[0], h0 = hoy().slice(0, 7);
     if (p) return p.mes;
@@ -183,7 +193,7 @@
       const pref = lsGet('portal-cliente');
       st.cli = (st.clientes.find(c => c.id === pref) || st.clientes[0]).id;
       const n = ++st.carga, d = await cargarDatos(st.cli); if (n !== st.carga) return;
-      st.d = d; st.mes = mesInicial(); st.error = '';
+      st.d = d; st.mes = mesAbrir(); st.error = '';
       pintar();
     } catch (e) {
       if (e.status === 401 || e.codigo === 'sesion') return pintarEntrada('correo', lsGet('portal-correo') || '', 'Tu sesión ha caducado: vuelve a entrar.');
@@ -319,7 +329,7 @@
     if (st.cli && st.mes) st.mesDe.set(st.cli, st.mes);   // al volver a este cliente, su feed en el mes en que lo dejaste
     st.cli = id; lsSet('portal-cliente', id); const n = ++st.carga; cerrar(true); limpiarFeed();
     const d = await cargarDatos(id).catch(e => { if (n === st.carga) pintarError(msgError(e)); return null; });
-    if (d && n === st.carga) { st.d = d; const m = st.mesDe.get(id); st.mes = m && mesesDisponibles().includes(m) ? m : mesInicial(); pintar(); }
+    if (d && n === st.carga) { st.d = d; const m = st.mesDe.get(id); st.mes = m && mesesDisponibles().includes(m) ? (st.abrirArriba = false, m) : mesAbrir(); pintar(); }
   }
   const soloMira = () => st.observa.has(st.cli);   // D-266
   function seguro(f) { try { return f(); } catch (e) { if (window.console) console.error(e); return null; } }
@@ -352,7 +362,7 @@
       const grid = h('div', { class: 'feed' }), vacio = h('p', { class: 'vacio', text: 'Aún no hay publicaciones.' }), sc = h('div', { class: 'fm-sc' });
       const cab = FeedMov.cabecera({ icono: n => ico(n), alPulsar: k => irMes(k) });
       const host = h('div', { class: 'fm-host' }, cab.nodo, h('div', { class: 'fm-svh', 'aria-hidden': 'true' }));
-      F = st.feed = { cli: st.cli, envs: new Map(), grid, vacio, sc, host, cab, puesto: false, nodo: h('section', { class: 'feedw', 'aria-label': 'Tu feed' }, host, sc) };
+      F = st.feed = { cli: st.cli, envs: new Map(), grid, vacio, sc, host, cab, puesto: false, arriba: !!st.abrirArriba, nodo: h('section', { class: 'feedw', 'aria-label': 'Tu feed' }, host, sc) };
     }
     const G = feedGrupos(), nc = cuentaComs(), vivos = new Set(); let ant = null;
     for (const g of G) {
@@ -435,7 +445,10 @@
     F.cab.marcar(st.mes);
     if (!F.ro && typeof ResizeObserver === 'function') { F.ro = new ResizeObserver(() => seguro(cabColocar)); [F.grid, F.host, F.sc, document.body].forEach(e => F.ro.observe(e)); }
     movMontar(); cabColocar();
-    if (!F.puesto) { F.puesto = true; feedColocar(); } else movActivo();
+    if (!F.puesto) {   // la primera vez: el feed en el punto de su mes o, con algo por aprobar y la página deslizando, arriba del todo
+      F.puesto = true; st.abrirArriba = false;
+      if (F.arriba && F.movModo === 'win') { if (scrollY) window.scrollTo(0, 0); movMedir(); } else feedColocar();
+    } else movActivo();
   }
   function cabColocar() { const F = st.feed; if (!F || !F.nodo.isConnected) return; F.cab.colocar(F.grid); movMedir(); }
   // en reposo, la tira en el mes activo (si tocaste una publicación de otro mes o el mes no pudo cambiar): vuelve sola, sin mover el feed

@@ -38,8 +38,11 @@
 .pv.lleno .cols>.feedw{overflow:hidden}
 .pv.lleno .fm-sc{overflow-y:auto;overscroll-behavior:contain}
 .pv:not(.lleno) .fm-host{position:sticky;top:0;margin:-10px -10px 0;padding:10px 10px 10px;border-radius:var(--r-lg) var(--r-lg) 0 0}   /* a todo el ancho del panel, con sus esquinas */
+/* pegada, el feed pasa por debajo: su aire de abajo es una degradación corta del fondo, así las fotos no se cortan en seco (en reposo
+   arriba, debajo solo hay el mismo fondo y no se nota); ni crece la cabecera ni cambian los puntos (D-P9) */
+.pv:not(.lleno) .fm-host{background:linear-gradient(var(--fm-fondo) calc(100% - 10px),transparent)}
 @container app (max-width:559px){
   .feedw{--fm-fondo:var(--bg)}
-  .pv:not(.lleno) .fm-host{margin:0;padding:max(8px,env(safe-area-inset-top)) 16px 8px;border-radius:0}
+  .pv:not(.lleno) .fm-host{margin:0;padding:max(8px,env(safe-area-inset-top)) 16px 8px;border-radius:0;background:linear-gradient(var(--fm-fondo) calc(100% - 8px),transparent)}
 }
 @media (prefers-reduced-motion:reduce){.fm-cab .fm-fl,.fm-cab button.fm-mes{transition:none}}

@@ -24072,6 +24072,64 @@
     } finally { await limpiar(); }
   });
 
+  // ---------- feed continuo, pieza 3c: una Publicada no se mueve ni se sobrescribe, tampoco dentro de su mes (D-324) ----------
+  const fiAvisos = () => qa('.toasts .toast').map(t => t.textContent).join(' | ');
+  async function fiTres() {   // noviembre: r1 Publicada con su foto, r2 con foto, r3 sin foto
+    await tablero([pub(1), pub(2), pub(3)]);
+    await porAprobar(['r1'], 'fi'); M.setEstado('r1', 'publicado');
+    await poner('r2', [await foto('fi-r2.jpg')]); await M.flush();
+    igual(M._in.estadoDe(slot('r1')), 'publicado', 'r1 no está Publicada');
+    M._in.clearToasts();
+    return { r1: slot('r1').photos[0], r2: slot('r2').photos[0] };
+  }
+  prueba('FI1', 'Dentro de su mes una Publicada no se mueve ni se sobrescribe (feed continuo, pieza 3c; D-324): intercambiar con ella (origen o destino, arrastre o swap) no cambia nada, no se resalta y avisa «Ya está publicada: no se mueve.»; dos que no lo están se siguen intercambiando', async () => {
+    try {
+      const f = await fiTres();
+      M._test.swap('r1', 'r2'); igual([slot('r1').photos, slot('r2').photos], [[f.r1], [f.r2]], 'swap con una Publicada de origen la cambió');
+      M._test.swap('r2', 'r1'); igual([slot('r1').photos, slot('r2').photos], [[f.r1], [f.r2]], 'swap con una Publicada de destino la cambió');
+      ok(/Ya está publicada: no se mueve\./.test(fiAvisos()), 'sin el aviso (swap): ' + fiAvisos());
+      M._in.clearToasts();
+      let lit = await ffArrastrar(celda('r2'), celda('r1'));
+      ok(!lit, 'se resaltó una Publicada de destino');
+      lit = await ffArrastrar(celda('r1'), celda('r2'));
+      ok(!lit, 'se resaltó el destino de una Publicada que se arrastra');
+      igual([slot('r1').photos, slot('r2').photos], [[f.r1], [f.r2]], 'el arrastre cambió una Publicada');
+      ok(/Ya está publicada: no se mueve\./.test(fiAvisos()), 'sin el aviso (arrastre): ' + fiAvisos());
+      // dos que no son Publicadas: como siempre
+      lit = await ffArrastrar(celda('r2'), celda('r3'));
+      ok(lit, 'no se resaltó un destino normal');
+      igual([slot('r2').photos, slot('r3').photos], [[], [f.r2]], 'dos sin publicar no se intercambiaron');
+    } finally { await limpiar(); }
+  });
+  prueba('FI2', 'Una foto de la bandeja no entra en una Publicada (feed continuo, pieza 3c; D-324): soltada sobre ella no se resalta, no cambia su foto y avisa «Ya está publicada: no se cambia su foto.»; tampoco en una de otro mes; en una que no lo está, entra como siempre', async () => {
+    try {
+      const f = await fiTres();
+      const [g] = await M.addFiles([await foto('fi-bandeja.jpg')]);
+      const item = () => q(`.side > .tray .titem[data-file="${g}"]`);
+      await hasta(item, 3000, 'la foto en la bandeja');
+      let lit = await ffArrastrar(item(), celda('r1'));
+      ok(!lit, 'se resaltó una Publicada al soltar una foto de la bandeja');
+      await espera(150);
+      igual(slot('r1').photos, [f.r1], 'la foto de la bandeja entró en la Publicada');
+      ok(/Ya está publicada: no se cambia su foto\./.test(fiAvisos()), 'sin el aviso (bandeja): ' + fiAvisos());
+      lit = await ffArrastrar(item(), celda('r3'));
+      ok(lit, 'no se resaltó una casilla normal');
+      await hasta(() => slot('r3').photos.length === 1, 3000, 'la foto en r3');
+      // otro mes: una Publicada de octubre, con noviembre abierto
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: FD_OCT, slots: [fcSlot('fi-o1', '4.1', 20, FD_OCT)], past: [], force: true });
+      await porAprobar(['fi-o1'], 'fio'); M.setEstado('fi-o1', 'publicado'); await M.flush();
+      const o1 = slot('fi-o1').photos[0];
+      await M.open(fdN); await M.flush(); await feTodo([MES, FD_OCT]);
+      const [h] = await M.addFiles([await foto('fi-bandeja2.jpg')]); await hasta(() => q(`.side > .tray .titem[data-file="${h}"]`), 3000, 'la segunda foto en la bandeja');
+      M._in.clearToasts();
+      lit = await ffArrastrar(q(`.side > .tray .titem[data-file="${h}"]`), celda('fi-o1'));
+      ok(!lit, 'se resaltó una Publicada de otro mes');
+      await hasta(() => !M._in.switching(), 3000, 'el cambio de mes'); await espera(200);
+      igual(((await M._in.idbGet('boards', fdO)).slots.find(s => s.id === 'fi-o1') || {}).photos, [o1], 'la foto entró en la Publicada de octubre');
+      ok(/Ya está publicada: no se cambia su foto\./.test(fiAvisos()), 'sin el aviso (otro mes): ' + fiAvisos());
+    } finally { await limpiar(); }
+  });
+
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;
   $('resumen').textContent = `${T.length} pruebas listas.`;

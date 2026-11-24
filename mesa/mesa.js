@@ -1534,6 +1534,7 @@
   }
   // tray photos onto a post: the warning first, then as always (Sustituir / Añadir when it has photos)
   function addToSlot(slotId, ids) {
+    const P = slot(slotId); if (P && estadoDe(P) === 'publicado') { toast('Ya está publicada: no se cambia su foto.', { key: 'mover-publicada' }); return; }   // a Publicada isn't overwritten (pieza 3c, D-324)
     ids = (ids || []).filter(id => M.files[id]);
     const B = S;
     repetidas(ids.map(f => ({ f, name: M.files[f].name, size: M.files[f].size })), { slot: slotId }).then(async r => { if (!r || !r.length) return; const go = await paraPoner(r.map(x => x.f)); if (S === B && go.length) askAddMode(slotId, go); });
@@ -1684,6 +1685,7 @@
     if (kb && S && kb !== S.key) return swapOtro(a, b, kb);
     if (a === b) return;
     const A = slot(a), B = slot(b); if (!A || !B) return;
+    if (estadoDe(A) === 'publicado' || estadoDe(B) === 'publicado') { moverAviso('publicada'); return; }   // a Publicada neither moves nor is overwritten, inside its month too (pieza 3c, D-324)
     const kind = x => isCarousel(x.type) ? 'c' : isReel(x.type) ? 'r' : 'f';
     if (kind(A) === kind(B) && !designed(A) && !designed(B)) {
       [A.photos, B.photos] = [B.photos, A.photos];
@@ -1744,7 +1746,7 @@
   }
   const moverAviso = no => no === 'publicada' ? toast('Ya está publicada: no se mueve.', { key: 'mover-publicada' })
     : toast('Una publicación diseñada o editada no pasa a otro mes: cámbiale la portada con «Cambiar portada».', { key: 'mover-disenada', ms: 7000 });
-  // while dragging: a Publicada (the one carried or the one under it) of another month is not a target (no highlight)
+  // while dragging: a Publicada (the one carried or the one under it), of another month or of its own (pieza 3c), is not a target (no highlight)
   function moverPublicada(a, b, kb) {
     const A = S && S.slots.find(x => x.id === a), T = feedTablero(kb), X = T && T.slots.find(x => x.id === b);
     return (!!A && estadoDe(A) === 'publicado') || (!!X && estadoDe(X, T) === 'publicado');
@@ -5493,7 +5495,8 @@ ${TK_FUENTES}
     if (d.from === 'memo') return cell && cell.dataset.slot && cell.dataset.slot !== d.slotId ? { el: cell, cell } : null;
     if (cell && cell.dataset.prev && d.from === 'slot') return null;
     if (cell && cell.dataset.slot && d.from === 'prev') return null;
-    if (cell && cell.dataset.slot && d.from === 'slot') { const k = tableroDeCelda(cell); if (k && S && k !== S.key && moverPublicada(d.slotId, cell.dataset.slot, k)) return { el: null, cell }; }   // not lit; dropped, its notice (pieza 3b)
+    if (cell && cell.dataset.slot && d.from === 'slot') { const k = tableroDeCelda(cell); if (k && S && moverPublicada(d.slotId, cell.dataset.slot, k)) return { el: null, cell }; }   // not lit; dropped, its notice (pieza 3b; of its own month too, pieza 3c)
+    if (cell && cell.dataset.slot && d.from === 'tray') { const k = tableroDeCelda(cell), T = k && feedTablero(k), X = T && T.slots.find(x => x.id === cell.dataset.slot); if (X && estadoDe(X, T) === 'publicado') return { el: null, cell }; }   // a tray photo onto a Publicada: not lit (pieza 3c)
     const hueco = d.from === 'tray' && t.closest('.cell.filler'); if (hueco) return { el: hueco, hueco };
     const hcard = d.from === 'tray' && t.closest('.hv-card[data-h]'); if (hcard) return { el: hcard, hcard };
     if (cell) return cell.dataset.slot ? { el: cell, cell } : { el: cell, pc: cell };

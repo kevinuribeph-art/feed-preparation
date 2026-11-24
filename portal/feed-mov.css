@@ -4,6 +4,7 @@
 /* la cabecera va arriba del panel del feed, sobre la rejilla (no en la barra de arriba: ahí no se puede pegar, lección 298) */
 .fm-host{flex:none;position:relative;z-index:2;display:flex;align-items:center;padding:0 0 10px;background:var(--fm-fondo)}
 .fm-host[hidden]{display:none}
+.fm-host{overflow-x:clip}   /* la cabecera nunca ensancha la página: al girar el móvil, un instante colocada para el ancho de antes hacía que el iPhone alejara la página (D-P11) */
 .fm-sc{flex:1 1 auto;min-height:0;overflow-anchor:none}   /* el que desliza a pantalla completa; el feed recoloca él mismo lo que se ve */
 .fm-sc>.vacio{padding:12px 6px}
 .fm-svh{position:fixed;left:0;top:0;width:0;height:100vh;height:100svh;visibility:hidden;pointer-events:none}   /* el alto pequeño de la pantalla (sin la barra de Safari): con él se miden los puntos de los meses cuando desliza la página */

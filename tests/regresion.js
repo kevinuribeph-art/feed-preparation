@@ -23015,8 +23015,9 @@
     await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1), pub(2), ...masN], past: [], force: true });
     await M.flush();
   }
-  async function fdAct(key) {
+  async function fdAct(key) {   // otro mes abierto para preparar la prueba, como si se abriera con MESA.open: sin la concesión de una skill de antes (D-334)
     ok(M._in.activar, 'no hay activar en MESA._in');
+    if (M._in.skill) M._in.skill.cerrar();
     const r = await M._in.activar(key);
     ok(r && !r.error, `no se activó ${key}: ` + json(r));
     igual(M._in.S && M._in.S.key, key, 'el tablero activo');

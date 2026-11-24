@@ -24754,7 +24754,7 @@
         M.plan(); M._in.clearToasts();
         await ffArrastrar(item(), hueco()); await espera(300);
         igual(M._in.S.key, fdO, 'con una skill trabajando, el hueco cambió el mes abierto');
-        ok(/No se cambia de mes ahora/.test(qa('.toasts .toast').map(t => t.textContent).join(' | ')), 'no dijo por qué');
+        ok(/Una skill está trabajando en este mes.*cabecera/.test(qa('.toasts .toast').map(t => t.textContent).join(' | ')), 'no dijo por qué ni cómo cambiar de mes');   // el aviso de D-336
         M._in.skill.cerrar();
       }
       await ffArrastrar(item(), hueco()); await hasta(() => M._in.S.key === fdN && (M._in.S.previews || [])[0] === g, 3000, 'el hueco de noviembre con la foto').catch(() => null);
@@ -24797,6 +24797,25 @@
       const u = M.markUploaded([{ slotId: 'fj-o1', fileIds: [], note: 'FM8' }]); ok(Array.isArray(u), 'markUploaded no devolvió el plan: ' + json(u).slice(0, 160));
       igual(SK.ver() && SK.ver().key, FJ_SO, 'la concesión no sigue en octubre');
     } finally { SK.cerrar(); await limpiar(); }
+  });
+  prueba('FM9', 'Con una skill trabajando, deslizar y parar en otro tablero o tocar una de sus publicaciones lo dice (feed continuo, pieza 9; D-336): un solo aviso, el mismo, que dice cómo cambiar de mes (en la cabecera); el mes abierto y la tira no cambian', async () => {
+    const FN = `${CLIENTE}-${MES}`, SK = M._in.skill || { ver: () => null, cerrar() {} };
+    const avisos = () => qa('.toasts .toast').filter(t => /skill/i.test(t.textContent));
+    try {
+      await fjSeis(); const P = fjPuntos(); await M.open(FN); await fjQuieto(300);
+      ok(Array.isArray(M.plan()), 'plan()'); M._in.clearToasts();
+      await fjA(P['2026-07'] - 3); await fjQuieto(900);
+      igual(fgActivo(), [FN, MES], 'deslizar cambió el mes abierto');
+      cerca(fjX(), fjXde(fjJ(MES)), 1, 'la tira no volvió a noviembre');
+      igual(avisos().length, 1, 'al asentarse, no salió un aviso');
+      ok(/cabecera/.test(avisos()[0].textContent), 'el aviso no dice cómo cambiar de mes: ' + avisos()[0].textContent);
+      await fjA(P['2026-09'] - 3); await fjQuieto(900);
+      igual(avisos().length, 1, 'otra parada repitió el aviso');
+      celda('fj-o1').scrollIntoView({ block: 'center' }); await espera(30); celda('fj-o1').click(); await espera(300); M._in.closeDetail();
+      igual(fgActivo(), [FN, MES], 'tocar otro mes cambió el mes abierto');
+      igual(avisos().length, 1, 'al tocar, el aviso no es el mismo (o salieron dos)');
+      ok(/cabecera/.test(avisos()[0].textContent), 'al tocar, el aviso no dice cómo cambiar de mes');
+    } finally { SK.cerrar(); M._in.clearToasts(); await limpiar(); }
   });
 
   window.pasarBateria = pasar;

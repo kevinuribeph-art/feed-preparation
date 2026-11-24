@@ -3848,7 +3848,7 @@ ${TK_FUENTES}
     if (mesesTab(S).includes(m)) { mesFijar(m, 'deslizar'); mesSigue(); fin(); return; }
     const k = feedDueno(m); if (!k) { fin(); return; }
     movDecid++;
-    try { await activar(k, { mes: m, quien: 'deslizar' }); } finally { movDecid--; }
+    try { const r = await activar(k, { mes: m, quien: 'deslizar' }); if (r && r.error === SKILL_NO) skillAviso(); } finally { movDecid--; }
     fin();
   }
 
@@ -5910,7 +5910,8 @@ ${TK_FUENTES}
     if (tocando && tocando.key === x.key) return tocando.p;
     const p = activar(x.key, { mes: x.mes, quien: 'tocar' }).then(r => {
       if (r && r.ok) return true;
-      if (r && r.error && !/^ya se está/.test(r.error)) toast(`No se cambia de mes ahora: ${r.error}.`);
+      if (r && r.error === SKILL_NO) skillAviso();
+      else if (r && r.error && !/^ya se está/.test(r.error)) toast(`No se cambia de mes ahora: ${r.error}.`);
       return false;
     }).finally(() => { if (tocando && tocando.p === p) tocando = null; });
     tocando = { key: x.key, p };
@@ -7715,7 +7716,7 @@ ${TK_FUENTES}
   const pendiente = () => !!(saveTimer || noteTimer || motTimer);
   function activarNo(o = {}) {         // o.key: the board it would go to; o.flojo: Kevin didn't ask for it clearly (settling a scroll, touching a post of another month)
     if (!S || locked) return 'no hay un mes abierto aquí';
-    if (o.key && o.key !== S.key && o.flojo && skillViva() && SKILL.key === S.key) return 'una skill está trabajando en este mes';   // pieza 8 (D-329)
+    if (o.key && o.key !== S.key && o.flojo && skillViva() && SKILL.key === S.key) return SKILL_NO;   // pieza 8 (D-329)
     if (MOVIL) return 'en el iPhone se mira un tablero cada vez';
     if (importEscribe || importing || uploadsBusy() || xferRun) return 'hay un trabajo en marcha';
     if (M.web && M.web.estado && M.web.estado().enviando) return '«Web del cliente» está enviando';
@@ -8352,7 +8353,9 @@ ${TK_FUENTES}
   // scroll, touching a post of another month) doesn't (activarNo); a month or an arrow of the header, MESA.open / init / openClient
   // end it (the skill's next call starts it again on its board). And a call with a post that isn't in the open board but in another
   // of the client's, or markSynced / notionChanges without ids with the concession on another board, gives an error and touches nothing.
-  const SKILL_MS = 10 * 60 * 1000;
+  const SKILL_MS = 10 * 60 * 1000, SKILL_NO = 'una skill está trabajando en este mes';
+  // what Kevin sees when settling a scroll or touching another month doesn't change it (pieza 9, D-336): once, with how to get out
+  const skillAviso = () => toast('Una skill está trabajando en este mes. Para cambiar de mes, púlsalo en la cabecera.', { key: 'skill-mes', ms: 6000 });
   let SKILL = null, estadoRaw = null, cambiosRaw = null, planRaw = null;   // {key, t}; the calls as the Mesa makes them inside (never a concession)
   const skillViva = () => !!(SKILL && S && !MOVIL && Date.now() - SKILL.t < SKILL_MS);
   function skillToca() { if (S && !locked && !MOVIL) SKILL = { key: S.key, t: Date.now() }; }

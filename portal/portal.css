@@ -96,6 +96,8 @@ svg.i *{vector-effect:non-scaling-stroke}
 .feedw{background:var(--bg-2);border-radius:var(--r-lg);padding:10px}
 .feed{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px}
 .fm-m{display:contents}   /* un envoltorio por mes, sin caja: no rompe las filas (feed continuo) */
+/* el mes, en su casilla más nueva: la etiqueta de la «Vista cliente» (mesa.js, .badges .mpill) */
+.mes-et{position:absolute;left:6px;top:6px;z-index:1;max-width:calc(100% - 40px);overflow:hidden;text-overflow:ellipsis;font-size:9.5px;font-weight:600;line-height:17px;padding:1px 7px;border-radius:var(--r-pill);background:rgba(22,17,14,.82);color:#fff;white-space:nowrap;pointer-events:none}
 .cel{position:relative;aspect-ratio:3/4;border:0;padding:0;display:block;width:100%;background:var(--bg-3);overflow:hidden}
 .cel img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
 .cel.vacia{background:repeating-linear-gradient(135deg,var(--bg-3) 0 10px,var(--bg-2) 10px 20px)}
@@ -104,8 +106,6 @@ svg.i *{vector-effect:non-scaling-stroke}
 .cel .ty svg{width:18px;height:18px}
 .nc{position:absolute;right:6px;bottom:6px;height:24px;padding:0 7px 0 6px;border-radius:var(--r-pill);background:#fff;color:#16110E;display:flex;align-items:center;gap:4px;font-size:12px;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.35)}
 .nc svg{width:13px;height:13px;stroke-width:2}
-.pub .c{display:none}
-.pub{position:absolute;left:6px;top:6px;padding:3px 8px;border-radius:var(--r-pill);background:rgba(22,17,14,.72);color:#fff;font-size:11px;font-weight:600;white-space:nowrap;max-width:calc(100% - 12px);overflow:hidden;text-overflow:ellipsis}
 .tabs{display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap}
 .tab{border:0;background:none;border-radius:var(--r-pill);padding:0 14px;min-height:44px;font-size:14px;color:var(--mute);transition:background-color var(--d2),color var(--d2)}
 .tab:hover:not(.on){background:var(--bg-2);color:var(--ink)}
@@ -205,7 +205,6 @@ svg.i *{vector-effect:non-scaling-stroke}
 .pie{display:flex;justify-content:center;align-items:center;gap:16px;font-size:12px;color:var(--mute);padding-top:8px}
 .pie a,.legal a{color:inherit;text-decoration:underline;text-underline-offset:2px;display:inline-flex;align-items:center;min-height:44px}
 .legal{display:flex;gap:16px}
-.cel:has(.ty) .pub{max-width:calc(100% - 40px)}
 @media (pointer:coarse){.chip{min-height:44px}}
 .ver-ant{margin-top:4px;font-size:13px}
 
@@ -345,8 +344,6 @@ svg.i *{vector-effect:non-scaling-stroke}
   .feedw>.vacio{padding:12px 16px}
   .agenda{display:block}
   .tabs .tab{white-space:nowrap;font-size:14px;padding:0 12px}
-  .pub{font-size:11px;padding:3px 8px;left:5px;top:5px}
-  .pub .l{display:none}.pub .c{display:inline}
 }
 @media (max-width: 559px), (max-height: 599px), (max-width: 800px) and (max-height: 819px){
   .velo{display:none}

@@ -42,6 +42,7 @@
   const madrid = dia => new Date(dia + 'T11:00:00Z').toISOString();   // una entrega, a mediodía de su día en Madrid (para ordenar la lista)
   const may = t => t ? t[0].toUpperCase() + t.slice(1) : t;
   const mesCorto = m => may(MESES[+m.slice(5, 7) - 1].slice(0, 3)) + ' ' + m.slice(0, 4);
+  const mesEt = m => may(MESES[+m.slice(5, 7) - 1].slice(0, 3)) + (m.slice(0, 4) !== hoy().slice(0, 4) ? ' ' + m.slice(2, 4) : '');   // «Nov», «Ene 27»: el año solo si no es el de hoy
   const mesNom = m => MESES[+m.slice(5, 7) - 1] + (m.slice(0, 4) !== hoy().slice(0, 4) ? ' ' + m.slice(0, 4) : '');
   const mesAntes = m => { let [y, mo] = m.split('-').map(Number); mo--; if (!mo) { mo = 12; y--; } return `${y}-${String(mo).padStart(2, '0')}`; };
   const mesDespues = m => { let [y, mo] = m.split('-').map(Number); mo++; if (mo > 12) { mo = 1; y++; } return `${y}-${String(mo).padStart(2, '0')}`; };
@@ -307,25 +308,27 @@
   // (display: contents: no rompe las filas de la rejilla).
   const cuentaComs = () => { const n = new Map(); for (const c of st.d.coms) n.set(c.pid, (n.get(c.pid) || 0) + 1); return n; };
   const sigCelda = (p, et, nc) => [p.estado, p.fecha, p.sin_hora, p.tipo, p.imagenes.length && p.imagenes[0].mini, nc.get(p.pid) || 0, JSON.stringify(et || '')].join('|');
-  function celda(p, rotulo, nc) {
+  function celda(p, et, nc) {
     const n = nc.get(p.pid) || 0, im = p.imagenes[0];
     return h('button', { type: 'button', class: 'cel' + (im ? '' : ' vacia'), 'data-pid': p.pid, 'aria-label': `${TIPO[p.tipo] || 'Publicación'} · ${fechaPub(p)} · ${ESTADO[p.estado][0]}`, onclick: () => abrir(p.pid) },
       im ? h('img', { alt: '', 'data-ruta': im.mini, loading: 'lazy', decoding: 'async' }) : h('span', { class: 'pre', text: p.estado === 'preparando' ? 'En preparación' : 'Sin imagen aún' }),
       p.tipo === 'carrusel' ? h('span', { class: 'ty' }, ico('copy')) : /reel/.test(p.tipo) ? h('span', { class: 'ty' }, ico('clap')) : null,
-      rotulo ? h('span', { class: 'pub' }, h('span', { class: 'l', text: rotulo[0] }), h('span', { class: 'c', text: rotulo[1] })) : null,
+      et ? h('span', { class: 'mes-et', text: et }) : null,   // el mes, en su casilla más nueva (como la «Vista cliente»)
       n ? h('span', { class: 'nc' }, ico('msg'), String(n), h('span', { class: 'sr', text: n === 1 ? ' comentario' : ' comentarios' })) : null);
   }
-  // los grupos del feed, de arriba abajo: [{m, items: [{p, et}]}]
+  // el feed seguido (feed continuo): todos los meses del cliente, del más nuevo al más viejo, cada uno con todo lo suyo que Kevin
+  // envió (en el orden de su tablero, `orden`), uno detrás de otro sin empezar fila; la etiqueta del mes, solo en su casilla más
+  // nueva. Un mes sin publicaciones (solo una sesión o una entrega) no tiene sitio en el feed. [{m, items: [{p, et}]}]
   function feedGrupos() {
-    const ahora = delMes(st.mes), antes = delMes(mesAntes(st.mes)).filter(p => p.estado === 'publicada' || p.estado === 'programada');
-    const mA = MESES[+mesAntes(st.mes).slice(5, 7) - 1];
-    return [{ m: st.mes, items: ahora.map(p => ({ p })) }, { m: mesAntes(st.mes), items: antes.map((p, i) => ({ p, et: i === 0 ? [may(mA.slice(0, 3)) + '. · publicado', may(mA.slice(0, 3)) + '.'] : null })) }].filter(g => g.items.length);
+    const L = visibles(), por = new Map();
+    for (const p of L) { if (!por.has(p.mes)) por.set(p.mes, []); por.get(p.mes).push(p); }
+    return [...por.keys()].sort().reverse().map(m => ({ m, items: por.get(m).sort((a, b) => a.orden - b.orden).map((p, i) => ({ p, et: i ? null : mesEt(m) })) }));
   }
   function limpiarFeed() { st.feed = null; }
   function feedNodo() {
     let F = st.feed;
     if (!F || F.cli !== st.cli) {
-      const grid = h('div', { class: 'feed' }), vacio = h('p', { class: 'vacio', text: 'Este mes aún no tiene publicaciones.' });
+      const grid = h('div', { class: 'feed' }), vacio = h('p', { class: 'vacio', text: 'Aún no hay publicaciones.' });
       F = st.feed = { cli: st.cli, envs: new Map(), grid, vacio, nodo: h('section', { class: 'feedw', 'aria-label': 'Tu feed' }) };
     }
     const G = feedGrupos(), nc = cuentaComs(), vivos = new Set(); let ant = null;

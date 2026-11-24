@@ -360,7 +360,7 @@
   // One copy per board (key -> {tablero, savedAt}): the board as it opens (comoAbierto), never S, and without its tray and folders
   // (they are the client's, D-041: in 'bandejas' and, while it is open, in S). Reading them writes nothing. Every write of a board
   // goes through txCon: there each one lets its copy go (memTocado) in the same call that writes it, whoever writes (the open
-  // board's save, pushShared, escribirFuera, juntarBandeja, an import, purge, removeClient, what comes down from the server); another
+  // board's save, pushShared, guardarOtro (another month changed from here), juntarBandeja, an import, purge, removeClient, what comes down from the server); another
   // client opened, «Usar aquí», a pause or a newer tab let them all go (memSoltar). A copy read while its board was written is not kept.
   const MEM = { tab: new Map(), gen: new Map(), epoca: 0 };
   function memSoltar() { MEM.epoca++; MEM.tab.clear(); MEM.gen.clear(); }
@@ -998,6 +998,11 @@
   const SYNC = ['photos', 'note', 'memo', 'uploaded', 'fmt', 'date', 'notionDate', 'name', 'notionName', 'type', 'notionType', 'design', 'libre', 'caption', 'estado', 'ubicacion', 'etiquetas', 'colaboradores'];   // + its location (D-124), its tags and collaborators (D-130)
   let IDX = {};                                     // slotId -> [{key, client}] of the other boards that have it
   let SIG = { b: null, m: {}, dirty: new Set() };   // open board: signature of each slot as last saved + slots to write through
+  // the same of a board that isn't the open one (pieza 2): a copy changed from here (guardarOtro) or the board activar left, whose
+  // save may still be on its way: {b, m, dirty, idx (its IDX)}
+  const SIGS = new WeakMap();
+  const sigDe = B => (B && SIG.b === B ? SIG : SIGS.get(B) || null);
+  const idxDe = G => (G === SIG ? IDX : (G && G.idx) || {});
   const boardClient = b => b.client || (String(b.key || '').match(/^(.+)-\d{4}-\d{2}$/) || [])[1] || null;
   const slotSig = (s, B) => JSON.stringify([SYNC.map(k => s[k] ?? null), [...(s.photos || []), ...dSrc(s)].map(f => (B.crops || {})[f] || null)]);
   function copyShared(to, toB, from, fromB) {
@@ -1041,27 +1046,27 @@
   // the personal page counts them only by their date. Not one of the shared fields (SYNC): the page takes a collab's oldest
   const ESPERA = ['aprobar', 'noaprobado'];
   function marcaEspera(B) {
-    if (!B || B !== S || !Array.isArray(B.slots)) return;
+    if (!B || !sigDe(B) || !Array.isArray(B.slots)) return;   // the open board, or one changed from here (pieza 2)
     const prim = !B.esperaDesde, now = new Date(ahora()).toISOString();   // the mesa's clock (D-120)
     for (const s of B.slots) {
-      const e = vivo(s) ? estadoDe(s) : null, x = s.esperaCliente;
+      const e = vivo(s) ? estadoDe(s, B) : null, x = s.esperaCliente;
       if (!ESPERA.includes(e)) { if (x) delete s.esperaCliente; continue; }
       if (!x || x.v !== e) s.esperaCliente = { v: e, desde: prim && !x ? null : now };
     }
     if (prim) B.esperaDesde = now;
   }
   function stamp(B) {              // before saving: new revision for the slots whose shared state changed
-    if (!B || SIG.b !== B) return;
-    const now = Date.now();
-    for (const s of B.slots) { const g = slotSig(s, B); if (SIG.m[s.id] !== g) { SIG.m[s.id] = g; s.at = now; if (IDX[s.id]) SIG.dirty.add(s.id); } }
+    const G = sigDe(B); if (!G) return;
+    const now = Date.now(), X = idxDe(G);
+    for (const s of B.slots) { const g = slotSig(s, B); if (G.m[s.id] !== g) { G.m[s.id] = g; s.at = now; if (X[s.id]) G.dirty.add(s.id); } }
   }
   // after saving: write those slots through to the other boards (one read/put per board; other slots untouched)
   async function pushShared(B) {
-    if (SIG.b !== B || !SIG.dirty.size) return;
-    const ids = [...SIG.dirty]; SIG.dirty.clear();
+    const G = sigDe(B); if (!G || !G.dirty.size) return;
+    const ids = [...G.dirty], X = idxDe(G); G.dirty.clear();
     if (MOVIL) return pushSharedMovil(B, ids);
     const by = {}, cOf = {}, gone = [], srcRefs = refsOf(B), myC = B.client || boardClient(B);
-    ids.forEach(id => (IDX[id] || []).forEach(x => { (by[x.key] = by[x.key] || []).push(id); cOf[x.key] = x.client || boardClient(x); }));
+    ids.forEach(id => (X[id] || []).forEach(x => { (by[x.key] = by[x.key] || []).push(id); cOf[x.key] = x.client || boardClient(x); }));
     const keys = Object.keys(by), otros = [...new Set(keys.map(k => cOf[k]))].filter(Boolean);
     let mia = false;
     try {
@@ -1091,7 +1096,7 @@
         let n = otros.length;
         if (!n) go(); else otros.forEach(c => { const g = st.bandejas.get(c); g.onsuccess = () => { if (g.result) trays[c] = g.result; if (--n === 0) go(); }; });
       });
-    } catch (e) { if (SIG.b === B) ids.forEach(id => SIG.dirty.add(id)); return; }
+    } catch (e) { if (sigDe(B) === G) ids.forEach(id => G.dirty.add(id)); return; }
     if (mia && S && (S.client || boardClient(S)) === myC) { renderTray(); save(); }   // this client's tray changed through another of its boards
     if (gone.length) { dropIdx(gone); renderFeed(); }
     if (B === S && Object.keys(by).some(k => MB.some(m => m.key === k))) { await refreshMonths(); renderBar(); }
@@ -2058,7 +2063,7 @@
   // p: what is being drawn for post id; ⌘Z / ⇧⌘Z pressed meanwhile wait for it. tirar: if it fails they go, nothing was done
   // (a drop); if not, they act anyway (a type change that could not redraw its images is still a type change)
   function dibujoEspera(id, p, tirar) {
-    const z = dibujoZ ? null : (dibujoZ = Object.assign([], { de: id, b: S, s1: H.b === S ? H.cur : null, a0: (H.drop || 0) + H.undo.length - 1 })), fin = r => { if (z && dibujoZ === z) { if ((r && r.ok) || !tirar) dibujoHecho(); else dibujoZ = null; } };   // an editor without dibujoHecho: its ⌘Z act here
+    const z = dibujoZ ? null : (dibujoZ = Object.assign([], { de: id, b: S, s1: histMio() && HC.cur.get(S.key) ? HC.cur.get(S.key).st : null, a0: HC.drop + HC.undo.length - 1 })), fin = r => { if (z && dibujoZ === z) { if ((r && r.ok) || !tirar) dibujoHecho(); else dibujoZ = null; } };   // an editor without dibujoHecho: its ⌘Z act here
     Promise.resolve(p).then(fin, () => fin(null));
   }
   function askAddMode(slotId, ids) {
@@ -2202,29 +2207,47 @@
   function changed() { normalize(); save(); render(); }
 
   // ---------- undo / redo (⌘Z / ⇧⌘Z) ----------
-  // History of the open board's editable state: photos (publications, tray, previous month), crops, formats, contexto,
-  // nota, dates and states. Every save compares it with the last state and a change becomes one step; typing in one field or
-  // reframing one photo in a burst (< 2 s between saves) is one step. New photos only added to the tray are not a step.
-  // Restoring never loses a photo: one that is in the board now and not in the restored state goes to the tray.
+  // ONE history per client (feed continuo, pieza 2, D-317), HC: each step undoes what was changed, in any of its months. A step has
+  // parts: {k: a board's key, b: that board as it was (editBoard: photos of its posts, crops, formats, contexto, nota, dates, states,
+  // the previous month, fillers, pins, stories, steps)}, {k, e: {slotId: estado|null}} (only the states of some posts: what changes
+  // several boards at once, D-120) or {k} (the month it was done in, nothing of it changed); and c: the client's tray and folders as
+  // they were (one object, CLI), only when the step changed them. Its present: cur (key -> {st, j}) and curC. A step of a month that
+  // isn't the open one makes it the open one first (D-317). 60 steps for the client. A burst in one field (< 2 s) is one step; new
+  // photos only added to the tray are not a step. Restoring never loses a photo: one that leaves the board goes to the tray.
+  // It starts again with another client, an import, «Usar aquí», a deleted month that had steps and a MESA.init of a skill
+  // (elegido sin Kevin); a MESA.open of another month of the same client keeps it.
   const HMAX = 60, HMERGE = 2000;
-  let H = { b: null, cur: null, curJ: '', undo: [], redo: [], tag: null, t: 0 };
-  function editState(B) {
+  const histVacia = c => ({ c, undo: [], redo: [], cur: new Map(), curC: null, tag: null, t: 0, drop: 0, fueraC: null });
+  let HC = histVacia(null);
+  const histMio = () => !!S && !!HC.c && (S.client || boardClient(S)) === HC.c;
+  function editBoard(B) {
     return {
       slots: B.slots.map(s => { const o = { id: s.id, type: s.type, photos: s.photos.slice(), note: s.note ?? '', date: s.date }; if (s.memo) o.memo = s.memo; if (s.fmt) o.fmt = s.fmt; if (s.design) o.design = JSON.parse(JSON.stringify(s.design)); if (s.libre) o.libre = JSON.parse(JSON.stringify(s.libre)); if (s.estado) o.estado = { ...s.estado }; if (s.guias) o.guias = JSON.parse(JSON.stringify(s.guias)); if (s.ubicacion) o.ubicacion = s.ubicacion; if (s.etiquetas) o.etiquetas = s.etiquetas.slice(); if (s.colaboradores) o.colaboradores = s.colaboradores.slice(); return o; }),
-      tray: B.tray.slice(),
-      ...(B.carpetas ? { carpetas: B.carpetas.map(c => ({ ...c, files: c.files.slice() })) } : {}),   // the tray's folders (D-069)
       crops: JSON.parse(JSON.stringify(B.crops || {})),
       prev: (B.prev || []).map(p => ({ id: p.id, own: !!p.own, photos: (p.photos || []).slice(), alt: p.alt || null, hidden: !!p.hidden, fmt: p.fmt || null })),
       ...(previewsOf(B).length ? { previews: B.previews.slice() } : {}),   // the fillers' previews (D-049)
       ...(B.fillers ? { fillers: B.fillers } : {}), ...(B.pins && B.pins.length ? { pins: B.pins.slice() } : {}),   // «+ Hueco» and «Fijar»: steps of ⌘Z too (D-095)
       ...(hsDe(B).length ? { historias: JSON.parse(JSON.stringify(B.historias)) } : {}),   // the stories, whole (D-054)
-      ...(B.pasos && Object.keys(B.pasos).length ? { pasos: { ...B.pasos } } : {}),   // each month's step (D-084, D-119)
-      ...(FUERA.size ? { fuera: Object.fromEntries([...FUERA].map(([k, x]) => [k, x.estado ? JSON.parse(JSON.stringify(x.estado)) : null])) } : {})   // posts of other boards changed from here (D-120): always last
+      ...(B.pasos && Object.keys(B.pasos).length ? { pasos: { ...B.pasos } } : {})   // each month's step (D-084, D-119)
     };
   }
-  const stRefs = st => new Set([...st.tray, ...enCarpetas(st.carpetas), ...st.slots.flatMap(slotRefs), ...st.prev.filter(p => p.own).flatMap(p => p.photos), ...previewsOf(st), ...hRefs(st)]);
-  function histRefs() { const r = new Set(); if (H.b && H.b === S) [...H.undo, ...H.redo].forEach(st => stRefs(st).forEach(f => r.add(f))); return r; }
-  function histReset() { FUERA = new Map(); H = { b: S, cur: S ? editState(S) : null, curJ: '', undo: [], redo: [], tag: null, t: 0 }; if (H.cur) H.curJ = JSON.stringify(H.cur); }
+  const editCliente = (o = CLI) => ({ tray: ((o && o.tray) || []).slice(), ...(o && o.carpetas ? { carpetas: o.carpetas.map(c => ({ ...c, files: c.files.slice() })) } : {}) });   // the tray's folders (D-069)
+  const stRefs = st => new Set([...(st.tray || []), ...enCarpetas(st.carpetas), ...(st.slots || []).flatMap(slotRefs), ...(st.prev || []).filter(p => p.own).flatMap(p => p.photos), ...previewsOf(st), ...hRefs(st)]);
+  // every photo a step of the client's history can bring back (all its months: deleting one a step of another month needs is never done)
+  function histRefs() { const r = new Set(); [...HC.undo, ...HC.redo].forEach(p => { p.p.forEach(x => { if (x.b) stRefs(x.b).forEach(f => r.add(f)); }); if (p.c) stRefs(p.c).forEach(f => r.add(f)); }); return r; }
+  function histReset() { HC = histVacia(S ? S.client || boardClient(S) : null); histBase(); }
+  const histOlvidar = () => { HC = histVacia(null); };
+  function histBase() {                // the open board and the tray as they are now: the present, no step
+    if (!histMio()) return;
+    const st = editBoard(S); HC.cur.set(S.key, { st, j: JSON.stringify(st) });
+    if (CLI) { const c = editCliente(); HC.curC = { st: c, j: JSON.stringify(c) }; }
+  }
+  const parteDe = (p, k) => p && p.p.find(x => x.k === k);
+  function histPush(p) {
+    const dropped = HC.redo.length || HC.undo.length >= HMAX;
+    HC.undo.push(p); if (HC.undo.length > HMAX) { HC.undo.shift(); HC.drop++; } HC.redo = [];
+    if (dropped) delSweep();
+  }
   // what kind of change a→b is, to merge a burst: 'note:<id>' / 'memo:<id>' (one field of one post), 'crop:<file>' (one photo)
   function stepTag(a, b) {
     const J = JSON.stringify;
@@ -2237,64 +2260,75 @@
     const x = a.slots[ds[0]], y = b.slots[ds[0]], ks = ['photos', 'note', 'memo', 'date', 'fmt', 'design'].filter(k => J(x[k]) !== J(y[k]));
     return ks.length === 1 && (ks[0] === 'note' || ks[0] === 'memo' || ks[0] === 'design') ? ks[0] + ':' + x.id : null;
   }
+  // B: the open board (its tray counts) or a copy changed from here; a board with no present yet takes it now (no step)
   function track(B) {
-    if (!B || H.b !== B || !H.cur) return;
-    const st = editState(B), j = JSON.stringify(st);
-    if (j === H.curJ) return;
-    const was = stRefs(H.cur);
-    if (st.tray.some(f => !was.has(f)) && JSON.stringify({ ...st, tray: st.tray.filter(f => was.has(f)) }) === H.curJ) { H.cur = st; H.curJ = j; H.tag = null; return; }   // only new photos in the tray
-    const now = Date.now(), tag = stepTag(H.cur, st);
-    if (!(tag && tag === H.tag && now - H.t < HMERGE)) {
-      const dropped = H.redo.length || H.undo.length >= HMAX;
-      H.undo.push(H.cur); if (H.undo.length > HMAX) { H.undo.shift(); H.drop = (H.drop || 0) + 1; } H.redo = [];
-      if (dropped) delSweep();
+    if (!B || !HC.c || (B.client || boardClient(B)) !== HC.c) return;
+    const e = HC.cur.get(B.key), st = editBoard(B), j = JSON.stringify(st);
+    if (!e) { HC.cur.set(B.key, { st, j }); return; }
+    const sc = B === S && HC.curC ? editCliente() : null, jc = sc ? JSON.stringify(sc) : null, cc = !!sc && jc !== HC.curC.j;
+    if (j === e.j && !cc) return;
+    if (j === e.j) {                   // only new photos in the tray: not a step
+      const was = new Set([...stRefs(e.st), ...stRefs(HC.curC.st)]);
+      if (sc.tray.some(f => !was.has(f)) && JSON.stringify({ ...sc, tray: sc.tray.filter(f => was.has(f)) }) === HC.curC.j) { HC.curC = { st: sc, j: jc }; HC.tag = null; return; }
     }
-    H.cur = st; H.curJ = j; H.tag = tag; H.t = now;
+    const now = Date.now(), t0 = cc ? null : stepTag(e.st, st), tag = t0 && B.key + '|' + t0;
+    if (!(tag && tag === HC.tag && now - HC.t < HMERGE)) histPush({ p: [j === e.j ? { k: B.key } : { k: B.key, b: e.st }], ...(cc ? { c: HC.curC.st } : {}) });
+    HC.cur.set(B.key, { st, j }); if (cc) HC.curC = { st: sc, j: jc };
+    HC.tag = tag; HC.t = now;
   }
   // a double click that puts back what its first click changed leaves no empty step of ⌘Z (D-159 and D-165)
-  function histSinVacio() { if (S && H.b === S && H.undo.length && JSON.stringify(H.undo[H.undo.length - 1]) === H.curJ) { H.undo.pop(); H.tag = null; } }
+  function histSinVacio() {
+    if (!histMio() || !HC.undo.length) return;
+    const p = HC.undo[HC.undo.length - 1], x = p.p.length === 1 && p.p[0], e = HC.cur.get(S.key);
+    if (x && x.k === S.key && e && (x.b ? JSON.stringify(x.b) === e.j : !x.e) && (!p.c || (HC.curC && JSON.stringify(p.c) === HC.curC.j))) { HC.undo.pop(); HC.tag = null; }
+  }
   // the designer (B6): an editing session becomes one step of the mesa's ⌘Z — from the state before it opened to the one
   // it leaves (none if it leaves everything as it was)
-  function histMarca() { if (!S || H.b !== S || !H.cur) return null; track(S); return { b: S, n: H.undo.length, drop: H.drop || 0, st: H.cur, j: H.curJ, redo: H.redo.slice() }; }
+  function histMarca() { if (!histMio()) return null; track(S); const e = HC.cur.get(S.key); if (!e) return null; return { b: S, n: HC.undo.length, drop: HC.drop, st: e.st, j: e.j, c: HC.curC, redo: HC.redo.slice() }; }
   function histJuntar(m) {
-    if (!m || !S || H.b !== m.b || m.b !== S) return;
+    if (!m || !S || m.b !== S || !histMio()) return;
     track(S);
-    const k = m.n - ((H.drop || 0) - m.drop);            // steps dropped from the front meanwhile (more than HMAX)
-    if (H.undo.length < k) return;                        // the history started again meanwhile
-    const was = stRefs(m.st), igual = JSON.stringify({ ...H.cur, tray: H.cur.tray.filter(f => was.has(f)) }) === m.j;   // nothing, or only photos added to the tray
-    H.undo.splice(Math.max(0, k));
-    if (igual) H.redo = m.redo; else { H.undo.push(m.st); H.redo = []; }
-    H.tag = null;
+    const k = m.n - (HC.drop - m.drop);   // steps dropped from the front meanwhile (more than HMAX)
+    if (HC.undo.length < k) return;        // the history started again meanwhile
+    const e = HC.cur.get(S.key), c0 = m.c, c1 = HC.curC, was = new Set([...stRefs(m.st), ...(c0 ? stRefs(c0.st) : [])]);
+    const igual = e.j === m.j && (!c0 || !c1 || JSON.stringify({ ...c1.st, tray: c1.st.tray.filter(f => was.has(f)) }) === c0.j);   // nothing, or only photos added to the tray
+    HC.undo.splice(Math.max(0, k));
+    if (igual) HC.redo = m.redo; else { HC.undo.push({ p: [{ k: S.key, b: m.st }], ...(c0 && c1 && c0.j !== c1.j ? { c: c0.st } : {}) }); HC.redo = []; }
+    HC.tag = null;
     delSweep();
   }
   // an automatic re-render (diseno.js) joins the step of the change that caused it: that post's photos and design are
   // brought up to date in the current state, so ⌘Z undoes the change and its re-render together
   function histAmend(slotId) {
-    if (!S || H.b !== S || !H.cur) return;
-    const s = S.slots.find(x => x.id === slotId); if (!s) return;
+    if (!histMio()) return;
+    const s = S.slots.find(x => x.id === slotId), e = HC.cur.get(S.key); if (!s || !e) return;
     const amend = st => {
       const o = st.slots.find(x => x.id === slotId); if (!o) return;
       o.photos = s.photos.slice(); if (s.design) o.design = JSON.parse(JSON.stringify(s.design)); else delete o.design;
       if (s.libre) o.libre = JSON.parse(JSON.stringify(s.libre)); else delete o.libre;
       if (s.guias) o.guias = JSON.parse(JSON.stringify(s.guias)); else delete o.guias;
-      if (s.fmt) o.fmt = s.fmt; else delete o.fmt;          // (key order as editState writes it: type, photos, note, date, memo, fmt, design, libre, estado, guias, ubicacion, etiquetas, colaboradores)
+      if (s.fmt) o.fmt = s.fmt; else delete o.fmt;          // (key order as editBoard writes it: type, photos, note, date, memo, fmt, design, libre, estado, guias, ubicacion, etiquetas, colaboradores)
       const { id, type, photos, note, date, memo, fmt, design, libre, estado, guias, ubicacion, etiquetas, colaboradores } = o;
       st.slots[st.slots.indexOf(o)] = { id, type, photos, note, date, ...(memo ? { memo } : {}), ...(fmt ? { fmt } : {}), ...(design ? { design } : {}), ...(libre ? { libre } : {}), ...(estado ? { estado } : {}), ...(guias ? { guias } : {}),
         ...(ubicacion ? { ubicacion } : {}), ...(etiquetas ? { etiquetas } : {}), ...(colaboradores ? { colaboradores } : {}) };   // its location, tags and collaborators stay (D-124, D-130: they were lost, D-176)
     };
     const z = dibujoZ, o1 = z && z.de === slotId && z.b === S && z.s1 && z.s1.slots.find(x => x.id === slotId), p0 = o1 ? o1.photos.slice() : null;   // its images before this drawing
-    amend(H.cur);
-    if (p0) H.undo.forEach((st, k) => { if ((H.drop || 0) + k < z.a0) return; const o = st.slots.find(x => x.id === slotId); if (o && o.type === s.type && same(o.photos, p0)) amend(st); });   // the steps taken while it drew (from the one before the change, counted in the whole history) have the new type with the images of before: they get the new ones (D-176)
-    H.curJ = JSON.stringify(H.cur);
+    amend(e.st);
+    if (p0) HC.undo.forEach((p, k) => { if (HC.drop + k < z.a0) return; const x = parteDe(p, S.key), o = x && x.b && x.b.slots.find(y => y.id === slotId); if (o && o.type === s.type && same(o.photos, p0)) amend(x.b); });   // the steps taken while it drew (from the one before the change, counted in the whole history) have the new type with the images of before: they get the new ones (D-176)
+    e.j = JSON.stringify(e.st);
   }
   // The client's decisions from its portal (D-244, web.js): each puts the state as Kevin would, but none is a step of ⌘Z and
   // no ⌘Z takes it away (lesson 87): the history's present and every step back take it; a step forward keeps Kevin's own
   // later state (his ⇧⌘Z still redoes it). All of them, one save and one redraw.
-  function estadoEnPaso(st, id, est) {   // a step's copy of a post with this state, in the key order editState writes
+  function estadoEnPaso(st, id, est) {   // a step's copy of a post with this state, in the key order editBoard writes
     const o = st && st.slots.find(x => x.id === id); if (!o) return;
     const { type, photos, note, date, memo, fmt, design, libre, guias, ubicacion, etiquetas, colaboradores } = o;
     st.slots[st.slots.indexOf(o)] = { id, type, photos, note, date, ...(memo ? { memo } : {}), ...(fmt ? { fmt } : {}), ...(design ? { design } : {}), ...(libre ? { libre } : {}), ...(est ? { estado: { ...est } } : {}), ...(guias ? { guias } : {}),
       ...(ubicacion ? { ubicacion } : {}), ...(etiquetas ? { etiquetas } : {}), ...(colaboradores ? { colaboradores } : {}) };
+  }
+  function estadoEnParte(x, id, est, si) {   // a part of a step: its whole board or its states (si: only if it had this state)
+    if (x.b) { const o = x.b.slots.find(y => y.id === id); if (o && (!si || si(o.estado))) estadoEnPaso(x.b, id, est); }
+    else if (x.e && id in x.e && (!si || si(x.e[id]))) x.e[id] = est ? { ...est } : null;
   }
   function estadoWeb(lista) {
     if (locked) return lista.map(() => 'locked');
@@ -2302,22 +2336,23 @@
       const s = S && S.slots.find(x => x.id === id); if (!s) return 'no existe';
       const j0 = JSON.stringify(s.estado || null);
       const why = setEstado(id, v || null); if (why) return why;
-      if (H.b === S && H.cur) {
-        estadoEnPaso(H.cur, id, s.estado);
-        H.undo.forEach(st => estadoEnPaso(st, id, s.estado));
-        H.redo.forEach(st => { const o = st.slots.find(x => x.id === id); if (o && JSON.stringify(o.estado || null) === j0) estadoEnPaso(st, id, s.estado); });
-        H.curJ = JSON.stringify(H.cur);
+      const e = histMio() && HC.cur.get(S.key);
+      if (e) {
+        estadoEnPaso(e.st, id, s.estado); e.j = JSON.stringify(e.st);
+        HC.undo.forEach(p => p.p.forEach(x => { if (x.k === S.key) estadoEnParte(x, id, s.estado); }));
+        HC.redo.forEach(p => p.p.forEach(x => { if (x.k === S.key) estadoEnParte(x, id, s.estado, est => JSON.stringify(est || null) === j0); }));
       }
       return '';
     });
     if (out.some(x => !x)) changed();
     return out;
   }
-  function applyState(st) {
-    const had = refsOf(S), has = f => !!M.files[f];
-    const enZernio = new Map(hsDe(S).filter(h => h.zernio).map(h => [h.id, h]));   // Zernio's mark is Zernio's, never a step (D-097)
+  // a board's part of a step put back on it (B: the open board, or a copy of another month for the states, D-120)
+  function aplicarTablero(B, st) {
+    const has = f => !!M.files[f];
+    const enZernio = new Map(hsDe(B).filter(h => h.zernio).map(h => [h.id, h]));   // Zernio's mark is Zernio's, never a step (D-097)
     const by = Object.fromEntries(st.slots.map(s => [s.id, s])), pby = Object.fromEntries(st.prev.map(p => [p.id, p]));
-    S.slots.forEach(s => {
+    B.slots.forEach(s => {
       const o = by[s.id]; if (!o) return;
       s.photos = o.photos.filter(has); s.note = o.note; s.date = o.date; if (o.type) s.type = o.type;
       if (o.memo) s.memo = o.memo; else delete s.memo;
@@ -2330,63 +2365,128 @@
       if (o.etiquetas) s.etiquetas = o.etiquetas.slice(); else delete s.etiquetas;   // its tags and collaborators, too (D-130)
       if (o.colaboradores) s.colaboradores = o.colaboradores.slice(); else delete s.colaboradores;
     });
-    (S.prev || []).forEach(p => {
+    (B.prev || []).forEach(p => {
       const o = pby[p.id]; if (!o) return;
       p.own = o.own; p.photos = o.photos.filter(has); p.alt = o.alt; p.hidden = o.hidden;
       if (o.fmt) p.fmt = o.fmt; else delete p.fmt;
     });
-    S.tray = st.tray.filter(has);
-    if (st.carpetas) {                             // a deleted folder never comes back, whatever step this is (D-070)
-      const ya = H.fueraC || new Set();
-      S.carpetas = st.carpetas.filter(c => !ya.has(c.id)).map(c => ({ ...c, parent: ya.has(c.parent) ? null : c.parent, files: c.files.filter(has) }));
-      pestValidar();
-    }
-    S.crops = JSON.parse(JSON.stringify(st.crops));
-    if (st.previews) S.previews = st.previews.map(f => (f && has(f) ? f : null)); else delete S.previews;
-    if (st.fillers) S.fillers = st.fillers; else delete S.fillers;
-    if (st.pins) S.pins = st.pins.slice(); else delete S.pins;
-    if (st.pasos) S.pasos = { ...st.pasos }; else delete S.pasos;
-    fueraDeshacer(st);                             // the posts of other boards as that step had them (D-120)
-    if (st.historias) S.historias = JSON.parse(JSON.stringify(st.historias)); else delete S.historias;
-    if (S.historias || enZernio.size) {            // each story keeps the mark it has now; one in Zernio now never goes, as it is
-      const hs = hsDe(S);
+    B.crops = JSON.parse(JSON.stringify(st.crops));
+    if (st.previews) B.previews = st.previews.map(f => (f && has(f) ? f : null)); else delete B.previews;
+    if (st.fillers) B.fillers = st.fillers; else delete B.fillers;
+    if (st.pins) B.pins = st.pins.slice(); else delete B.pins;
+    if (st.pasos) B.pasos = { ...st.pasos }; else delete B.pasos;
+    if (st.historias) B.historias = JSON.parse(JSON.stringify(st.historias)); else delete B.historias;
+    if (B.historias || enZernio.size) {            // each story keeps the mark it has now; one in Zernio now never goes, as it is
+      const hs = hsDe(B);
       hs.forEach(h => { const z = enZernio.get(h.id); if (z) h.zernio = JSON.parse(JSON.stringify(z.zernio)); else delete h.zernio; });
       const faltan = [...enZernio.values()].filter(z => !hs.some(h => h.id === z.id));
-      if (faltan.length) S.historias = [...hs, ...faltan];
+      if (faltan.length) B.historias = [...hs, ...faltan];
     }
-    const now = refsOf(S), lost = [...had].filter(f => !now.has(f) && has(f)), isD = f => !!M.files[f].design;
-    if (lost.some(f => !isD(f))) S.tray.unshift(...lost.filter(f => !isD(f)));
-    if (lost.some(isD)) delList(l => [...new Set([...l, ...lost.filter(isD)])]);   // rendered images are never photos: deleted once no step needs them
     const ord = Object.fromEntries(st.slots.map((s, i) => [s.id, i]));
-    S.slots.sort((a, b) => (ord[a.id] ?? 1e9) - (ord[b.id] ?? 1e9));
-    renumber();                                    // names follow the restored dates
-    normalize();
-    if (sel && !S.tray.includes(sel)) sel = null;
+    B.slots.sort((a, b) => (ord[a.id] ?? 1e9) - (ord[b.id] ?? 1e9));
   }
-  function histStep(back) {
-    if (!S || locked || H.b !== S || !H.cur) return;
-    track(S);                                      // a change not saved yet is a step too
-    const from = back ? H.undo : H.redo, to = back ? H.redo : H.undo;
-    if (!from.length) { toast(back ? 'Nada que deshacer.' : 'Nada que rehacer.', { ms: 1800 }); return; }
-    const antes = H.curJ;
-    to.push(H.cur);
-    for (;;) {                                     // a step that no longer changes anything (only Zernio's mark, D-097) is passed over
-      applyState(from.pop());
-      H.cur = editState(S); H.curJ = JSON.stringify(H.cur);
-      if (H.curJ !== antes || !from.length) break;
+  function aplicarEstados(B, e) {
+    for (const [id, v] of Object.entries(e)) {
+      for (const T of [B, PB && PB.key === B.key && B !== S ? PB : null]) {   // the month before of the open one shows it too
+        const s = T && (T.slots || []).find(x => x.id === id); if (!s) continue;
+        if (v) s.estado = JSON.parse(JSON.stringify(v)); else delete s.estado;
+      }
     }
-    H.tag = null;
+  }
+  function aplicarCliente(c) {         // the client's tray and folders as the step had them; a deleted folder never comes back (D-070)
+    const has = f => !!M.files[f];
+    S.tray = c.tray.filter(has);
+    if (c.carpetas) {
+      const ya = HC.fueraC || new Set();
+      S.carpetas = c.carpetas.filter(x => !ya.has(x.id)).map(x => ({ ...x, parent: ya.has(x.parent) ? null : x.parent, files: x.files.filter(has) }));
+      pestValidar();
+    }
+  }
+  const estadosDe = (B, ids) => Object.fromEntries(ids.map(id => { const s = B.slots.find(x => x.id === id); return [id, s && s.estado ? JSON.parse(JSON.stringify(s.estado)) : null]; }));
+  // the month a step takes the feed to (D-317): the open one if it is in it; else the one whose board it changes, else its first
+  const aQuien = p => (S && p.p.some(x => x.k === S.key)) ? S.key : (p.p.find(x => x.b) || p.p[0]).k;
+  let histQ = null;                    // ⌘Z / ⇧⌘Z waiting for a month to be made the open one: the next ones wait, in order
+  function histStep(back) {
+    const go = () => histPaso(back, 0);
+    if (!histQ) { const r = go(); if (!r || typeof r.then !== 'function') return r; histQ = r; }
+    else histQ = histQ.then(go, go);
+    const q = histQ, fin = () => { if (histQ === q) histQ = null; };
+    q.then(fin, fin);
+    return q;
+  }
+  function histPaso(back, n) {
+    if (!S || locked || !histMio()) return;
+    track(S);                                      // a change not saved yet is a step too
+    const from = back ? HC.undo : HC.redo, to = back ? HC.redo : HC.undo;
+    if (!from.length) { toast(back ? 'Nada que deshacer.' : 'Nada que rehacer.', { ms: 1800 }); return; }
+    const p0 = from[from.length - 1], k0 = aQuien(p0), faltan = [...new Set(p0.p.map(x => x.k).filter(k => k !== k0 && !MEM.tab.has(k)))];
+    if (k0 !== S.key || faltan.length) {           // another month: it becomes the open one first; the other boards it changes, read
+      if (n > 3) { toast('No se pudo ' + (back ? 'deshacer' : 'rehacer') + ': su mes cambió mientras tanto. Vuelve a intentarlo.', { ms: 5000 }); return; }
+      return (async () => {
+        if (k0 !== S.key) {
+          const r = await activar(k0, { paso: true });
+          if (r && r.error) {
+            if (r.error === 'no existe') { from.pop(); return histPaso(back, n + 1); }   // its month was deleted: that step goes
+            toast(`No se pudo ${back ? 'deshacer' : 'rehacer'}: ${r.error}.`, { ms: 5000 }); return;
+          }
+        }
+        for (const k of faltan) if (!MEM.tab.has(k)) await memLeer(k);
+        return histPaso(back, n + 1);
+      })();
+    }
+    const tab = k => (k === S.key ? S : (MEM.tab.get(k) || {}).tablero || null);
+    const otros = new Set();
+    let antes = null, inv = null;
+    for (;;) {
+      const p = from.pop(), partes = p.p.filter(x => tab(x.k));
+      inv = { p: partes.map(x => x.e ? { k: x.k, e: estadosDe(tab(x.k), Object.keys(x.e)) } : x.b ? { k: x.k, b: editBoard(tab(x.k)) } : { k: x.k }), ...(p.c ? { c: editCliente() } : {}) };
+      if (antes == null) antes = JSON.stringify(inv);
+      const had = refsOf(S);
+      if (p.c) aplicarCliente(p.c);
+      for (const x of partes) {
+        const B = tab(x.k);
+        if (x.b) aplicarTablero(B, x.b); else if (x.e) aplicarEstados(B, x.e);
+        if (B !== S && (x.b || x.e)) otros.add(B);
+      }
+      if (partes.some(x => x.k === S.key && x.b)) {   // what leaves the open board goes to the tray: never a photo lost
+        const now = refsOf(S), lost = [...had].filter(f => !now.has(f) && M.files[f]), isD = f => !!M.files[f].design;
+        if (lost.some(f => !isD(f))) S.tray.unshift(...lost.filter(f => !isD(f)));
+        if (lost.some(isD)) delList(l => [...new Set([...l, ...lost.filter(isD)])]);   // rendered images are never photos: deleted once no step needs them
+        renumber();                                // names follow the restored dates
+      }
+      normalize();
+      partes.forEach(x => { const B = tab(x.k), st = editBoard(B); HC.cur.set(x.k, { st, j: JSON.stringify(st) }); });
+      if (p.c || partes.some(x => x.k === S.key)) { const c = editCliente(); HC.curC = { st: c, j: JSON.stringify(c) }; }
+      const ahora = JSON.stringify({ p: inv.p.map(x => x.e ? { k: x.k, e: estadosDe(tab(x.k), Object.keys(x.e)) } : x.b ? { k: x.k, b: editBoard(tab(x.k)) } : { k: x.k }), ...(inv.c ? { c: editCliente() } : {}) });
+      const sigue = ahora === antes && from.length && aQuien(from[from.length - 1]) === S.key && from[from.length - 1].p.every(x => x.k === S.key || MEM.tab.has(x.k));
+      if (!sigue) break;                           // a step that no longer changes anything (only Zernio's mark, D-097) is passed over
+    }
+    to.push(inv);
+    if (sel && !S.tray.includes(sel)) sel = null;
+    HC.tag = null;
+    otros.forEach(B => guardarOtro(B));
     changed();
     refreshDetail();
   }
   const undo = () => histStep(true), redo = () => histStep(false);
   // A change of the folders that is not a step of ⌘Z (creating one, photos coming in, deleting one): it goes into every step
-  // too, so going back to one never undoes it. fn gets S and then each step: {tray, carpetas…}.
+  // that keeps the tray too, so going back to one never undoes it. fn gets S (its tray is the client's) and then each step's {tray, carpetas}.
   function sinPaso(fn) {
-    const mia = S && H.b === S && H.cur;
+    const mia = histMio();
     if (mia) track(S);                             // a change not saved yet stays a step of its own
     fn(S);
-    if (mia) { [...H.undo, ...H.redo].forEach(st => { if (st.carpetas) fn(st); }); H.cur = editState(S); H.curJ = JSON.stringify(H.cur); H.tag = null; }
+    if (mia) { [...HC.undo, ...HC.redo].forEach(p => { if (p.c && p.c.carpetas) fn(p.c); }); if (CLI) { const c = editCliente(); HC.curC = { st: c, j: JSON.stringify(c) }; } HC.tag = null; }
+  }
+  // a post that passed once (estado.tarde): every step of its board keeps it so, and ⌘Z brings it back as a vencida (D-120)
+  function tardeEnPasos(key, ids) {
+    const pon = est => (est && est.v === 'programado' ? { ...est, tarde: true } : est);
+    const e = HC.cur.get(key);
+    if (e) { e.st.slots.forEach(o => { if (ids.has(o.id)) { const v = pon(o.estado); if (v) o.estado = v; } }); e.j = JSON.stringify(e.st); }
+    [...HC.undo, ...HC.redo].forEach(p => p.p.forEach(x => {
+      if (x.k !== key) return;
+      if (x.b) x.b.slots.forEach(o => { if (ids.has(o.id)) { const v = pon(o.estado); if (v) o.estado = v; } });
+      else if (x.e) Object.keys(x.e).forEach(id => { if (ids.has(id)) x.e[id] = pon(x.e[id]); });
+    }));
   }
   // rendered images (design:true) nothing refers to any more — replaced on another Mac and imported back, or written by an
   // «Aplicar» cut short by a reload — are deleted: once per session (or after an import), never while an «Aplicar» runs
@@ -3354,8 +3454,8 @@ ${TK_FUENTES}
   // its date or time changed after it was marked Programada (Zernio still has the old one, D-103): s.estado.fecha keeps the
   // date it was marked with (a Programada from before 3.92 gets the one it has when its board first opens). Vencida: not
   // cancelled nor published, its moment passed and it doesn't pass on its own. It looks at the open board and the client's
-  // earlier boards (months before the open one's); a post of another board is changed from here and its change is a step of
-  // this board's ⌘Z (FUERA). Nothing of it with the mesa paused in another tab or in «Vista cliente»; nothing of Zernio or
+  // earlier boards (months before the open one's); a post of another board is changed from here, on its copy, and its change
+  // is a step of that month in the client's ⌘Z (D-317). Nothing of it with the mesa paused in another tab or in «Vista cliente»; nothing of Zernio or
   // Notion: it goes by the date only.
   let RELOJ = null;                    // tests: a fixed clock (M._test.reloj)
   const ahora = () => RELOJ != null ? RELOJ : Date.now();
@@ -3369,66 +3469,63 @@ ${TK_FUENTES}
   const publicaSola = (s, t, B = S) => estadoDe(s, B) === 'programado' && programadaAlDia(s) && !s.estado.tarde && yaPaso(s, t);
   const vencida = (s, t, B = S) => { const e = estadoDe(s, B); return e !== 'cancelado' && e !== 'publicado' && yaPaso(s, t) && !publicaSola(s, t, B); };
   const estadoVisto = s => { const v = s.estado && s.estado.v; return v && (MANUAL.includes(v) || RETRASO.includes(v)) ? v : estadoAuto(s); };   // another board's (its crops are not here)
-  // posts of the client's other boards changed from here: 'key|id' -> {key, id, estado}; every step of ⌘Z keeps them
-  // (editState: fuera), so going back writes them back. A new history (another board, a reload) starts without any.
-  let FUERA = new Map();
-  const fueraK = (key, id) => key + '|' + id;
-  function conFuera(key, s) { const x = FUERA.get(fueraK(key, s.id)); if (!x) return s; const o = { ...s }; if (x.estado) o.estado = x.estado; else delete o.estado; return o; }
+  // Posts of the client's other months changed from here (D-120: «Ya se publicó» or «Cancelar» of a vencida of an earlier board,
+  // and what passes on its own): since the feed continuo (pieza 2, D-317) a change of another month is a step of that month in the
+  // client's one history, done on its copy in memory and written as its own save writes it (its revisions, its collabs). The
+  // copy shows it at once (vencidas); ⌘Z of it makes that month the open one.
   async function anteriores(B) {       // the client's boards before the open one (its months come first)
     const all = ((await idbAll('boards')) || []).map(b => newest(b.key, b));
     return all.filter(b => b && b.key !== B.key && boardClient(b) === B.client && b.month && String(b.month) < String(B.month))
       .sort((a, b) => String(b.month).localeCompare(String(a.month)));
   }
+  const enCopia = (key, s) => { const m = MEM.tab.get(key), o = m && m.tablero.slots.find(x => x.id === s.id); return o || s; };   // a post of another board as its copy has it now
   async function deFuera(B, que) {     // [{b, s}] of the earlier boards that que(s, b) picks; a post the open board has is its own
     const visto = new Set(B.slots.map(s => s.id)), out = [];
-    for (const b of await anteriores(B)) for (const s0 of b.slots || []) {
-      if (visto.has(s0.id)) continue; visto.add(s0.id);
-      const s = conFuera(b.key, s0); if (que(s, b)) out.push({ b, s });
+    for (const b0 of await anteriores(B)) {
+      const m = MEM.tab.get(b0.key), b = m ? m.tablero : b0;
+      for (const s of b.slots || []) { if (visto.has(s.id)) continue; visto.add(s.id); if (que(s, b)) out.push({ b, s }); }
     }
     return out;
   }
   let fueraQ = Promise.resolve();
-  function escribirFuera(list) {       // [{key, id, estado}] into every other board that has the post (its collab's too)
-    const B = S, now = Date.now();
-    if (PB) list.forEach(x => { const s = (PB.slots || []).find(y => y.id === x.id); if (s) { if (x.estado) s.estado = JSON.parse(JSON.stringify(x.estado)); else delete s.estado; } });
-    fueraQ = fueraQ.then(() => tx('boards', 'readwrite', st => {
-      const r = st.openCursor();
-      r.onsuccess = () => {
-        const c = r.result; if (!c) return;
-        const b = c.value; let hit = false;
-        if (b && b.key !== (B && B.key)) for (const x of list) { const o = (b.slots || []).find(y => y.id === x.id); if (o) { if (x.estado) o.estado = JSON.parse(JSON.stringify(x.estado)); else delete o.estado; o.at = now; hit = true; } }
-        if (hit) { alinearH(b); b.editedAt = new Date().toISOString(); c.update(b); }
-        c.continue();
-      };
-    })).then(() => vencRefrescar()).catch(e => toast('No se pudo cambiar el otro tablero: ' + ((e && e.message) || e), { ms: 8000 }));
+  // a copy of another month changed from here, written as its save would: its posts' revisions (s.at) and what its collabs share
+  function guardarOtro(B) {
+    fueraQ = fueraQ.then(async () => {
+      alinearH(B); marcaEspera(B); stamp(B); edited(B); B.savedAt = new Date().toISOString();
+      await guardar(B); await pushShared(B);
+    }).then(() => vencRefrescar()).catch(e => toast('No se pudo cambiar el otro tablero: ' + ((e && e.message) || e), { ms: 8000 }));
     return fueraQ;
   }
-  function fueraPoner(key, s, estado, tarde) {   // the state of a post of another board, as a change of this board's history
-    const k = fueraK(key, s.id), hist = S && H.b === S && H.cur ? [H.cur, ...H.undo, ...H.redo] : [];
-    if (!FUERA.has(k)) {               // the first time: every step so far had it as it was
-      const antes = s.estado ? JSON.parse(JSON.stringify(s.estado)) : null;
-      FUERA.set(k, { key, id: s.id, estado: antes });
-      hist.forEach(st => { st.fuera = { ...(st.fuera || {}), [k]: antes ? JSON.parse(JSON.stringify(antes)) : null }; });
-    }
-    if (tarde) [FUERA.get(k), ...hist.map(st => ({ get estado() { return st.fuera[k]; }, set estado(v) { st.fuera[k] = v; } }))].forEach(x => { if (x.estado && x.estado.v === 'programado') x.estado = { ...x.estado, tarde: true }; });   // it passed once: going back never makes it pass again
-    if (hist.length) H.curJ = JSON.stringify(H.cur);
-    FUERA.get(k).estado = estado ? JSON.parse(JSON.stringify(estado)) : null;
-    escribirFuera([{ key, id: s.id, estado: FUERA.get(k).estado }]);
+  // a copy to change from here: its signature and links ride with it (stamp and pushShared of a board that isn't the open one)
+  function copiaParaCambiar(key) {
+    const m = MEM.tab.get(key); if (!m) return null;
+    if (!SIGS.has(m.tablero)) SIGS.set(m.tablero, { b: m.tablero, m: m.sig || Object.fromEntries(m.tablero.slots.map(s => [s.id, slotSig(s, m.tablero)])), dirty: new Set(), idx: m.IDX || {} });
+    return m.tablero;
   }
-  function fueraDeshacer(st) {         // applyState: the posts of other boards as that step had them
-    const cambia = [];
-    for (const [k, x] of FUERA) {
-      const v = st.fuera && k in st.fuera ? st.fuera[k] : x.estado;
-      if (JSON.stringify(v ?? null) !== JSON.stringify(x.estado ?? null)) { x.estado = v ? JSON.parse(JSON.stringify(v)) : null; cambia.push({ key: x.key, id: x.id, estado: x.estado }); }
-    }
-    if (cambia.length) escribirFuera(cambia);
+  // one step of ⌘Z for states of posts of several boards at once (D-120): est = [{B, id, estado}]; the open board's own go through
+  // setEstado (fn) and its save; the others, on their copies. tarde: they passed once (going back never makes them pass again)
+  function estadosFuera(lista, tarde) {
+    if (!lista.length) return;
+    track(S);                          // a change not saved yet stays a step of its own
+    const por = new Map(); lista.forEach(x => { if (!por.has(x.B)) por.set(x.B, []); por.get(x.B).push(x); });
+    for (const [B, l] of por) { track(B); if (tarde) { const ids = new Set(l.map(x => x.id)); tardeEnPasos(B.key, ids); B.slots.forEach(s => { if (ids.has(s.id) && s.estado && s.estado.v === 'programado') s.estado = { ...s.estado, tarde: true }; }); } }
+    const partes = [...por].map(([B, l]) => ({ k: B.key, e: estadosDe(B, l.map(x => x.id)) }));
+    for (const [B, l] of por) { aplicarEstados(B, Object.fromEntries(l.map(x => [x.id, x.estado]))); const st = editBoard(B); HC.cur.set(B.key, { st, j: JSON.stringify(st) }); }
+    histPush({ p: partes }); HC.tag = null;
+    for (const B of por.keys()) guardarOtro(B);
   }
-  // a post of another board from the vencidas' list: «Ya se publicó» or «Cancelar» (D-120), one step of ⌘Z
+  // a post of another board from the vencidas' list: «Ya se publicó» or «Cancelar» (D-120), one step of ⌘Z of its month
   function fueraEstado(key, id, estado) {
     if (!S || locked) return 'la mesa está abierta en otra pestaña';
     const it = (vencFuera || []).find(x => x.key === key && x.s.id === id); if (!it) return 'no existe';
-    fueraPoner(key, conFuera(key, it.s), estado);
-    changed();
+    const B0 = S;
+    fueraQ = fueraQ.then(async () => {
+      if (!MEM.tab.has(key)) await memLeer(key);
+      const B = copiaParaCambiar(key);
+      if (!B || S !== B0 || locked || !B.slots.some(s => s.id === id)) return;
+      estadosFuera([{ B, id, estado: estado ? JSON.parse(JSON.stringify(estado)) : null }]);
+      calRender(); refreshDetail();
+    }).catch(e => toast('No se pudo cambiar el otro tablero: ' + ((e && e.message) || e), { ms: 8000 }));
     return '';
   }
   const quieta = () => !S || locked || !root || root.classList.contains('client') || root.classList.contains('pp-on') || (M.libre && M.libre.abierto && M.libre.abierto()) || (M.diseno && M.diseno.abierto && M.diseno.abierto()) || uploadsBusy() || importing || switching > 0;
@@ -3438,17 +3535,25 @@ ${TK_FUENTES}
     if (quieta() || pubBusy) return 0;
     pubBusy = true;
     try {
-      const B = S, t = ahora(), fuera = await deFuera(B, (s, b) => publicaSola(s, t, b));
+      const B = S, t = ahora(), cand = await deFuera(B, (s, b) => publicaSola(s, t, b));
+      for (const k of new Set(cand.map(x => x.b.key))) if (!MEM.tab.has(k)) await memLeer(k);   // read once, never written here
       if (B !== S || quieta()) return 0;
       const mias = S.slots.filter(s => publicaSola(s, t));
+      const fuera = [...new Set(cand.map(x => x.b.key))].flatMap(k => { const T = copiaParaCambiar(k); return T ? T.slots.filter(s => cand.some(x => x.b.key === k && x.s.id === s.id) && publicaSola(s, t, T)).map(s => ({ B: T, id: s.id })) : []; });
       if (!mias.length && !fuera.length) return 0;
       track(S);                        // a change not saved yet stays a step of its own
       const ids = new Set(mias.map(s => s.id));   // it passed once: every step keeps it so, and ⌘Z brings it back as a vencida
       mias.forEach(s => { s.estado = { ...s.estado, tarde: true }; });
-      if (H.b === S && H.cur) { [H.cur, ...H.undo, ...H.redo].forEach(st => st.slots.forEach(o => { if (ids.has(o.id) && o.estado && o.estado.v === 'programado') o.estado = { ...o.estado, tarde: true }; })); H.curJ = JSON.stringify(H.cur); }
+      if (ids.size) tardeEnPasos(S.key, ids);
+      const u = HC.undo.length;
       mias.forEach(s => setEstado(s.id, 'publicado'));
-      fuera.forEach(({ b, s }) => fueraPoner(b.key, s, { v: 'publicado' }, true));
-      changed(); refreshDetail();
+      if (mias.length) { normalize(); save(); }   // the open board's own step
+      if (fuera.length) {
+        const top = HC.undo.length === u + 1 ? HC.undo[HC.undo.length - 1] : null;
+        estadosFuera(fuera.map(x => ({ ...x, estado: { v: 'publicado' } })), true);
+        if (top) { const p = HC.undo.pop(); top.p.push(...p.p); }   // one step for all of them (D-120)
+      }
+      render(); refreshDetail();
       const n = mias.length + fuera.length;
       toast(`${n} publicaci${n === 1 ? 'ón pasa' : 'ones pasan'} a Publicado. ⌘Z ${n === 1 ? 'la devuelve' : 'las devuelve'}.`, { key: 'publicadas-solas', ms: 9000 });
       return n;
@@ -3474,7 +3579,7 @@ ${TK_FUENTES}
     const t = ahora(), cd = curCd();
     const fila = (key, s, aqui, o) => ({ key, id: s.id, name: s.name, type: s.type, date: s.date, estado: aqui ? estadoDe(s) : estadoVisto(s), aqui, mes: o.mes, movida: !!(s.estado && s.estado.v === 'programado' && !programadaAlDia(s)), futuro: hayFuturo(o.month, o.span, o.cd, s, t) });
     const mias = S.slots.filter(s => vencida(s, t)).map(s => fila(S.key, s, true, { mes: mesDe(s), month: S.month, span: S.span, cd }));
-    const fuera = vencDe === S.key ? vencFuera.map(x => ({ x, s: conFuera(x.key, x.s) })).filter(({ s }) => vencida(s, t)).map(({ x, s }) => fila(x.key, s, false, { mes: cycleOf(s.date, x.cd) || x.month, month: x.month, span: x.span, cd: x.cd })) : [];
+    const fuera = vencDe === S.key ? vencFuera.map(x => ({ x, s: enCopia(x.key, x.s) })).filter(({ s }) => vencida(s, t)).map(({ x, s }) => fila(x.key, s, false, { mes: cycleOf(s.date, x.cd) || x.month, month: x.month, span: x.span, cd: x.cd })) : [];
     return [...mias, ...fuera].sort((a, b) => ts(a.date) - ts(b.date));
   }
   // on opening a board (abrir) and every minute: B, then the vencidas. No «N vencidas · Ver» notice on opening: «N vencidas» of
@@ -4490,7 +4595,7 @@ ${TK_FUENTES}
       const fid = s.photos[cur.idx];
       // the state before this gesture (with the click just before, if it is still being joined): a photo that had no saved frame
       // is left without one, which is the same frame, so a double click that changes nothing leaves no step
-      const junto = H.b === S && H.tag === 'crop:' + fid && Date.now() - H.t < HMERGE && H.undo.length, antes = junto ? H.undo[H.undo.length - 1] : H.cur;
+      const e0 = histMio() && HC.cur.get(S.key), junto = !!e0 && HC.tag === S.key + '|crop:' + fid && Date.now() - HC.t < HMERGE && HC.undo.length, antes = junto ? (parteDe(HC.undo[HC.undo.length - 1], S.key) || {}).b : e0 && e0.st;
       const tenia = !!(antes && antes.crops && antes.crops[fid]);
       setCrop(fid, s, { cx: 0.5, cy: 0.5, z: 1 });
       const d = dims(fid), c = S.crops[fid], cerca = (a, b) => Math.abs(a - b) < 1e-9;
@@ -5509,7 +5614,7 @@ ${TK_FUENTES}
     else if (act === 'prevtotray') { prevToTray(a.dataset.id); openPast(a.dataset.id); }
     else if (act === 'prevrestore') { prevRestore(a.dataset.id); openPast(a.dataset.id); }
     else if (act === 'recargar') location.reload();
-    else if (act === 'takeover') { const k = S && S.key; S = null; PB = null; memSoltar(); await claim(); cobLeer(true).then(() => cobAvisar(false)); mesLeer(true).then(() => mesAvisar(false)); entLeer(true).then(() => entAvisar(false)); if (k && (await idbGet('boards', k))) await M.open(k); else await M.boot(); }
+    else if (act === 'takeover') { const k = S && S.key; S = null; PB = null; memSoltar(); histOlvidar(); await claim(); cobLeer(true).then(() => cobAvisar(false)); mesLeer(true).then(() => mesAvisar(false)); entLeer(true).then(() => entAvisar(false)); if (k && (await idbGet('boards', k))) await M.open(k); else await M.boot(); }
     else if (act === 'delclient') {
       if (a.dataset.mira === '1') return;   // still finding out what goes with it: a second click waits (cold review)
       if (a.dataset.confirm !== '1') {   // its tray goes with it (D-072): the button says how much
@@ -6861,6 +6966,7 @@ ${TK_FUENTES}
     if (!B || !B.key) return;
     const { tray: _t, carpetas: _c, ...tablero } = B;
     MEM.tab.set(B.key, { tablero, savedAt: tablero.savedAt || null, PB, IDX, sig: SIG.b === B ? SIG.m : null });
+    if (SIG.b === B) SIGS.set(B, { b: B, m: SIG.m, dirty: SIG.dirty, idx: IDX });   // a save of it still on its way stamps and shares as before
   }
   // ---------- the active month (feed continuo, pieza 2) ----------
   // activar(key): another month of the open client becomes the open board (S) without opening it again: what was pending is saved
@@ -6885,9 +6991,10 @@ ${TK_FUENTES}
     if (memoEdit != null || (a && root.contains(a) && (a.isContentEditable || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || (a.tagName === 'INPUT' && !/^(range|checkbox|radio|button|submit|file|color)$/.test(a.type || ''))))) return 'hay un campo en edición';
     return null;
   }
-  async function activar(key) {
+  async function activar(key, o = {}) {   // o.paso: for a step of ⌘Z (D-317): a window, a menu or a field don't stop it
     if (S && S.key === key) return { ok: true, key };
-    let why = activarNo(); if (why) return { error: why };
+    const no = () => { const w = activarNo(); return o.paso && /ventana|menú|campo/.test(w || '') ? null : w; };
+    let why = no(); if (why) return { error: why };
     if (activando) return { error: 'ya se está cambiando de mes' };
     const c = S.client || boardClient(S);
     activando++; switching++;
@@ -6898,10 +7005,10 @@ ${TK_FUENTES}
         if (!pendiente()) {
           if (!MEM.tab.has(key)) { await memLeer(key); if (pendiente()) continue; }   // read once, never written
           const m = MEM.tab.get(key);
-          if (!m) return { error: 'ese mes no se pudo leer' };
+          if (!m) return { error: 'no existe' };
           if (boardClient(m.tablero) !== c) return { error: 'ese mes es de otro cliente' };
           await mesCargar(m); if (pendiente()) continue;   // the photos of its month before (read only)
-          why = activarNo(); if (why) return { error: why };
+          why = no(); if (why) return { error: why };
           if (!S || (S.client || boardClient(S)) !== c) return { error: 'cambió el cliente' };
           if (!MEM.tab.has(key)) continue;   // written meanwhile: read again
           sembrar(key);
@@ -6937,7 +7044,7 @@ ${TK_FUENTES}
     vencRefrescar().catch(() => { /* the next minute */ });   // its vencidas of the earlier boards (read only)
     if (M.diseno && M.diseno.prepararKits && S.slots.some(s => s.design)) M.diseno.prepararKits(S).then(() => { if (S && S.key === key) renderFeed(); }).catch(() => { /* */ });
   }
-  function activado() { /* ⌘Z: the client's history follows (pieza 2c) */ }
+  function activado() { histBase(); }   // ⌘Z: the client's one history goes on; its present for this month, as it is now (D-317)
   async function memLeerCliente(client) {   // every board of a client: {key: its copy}
     const out = {};
     for (const b of ((await idbAll('boards')) || []).filter(x => boardClient(x) === client)) { const t = await memLeer(b.key); if (t) out[b.key] = t; }
@@ -6950,7 +7057,7 @@ ${TK_FUENTES}
   M.init = async (cfg) => {
     // mirar (the iPhone, D-267): the board as the Mac would open it, in memory only — every write of an opening is left out
     // (claim, the client's record, its tray, the shell, localStorage, the save, the sweeps, the vencidas, the notices)
-    const MIRA = MOVIL && !!(cfg && cfg.mirar);
+    const MIRA = MOVIL && !!(cfg && cfg.mirar), abierta = S && S.key;   // abierta: the month open before (⌘Z, D-317)
     if (prevDispose) { try { await prevDispose(); } catch (e) { /* */ } prevDispose = null; }
     if (uploadsBusy() || importing) return { error: 'ocupada: espera a que termine la subida o la importación' };
     if (!MIRA) await claim();
@@ -7023,7 +7130,7 @@ ${TK_FUENTES}
       lastBy[client] = key; lsSet('mesa-lastByClient', JSON.stringify(lastBy));
     }
     BODY.set(S, boardBody(S));        // what init loaded/merged is the baseline: only later changes count as edits
-    histReset();                      // ⌘Z history starts here (another board or a reload: new history)
+    if (MIRA || !cfg.reopen || HC.c !== client || abierta === key) histReset(); else histBase();   // ⌘Z: one history per client (D-317): a MESA.open of another of its months keeps it; another client, opening the same month again (as before), a reload, «Usar aquí», an import or a MESA.init of a skill start it again
     if (deadRenders.length && !MIRA) delList(l => [...new Set([...l, ...deadRenders])]);
     if (NUBE.activa && saved && !(Array.isArray(saved.tray) && saved.tray.length)) ESCRITO.set(key, cuerpoNube({ ...saved, tray: (recCarp && recCarp.tray) || [], carpetas: carpetasBien(recCarp && recCarp.carpetas) }));   // what IndexedDB holds
     else ESCRITO.delete(key);
@@ -8416,7 +8523,7 @@ ${TK_FUENTES}
       setBusy('imp', 'Guardando la mesa importada…');
       back = { key: S && S.key, client: curClient };
       clearTimeout(saveTimer); saveTimer = null; clearTimeout(noteTimer); noteTimer = null;
-      S = null; PB = null; memSoltar(); cleared = true; importEscribe = true;   // nothing in memory may overwrite what is written now
+      S = null; PB = null; memSoltar(); histOlvidar(); cleared = true; importEscribe = true;   // nothing in memory may overwrite what is written now
       if (d.copia) {                               // what isn't here goes in as it was: the files first, one by one, then the records
         const pr = root && root.querySelector('.detail .xprog'); let ultP = 0;
         const c = await copiaCrudo(d, parar, (i, n, esc, prev) => {
@@ -8689,6 +8796,8 @@ ${TK_FUENTES}
       delete M.pastThumbs[p.id]; delete M.pastBlobs[p.id];
     }
     await idbDel('boards', key);
+    if ([...HC.undo, ...HC.redo].some(p => p.p.some(x => x.k === key))) { if (S && S.key !== key && histMio()) histReset(); else histOlvidar(); }   // a deleted month's steps can't be undone, nor keep its photos: the client's history starts again (D-317)
+    HC.cur.delete(key);
     if (propia && S.key !== key && libresDeCarpetas(S, others)) save();   // a folder's photo that only this month used is free again
     dropIdx([key]); if (S && S.key !== key) renderFeed();
     if (S && S.key !== key && S.client === c) { usoS = null; usosOtros(); }   // a filler's photo may count as used again (D-049)
@@ -8846,11 +8955,11 @@ ${TK_FUENTES}
     const p = await planCarpeta(id);
     if (p.error) return p;
     const va = new Set(p.borran), enPost = st => st.slots.some(s => slotRefs(s).some(f => va.has(f))) || st.prev.some(x => x.own && x.photos.some(f => va.has(f))) || previewsOf(st).some(f => va.has(f)) || hRefs(st).some(f => va.has(f));
-    if (S && H.b === S && H.cur) {
+    if (histMio()) {
       track(S);
-      const corta = (l, cuenta) => { let k = -1; l.forEach((st, i) => { if (enPost(st)) k = i; }); if (k >= 0) { l.splice(0, k + 1); if (cuenta) H.drop = (H.drop || 0) + k + 1; } };
-      corta(H.undo, true); corta(H.redo, false);   // both lists keep the step furthest from now first
-      H.fueraC = new Set([...(H.fueraC || []), ...p.subs]);
+      const corta = (l, cuenta) => { let k = -1; l.forEach((st, i) => { if (st.p.some(x => x.b && enPost(x.b))) k = i; }); if (k >= 0) { l.splice(0, k + 1); if (cuenta) HC.drop += k + 1; } };
+      corta(HC.undo, true); corta(HC.redo, false);   // both lists keep the step furthest from now first (any month of the client)
+      HC.fueraC = new Set([...(HC.fueraC || []), ...p.subs]);
     }
     sinPaso(st => {
       st.tray = st.tray.filter(f => !va.has(f));
@@ -8862,7 +8971,7 @@ ${TK_FUENTES}
     if (p.subs.has(pestanas[0].carpeta)) pestanas[0].carpeta = p.padre;   // the fixed one stays: on what held it
     pestValidar();
     pestVer();
-    if (H.b === S && H.cur) { H.cur = editState(S); H.curJ = JSON.stringify(H.cur); }
+    histBase();
     delList(l => [...new Set([...l, ...p.borran])]);
     changed();
     await flushNow();
@@ -9144,7 +9253,7 @@ ${TK_FUENTES}
     setFmt: (slotId, fmt) => { cur = { slot: slotId, idx: 0 }; setFmt(slotId, fmt); },
     postRect: (fid, slotId) => postRect(fid, slot(slotId)), gridRect: (fid, slotId) => gridRect(fid, slot(slotId)),
     cropSig: slotId => cropSig(slot(slotId)), cur: () => ({ ...cur }), setSel: id => { sel = id; render(); },
-    undo, redo, hist: () => ({ undo: H.undo.length, redo: H.redo.length, own: H.b === S }), delList: () => delList(),
+    undo, redo, hist: () => ({ undo: HC.undo.length, redo: HC.redo.length, own: histMio() }), histListo: () => histQ || Promise.resolve(), delList: () => delList(),
     moveMemo, prev: () => JSON.parse(JSON.stringify((S && S.prev) || [])), prevSetFromTray, prevToTray, prevSwap, prevRestore,
     setHidden: (id, v) => { const it = prevItem(id); if (it) { it.hidden = !!v; changed(); } },
     prevLocked: () => prevLocked(), setDate: (slotId, iso) => setDate(slotId, iso), weekOf: day => weekOf(day, 1), weekOfCycle: (day, cd) => weekOf(day, cd), madridISO, cycleOf: (day, cd) => cycleOfDay(day, cd), cycleEnd, rangeLabel,

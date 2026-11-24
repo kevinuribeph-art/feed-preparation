@@ -6042,12 +6042,15 @@
       (await hasta(() => filaV('o2').querySelector('input[data-v="motivo"]'), 2000, 'el motivo')).value = 'Se quedó sin hacer';
       enFilaV('o2', 'v-can-ok');
       igual(await de(okey, 'o2'), { v: 'cancelado', motivo: 'Se quedó sin hacer' }, 'cancelar la de octubre');
-      M._test.undo(); M._test.undo();
+      // ⌘Z de un paso de octubre lleva a octubre (D-317, feed continuo): se deshace allí y se guarda con su guardado
+      const zz = async () => { M._test.undo(); if (M._test.histListo) await M._test.histListo(); await M.flush(); };
+      await zz(); await zz();
+      if (M._test.histListo) igual(M.status().key, okey, '⌘Z de octubre no llevó a octubre');
       igual([(await de(okey, 'o2')).v, (await de(okey, 'o3')).v, (await de(okey2, 'o3')).v], ['aprobado', 'aprobado', 'aprobado'], '⌘Z no devolvió octubre');
-      M._test.undo();
+      await zz();
       const e1 = await de(okey, 'o1');
       igual([e1.v, !!e1.tarde], ['programado', true], '⌘Z no devolvió la que pasó sola, como vencida');
-      await revisarV();
+      await revisarV(); await M.flush();
       igual((await de(okey, 'o1')).v, 'programado', 'devuelta con ⌘Z volvió a pasar sola');
       if (M._in.vencRefrescar) await M._in.vencRefrescar(); abrirV();
       await hasta(() => filaV('o3'), 3000, 'la fila de o3');
@@ -23149,6 +23152,73 @@
     } finally { await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [], past: [], force: true }); await limpiar(); }
   });
 
+  prueba('FD2', 'Trampa 2 (feed continuo, pieza 2): foto de la bandeja a noviembre → editar octubre (poner otra y quitar una tercera de la mesa) → ⌘Z ×3 → ⇧⌘Z ×3: todo vuelve, cada mes se activa al deshacer lo suyo, nada se duplica ni se pierde, y la foto que un paso de octubre devuelve sigue en el disco', async () => {
+    await fdDos();
+    const [P, Q, R] = await M.addFiles([await foto('fd2-p.jpg'), await foto('fd2-q.jpg'), await foto('fd2-r.jpg')]);
+    const u0 = M._test.hist().undo;
+    M._test.place('r1', P);
+    await fdAct(fdO);
+    M._test.place('fd-o1', Q);
+    M._test.removeFile(R);
+    await fdAct(fdN);
+    igual(M._test.hist().undo, u0 + 3, 'los tres pasos, en una sola historia');
+    await M._test.deleteIfUnused(R);
+    ok(await M._in.idbGet('files', R), 'se borró del disco una foto que un paso de octubre devuelve');
+    await fdZ(true);
+    igual([M._in.S.key, fdVeces(M.board().tray, [R])], [fdO, [1]], '⌘Z 1: octubre, con la foto quitada de vuelta');
+    await fdZ(true);
+    igual([M._in.S.key, slot('fd-o1').photos, fdVeces(M.board().tray, [Q, R])], [fdO, [], [1, 1]], '⌘Z 2');
+    await fdZ(true);
+    igual([M._in.S.key, slot('r1').photos, fdVeces(M.board().tray, [P, Q, R])], [fdN, [], [1, 1, 1]], '⌘Z 3: noviembre');
+    await M.flush(); igual((await fdDisco(fdO, 'fd-o1')).photos, [], 'octubre guardado');
+    await fdZ(false);
+    igual([M._in.S.key, slot('r1').photos, fdVeces(M.board().tray, [P, Q, R])], [fdN, [P], [0, 1, 1]], '⇧⌘Z 1');
+    await fdZ(false);
+    igual([M._in.S.key, slot('fd-o1').photos, fdVeces(M.board().tray, [P, Q, R])], [fdO, [Q], [0, 0, 1]], '⇧⌘Z 2: octubre');
+    await fdZ(false);
+    igual([M._in.S.key, fdVeces(M.board().tray, [P, Q, R])], [fdO, [0, 0, 0]], '⇧⌘Z 3');
+    await M.flush(); igual([(await fdDisco(fdN, 'r1')).photos, (await fdDisco(fdO, 'fd-o1')).photos], [[P], [Q]], 'lo guardado de los dos meses');
+    ok(await M._in.idbGet('files', R), 'la foto quitada ya no está en el disco');
+    const bd = await M._in.idbGet('bandejas', CLIENTE);
+    igual(fdVeces(bd.tray, [P, Q, R]), [0, 0, 0], 'la bandeja guardada del cliente');
+  });
+
+  prueba('FD7', '⌘Z y ⇧⌘Z entre meses (feed continuo, pieza 2; D-317): una sola historia del cliente, en orden, también tras activar; un paso de un mes que no se ve activa ese mes', async () => {
+    await fdDos();
+    M._test.setSlot('r1', { memo: 'N1' });
+    await fdAct(fdO); M._test.setSlot('fd-o1', { memo: 'O1' });
+    await fdAct(fdN); M._test.setSlot('r2', { memo: 'N2' });
+    await fdAct(fdO);
+    const h = M._test.hist();
+    await fdZ(true); igual([M._in.S.key, slot('r2').memo], [fdN, undefined], '⌘Z 1: N2');
+    await fdZ(true); igual([M._in.S.key, slot('fd-o1').memo], [fdO, undefined], '⌘Z 2: O1');
+    await fdZ(true); igual([M._in.S.key, slot('r1').memo], [fdN, undefined], '⌘Z 3: N1');
+    igual([M._test.hist().undo, M._test.hist().redo], [h.undo - 3, h.redo + 3], 'la historia');
+    await fdZ(false); igual([M._in.S.key, slot('r1').memo], [fdN, 'N1'], '⇧⌘Z 1');
+    await fdZ(false); igual([M._in.S.key, slot('fd-o1').memo], [fdO, 'O1'], '⇧⌘Z 2');
+    await fdZ(false); igual([M._in.S.key, slot('r2').memo], [fdN, 'N2'], '⇧⌘Z 3');
+    await M.flush(); igual([(await fdDisco(fdN, 'r1')).memo, (await fdDisco(fdO, 'fd-o1')).memo, (await fdDisco(fdN, 'r2')).memo], ['N1', 'O1', 'N2'], 'lo guardado');
+  });
+
+  prueba('FD10', 'Guarda de la historia por cliente (feed continuo, pieza 2; D-317): MESA.open de otro mes del mismo cliente no la reinicia; MESA.init de una skill sobre un tablero cargado y otro cliente, sí', async () => {
+    await fdDos();
+    M._test.setSlot('r1', { memo: 'H1' });
+    const u = M._test.hist().undo; ok(u >= 1, 'sin el paso');
+    await M.open(fdO);
+    igual(M._test.hist().undo, u, 'MESA.open de otro mes reinició la historia');
+    await M.open(fdN);
+    igual(M._test.hist().undo, u, 'volver con MESA.open la reinició');
+    await fdZ(true); igual(slot('r1').memo, undefined, '⌘Z tras MESA.open');
+    await fdZ(false);
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1), pub(2)], past: [], force: true });
+    igual(M._test.hist().undo, 0, 'MESA.init de una skill no la reinició');
+    M._test.setSlot('r1', { memo: 'H2' }); ok(M._test.hist().undo === 1, 'sin el paso nuevo');
+    await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(1)], past: [], force: true });
+    igual(M._test.hist().undo, 0, 'otro cliente no la reinició');
+    await M.open(fdN);
+    igual(M._test.hist().undo, 0, 'volver al cliente trajo su historia vieja');
+    await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [], past: [], force: true }); await limpiar();
+  });
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;
   $('resumen').textContent = `${T.length} pruebas listas.`;

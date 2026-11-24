@@ -2819,15 +2819,26 @@ ${TK_FUENTES}
 #mesa .who{min-width:0}#mesa .who b{display:block;font-size:26px;font-weight:800;line-height:1.05;letter-spacing:-.035em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#mesa .who span{display:block;margin-top:3px;font-size:12px;color:var(--mute)}
 #mesa .ibtn{flex:none;border:0;background:none;width:32px;height:32px;border-radius:50%;color:var(--mute);font-size:17px;line-height:32px;padding:0;transition:background var(--d1) ease-out,color var(--d1) ease-out}
 #mesa .ibtn:hover{background:var(--bg-2);color:var(--ink)}
-#mesa .mgrp,#mesa .months{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 #mesa .mchip{border:1px solid var(--line);background:transparent;border-radius:var(--r-pill);padding:0 13px;min-height:32px;font-size:12.5px;font-weight:600;display:inline-flex;gap:7px;align-items:center;color:var(--ink);transition:background var(--d1) ease-out,border-color var(--d1) ease-out,color var(--d1) ease-out}
-#mesa .mchip i{font-style:normal;font-weight:400;color:var(--mute);font-size:11.5px;font-variant-numeric:tabular-nums}
 #mesa .mchip:hover{border-color:var(--line-strong);background:var(--bg-2)}
-#mesa .mchip.on{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}#mesa .mchip.on i{color:var(--line-strong)}
 #mesa .mchip.ghost{border-color:transparent;color:var(--ink-2);font-weight:400;padding:0 11px}
 #mesa .mchip.ghost:hover{background:var(--bg-2);color:var(--ink)}
 #mesa .mchip.rvbtn{border-color:var(--line);color:var(--ink);font-weight:600}
 #mesa .spacer{flex:1}
+#mesa .bar>.mescab{flex:1 1 0;display:flex;align-items:center;min-width:0}#mesa .bar>.mescab[hidden]{display:none}#mesa .bar>.mescab+.spacer{display:none}
+#mesa .mescab-in{flex:none;display:inline-flex;align-items:center;gap:2px}
+#mesa .mescab button{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer;-webkit-appearance:none;appearance:none}
+#mesa .mescab .mescab-fl{flex:none;width:28px;height:32px;border-radius:var(--r-pill);display:inline-flex;align-items:center;justify-content:center;color:var(--ink-2);transition:background-color var(--d1) ease-out,color var(--d1) ease-out}
+#mesa .mescab-fl::before{content:'';width:16px;height:16px;background:currentColor;-webkit-mask:var(--i-chev-l) center/contain no-repeat;mask:var(--i-chev-l) center/contain no-repeat}#mesa .mescab-fl[data-d="1"]::before{-webkit-mask-image:var(--i-chev-r);mask-image:var(--i-chev-r)}
+#mesa .mescab .mescab-fl:hover:not([aria-disabled="true"]){background:var(--bg-2);color:var(--ink)}#mesa .mescab .mescab-fl[aria-disabled="true"]{color:var(--faint);cursor:default}
+#mesa .mescab-vent{position:relative;flex:none;width:calc(var(--mescab-w,64px) * 3);height:30px;overflow:hidden;border:1px solid var(--line);border-radius:var(--r-pill)}
+#mesa .mescab-tira{position:absolute;left:0;top:0;height:100%;display:flex}
+#mesa .mescab .mescab-mes{flex:none;display:block;width:var(--mescab-w,auto);height:100%;padding:0 10px;box-sizing:border-box;line-height:30px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12.5px;font-weight:600;color:var(--ink-2)}
+#mesa .mescab button.mescab-mes{transition:color var(--d1) ease-out}#mesa .mescab button.mescab-mes:hover{color:var(--acc-ink)}#mesa .mescab .mescab-mes.sin{color:var(--faint);font-weight:400;cursor:default}
+#mesa .mescab button.mescab-mes:focus-visible{outline:2px solid var(--focus);outline-offset:-3px;border-radius:var(--r-pill)}
+#mesa .mescab-pild{position:absolute;left:var(--mescab-w,64px);top:-1px;bottom:-1px;width:var(--mescab-w,64px);border-radius:var(--r-pill);background:var(--ink);overflow:hidden;pointer-events:none}
+#mesa .mescab-pild>.mescab-tira{top:1px;height:calc(100% - 2px)}#mesa .mescab .mescab-tira2>.mescab-mes{color:var(--on-ink)}
+#mesa .mescab-vent.fpild>.mescab-pild{outline:2px solid var(--focus);outline-offset:-2px}
 #mesa .stats{display:flex;gap:4px 14px;font-size:12.5px;color:var(--mute);flex-wrap:wrap}#mesa .stats b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}#mesa .stats .c{color:var(--chg)}#mesa .stats>button{border:0;background:none;padding:0;margin:0;font:inherit;text-align:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}#mesa .stats>button:hover{text-decoration:underline;text-underline-offset:3px}#mesa .stats>button:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:2px}
 #mesa .sw{display:flex;align-items:center;gap:8px;min-height:32px;font-size:12.5px;cursor:pointer;user-select:none;white-space:nowrap;color:var(--ink-2)}
 #mesa .sw input{appearance:none;-webkit-appearance:none;width:32px;height:19px;border-radius:var(--r-pill);background:var(--line-strong);position:relative;cursor:pointer;margin:0;transition:background var(--d2) var(--ease)}
@@ -3276,7 +3287,7 @@ ${TK_FUENTES}
 #mesa.client .cell.filler .hx{display:none}
 #mesa.client .cell.empty{background:var(--cell-ph)}
 #mesa.client .bd{display:none}
-#mesa.client .stats,#mesa.client .mchip i{display:none}
+#mesa.client .stats{display:none}
 #mesa.client .appbar .nubest,#mesa.client .tabs .tedit,#mesa.client .save:not(.err){display:none}
 #mesa.client .tabs .tab:not(.on){display:none}#mesa.client .appbar .brand{pointer-events:none}#mesa.client .appbar .brand svg{display:none}#mesa.client .appbar .brand .mono{display:block}   /* only its own tab (D-227); in its place, the monogram, not pressed (D-264) */#mesa.client .tab.on.hasedit{padding-right:13px}
 #mesa.client .feed{margin:0 auto;padding:10px}#mesa.client .side>.cal{border-top:0}
@@ -3291,10 +3302,8 @@ ${TK_FUENTES}
 #mesa .save{font-size:11.5px}
 #mesa .bar{flex-wrap:wrap;padding:4px 10px 8px;gap:4px 8px}
 #mesa .ident{display:none}
-#mesa .mgrp{flex:1 1 0;min-width:190px;flex-wrap:nowrap}
-#mesa .months{flex:0 1 auto;min-width:0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
-#mesa .months::-webkit-scrollbar{display:none}
-#mesa .mchip{flex:none;min-height:30px;padding:0 11px;font-size:12px;white-space:nowrap}#mesa .mchip i{font-size:11px}
+#mesa .mchip{flex:none;min-height:30px;padding:0 11px;font-size:12px;white-space:nowrap}
+#mesa .mescab .mescab-fl{height:30px}#mesa .mescab-vent{height:28px}#mesa .mescab .mescab-mes{line-height:28px;font-size:12px}
 #mesa .bar .spacer{display:none}
 #mesa .stats{order:9;flex:1 1 100%;min-width:0;font-size:11.5px;line-height:1.25;gap:0 10px}#mesa .stats>span,#mesa .stats>button{white-space:nowrap}#mesa .stats .lg{display:none}
 #mesa .sw{flex:none;gap:6px;font-size:12px}
@@ -3398,16 +3407,10 @@ ${TK_FUENTES}
     const c = CL.find(x => x.id === curClient);
     root.classList.toggle('picking', !!sel);
     setBusy('sel', sel && M.files[sel] ? `Pulsa una casilla para colocar «${M.files[sel].name}» · Esc cancela` : null);
-    if (!c) { bar.innerHTML = ''; return; }
+    if (!c) { bar.innerHTML = ''; return; }   // the months' header goes out with it (its node is kept: cabNodo)
     // a client of «Solo contenido» has one page, without months (D-312, replaces D-290's chips): «Web del cliente» and «Vista
     // cliente» alone; its old boards stay kept, unseen
     if (esContenido(c.id)) { bar.innerHTML = `<div class="spacer"></div>${M.web && M.web.barra ? M.web.barra() : ''}<label class="sw"><input type="checkbox" class="clientToggle"${root.classList.contains('client') ? ' checked' : ''}> Vista cliente</label>`; return; }
-    const months = MB.map(b => {
-      const live = S && b.key === S.key ? counts() : null;
-      const f = live ? live.filled : b.filled, n = live ? live.n : b.n;
-      const tt = `${f} de ${n} con foto`;   // the chip says what «8/11 con foto» said (D-157); not in «Vista cliente», like its number
-      return `<button class="mchip${S && b.key === S.key ? ' on' : ''}" data-act="month" data-key="${esc(b.key)}" data-tt="${tt}"${root.classList.contains('client') ? '' : ` title="${tt}"`}>${esc(rangeLabel(b.month, b.span, true, b.cycleDay))}<i>${f}/${n}</i></button>`;
-    }).join('');
     let stats = '';
     if (S) {
       const k = counts();
@@ -3417,13 +3420,183 @@ ${TK_FUENTES}
     }
     // no avatar, name nor @ (D-157: the active tab names the client, «⋯» goes next to it) and no «+ Mes» (D-157:
     // a client without months says how to ask Claude for one)
-    bar.innerHTML = `<div class="mgrp"><div class="months">${months}</div></div><div class="spacer"></div>${S && M.web && M.web.barra ? M.web.barra() : ''}${stats}`
+    // the months' header (D-323, replaces the chips) is its own node: kept in its place, never written again here (a click or an
+    // arrow's focus would be lost); the rest of the bar is made again after it
+    const cab = cabNodo();
+    if (bar.firstChild !== cab) bar.prepend(cab);
+    for (const ch of [...bar.childNodes]) if (ch !== cab) ch.remove();
+    bar.insertAdjacentHTML('beforeend', `<div class="spacer"></div>${S && M.web && M.web.barra ? M.web.barra() : ''}${stats}`
       + (S && M.hs && M.hs.barra ? M.hs.barra() : '')
       + (S && M.descargar && M.descargar.barra ? M.descargar.barra() : '')   // «Descargar (n)» with posts chosen with ⌘+click (descargar.js, D-083)
       + (S ? '<button class="mchip ghost rvbtn" data-act="revisar" title="Lo que hay que mirar antes de subir o programar el mes: huecos vacíos, numeración, resolución, márgenes y formato">Revisar</button>' : '')
-      + (S ? `<label class="sw"><input type="checkbox" class="clientToggle"${root.classList.contains('client') ? ' checked' : ''}> Vista cliente</label>` : '');
-    const ms = bar.querySelector('.months'), on = ms.querySelector('.mchip.on');   // narrow: the chips scroll sideways
-    if (on && ms.scrollWidth > ms.clientWidth + 1) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      + (S ? `<label class="sw"><input type="checkbox" class="clientToggle"${root.classList.contains('client') ? ' checked' : ''}> Vista cliente</label>` : ''));
+    cabRender(); cabPedir();
+  }
+
+  // ---------- the months' header (feed continuo, pieza 4; D-323) ----------
+  // [‹] [ the month before | the active month, in a fixed pill | the month after ] [›] in the month bar, over the feed's grid. It
+  // replaces the chips (no numbers: «N de M con foto» stays in its title, D-157). Its own node: renderBar never writes it again (a
+  // click or an arrow's focus would be lost) and puts the rest of the bar after it.
+  // For pieza 5 (the movement): .mescab-tira holds every month of the client, each in a hueco of one width (--mescab-w, W); the window
+  // (.mescab-vent) shows 3; the pill (.mescab-pild, fixed on the middle hueco) holds a second strip (.mescab-tira2) in --on-ink, clipped
+  // to it. One number moves both: cabMover(x), the strip's translateX (the pill's strip, x − W). Still here: x = (1 − i)·W, i = the
+  // active month's hueco. «Sin crear» (no board: the next to the newest, and the gaps) is a dimmed element, never a button, never in
+  // the pill (the arrows skip it) and never in the vista cliente; what isn't in the 3 huecos isn't focused nor read.
+  let CAB = null, CABSIG = '', CABWN = 0, CABW = 0, CABX = null, CABPX = 0, cabRaf = 0, cabRO = null, cabMira = [];
+  let cabCola = null, cabObj = null, cabVa = null;
+  const cabTiras = () => [CAB.querySelector('.mescab-vent > .mescab-tira'), CAB.querySelector('.mescab-tira2')];
+  const cabHuecos = () => [...CAB.querySelectorAll('.mescab-vent > .mescab-tira > .mescab-mes')];
+  function cabNodo() {
+    if (CAB) return CAB;
+    const n = document.createElement('div'); n.className = 'mescab'; n.setAttribute('role', 'group'); n.setAttribute('aria-label', 'Meses');
+    n.innerHTML = '<div class="mescab-in"><button type="button" class="mescab-fl" data-d="-1" aria-label="Mes anterior" title="Mes anterior"></button>'
+      + '<div class="mescab-vent"><div class="mescab-tira"></div><div class="mescab-pild" aria-hidden="true"><div class="mescab-tira mescab-tira2"></div></div></div>'
+      + '<button type="button" class="mescab-fl" data-d="1" aria-label="Mes siguiente" title="Mes siguiente"></button></div>';
+    n.addEventListener('click', cabClic);
+    n.addEventListener('keydown', cabTecla);
+    n.addEventListener('focusin', cabFoco); n.addEventListener('focusout', () => setTimeout(cabFoco, 0));
+    n.querySelector('.mescab-vent').addEventListener('scroll', e => { e.currentTarget.scrollLeft = 0; });   // a focused month never scrolls the window
+    CAB = n; return n;
+  }
+  // the client's months, in calendar order: [{m, cd, sin}]; from its first board to its newest, the gaps «sin crear», and «sin crear»
+  // the month after the newest; in the vista cliente, only the months with a board (D-323, answer 5)
+  function cabMeses() {
+    const cli = root.classList.contains('client'), own = new Map();
+    for (const b of MB) for (const m of monthsOf(b.month, b.span)) if (!own.has(m)) own.set(m, b);
+    const ms = [...own.keys()].sort(); if (!ms.length) return [];
+    const cdS = cdOf(S && S.cycleDay), out = [];
+    for (let m = ms[0]; m <= ms[ms.length - 1]; m = addMonths(m, 1)) { const b = own.get(m); if (b) out.push({ m, cd: cdOf(b.cycleDay) }); else if (!cli) out.push({ m, cd: cdS, sin: true }); }
+    if (!cli) out.push({ m: addMonths(ms[ms.length - 1], 1), cd: cdS, sin: true });
+    return out;
+  }
+  // its title: the whole range and, only for Kevin, «N de M con foto» of that month (D-157)
+  function cabTitulo(e, cli) {
+    const nom = rangeLabel(e.m, 1, false, e.cd);
+    if (e.sin) return `${nom} sin crear: los meses los crea Claude.`;
+    if (cli) return nom;
+    const k = feedDueno(e.m), B = k && feedTablero(k);
+    if (B) { const L = B.slots.filter(s => vivo(s) && mesDe(s, B) === e.m); return `${nom} · ${L.filter(s => (s.photos || []).length).length} de ${L.length} con foto`; }
+    const b = MB.find(x => x.key === k);   // a board not read yet: its own numbers, when it holds one month
+    return b && (b.span || 1) === 1 ? `${nom} · ${b.filled} de ${b.n} con foto` : nom;
+  }
+  function cabRender() {
+    if (!root) return;
+    const n = cabNodo(), cli = root.classList.contains('client'), L = cabMeses();
+    n.hidden = !L.length; if (!L.length) { CABSIG = ''; return; }
+    const lab = e => feedEtiqueta(e.m, e.cd);
+    const sig = (cli ? 'c|' : 'k|') + L.map(e => `${e.m}${e.sin ? '-' : ''}${lab(e)}`).join(',');
+    const [t1, t2] = cabTiras();
+    if (sig !== CABSIG) {               // only when the months change (a new board, the vista cliente): never on renderBar
+      CABSIG = sig;
+      t1.innerHTML = L.map(e => e.sin ? `<span class="mescab-mes sin" data-mes="${e.m}" aria-disabled="true">${esc(lab(e))}</span>` : `<button type="button" class="mescab-mes" data-mes="${e.m}">${esc(lab(e))}</button>`).join('');
+      t2.innerHTML = L.map(e => `<span class="mescab-mes${e.sin ? ' sin' : ''}">${esc(lab(e))}</span>`).join('');
+      cabMedir();
+    }
+    const H = cabHuecos();
+    let i = L.findIndex(e => e.m === mesActivo); if (i < 0) i = Math.max(0, L.findIndex(e => !e.sin));
+    H.forEach((h, j) => {
+      const t = cabTitulo(L[j], cli); if (h.title !== t) h.title = t;
+      if (L[j].sin) return;
+      const ve = Math.abs(j - i) <= 1, on = j === i;
+      if (h.tabIndex !== (ve ? 0 : -1)) h.tabIndex = ve ? 0 : -1;
+      if (ve) h.removeAttribute('aria-hidden'); else if (h.getAttribute('aria-hidden') !== 'true') h.setAttribute('aria-hidden', 'true');
+      if (on) { if (h.getAttribute('aria-current') !== 'true') h.setAttribute('aria-current', 'true'); } else h.removeAttribute('aria-current');
+    });
+    const hay = d => { for (let j = i + d; j >= 0 && j < L.length; j += d) if (!L[j].sin) return true; return false; };
+    n.querySelectorAll('.mescab-fl').forEach(f => { if (hay(+f.dataset.d)) f.removeAttribute('aria-disabled'); else if (f.getAttribute('aria-disabled') !== 'true') f.setAttribute('aria-disabled', 'true'); });
+    if (CABW) cabMover((1 - i) * CABW);
+    cabFoco();
+  }
+  // one number moves the two strips (pieza 5 animates only this, from a passive listener and requestAnimationFrame)
+  function cabMover(x) {
+    if (!CAB || x === CABX) return; CABX = x;
+    const [t1, t2] = cabTiras();
+    t1.style.transform = `translateX(${x}px)`; t2.style.transform = `translateX(${x - CABW}px)`;
+  }
+  function cabMedir() {                 // the huecos' width: the longest name (a layout read, only when the months change)
+    const [t1] = cabTiras();
+    CAB.style.removeProperty('--mescab-w');
+    const w = Math.max(0, ...[...t1.children].map(h => h.offsetWidth));
+    CABWN = w ? Math.max(56, Math.ceil(w)) : 0;
+    if (CABWN) { CABW = CABWN; CABX = null; CAB.style.setProperty('--mescab-w', CABW + 'px'); }
+    else CABW = 0;
+  }
+  // its place: centred over the feed's grid and never wider than it; in the bar, where the chips were, without covering nor pushing
+  // anything (if it doesn't fit centred, at the start of its place, as the chips). Read in the next frame, never in renderBar.
+  function cabPedir() { if (!cabRaf) cabRaf = requestAnimationFrame(() => { cabRaf = 0; try { cabColocar(); } catch (e) { /* the bar goes on without it */ } }); }
+  function cabColocar() {
+    const n = CAB; if (!n || !n.isConnected || n.hidden || !root) return;
+    const feed = root.querySelector('.feed'), grid = feed && feed.querySelector('.grid');
+    cabVigilar([n, feed, grid]);
+    if (!CABWN) { cabMedir(); if (!CABWN) return; cabRender(); }
+    const inn = n.firstElementChild, vent = inn.querySelector('.mescab-vent');
+    const extra = inn.offsetWidth - vent.offsetWidth + 2;   // the arrows and the gaps (the window's border is in its 3·W + 2)
+    const g = grid && grid.offsetWidth ? grid.getBoundingClientRect() : null;
+    const w = g ? Math.max(40, Math.min(CABWN, Math.floor((g.width - extra) / 3))) : CABW;
+    if (w !== CABW) { CABW = w; CABX = null; n.style.setProperty('--mescab-w', w + 'px'); cabRender(); }
+    const iw = extra + 3 * CABW;
+    if (n.style.minWidth !== iw + 'px') n.style.minWidth = iw + 'px';
+    if (g) {
+      const s = n.getBoundingClientRect(), want = g.left + (g.width - iw) / 2 - s.left;
+      CABPX = want >= -0.5 && want + iw <= s.width + 0.5 ? Math.max(0, Math.round(want * 2) / 2) : 0;
+    }                                    // without the feed («Historias»): where it was
+    const tx = CABPX ? `translateX(${CABPX}px)` : '';
+    if (inn.style.transform !== tx) inn.style.transform = tx;
+  }
+  function cabVigilar(els) {            // placed again when the bar, the feed or the grid change size
+    els = els.filter(Boolean);
+    if (els.length === cabMira.length && els.every((e, k) => e === cabMira[k])) return;
+    if (cabRO) cabRO.disconnect();
+    cabMira = els; if (typeof ResizeObserver !== 'function') return;
+    cabRO = cabRO || new ResizeObserver(() => cabPedir());
+    els.forEach(e => cabRO.observe(e));
+  }
+  // the focus on the active month (under the pill): the ring goes on the pill
+  function cabFoco() {
+    if (!CAB) return;
+    const a = document.activeElement, v = CAB.querySelector('.mescab-vent');
+    const si = !!(a && CAB.contains(a) && a.getAttribute('aria-current') === 'true' && a.matches(':focus-visible'));
+    if (v.classList.contains('fpild') !== si) v.classList.toggle('fpild', si);
+  }
+  // the month next to the active one (or to where it is going) in direction d, skipping «sin crear»; null: none
+  function cabVecino(d) {
+    const H = cabHuecos(), base = cabCola || cabObj || mesActivo;
+    for (let j = H.findIndex(h => h.dataset.mes === base) + d; j >= 0 && j < H.length; j += d) if (!H[j].classList.contains('sin')) return H[j].dataset.mes;
+    return null;
+  }
+  function cabClic(e) {
+    const b = e.target.closest && e.target.closest('button'); if (!b || !CAB.contains(b)) return;
+    if (b.classList.contains('mescab-fl')) { if (b.getAttribute('aria-disabled') !== 'true') { const m = cabVecino(+b.dataset.d); if (m) cabIr(m); } return; }
+    if (b.dataset.mes) cabIr(b.dataset.mes);
+  }
+  function cabTecla(e) {                // ← → with the focus in the header: the month before or after (the focus goes with it)
+    if ((e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+    e.preventDefault(); e.stopPropagation();
+    const m = cabVecino(e.key === 'ArrowLeft' ? -1 : 1); if (!m) return;
+    const enMes = e.target.classList && e.target.classList.contains('mescab-mes');
+    cabIr(m).then(() => {
+      if (!enMes || !CAB.contains(document.activeElement)) return;
+      const h = CAB.querySelector(`.mescab-vent > .mescab-tira > button[data-mes="${cssq(mesActivo)}"]`); if (h) h.focus({ preventScroll: true }); cabFoco();
+    });
+  }
+  // a month pressed (or an arrow): the last one asked wins; one at a time
+  function cabIr(m) {
+    cabCola = m; if (cabVa) return cabVa;
+    cabVa = (async () => { try { while (cabCola) { const x = cabCola; cabCola = null; cabObj = x; await cabIr1(x); cabObj = null; } } finally { cabObj = null; cabVa = null; } })();
+    return cabVa;
+  }
+  // what MESA.open of another month does (pieza 3a): it becomes the active one at once and the feed goes to its point; another month of
+  // the same board, only mesFijar. If it can't change now (a window, a menu, a field, the editor, a job), it doesn't and says why
+  async function cabIr1(m) {
+    if (!S || locked) return false;
+    if (m === mesActivo) { feedMovido = false; feedIr(m, { instantaneo: true }); return true; }
+    if (busyGuard()) return false;
+    const no = activarNo(); if (no) { toast(`No se cambia de mes ahora: ${no}.`); return false; }
+    if (mesesTab(S).includes(m)) { mesFijar(m, 'cabecera'); mesSigue(); feedMovido = false; feedIr(m, { instantaneo: true }); return true; }
+    const k = feedDueno(m); if (!k) return false;
+    const r = await activar(k, { mes: m, quien: 'cabecera' });
+    if (!r || !r.ok) { if (r && r.error && !/^ya se está/.test(r.error)) toast(`No se cambia de mes ahora: ${r.error}.`); return false; }
+    trasActivar(k); return true;
   }
 
   let mainMode = null;   // 'board:<client>' (by client, not by month: activar never makes .main again, pieza 2) | 'empty-client' | 'no-clients'
@@ -5511,11 +5684,11 @@ ${TK_FUENTES}
       M.addFiles(files, sid);
     });
   }
-  // the wheel over the tray (Ctrl: its size, D-118) and over the narrow strips (sideways). Only on the bar and on the tray, never on an
+  // the wheel over the tray (Ctrl: its size, D-118) and over its narrow strip (sideways). Only on the bar and on the tray, never on an
   // ancestor of the feed: a listener that isn't passive there would make the feed's scrolling wait for the main thread (pieza 3a)
   function alRueda(e) {
     if (e.ctrlKey && e.target.closest && e.target.closest('.side > .tray')) { tamRueda(e); return; }   // a pinch over the tray: its size (D-118)
-    const tb = e.target.closest && e.target.closest('.tbody, .bar .months');   // narrow strips: the wheel scrolls them sideways
+    const tb = e.target.closest && e.target.closest('.tbody');   // the narrow tray: the wheel scrolls it sideways (the months' header: nothing special, D-323)
     if (!tb || tb.scrollWidth <= tb.clientWidth + 1 || tb.scrollHeight > tb.clientHeight + 1 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
     tb.scrollLeft += e.deltaY; e.preventDefault();
   }
@@ -5733,7 +5906,7 @@ ${TK_FUENTES}
       else if (e.target.matches('.essel')) pickEstado(e.target.dataset.slot, e.target.value || null);
       else if (e.target.matches('.clientToggle')) {
         root.classList.toggle('client', e.target.checked); menuCerrar(); { const g = root.querySelector('.feed .grid'); if (g) g.tabIndex = e.target.checked ? -1 : 0; }   // the feed's menu: not in the vista cliente (D-282)
-        root.querySelectorAll('.mchip[data-tt]').forEach(b => { if (e.target.checked) b.removeAttribute('title'); else b.title = b.dataset.tt; });
+        cabRender(); cabPedir();   // the months' header: without «sin crear» nor «N de M con foto» in the vista cliente (D-323)
         // the calendar drawn again at once: without the notice on opening (D-160), «N vencidas» of its header must be there as
         // soon as the view is left, and never in it
         if (M.calendario && M.calendario.render) M.calendario.render();
@@ -5880,7 +6053,6 @@ ${TK_FUENTES}
     else if (act === 'fmt') { flashThirds(); touchPrev(slot(cur.slot)); setFmt(cur.slot, a.dataset.fmt); }
     else if (act === 'center') centrarFoto();
     else if (act === 'client') { if (a.dataset.id !== curClient && !root.classList.contains('client') && !busyGuard()) await M.openClient(a.dataset.id); }   // the vista cliente never reaches another client (D-227)
-    else if (act === 'month') { if ((!S || a.dataset.key !== S.key) && !busyGuard()) await M.open(a.dataset.key); }
     else if (act === 'newclient') dlgNewClient();
     else if (act === 'nc-atras') dlgNewClient();   // back to the kind (D-289)
     else if (act === 'editclient') { await loadClientPhotos(); await dlgEditClient(curClient); }
@@ -7367,7 +7539,16 @@ ${TK_FUENTES}
     const k = feedDueno(m); if (!k) return { error: 'ese mes no tiene tablero' };
     const r = await activar(k, { mes: m, quien }); return r && r.ok ? { ...r, mes: mesActivo } : r;
   }
-  function mesSigue() { if (!shellReady()) return; calRender(); }   // what follows the active month (the calendar; pieza 3a)
+  // after activar of another board from MESA.open or the months' header: a reload comes back to it (as M.init), the last used owns a
+  // month two boards hold (D-318) and the feed goes to the active month's point
+  function trasActivar(key) {
+    lsSet('mesa-last', key); lsSet('mesa-lastClient', curClient);
+    let lastBy = {}; try { lastBy = JSON.parse(lsGet('mesa-lastByClient') || '{}'); } catch (e) { /* */ }
+    lastBy[curClient] = key; lsSet('mesa-lastByClient', JSON.stringify(lastBy));
+    renderFeed();
+    feedMovido = false; feedIr(mesActivo, { instantaneo: true });
+  }
+  function mesSigue() { if (!shellReady()) return; calRender(); cabRender(); }   // what follows the active month (the calendar, pieza 3a; the months' header, pieza 4)
   // the board that owns month m among the client's (S and the copies): the last used (mesa-lastByClient, as D-121), else the one saved
   // most recently. null: none of them holds it
   function feedDueno(m) {
@@ -7512,14 +7693,7 @@ ${TK_FUENTES}
       await claim();
       if (!locked && S && S.key !== key) {
         const r = await activar(key, { mes: o.mes, quien: o.quien || 'open' });
-        if (r && r.ok) {
-          lsSet('mesa-last', key); lsSet('mesa-lastClient', curClient);   // a reload comes back to it (as M.init)
-          let lastBy = {}; try { lastBy = JSON.parse(lsGet('mesa-lastByClient') || '{}'); } catch (e) { /* */ }
-          lastBy[curClient] = key; lsSet('mesa-lastByClient', JSON.stringify(lastBy));
-          renderFeed();                  // the last used owns a month two boards hold (D-318)
-          feedMovido = false; feedIr(mesActivo, { instantaneo: true });
-          return M.status();
-        }
+        if (r && r.ok) { trasActivar(key); return M.status(); }
       }
     }
     if (S && !MIRA) { try { await flushNow(); } catch (e) { /* */ } }   // its linked slots reach the board being opened first
@@ -9619,7 +9793,8 @@ ${TK_FUENTES}
     armarTablero, comoAbierto,   // a board as it opens, without writing (feed continuo, pieza 1)
     // the client's boards in memory (feed continuo, pieza 1; nothing uses them yet): leer(key) and leerCliente(client) read the copies
     // (without writing), ver(key) gives one already read or null, soltar() lets them all go
-    mesActivo: { lee: () => mesActivo, quien: () => mesQuien, pon: (m, quien) => mesPoner(m, quien) },   // the active month (feed continuo, pieza 3a)
+    mesActivo: { lee: () => mesActivo, quien: () => mesQuien, pon: (m, quien) => mesPoner(m, quien) },
+    cabecera: { nodo: () => CAB, ir: m => cabIr(m), mover: x => cabMover(x), ancho: () => CABW, colocar: () => cabColocar() },   // the months' header (feed continuo, pieza 4, D-323)   // the active month (feed continuo, pieza 3a)
     feedSlot: id => { if (!S) return null; const s0 = S.slots.find(x => x.id === id); if (s0) return { s: s0, B: S }; for (const b of MB) { const B = feedTablero(b.key), s1 = B && B !== S && B.slots.find(x => x.id === id); if (s1) return { s: s1, B }; } return null; },   // a post of the client's feed and its board (pieza 3a)
     feedPunto, feedIr: (m, o) => feedIr(m, o), feedDueno, feedHTMLEntero, feedHTMLGuardado, feedCargar: () => feedCargarResto() || Promise.resolve(),   // a month's point in the feed and going there (pieza 3a; pieza 5 animates it)
     activar,   // another month of the open client becomes the open board, without opening it again (feed continuo, pieza 2)

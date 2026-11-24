@@ -1680,7 +1680,8 @@
   // Two posts of the same type without design swap all their photos, as always. Otherwise (other types, or a designed
   // post) only their covers — the photo the grid shows — change places: each one takes its new post's format with a
   // centred crop, and texts, designs and the other photos stay with their posts (an applied design is drawn again).
-  function swap(a, b) {
+  function swap(a, b, kb) {             // kb: the board of b when it isn't the open one (feed continuo, pieza 3b)
+    if (kb && S && kb !== S.key) return swapOtro(a, b, kb);
     if (a === b) return;
     const A = slot(a), B = slot(b); if (!A || !B) return;
     const kind = x => isCarousel(x.type) ? 'c' : isReel(x.type) ? 'r' : 'f';
@@ -1703,7 +1704,7 @@
   // ---------- a post's cover (B1): the photo its grid cell shows ----------
   const designed = s => !!(s && s.design && (isCarousel(s.type) || isReel(s.type)));
   const coverOf = s => designed(s) && M.diseno && M.diseno._portada ? M.diseno._portada(s) : (s.photos[0] || null);
-  function centerCrop(fid, fmt) { if (M.files[fid]) S.crops[fid] = { fmt: fmt || baseCrop(fid, S).fmt, cx: 0.5, cy: 0.5, z: 1 }; }
+  function centerCrop(fid, fmt, B = S) { if (M.files[fid]) (B.crops = B.crops || {})[fid] = { fmt: fmt || baseCrop(fid, B).fmt, cx: 0.5, cy: 0.5, z: 1 }; }   // B: its board (the open one if not given)
   // the cover becomes fid (null: the post loses it); returns the photo it had — the caller decides where that one goes
   function setCoverPhoto(s, fid) {
     if (designed(s) && M.diseno && M.diseno._ponerPortada) return M.diseno._ponerPortada(s, fid);
@@ -1714,9 +1715,9 @@
   }
   // a cover also used elsewhere (another slide of its design, another post) can't change places: it would end up in two
   // posts sharing one reframe
-  function portadaCompartida(s, fid) {
+  function portadaCompartida(s, fid, B = S) {   // B: s's board (the open one if not given)
     if (!fid) return false;
-    if (S.slots.some(x => x !== s && slotRefs(x).includes(fid))) return true;
+    if (B.slots.some(x => x !== s && slotRefs(x).includes(fid))) return true;
     return designed(s) && s.design.slides.filter(x => x.src === fid).length > 1;
   }
   // a designed post's cover is the designer's: without it loaded, or with no cover slide, the post is left as it is
@@ -1727,6 +1728,81 @@
     return true;
   }
   const rerender = s => { if (designed(s) && s.design.out && M.diseno && M.diseno.reaplicar) { const id = s.id; setTimeout(() => M.diseno.reaplicar(id), 0); } };
+  // ---------- moving a post to another month (feed continuo, pieza 3b, D-320) ----------
+  // A cell of the open board dropped on a cell of another of the client's boards: the two swap as swap does inside a board (same
+  // kind and no design: their photos, and a carrusel's format; else their covers, with swap's notices), each keeping its date, state,
+  // name and context. A Publicada neither moves nor is overwritten (by state, not by month); a designed post, or one edited in
+  // «Editar», doesn't go to another month (the designer and the editor work on the open board). What rides with a photo and is its
+  // board's: its crop (B.crops); the base crop and a carrusel's format follow from it in its new board. One step of ⌘Z with two
+  // parts, the open board and the other; the open one saved as always (save), the other as its own save (guardarOtro: its
+  // revisions and its collabs, D-008). The other's copy not read yet: read first, never left half done.
+  const tableroDeCelda = c => { const w = c && c.closest && c.closest('.fmes'); return (w && w.dataset.tablero) || null; };
+  function moverNo(A, BA, X, BX) {      // why A (of BA) and X (of BX) can't change places across months; '' if they can
+    if (estadoDe(A, BA) === 'publicado' || estadoDe(X, BX) === 'publicado') return 'publicada';
+    if (designed(A) || designed(X) || A.libre || X.libre) return 'diseñada';
+    return '';
+  }
+  const moverAviso = no => no === 'publicada' ? toast('Ya está publicada: no se mueve.', { key: 'mover-publicada' })
+    : toast('Una publicación diseñada o editada no pasa a otro mes: cámbiale la portada con «Cambiar portada».', { key: 'mover-disenada', ms: 7000 });
+  // while dragging: a Publicada (the one carried or the one under it) of another month is not a target (no highlight)
+  function moverPublicada(a, b, kb) {
+    const A = S && S.slots.find(x => x.id === a), T = feedTablero(kb), X = T && T.slots.find(x => x.id === b);
+    return (!!A && estadoDe(A) === 'publicado') || (!!X && estadoDe(X, T) === 'publicado');
+  }
+  // fn on the copy of board kb (read first if it isn't in memory: its writes, in order, go first); the open board must stay
+  function conCopia(kb, fn) {
+    const S0 = S, ir = () => { if (S !== S0 || locked || !S) { toast('No se movió: el mes abierto cambió mientras tanto. Vuelve a intentarlo.'); return false; } const T = copiaParaCambiar(kb); if (!T) { toast('No se pudo leer ese mes: vuelve a intentarlo.'); return false; } return fn(T); };
+    if (MEM.tab.has(kb)) return ir();
+    fueraQ = fueraQ.then(async () => { if (!MEM.tab.has(kb)) await memLeer(kb); return ir(); }).catch(e => { toast('No se pudo leer ese mes: ' + ((e && e.message) || e), { ms: 8000 }); });
+    return fueraQ;
+  }
+  // one step of ⌘Z with two parts: the open board (S) and T, a copy of another month; fn changes both (false: nothing changed)
+  function pasoEntre(T, fn) {
+    const mia = histMio();
+    if (mia) { track(S); track(T); }   // a change not saved yet stays a step of its own; T without a present takes it now
+    const eS = mia && HC.cur.get(S.key), eT = mia && HC.cur.get(T.key), c0 = mia ? HC.curC : null;
+    if (fn() === false) return false;
+    normalize();                       // the open board only: a copy has no tray (its save never writes one)
+    if (eS && eT) {
+      const stS = editBoard(S), stT = editBoard(T), cS = CLI ? editCliente() : null, cc = !!(c0 && cS) && JSON.stringify(cS) !== c0.j;
+      histPush({ p: [{ k: S.key, b: eS.st }, { k: T.key, b: eT.st }], ...(cc ? { c: c0.st } : {}) });
+      HC.cur.set(S.key, { st: stS, j: JSON.stringify(stS) }); HC.cur.set(T.key, { st: stT, j: JSON.stringify(stT) });
+      if (cc) HC.curC = { st: cS, j: JSON.stringify(cS) };
+      HC.tag = null;
+    }
+    save(); feedOlvidar(T.key); render();
+    guardarOtro(T);
+    return true;
+  }
+  // the crops of photos that change boards go with them; the one left behind in a board that no longer uses it, out
+  function cropsLlevar(fs, de, a) { fs.forEach(f => { if (f && de.crops && de.crops[f]) (a.crops = a.crops || {})[f] = { ...de.crops[f] }; }); }
+  function cropsSoltar(fs, B) { const r = refsOf(B); fs.forEach(f => { if (f && B.crops && B.crops[f] && !r.has(f)) delete B.crops[f]; }); }
+  function swapOtro(a, b, kb) {
+    if (!S || locked || !S.slots.some(x => x.id === a)) return;
+    return conCopia(kb, T => {
+      const A = S.slots.find(x => x.id === a), X = T.slots.find(x => x.id === b); if (!A || !X) return false;
+      const no = moverNo(A, S, X, T); if (no) { moverAviso(no); return false; }
+      const kind = x => isCarousel(x.type) ? 'c' : isReel(x.type) ? 'r' : 'f';
+      if (kind(A) === kind(X)) return pasoEntre(T, () => {   // (neither designed) all their photos, as swap
+        const fa = A.photos.slice(), fx = X.photos.slice();
+        cropsLlevar(fa, S, T); cropsLlevar(fx, T, S);
+        [A.photos, X.photos] = [X.photos, A.photos];
+        if (isCarousel(A.type) && isCarousel(X.type)) [A.fmt, X.fmt] = [X.fmt, A.fmt];
+        else { delete A.fmt; delete X.fmt; }
+        fixSingle(A); fixSingle(X);
+        cropsSoltar(fa, S); cropsSoltar(fx, T);
+      });
+      const fa = coverOf(A), fx = coverOf(X); if (!fa && !fx) return false;
+      const comp = [[A, fa, S], [X, fx, T]].find(([x, f, B]) => portadaCompartida(x, f, B));
+      if (comp) { toast(`La portada de ${comp[0].name} también se usa en otra diapositiva: cámbiala con «Cambiar portada».`, { ms: 7000 }); return false; }
+      return pasoEntre(T, () => {         // their covers, each with a centred crop of the format it had, in its new board
+        cropsLlevar([fa], S, T); cropsLlevar([fx], T, S);
+        setCoverPhoto(A, fx); setCoverPhoto(X, fa);
+        if (fx) centerCrop(fx, null, S); if (fa) centerCrop(fa, null, T);
+        cropsSoltar([fa], S); cropsSoltar([fx], T);
+      });
+    });
+  }
   // ---------- pinned posts (B8) ----------
   // Up to 3 of the board's posts pinned at the top of the profile, as in Instagram: the last one pinned goes first, and
   // unpinned it goes back to its place by date. Only how the feed looks (mesa, vista cliente, the feed image): dates,
@@ -2126,7 +2202,14 @@
     if (old && !ids.includes(old) && !dOut(s).includes(old)) S.tray.unshift(old);
     changed();
   }
-  function moveMemo(fromId, toId) {
+  function moveMemo(fromId, toId, kb) {   // kb: the board of toId when it isn't the open one (pieza 3b): one step, two parts
+    if (kb && S && kb !== S.key) {
+      const A0 = S.slots.find(x => x.id === fromId); if (!A0 || !memoOf(A0) || locked) return;
+      return conCopia(kb, T => {
+        const A = S.slots.find(x => x.id === fromId), X = T.slots.find(x => x.id === toId); if (!A || !X || !memoOf(A)) return false;
+        return pasoEntre(T, () => { const ma = A.memo, mx = memoOf(X) ? X.memo : ''; X.memo = ma; if (mx) A.memo = mx; else delete A.memo; });
+      });
+    }
     const A = S && S.slots.find(x => x.id === fromId), B = S && S.slots.find(x => x.id === toId);
     if (!A || !B || A === B || !memoOf(A)) return;
     const ma = A.memo, mb = memoOf(B) ? B.memo : '';
@@ -2455,7 +2538,7 @@
         if (B !== S && (x.b || x.e)) { otros.add(B); feedOlvidar(x.k); }
       }
       if (partes.some(x => x.k === S.key && x.b)) {   // what leaves the open board goes to the tray: never a photo lost
-        const now = refsOf(S), lost = [...had].filter(f => !now.has(f) && M.files[f]), isD = f => !!M.files[f].design;
+        const now = refsOf(S), lost = [...had].filter(f => !now.has(f) && M.files[f] && ![...otros].some(B => refsOf(B).has(f))), isD = f => !!M.files[f].design;   // one that went back to another month (pieza 3b) is there
         if (lost.some(f => !isD(f))) S.tray.unshift(...lost.filter(f => !isD(f)));
         if (lost.some(isD)) delList(l => [...new Set([...l, ...lost.filter(isD)])]);   // rendered images are never photos: deleted once no step needs them
         renumber();                                // names follow the restored dates
@@ -5220,6 +5303,7 @@ ${TK_FUENTES}
     if (d.from === 'memo') return cell && cell.dataset.slot && cell.dataset.slot !== d.slotId ? { el: cell, cell } : null;
     if (cell && cell.dataset.prev && d.from === 'slot') return null;
     if (cell && cell.dataset.slot && d.from === 'prev') return null;
+    if (cell && cell.dataset.slot && d.from === 'slot') { const k = tableroDeCelda(cell); if (k && S && k !== S.key && moverPublicada(d.slotId, cell.dataset.slot, k)) return { el: null, cell }; }   // not lit; dropped, its notice (pieza 3b)
     const hueco = d.from === 'tray' && t.closest('.cell.filler'); if (hueco) return { el: hueco, hueco };
     const hcard = d.from === 'tray' && t.closest('.hv-card[data-h]'); if (hcard) return { el: hcard, hcard };
     if (cell) return cell.dataset.slot ? { el: cell, cell } : { el: cell, pc: cell };
@@ -5229,7 +5313,7 @@ ${TK_FUENTES}
   function dropOn(d, { cell, pc, tray, hueco, hcard, cdest, hacia }) {
     if (cdest) { trayMover(d.lote || { files: [d.fileId] }, hacia); return; }
     if (hcard) { if (M.hs) M.hs.soltar(hcard.dataset.h, d.fileId); return; }
-    if (d.from === 'memo') { if (cell) moveMemo(d.slotId, cell.dataset.slot); return; }
+    if (d.from === 'memo') { if (cell) moveMemo(d.slotId, cell.dataset.slot, tableroDeCelda(cell)); return; }
     if (hueco) { if (d.from === 'tray') setPreview(+hueco.dataset.filler, d.fileId); return; }
     if (pc) {
       if (d.from === 'tray') prevDesdeBandeja(pc.dataset.prev, d.fileId);
@@ -5237,7 +5321,7 @@ ${TK_FUENTES}
     }
     else if (cell) {
       if (d.from === 'tray') { const fs = d.lote && d.lote.files.length ? d.lote.files : [d.fileId]; traySoltar(); addToSlot(cell.dataset.slot, fs); }
-      else if (d.from === 'slot') swap(d.slotId, cell.dataset.slot);
+      else if (d.from === 'slot') swap(d.slotId, cell.dataset.slot, tableroDeCelda(cell));   // a cell of another month: its board (pieza 3b)
       else toast('Una publicación del mes anterior no pasa directamente al mes nuevo: arrástrala antes a la bandeja.');
     }
     else if (tray && d.from === 'slot') unassign(d.slotId, null, true);

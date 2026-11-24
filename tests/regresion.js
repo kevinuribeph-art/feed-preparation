@@ -24607,6 +24607,43 @@
       });
     } finally { await limpiar(); }
   });
+  // ---------- feed continuo, pieza 8: arreglos tras las revisiones en frío ----------
+  const FM_O = `${CLIENTE}-${FD_OCT}`, FM_N = `${CLIENTE}-${MES}`;
+  const fmFotos = async k => { await M._test.fueraListo(); await M.flush(); await espera(60); const b = (await M._in.idbGet('boards', k)) || { slots: [] }; return Object.fromEntries(b.slots.map(s => [s.id, s.photos.join(',')]).sort()); };
+  const fmMem = () => Object.fromEntries(M._in.S.slots.map(s => [s.id, s.photos.join(',')]).sort());
+  async function fmDos() {   // octubre–noviembre en un tablero y noviembre en otro; fm-1 (26 nov) en los dos (D-008); abierto octubre
+    await limpiar();
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: FD_OCT, months: 2, cycleDay: 1, slots: [fcSlot('fm-0', '4.1', 10, FD_OCT), fcSlot('fm-1', '5.4', 26, MES)], past: [], force: true });
+    const [A] = await poner('fm-0', [await foto('fm-a.jpg')]); await M.flush();
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, cycleDay: 1, slots: [fcSlot('fm-1', '5.4', 26, MES), fcSlot('fm-2', '5.5', 28, MES)], past: [], force: true });
+    const [B] = await poner('fm-1', [await foto('fm-b.jpg')]); await M.flush(); await espera(300);
+    igual([(await fmFotos(FM_O))['fm-1'], (await fmFotos(FM_N))['fm-1']], [B, B], 'la enlazada, igual en los dos tableros al empezar');
+    await fdAct(FM_O); await M._in.mesActivo.pon(FD_OCT, 'prueba'); await M._in.tablerosMem.leer(FM_N);
+    igual(M._in.feedDueno(MES), FM_N, 'noviembre lo enseña su propio tablero');
+    return { A, B };
+  }
+
+  prueba('FM1', 'Una publicación enlazada en dos tableros que cubren el mismo mes (feed continuo, pieza 8; D-008, D-320, D-328): moverla desde otro mes la cambia en las dos copias, sin foto repetida, también tras ⌘Z, ⇧⌘Z y volver a leer; el registro del tablero abierto nunca se escribe por detrás', async () => {
+    try {
+      const { A, B } = await fmDos();
+      const r = await M._test.swap('fm-0', 'fm-1', FM_N); ok(r !== false, 'no se intercambió');
+      await M._test.fueraListo(); await espera(400);
+      const bien = async (que, o, n1) => {
+        igual(fmMem(), { 'fm-0': o, 'fm-1': n1 }, `${que}: el tablero abierto en memoria`);
+        igual(await fmFotos(FM_O), { 'fm-0': o, 'fm-1': n1 }, `${que}: octubre–noviembre guardado (sin foto repetida)`);
+        igual((await fmFotos(FM_N))['fm-1'], n1, `${que}: la enlazada en noviembre`);
+      };
+      await bien('tras mover', B, A);
+      await fdZ(true); await M._test.fueraListo(); await espera(400);
+      if (M._in.S.key !== FM_O) await fdAct(FM_O);
+      await bien('tras ⌘Z', A, B);
+      await fdZ(false); await M._test.fueraListo(); await espera(400);
+      if (M._in.S.key !== FM_O) await fdAct(FM_O);
+      await bien('tras ⇧⌘Z', B, A);
+      await M.open(FM_N); await M.flush(); await M.open(FM_O); await M.flush(); await espera(200);   // volver a leer de lo guardado
+      await bien('tras volver a leer', B, A);
+    } finally { await limpiar(); }
+  });
 
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;

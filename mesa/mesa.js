@@ -1072,7 +1072,10 @@
     if (MOVIL) return pushSharedMovil(B, ids);
     const by = {}, cOf = {}, gone = [], srcRefs = refsOf(B), myC = B.client || boardClient(B);
     ids.forEach(id => (X[id] || []).forEach(x => { (by[x.key] = by[x.key] || []).push(id); cOf[x.key] = x.client || boardClient(x); }));
-    const keys = Object.keys(by), otros = [...new Set(keys.map(k => cOf[k]))].filter(Boolean);
+    // the open board, when the change comes from a copy (another month changed from here, pieza 8): never its record behind its
+    // back (its save 250 ms later would write the old over it, D-008); the change goes to S in memory and S saves as always
+    const enS = S && B !== S && by[S.key] ? S.key : null;
+    const keys = Object.keys(by).filter(k => k !== enS), otros = [...new Set(keys.map(k => cOf[k]))].filter(Boolean);
     let mia = false;
     try {
       // the other board's tray is its client's (D-041): this one's, in memory; another client's, its record (in the same
@@ -1102,7 +1105,23 @@
         if (!n) go(); else otros.forEach(c => { const g = st.bandejas.get(c); g.onsuccess = () => { if (g.result) trays[c] = g.result; if (--n === 0) go(); }; });
       });
     } catch (e) { if (sigDe(B) === G) ids.forEach(id => G.dirty.add(id)); return; }
-    if (mia && S && (S.client || boardClient(S)) === myC) { renderTray(); save(); }   // this client's tray changed through another of its boards
+    if (enS && S && S.key === enS && !locked) {   // what the copy shares, into the open board in memory, as part of the same change (no step of ⌘Z of its own)
+      let hit = false;
+      for (const id of by[enS]) {
+        const s = B.slots.find(x => x.id === id), o = S.slots.find(x => x.id === id); if (!s || !o) continue;
+        const had = [...(o.photos || []), ...dSrc(o)].filter(f => trayable(f) && !slotRefs(s).includes(f) && !dOut(o).includes(f) && !lOut(o).includes(f));
+        copyShared(o, S, s, B); hit = true;
+        for (let i = S.tray.length - 1; i >= 0; i--) if (s.photos.includes(S.tray[i])) S.tray.splice(i, 1);
+        const refs = refsOf(S), lost = had.filter(f => !refs.has(f) && !srcRefs.has(f));
+        if (lost.length) S.tray.unshift(...lost);
+      }
+      if (hit) {
+        alinearH(S);
+        if (histMio() && HC.cur.has(S.key)) { const st = editBoard(S); HC.cur.set(S.key, { st, j: JSON.stringify(st) }); if (CLI && HC.curC) { const c = editCliente(); HC.curC = { st: c, j: JSON.stringify(c) }; } }
+        mia = true;
+      }
+    }
+    if (mia && S && (S.client || boardClient(S)) === myC) { renderTray(); if (enS) renderFeed(); save(); }   // this client's tray (or its open board) changed through another of its boards
     if (gone.length) { dropIdx(gone); renderFeed(); }
     if (B === S && Object.keys(by).some(k => MB.some(m => m.key === k))) { await refreshMonths(); renderBar(); }
   }
@@ -7715,6 +7734,7 @@ ${TK_FUENTES}
       for (let n = 0; ; n++) {         // what is pending is saved first; an edit that comes in while it saves is saved too
         if (n > 20) return { error: 'no se pudo guardar lo pendiente' };
         if (pendiente()) await flushPending();
+        { const q = fueraQ; await q.catch(() => null); if (q !== fueraQ) continue; }   // a copy of another month still being written (pieza 8): before it becomes S
         if (!pendiente()) {
           if (!MEM.tab.has(key)) { await memLeer(key); if (pendiente()) continue; }   // read once, never written
           const m = MEM.tab.get(key);

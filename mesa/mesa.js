@@ -3628,7 +3628,6 @@ ${TK_FUENTES}
     if (m === mesActivo) { feedMovido = false; feedIr(m); return true; }   // the quick jump (pieza 5)
     if (busyGuard()) return false;
     const no = activarNo(); if (no) { toast(`No se cambia de mes ahora: ${no}.`); return false; }
-    SKILL = null;                        // Kevin asked for a month: a skill's concession ends (pieza 8, D-329)
     if (mesesTab(S).includes(m)) { mesFijar(m, 'cabecera'); mesSigue(); feedMovido = false; feedIr(m); return true; }
     const k = feedDueno(m); if (!k) return false;
     const r = await activar(k, { mes: m, quien: 'cabecera' });
@@ -8361,6 +8360,7 @@ ${TK_FUENTES}
   const cambioMsg = (k, id) => ({ error: `el mes abierto cambió: ${id ? `«${id}» es de` : 'la skill trabajaba en'} ${nomTablero(k)} (${k}) y está abierto ${nomTablero(S.key)} (${S.key}); vuelve a abrirlo con MESA.open('${k}') y repite` });
   function skillAntes(k, a) {            // null, or the error that stops the call
     if (!S || locked || MOVIL) return null;
+    if (skillViva() && SKILL.key !== S.key) return cambioMsg(SKILL.key);   // the board changed under the skill (a click on the header, ⌘Z): any of its calls says so (pieza 9, D-334)
     let ids = null;
     if (k === 'setEstado') ids = [].concat(a[0] ?? []);
     else if (k === 'markUploaded') ids = [].concat(a[0] || []).map(x => x && x.slotId);
@@ -8375,7 +8375,6 @@ ${TK_FUENTES}
       }
       return null;
     }
-    if ((k === 'markSynced' || k === 'notionChanges') && skillViva() && SKILL.key !== S.key) return cambioMsg(SKILL.key);
     return null;
   }
   // a client of «Solo contenido» has no feed (D-289): nothing to upload nor schedule, and no states: an empty list, never an error

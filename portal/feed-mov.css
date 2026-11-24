@@ -29,8 +29,9 @@
 .fm-vent.fpild>.fm-pild{outline:2px solid var(--focus);outline-offset:-2px}
 /* como la barra de la Mesa a 720 */
 @media (max-width:720px){.fm-cab .fm-fl{height:30px}.fm-vent{height:28px}.fm-cab .fm-mes{line-height:28px;font-size:12px}}
-/* con el dedo: 44 px de alto (las dianas del portal) */
-@media (pointer:coarse){.fm-cab .fm-fl{width:40px;height:44px}.fm-vent{height:40px}.fm-cab .fm-mes{line-height:40px;font-size:13px}}
+/* con el dedo: dianas de 44 × 44 (las del portal); la ventana mide 44 y su raya va por dentro (una sombra en vez del borde), así los
+   meses miden 44 de alto y la cabecera no crece (D-P7) */
+@media (pointer:coarse){.fm-cab .fm-fl{width:44px;height:44px}.fm-vent{height:44px;border:0;box-shadow:inset 0 0 0 1px var(--line)}.fm-pild{top:0;bottom:0}.fm-pild>.fm-tira{top:0;height:100%}.fm-cab .fm-mes{line-height:44px;font-size:13px}.fm-vent::after{inset:1px;border-radius:inherit}}
 
 /* quién desliza el feed (feed continuo, opción B de Kevin): a pantalla completa (.lleno, desde 1100 × 700) el panel, como hoy;
    por debajo, la página entera, con la cabecera pegada arriba mientras pasa el feed */

@@ -24868,6 +24868,58 @@
       const c = fnPild(); ok(Math.abs(c.centro) <= 1 && c.entero, 'con un menú abierto la tira no volvió al mes abierto');
     } finally { M.libre && M.libre.abierto && M.libre.abierto() && M.libre.cerrar(); M._in.closeDetail(); D.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await vistaCliente(false); await limpiar(); }
   });
+  // r1: carrusel Publicado con dos fotos; r2: carrusel sin publicar con dos fotos
+  async function fnPub() {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Carrusel'), pub(3)]);
+    await porAprobar(['r1'], 'fn'); await poner('r1', [await foto('fn-r1b.jpg')]); M.setEstado('r1', 'publicado');
+    await poner('r2', [await foto('fn-r2a.jpg'), await foto('fn-r2b.jpg')]); await M.flush();
+    igual([M._in.estadoDe(slot('r1')), slot('r1').photos.length, slot('r2').photos.length], ['publicado', 2, 2], 'la preparación');
+    if (M._in.skill) M._in.skill.cerrar();
+    M._in.clearToasts();
+  }
+  const fnAviso = () => qa('.toasts .toast').map(t => t.textContent).join(' | ');
+  prueba('FN2', 'Una Publicada no cambia de foto por ningún camino (feed continuo, pieza 10; D-324, D-330, D-339): archivo soltado del ordenador, «Sustituir/Añadir», quitar una foto, reordenar, poner otra de portada, «Cambiar portada», un tipo de una sola foto y «Editar» no la tocan y avisan cómo salir; en su ventana esos controles salen apagados con su motivo; lo demás de la ventana sigue igual; la que no está publicada cambia por esos caminos como siempre, con ⌘Z', async () => {
+    try {
+      await fnPub();
+      const f0 = slot('r1').photos.slice(), igualR1 = que => { igual(slot('r1').photos, f0, `${que}: cambió la foto de la Publicada`); ok(/Ya está publicada: no se cambia su foto\. Para cambiarla, ponla antes en otro estado\./.test(fnAviso()), `${que}: sin el aviso que dice cómo salir: ` + fnAviso()); M._in.clearToasts(); };
+      // la API y los caminos de dentro
+      igual(json(await M.addFiles([await foto('fn-nuevo.jpg')], 'r1')), '[]', 'un archivo soltado en la Publicada entró'); igualR1('archivo soltado');
+      igual(json(await M.addFiles([await foto('fn-nuevo2.jpg')], null, { aviso: 'r1' })), '[]', '«Sustituir/Añadir» de un archivo entró'); igualR1('Sustituir/Añadir');
+      M._test.unassign('r1', 1); igualR1('quitar una foto');
+      M._test.unassign('r1', null, true); igualR1('vaciarla');
+      M._test.move('r1', 0, 1); igualR1('mover una foto');
+      M._test.movePhoto('r1', 1, 0); igualR1('reordenar');
+      M._test.setCover('r1', 1); igualR1('otra de portada');
+      M._test.place('r1', (await M.addFiles([await foto('fn-band.jpg')]))[0]); igualR1('poner una foto');
+      M._test.setType('r1', 'Reel'); await espera(30); igual(slot('r1').photos, f0, 'un tipo de una sola foto le quitó fotos'); M._in.clearToasts();
+      // su ventana: los controles de la foto, apagados con su motivo; ver sigue
+      M._in.openDetail('r1', 0); await espera(60);
+      const d = dialogo(); ok(d, 'no se abrió su ventana');
+      for (const sel of ['[data-act="pickcover"]', '[data-act="unpick"]', '[data-act="editar"]']) {
+        const b = d.querySelector(sel); ok(b, `falta ${sel}`);
+        ok(b.getAttribute('aria-disabled') === 'true' && /publicada/i.test(b.title), `${sel} no está apagado con su motivo: ` + b.outerHTML.slice(0, 200));
+      }
+      ok(d.querySelector('.stage img.big') && d.querySelector('.stage img.big').getAttribute('src'), 'no se ve su imagen');
+      d.querySelector('[data-act="pickcover"]').click(); await espera(60);
+      ok(!dialogo().querySelector('.cpick'), '«Cambiar portada» abrió la bandeja'); igualR1('Cambiar portada');
+      dialogo().querySelector('[data-act="unpick"]').click(); await espera(60); igualR1('«Quitar» de la ventana');
+      dialogo().querySelector('[data-act="editar"]').click(); await espera(300);
+      ok(!M.libre.abierto(), '«Editar» abrió el editor de una Publicada'); igualR1('Editar');
+      ok(!/Arrastra las miniaturas/.test(dialogo().textContent), 'invita a arrastrar las miniaturas de una Publicada');
+      ok(dialogo().querySelector('textarea.note') && !dialogo().querySelector('textarea.note').disabled, 'el contexto de una Publicada dejó de editarse');
+      M._in.closeDetail();
+      // MESA.init (Notion cambia su tipo a Foto): no le quita fotos
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [{ ...pub(1, 'Foto'), name: 'Foto 1.1' }, pub(2, 'Carrusel'), pub(3)], past: [], force: true });
+      igual(slot('r1').photos, f0, 'MESA.init le quitó fotos a la Publicada');
+      // la que no está publicada, como siempre (y ⌘Z)
+      const g0 = slot('r2').photos.slice();
+      M._test.setCover('r2', 1); igual(slot('r2').photos, [g0[1], g0[0]], 'otra de portada en una sin publicar');
+      M._test.unassign('r2', 1); igual(slot('r2').photos, [g0[1]], 'quitar una foto de una sin publicar');
+      await espera(2100); M._test.undo(); await espera(60); igual(slot('r2').photos, [g0[1], g0[0]], '⌘Z');
+      M._test.redo(); await espera(60); igual(slot('r2').photos, [g0[1]], '⇧⌘Z');
+      ok(!/Ya está publicada/.test(fnAviso()), 'una sin publicar avisó como Publicada');
+    } finally { M._in.closeDetail(); M._in.clearToasts(); await limpiar(); }
+  });
 
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;

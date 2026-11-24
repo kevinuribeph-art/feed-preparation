@@ -1553,7 +1553,7 @@
   }
   // tray photos onto a post: the warning first, then as always (Sustituir / Añadir when it has photos)
   function addToSlot(slotId, ids) {
-    const P = slot(slotId); if (P && estadoDe(P) === 'publicado') { toast('Ya está publicada: no se cambia su foto.', { key: 'mover-publicada' }); return; }   // a Publicada isn't overwritten (pieza 3c, D-324)
+    const P = slot(slotId); if (publicadaNo(P)) return;   // a Publicada isn't overwritten (pieza 3c, D-324)
     ids = (ids || []).filter(id => M.files[id]);
     const B = S;
     repetidas(ids.map(f => ({ f, name: M.files[f].name, size: M.files[f].size })), { slot: slotId }).then(async r => { if (!r || !r.length) return; const go = await paraPoner(r.map(x => x.f)); if (S === B && go.length) askAddMode(slotId, go); });
@@ -1588,6 +1588,7 @@
   };
   async function addFilesNow(list, targetSlotId, opts) {
     if (!S) { toast('Abre un mes antes de añadir fotos.'); return []; }
+    { const t = targetSlotId || (opts && opts.aviso); if (t && publicadaNo(slot(t))) return []; }   // files dropped on a Publicada: nothing (D-339)
     const B = S;
     list.filter(f => f && !f.size).forEach(f => toast(`${f.name} está vacío: no se puede añadir.`));
     let files = list.filter(f => f && f.size).sort((a, b) => a.name.localeCompare(b.name, 'es', { numeric: true }));
@@ -1681,6 +1682,7 @@
   }
   function place(slotId, fileId, silent) {
     const s = slot(slotId); if (!s) return;
+    if (publicadaNo(s)) return false;
     if (designed(s) && !isMulti(s.type) && sinPortada(s)) return;
     if (sel === fileId) sel = null;
     const other = S.slots.find(x => x !== s && x.photos.includes(fileId));
@@ -1766,6 +1768,10 @@
   const moverAviso = no => no === 'publicada' ? toast('Ya está publicada: no se mueve.', { key: 'mover-publicada' })
     : toast('Una publicación diseñada o editada no pasa a otro mes: cámbiale la portada con «Cambiar portada».', { key: 'mover-disenada', ms: 7000 });
   const slotPublicada = id => { const s = S && S.slots.find(x => x.id === id); return !!s && estadoDe(s) === 'publicado'; };
+  // a Publicada's photos don't change by any way (pieza 10, D-339): true (and the notice) when s is one
+  const PUB_AVISO = 'Ya está publicada: no se cambia su foto. Para cambiarla, ponla antes en otro estado.', PUB_TIT = 'Ya está publicada: para cambiar su foto, ponla antes en otro estado';
+  function publicadaNo(s, B = S) { if (!s || estadoDe(s, B) !== 'publicado') return false; toast(PUB_AVISO, { key: 'mover-publicada' }); return true; }
+  const abrirEditor = (id, k, o) => { if (publicadaNo(slot(id))) return; if (M.libre && M.libre.abrir) M.libre.abrir(id, k, o); else waitLibre(id, k, o); };
   // while dragging: a Publicada (the one carried or the one under it), of another month or of its own (pieza 3c), is not a target (no highlight)
   function moverPublicada(a, b, kb) {
     const A = S && S.slots.find(x => x.id === a), T = feedTablero(kb), X = T && T.slots.find(x => x.id === b);
@@ -2014,7 +2020,7 @@
   // «Cambiar portada» (post view) and a new photo on a designed reel: a tray photo becomes the cover; the old one goes back
   // to the tray unless something else uses it; the texts stay
   function changeCover(slotId, fid) {
-    const s = S && S.slots.find(x => x.id === slotId); if (!s || !M.files[fid] || sinPortada(s)) return;
+    const s = S && S.slots.find(x => x.id === slotId); if (!s || !M.files[fid] || sinPortada(s) || publicadaNo(s)) return;
     const other = S.slots.find(x => x !== s && x.photos.includes(fid)); if (other) other.photos = other.photos.filter(x => x !== fid);
     takeFromTray(fid); if (sel === fid) sel = null;
     const old = setCoverPhoto(s, fid);
@@ -2023,7 +2029,7 @@
     changed(); rerender(s);
   }
   function unassign(slotId, k, undoable) {
-    const s = slot(slotId); if (!s) return;
+    const s = slot(slotId); if (!s || publicadaNo(s)) return;
     if (k != null && (k < 0 || k >= s.photos.length)) return;
     const back = k == null ? s.photos.slice() : [s.photos[k]];
     if (!back.length) return;
@@ -2045,7 +2051,7 @@
     } });
   }
   function setCover(slotId, k) {
-    const s = slot(slotId); if (!s || k <= 0 || k >= s.photos.length) return;
+    const s = slot(slotId); if (!s || k <= 0 || k >= s.photos.length || publicadaNo(s)) return;
     const [f] = s.photos.splice(k, 1); s.photos.unshift(f);
     changed();
   }
@@ -2184,7 +2190,7 @@
   }
   function askAddMode(slotId, ids) {
     const s = S && S.slots.find(x => x.id === slotId); ids = (ids || []).filter(id => M.files[id]);
-    if (!s || !ids.length) return;
+    if (!s || !ids.length || publicadaNo(s)) return;
     if (!s.photos.length || !isMulti(s.type)) { if (isMulti(s.type)) ids.forEach(id => place(slotId, id, true)); else place(slotId, ids[0], true); changed(); return; }
     pendingAdd = { key: S.key, slotId, ids };
     const n = ids.length;
@@ -2216,7 +2222,7 @@
     const P = pendingAdd; pendingAdd = null; closeDetail();
     if (!P || !S || S.key !== P.key) return;
     if (P.historia) { P.historia(m === 'add' ? 'anadir' : 'sustituir'); return; }
-    const s = S.slots.find(x => x.id === P.slotId), ids = P.ids.filter(id => M.files[id]); if (!s || !ids.length) return;
+    const s = S.slots.find(x => x.id === P.slotId), ids = P.ids.filter(id => M.files[id]); if (!s || !ids.length || publicadaNo(s)) return;
     if (m !== 'add' && designed(s) && sinPortada(s)) return;
     if (isCarousel(s.type) && s.libre && !s.design) {   // drawn in the free editor: its texts stay and the photos go to its holes (libre.js)
       if (M.libre && M.libre.casilla) dibujoEspera(s.id, M.libre.casilla(s.id, ids, m), true);
@@ -2252,12 +2258,12 @@
   }
   function move(slotId, k, dir) {
     const s = slot(slotId), j = k + dir;
-    if (!s || j < 0 || j >= s.photos.length) return;
+    if (!s || j < 0 || j >= s.photos.length || publicadaNo(s)) return;
     [s.photos[k], s.photos[j]] = [s.photos[j], s.photos[k]];
     changed();
   }
   function movePhoto(slotId, k, j) {         // a photo dragged in the post view's strip: from place k to place j
-    const s = slot(slotId); if (!s || k === j || !(k >= 0 && j >= 0 && k < s.photos.length && j < s.photos.length)) return;
+    const s = slot(slotId); if (!s || k === j || !(k >= 0 && j >= 0 && k < s.photos.length && j < s.photos.length) || publicadaNo(s)) return;
     const [f] = s.photos.splice(k, 1); s.photos.splice(j, 0, f);
     changed(); openDetail(slotId, j);
   }
@@ -3266,7 +3272,7 @@ ${TK_FUENTES}
 #mesa .card h3,#mesa .phead h3,#mesa .ecard h3,#mesa .lb-ttl h3{text-wrap-style:balance}#mesa .card p,#mesa .cpnota,#mesa .toast{text-wrap-style:pretty}
 /* every button shrinks a little when pressed, like .btn (D-171) */
 #mesa .mchip:active:not(:disabled),#mesa .ibtn:not(.tema):active:not(:disabled),#mesa .lb-help:active:not(:disabled),#mesa .hv-add:active:not(:disabled),#mesa .dz-more:active:not(:disabled),#mesa .cpvolver:active:not(:disabled),#mesa .lb-trv:active:not(:disabled),#mesa .lb-trb:active:not(:disabled),#mesa .seg button:active:not(:disabled),#mesa button.cpaso:active:not(:disabled),#mesa .x:active:not(:disabled),#mesa .hx:active:not(:disabled),#mesa .cpx:active:not(:disabled){transform:scale(.97)}
-#mesa .pacts button:disabled{opacity:.4;cursor:default}
+#mesa .pacts button:disabled,#mesa .pacts button[aria-disabled="true"],#mesa .pe-ed[aria-disabled="true"]{opacity:.4;cursor:default}#mesa .pacts button[aria-disabled="true"]:hover{border-color:var(--line);background:var(--panel-2)}#mesa .pe-ed[aria-disabled="true"]:hover,#mesa .pe-ed[aria-disabled="true"]:active{background:var(--acc);transform:none}   /* a Publicada's photo controls (D-339) */
 #mesa .pacts .fname{color:var(--mute);font-size:11.5px;margin-right:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:50%}
 #mesa .pright{grid-area:col;padding:18px 20px;display:flex;flex-direction:column;min-width:0}
 #mesa .avrow{display:flex;align-items:center;gap:10px}
@@ -5038,7 +5044,7 @@ ${TK_FUENTES}
     // focus: the close button when the post opens (or when it had it before this re-render, e.g. arrow keys)
     const ae = document.activeElement, fresh = d.hidden || d.dataset.slot !== id || !!d.dataset.prev || !!(ae && d.contains(ae) && ae.matches('.card > .x, .phead > .x'));
     cur = { slot: id, idx };
-    const car = isCarousel(s.type), foto = s.type === 'Foto', reel = isReel(s.type);
+    const car = isCarousel(s.type), foto = s.type === 'Foto', reel = isReel(s.type), pub = estadoDe(s) === 'publicado', off = pub ? ` aria-disabled="true" title="${esc(PUB_TIT)}"` : '';   // a Publicada: what changes its photos, off with why (D-339)
     const fid = s.photos[idx];
     const fd = !!(n && (M.files[fid] || {}).design);   // a designed image: uploaded as rendered
     const live = fd && designed(s) && dState(s) !== 'chg' && s.photos.length === s.design.slides.length;   // a designed slide: reframed here on its photo, drawn live with its texts (B4)
@@ -5060,22 +5066,22 @@ ${TK_FUENTES}
       const nav = n > 1 ? `<button class="nav prev" data-act="prev" title="Anterior" aria-label="Foto anterior" ${idx === 0 ? 'hidden' : ''}>${CHEV.l}</button><button class="nav next" data-act="next" title="Siguiente" aria-label="Foto siguiente" ${idx === n - 1 ? 'hidden' : ''}>${CHEV.r}</button>` : '';
       const strip = n > 1 ? `<div class="strip">${s.photos.map((p, k) => `<button class="th ${k === idx ? 'on' : ''}" data-act="pick" data-k="${k}" title="${esc((M.files[p] || {}).name || '')}"><img src="${(M.files[p] || {}).thumbUrl || ''}" alt="">${k === 0 && (foto || car) ? '<span>Portada</span>' : ''}</button>`).join('')}</div>` : '';
       const acts = `<div class="pacts"><span class="fname">${esc(fd && (car || reel) ? dName(s, fid) : (M.files[fid] || {}).name || '')}${(M.files[fid] || {}).reduced ? ' · 1080 px' : (M.files[fid] || {}).copia ? ' · copia de 2560 px' : ''}</span>`
-        + (car || reel ? `<button data-act="pickcover" data-slot="${esc(id)}" aria-expanded="${pickOpen === id}">Cambiar portada</button>` : '')
-        + (fd && s.design && (car || reel) ? (car ? `<span class="muted">Las demás diapositivas se cambian en «Editar»</span>` : '') : `<button data-act="unpick" data-slot="${esc(id)}" data-k="${idx}">Quitar</button>`) + '</div>';
+        + (car || reel ? `<button data-act="pickcover" data-slot="${esc(id)}" aria-expanded="${!pub && pickOpen === id}"${off}>Cambiar portada</button>` : '')
+        + (fd && s.design && (car || reel) ? (car ? `<span class="muted">Las demás diapositivas se cambian en «Editar»</span>` : '') : `<button data-act="unpick" data-slot="${esc(id)}" data-k="${idx}"${off}>Quitar</button>`) + '</div>';
       const tr = S.tray.filter(f => M.files[f]);
-      const pick = (car || reel) && pickOpen === id ? `<div class="cpick"><span class="muted">${tr.length ? 'Elige la nueva portada en la bandeja (la de ahora vuelve a la bandeja; el texto se queda):' : 'La bandeja está vacía: añade fotos con «Añadir fotos».'}</span>`
+      const pick = (car || reel) && pickOpen === id && !pub ? `<div class="cpick"><span class="muted">${tr.length ? 'Elige la nueva portada en la bandeja (la de ahora vuelve a la bandeja; el texto se queda):' : 'La bandeja está vacía: añade fotos con «Añadir fotos».'}</span>`
         + (tr.length ? `<div class="strip">${tr.map(f => `<button class="th" data-act="setcover" data-slot="${esc(id)}" data-f="${esc(f)}" title="${esc(M.files[f].name)}"><img ${tr.length > MINIS_DE_UNA ? `data-mini="${esc(f)}"` : `src="${M.files[f].thumbUrl}"`} alt=""></button>`).join('')}</div>` : '') + '</div>' : '';   // a long tray: thumbnails as they come into sight (B8)
       left = `<div class="stagewrap"><div class="stage" data-slot="${esc(id)}" data-file="${esc(fid)}"${live ? ' data-live="1"' : ''}><img class="big" alt="" src="${(M.files[fid] || {}).thumbUrl || ''}">${live ? '<canvas class="dzv" hidden></canvas>' : ''}<div class="gguide" hidden><span>Así se ve en el perfil</span></div>${THIRDS}${nav}</div></div>
         <div class="ptools">${tools}</div>
         ${strip}${acts}${pick}`;
     }
     // «Arrastra las miniaturas…» only where they are dragged: never on a designed post (D-166)
-    const hint = car && n > 1 ? `${foto ? 'Foto de varias páginas' : 'Carrusel'}: se suben todas en este orden, con un solo formato.${designed(s) ? '' : ' Arrastra las miniaturas para cambiar el orden.'}` : '';
+    const hint = car && n > 1 ? `${foto ? 'Foto de varias páginas' : 'Carrusel'}: se suben todas en este orden, con un solo formato.${designed(s) || estadoDe(s) === 'publicado' ? '' : ' Arrastra las miniaturas para cambiar el orden.'}` : '';
     const dst = car || reel ? dState(s) : null;
     const dav = (dst === 'ok' || dst === 'nc') && s.design.avisos && s.design.avisos.length ? s.design.avisos : [];   // what «Aplicar» warned about
     const nl = libN(s);
     // the post's only design button (D-089): a designed reel whose cell was emptied keeps it, and the editor applies a design with changes first
-    const edB = car || (reel && (n || designed(s))) ? `<button type="button" class="btn pe-ed" data-act="editar" data-slot="${esc(id)}" data-k="${idx}" aria-label="${edLabel(s)}" title="${edLabel(s)} (⌘E)">Editar</button>` : '';   // in the header, the window's main button (D-142)
+    const edB = car || (reel && (n || designed(s))) ? `<button type="button" class="btn pe-ed" data-act="editar" data-slot="${esc(id)}" data-k="${idx}" aria-label="${edLabel(s)}" ${pub ? `aria-disabled="true" title="${esc(PUB_TIT)}"` : `title="${edLabel(s)} (⌘E)"`}>Editar</button>` : '';   // in the header, the window's main button (D-142)
     const pg = foto ? 'página' : 'diapositiva', lbT = nl ? `<span class="muted">${reel ? 'Portada editada · se sube tal cual' : nl === 1 ? `1 ${pg} editada · se sube tal cual` : `${nl} ${pg}s editadas · se suben tal cual`}</span>` : '';
     const ubB = ubSelectHTML(s);   // the location, alone on its row (D-142; it was right of «Editar …», D-124)
     const peB = perHTML(s);   // «Etiquetar» and «Colaboradores», under that row and above «Contexto» (D-130)
@@ -5177,6 +5183,7 @@ ${TK_FUENTES}
   function setType(id, to) {
     const s = S && S.slots.find(x => x.id === id);
     if (!s || !to || s.type === to || locked || !typeOpts(s).includes(to)) { refreshDetail(); return; }
+    if (!isMulti(to) && s.photos.length > 1 && publicadaNo(s)) { refreshDetail(); return; }   // a type that would take photos out of a Publicada (D-339)
     if (s.design && !(M.diseno && M.diseno._retipo)) { toast('El diseñador no está cargado: recarga la página para cambiar el tipo de una publicación diseñada.', { ms: 6000 }); refreshDetail(); return; }
     const from = s.type, name0 = s.name;
     if (s.notionType == null) s.notionType = from;
@@ -6044,7 +6051,7 @@ ${TK_FUENTES}
     root.addEventListener('pointerdown', e => {
       const th = e.button === 0 && e.target.closest && e.target.closest('.detail .card.post .strip .th[data-act="pick"]'); if (!th) return;
       const s = slot(root.querySelector('.detail').dataset.slot);
-      if (!s || isPrev(s) || !isCarousel(s.type) || designed(s) || s.photos.length < 2 || locked) return;
+      if (!s || isPrev(s) || !isCarousel(s.type) || designed(s) || s.photos.length < 2 || locked || estadoDe(s) === 'publicado') return;   // a Publicada's order doesn't change (D-339)
       const strip = th.parentElement, k = +th.dataset.k, x0 = e.clientX, y0 = e.clientY, ths = () => [...strip.querySelectorAll('.th[data-act="pick"]')];
       let on = false, to = null;
       const aim = ev => {                  // the place it would drop at: before or after the nearest thumbnail
@@ -6246,7 +6253,7 @@ ${TK_FUENTES}
         if (a && d.contains(a) && a.blur) a.blur();
         if (noteTimer) { clearTimeout(noteTimer); noteTimer = null; save(); renderFeed(); renderBar(); capSync(id); }
         if (motTimer) { clearTimeout(motTimer); motTimer = null; save(); calRender(); }
-        if (M.libre && M.libre.abrir) M.libre.abrir(id, k); else waitLibre(id, k);
+        abrirEditor(id, k);
         return;
       }
       // ⌘C / ⌘V of the tray: only with the last press inside it and, ⌘C, with something chosen; the editor has its own (D-077)
@@ -6300,13 +6307,14 @@ ${TK_FUENTES}
     else if (act === 'close') closeDetail();
     else if (act === 'carpeta-borrar') { const id = a.dataset.id; closeDetail(); const r = await M.borrarCarpeta(id); if (r && r.error) toast(r.error); }
     else if (act === 'repe') { const f = repeAsk; repeAsk = null; closeDetail(); if (f) f(a.dataset.m); }
-    else if (act === 'unpick') { const s = slot(a.dataset.slot), f = s && s.photos[+a.dataset.k]; if (f && s.design && (isCarousel(s.type) || isReel(s.type)) && (M.files[f] || {}).design) { toast(`Para cambiar diapositivas, usa «Editar».`); refreshDetail(); return; } unassign(a.dataset.slot, +a.dataset.k); refreshDetail(); }
+    else if (act === 'unpick') { const s = slot(a.dataset.slot), f = s && s.photos[+a.dataset.k]; if (publicadaNo(s)) return; if (f && s.design && (isCarousel(s.type) || isReel(s.type)) && (M.files[f] || {}).design) { toast(`Para cambiar diapositivas, usa «Editar».`); refreshDetail(); return; } unassign(a.dataset.slot, +a.dataset.k); refreshDetail(); }
     else if (act === 'left') { move(a.dataset.slot, +a.dataset.k, -1); openDetail(a.dataset.slot, +a.dataset.k - 1); }
     else if (act === 'right') { move(a.dataset.slot, +a.dataset.k, 1); openDetail(a.dataset.slot, +a.dataset.k + 1); }
     else if (act === 'cover') { setCover(a.dataset.slot, +a.dataset.k); openDetail(a.dataset.slot, 0); }
     else if (act === 'ignav') igNav(+a.dataset.d);
     else if (act === 'igedit') { if (!root.classList.contains('client')) igEditar(); }
     else if (act === 'caporig') capRevert(a.dataset.slot, +a.dataset.k);
+    else if (act === 'pickcover' && publicadaNo(slot(a.dataset.slot))) { /* its notice (D-339) */ }
     else if (act === 'pickcover') { pickOpen = pickOpen === a.dataset.slot ? null : a.dataset.slot; openDetail(a.dataset.slot, cur.idx); }
     else if (act === 'setcover') { const id = a.dataset.slot, f = a.dataset.f; pickOpen = null; if (!M.files[f]) return; repetidas([{ name: M.files[f].name, size: M.files[f].size }], { slot: id }).then(r => { if (r) changeCover(id, f); openDetail(id, 0); }); }
     else if (act === 'prev') openDetail(cur.slot, cur.idx - 1);
@@ -6329,10 +6337,10 @@ ${TK_FUENTES}
       const id = a.dataset.slot, k = +a.dataset.k || 0; closeDetail();
       if (!slot(id)) toast('Esa publicación ya no está en el mes abierto.');
       else if (!a.dataset.ed) openDetail(id, k);
-      else if (M.libre && M.libre.abrir) M.libre.abrir(id, k); else waitLibre(id, k);
+      else abrirEditor(id, k);
     }
     else if (act === 'xfer-go') { if (xferAsk) xferAsk(true); }
-    else if (act === 'editar') { if (M.libre && M.libre.abrir) M.libre.abrir(a.dataset.slot, +a.dataset.k || 0); else waitLibre(a.dataset.slot, +a.dataset.k || 0); }
+    else if (act === 'editar') abrirEditor(a.dataset.slot, +a.dataset.k || 0);
     else if (act === 'perquitar') { setPersona(a.dataset.slot, a.dataset.campo, a.dataset.u, false); perTras(a.dataset.campo); }   // D-130
     else if (act === 'datereset') { const s = slot(a.dataset.slot); if (s && !isPrev(s)) setDate(s.id, s.notionDate, true); }
     else if (act === 'aprobar') pickEstado(a.dataset.slot, 'aprobado');
@@ -7654,7 +7662,7 @@ ${TK_FUENTES}
     await cargar([...new Set(B.slots.flatMap(dSrc))]);   // a design's photos too: its cover can move to another post (the designer says if one is missing)
     if (missing.length) { B.tray = B.tray.filter(x => !missing.includes(x)); B.slots.forEach(s => { s.photos = s.photos.filter(x => !missing.includes(x)); }); }
     const aDel = [], sinDibujos = fs => { fs = fs.filter(trayable); const d = fs.filter(f => M.files[f] && M.files[f].design); aDel.push(...d); return d.length ? fs.filter(f => !d.includes(f)) : fs; };   // aBandeja, its delList left to M.init
-    if (!MIRA) B.slots.forEach(s => { if (!isMulti(s.type) && s.photos.length > 1) { B.tray.unshift(...sinDibujos(s.photos.slice(1).filter(f => !dOut(s).includes(f)))); s.photos = s.photos.slice(0, 1); } });
+    if (!MIRA) B.slots.forEach(s => { if (!isMulti(s.type) && s.photos.length > 1 && estadoDe(s, B) !== 'publicado') { B.tray.unshift(...sinDibujos(s.photos.slice(1).filter(f => !dOut(s).includes(f)))); s.photos = s.photos.slice(0, 1); } });
     B.tray = sinDibujos(B.tray);         // an image the editor drew that a mesa before 3.83 left hidden in the tray (D-101)
     { const enPost = new Set(B.slots.flatMap(s => s.photos)); B.tray = [...new Set(B.tray)].filter(id => !enPost.has(id)); }
     if (!MIRA) libresDeCarpetas(B, todos);

@@ -2452,7 +2452,7 @@
       for (const x of partes) {
         const B = tab(x.k);
         if (x.b) aplicarTablero(B, x.b); else if (x.e) aplicarEstados(B, x.e);
-        if (B !== S && (x.b || x.e)) otros.add(B);
+        if (B !== S && (x.b || x.e)) { otros.add(B); feedOlvidar(x.k); }
       }
       if (partes.some(x => x.k === S.key && x.b)) {   // what leaves the open board goes to the tray: never a photo lost
         const now = refsOf(S), lost = [...had].filter(f => !now.has(f) && M.files[f]), isD = f => !!M.files[f].design;
@@ -3461,8 +3461,8 @@ ${TK_FUENTES}
   // A Programada passes to Publicado on its own once its time comes (without a time, once its day is over, Madrid), unless
   // its date or time changed after it was marked Programada (Zernio still has the old one, D-103): s.estado.fecha keeps the
   // date it was marked with (a Programada from before 3.92 gets the one it has when its board first opens). Vencida: not
-  // cancelled nor published, its moment passed and it doesn't pass on its own. It looks at the open board and the client's
-  // earlier boards (months before the open one's); a post of another board is changed from here, on its copy, and its change
+  // cancelled nor published, its moment passed and it doesn't pass on its own. It looks at the open board and every other board
+  // of the client, earlier and later (feed continuo, pieza 3b: every month is edited); a post of another board is changed from here, on its copy, and its change
   // is a step of that month in the client's ⌘Z (D-317). Nothing of it with the mesa paused in another tab or in «Vista cliente»; nothing of Zernio or
   // Notion: it goes by the date only.
   let RELOJ = null;                    // tests: a fixed clock (M._test.reloj)
@@ -3481,20 +3481,26 @@ ${TK_FUENTES}
   // and what passes on its own): since the feed continuo (pieza 2, D-317) a change of another month is a step of that month in the
   // client's one history, done on its copy in memory and written as its own save writes it (its revisions, its collabs). The
   // copy shows it at once (vencidas); ⌘Z of it makes that month the open one.
-  async function anteriores(B) {       // the client's boards before the open one (its months come first)
+  async function otrosTableros(B) {    // the client's other boards, earlier and later (pieza 3b), the newest month first
     const all = ((await idbAll('boards')) || []).map(b => newest(b.key, b));
-    return all.filter(b => b && b.key !== B.key && boardClient(b) === B.client && b.month && String(b.month) < String(B.month))
+    return all.filter(b => b && b.key !== B.key && boardClient(b) === B.client && b.month)
       .sort((a, b) => String(b.month).localeCompare(String(a.month)));
   }
   const enCopia = (key, s) => { const m = MEM.tab.get(key), o = m && m.tablero.slots.find(x => x.id === s.id); return o || s; };   // a post of another board as its copy has it now
-  async function deFuera(B, que) {     // [{b, s}] of the earlier boards that que(s, b) picks; a post the open board has is its own
-    const visto = new Set(B.slots.map(s => s.id)), out = [];
-    for (const b0 of await anteriores(B)) {
+  // [{b, s}] of the client's other boards that que(s, b) picks; a post the open board has is its own. A post two other boards
+  // have (boards that overlap, R12): the one of the board that owns its month in the feed (feedDueno), else the first seen
+  async function deFuera(B, que) {
+    const mio = new Set(B.slots.map(s => s.id)), por = new Map();
+    for (const b0 of await otrosTableros(B)) {
       const m = MEM.tab.get(b0.key), b = m ? m.tablero : b0;
-      for (const s of b.slots || []) { if (visto.has(s.id)) continue; visto.add(s.id); if (que(s, b)) out.push({ b, s }); }
+      for (const s of b.slots || []) { if (mio.has(s.id)) continue; if (!por.has(s.id)) por.set(s.id, []); por.get(s.id).push({ b, s }); }
     }
+    const out = [];
+    for (const l of por.values()) { const x = (l.length > 1 && l.find(({ b, s }) => feedDueno(mesDe(s, b)) === b.key)) || l[0]; if (que(x.s, x.b)) out.push(x); }
     return out;
   }
+  // a month of a copy changed from here is drawn again in the feed (its copy is the same object: FMEM would keep its old html)
+  function feedOlvidar(key) { for (const [m, c] of FMEM) if (c.key === key) FMEM.delete(m); }
   let fueraQ = Promise.resolve();
   // a copy of another month changed from here, written as its save would: its posts' revisions (s.at) and what its collabs share
   function guardarOtro(B) {
@@ -3518,7 +3524,7 @@ ${TK_FUENTES}
     const por = new Map(); lista.forEach(x => { if (!por.has(x.B)) por.set(x.B, []); por.get(x.B).push(x); });
     for (const [B, l] of por) { track(B); if (tarde) { const ids = new Set(l.map(x => x.id)); tardeEnPasos(B.key, ids); B.slots.forEach(s => { if (ids.has(s.id) && s.estado && s.estado.v === 'programado') s.estado = { ...s.estado, tarde: true }; }); } }
     const partes = [...por].map(([B, l]) => ({ k: B.key, e: estadosDe(B, l.map(x => x.id)) }));
-    for (const [B, l] of por) { aplicarEstados(B, Object.fromEntries(l.map(x => [x.id, x.estado]))); const st = editBoard(B); HC.cur.set(B.key, { st, j: JSON.stringify(st) }); }
+    for (const [B, l] of por) { aplicarEstados(B, Object.fromEntries(l.map(x => [x.id, x.estado]))); const st = editBoard(B); HC.cur.set(B.key, { st, j: JSON.stringify(st) }); feedOlvidar(B.key); }
     histPush({ p: partes }); HC.tag = null;
     for (const B of por.keys()) guardarOtro(B);
   }
@@ -3532,12 +3538,12 @@ ${TK_FUENTES}
       const B = copiaParaCambiar(key);
       if (!B || S !== B0 || locked || !B.slots.some(s => s.id === id)) return;
       estadosFuera([{ B, id, estado: estado ? JSON.parse(JSON.stringify(estado)) : null }]);
-      calRender(); refreshDetail();
+      renderFeed(); refreshDetail();
     }).catch(e => toast('No se pudo cambiar el otro tablero: ' + ((e && e.message) || e), { ms: 8000 }));
     return '';
   }
   const quieta = () => !S || locked || !root || root.classList.contains('client') || root.classList.contains('pp-on') || (M.libre && M.libre.abierto && M.libre.abierto()) || (M.diseno && M.diseno.abierto && M.diseno.abierto()) || uploadsBusy() || importing || switching > 0;
-  // B: the Programadas whose moment came, here and in the earlier boards, pass to Publicado: one step of ⌘Z, with a toast
+  // B: the Programadas whose moment came, here and in the client's other boards (earlier and later, pieza 3b), pass to Publicado: one step of ⌘Z, with a toast
   let pubBusy = false;
   async function publicarSolas() {
     if (quieta() || pubBusy) return 0;
@@ -3567,7 +3573,8 @@ ${TK_FUENTES}
       return n;
     } finally { pubBusy = false; }
   }
-  // C: the vencidas of the earlier boards (those of the open board are counted at once), kept for the calendar's count
+  // C: the vencidas of the client's other boards, earlier and later (those of the open board are counted at once), kept for the
+  // calendar's count; activar refreshes it for its board (sembrar), so it is always «all but the open one»
   let vencFuera = [], vencDe = null;
   async function vencRefrescar() {
     const B = S; if (!B) { vencFuera = []; vencDe = null; return []; }
@@ -7242,7 +7249,7 @@ ${TK_FUENTES}
     if (!shellReady()) return;
     renderBar(); renderMain();           // the same .main (by client): its feed, tray and calendar drawn for this month
     usosOtros();                         // the client's other boards, read in the background (never written)
-    vencRefrescar().catch(() => { /* the next minute */ });   // its vencidas of the earlier boards (read only)
+    vencRefrescar().catch(() => { /* the next minute */ });   // the vencidas of the client's other boards, for this one (read only)
     if (M.diseno && M.diseno.prepararKits && S.slots.some(s => s.design)) M.diseno.prepararKits(S).then(() => { if (S && S.key === key) renderFeed(); }).catch(() => { /* */ });
   }
   function activado() { histBase(); }

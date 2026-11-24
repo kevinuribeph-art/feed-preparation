@@ -36,7 +36,7 @@
 //   legend. 1.11 (D-121, D-120, mesa ≥ 3.92): a board opens on today's month, today marked; if the board doesn't hold today,
 //   on its month nearest to today (‹ › are kept until another board opens). A vencida (not cancelled nor published, its
 //   moment passed and not a Programada that passes to Publicado on its own) has a thin red border and its time in red; «N
-//   vencidas» in the header opens the window that lists the client's, those of its earlier boards too, by date, each with
+//   vencidas» in the header opens the window that lists the client's, those of its other boards too (earlier and later), by date, each with
 //   «Ya se publicó», «Reprogramar» and «Cancelar», one step of ⌘Z each. Nothing of it in the vista cliente; nothing of
 //   Zernio, captions or emails.
 //   Sessions (1.23, D-219, mesa ≥ 4.24): a session of the personal page (sesiones.js) with a date has a chip on each day of the
@@ -406,7 +406,7 @@
   }
 
   // ---------- the vencidas (D-120) ----------
-  // The client's vencidas, by date: this board's and those of its earlier boards, which say their month and open in their
+  // The client's vencidas, by date: this board's and those of its other boards, earlier and later (pieza 3b), which say their month and open in their
   // board. «Ya se publicó» → Publicado. «Reprogramar» → a day and time ahead inside its board (a Programada warns that
   // Zernio keeps the old one, D-103; its stories go with it, D-057); one of another board opens there, and one whose board
   // has no day ahead can't. «Cancelar» → with its reason (D-082). Each one a step of ⌘Z; nothing of Zernio or Notion.
@@ -456,7 +456,7 @@
     if (!v) { vencPintar(); return; }
     if (a === 'v-abrir' || (a === 'v-rep' && !v.aqui)) {   // one of another board opens in its board
       X.closeDetail();
-      if (!v.aqui) { const r = await M.open(v.key); if (r === 'no existe' || (r && r.error)) { I().toast('No se pudo abrir su tablero.'); return; } }
+      if (!v.aqui) { const r = await M.open(v.key, { mes: v.mes }); if (r === 'no existe' || (r && r.error)) { I().toast('No se pudo abrir su tablero.'); return; } }
       const Y = I(); if (Y && Y.slot(v.id)) Y.openDetail(v.id, 0);
       return;
     }

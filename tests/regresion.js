@@ -23504,6 +23504,71 @@
     } finally { M.descargar.vaciar(); await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 1, slots: [], past: [], force: true }); await limpiar(); }
   });
 
+  // ---------- feed continuo, pieza 3b: las reglas que cruzan meses ----------
+  // Lo que pasa solo y las vencidas miran todos los tableros del cliente (también los posteriores); mover una publicación a otro
+  // mes intercambia las dos casillas entre tableros (cada una conserva su fecha), un paso de ⌘Z con dos partes, y una Publicada
+  // ni se mueve ni se pisa; «+ Hueco» y «Fijar», solo en el tablero más nuevo; la imagen del feed enseña lo que el feed.
+  const FF_SEP = '2026-09', ffS = `${CLIENTE}-${FF_SEP}`;   // fdO (octubre) y fdN (noviembre), los de la pieza 2
+  const ffDe = async (k, id) => { await M._test.fueraListo(); await M.flush(); const b = await M._in.idbGet('boards', k); const s = b && b.slots.find(x => x.id === id); return s ? s.estado || null : 'no está'; };
+  async function ffMes(mes, slots, prog = [], aprob = []) {   // un tablero del cliente, con sus Programadas y sus aprobadas
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: mes, cycleDay: 1, slots, past: [], force: true });
+    if (prog.length || aprob.length) await porAprobar([...prog, ...aprob], 'ff-' + mes);
+    if (prog.length) M.setEstado(prog, 'programado');
+    if (aprob.length) M.setEstado(aprob, 'aprobado');
+    await M.flush();
+  }
+  async function ffZ(atras = true) { if (atras) M._test.undo(); else M._test.redo(); await M._test.histListo(); await M._test.fueraListo(); await M.flush(); await espera(30); }
+
+  prueba('FF1', 'Lo que pasa solo y las vencidas, en todos los meses del cliente (feed continuo, pieza 3b): con octubre abierto, la Programada de noviembre (posterior) pasa sola con las de septiembre y octubre en un solo paso de ⌘Z; las vencidas y su cifra incluyen las de noviembre; «Cancelar», «Ya se publicó» y «Reprogramar» de una posterior; ⌘Z de un paso de noviembre lleva a noviembre; tras activar otro mes la lista es la de todos menos el abierto (D-120)', async () => {
+    try {
+      await limpiar(); reloj('2026-09-01', '09:00');
+      await ffMes(FF_SEP, [fcSlot('ff1-s1', '3.1', 20, FF_SEP), fcSlot('ff1-s2', '3.2', 22, FF_SEP)], ['ff1-s1'], ['ff1-s2']);
+      await ffMes(MES, [fcSlot('ff1-n1', '5.1', 3), fcSlot('ff1-n2', '5.2', 4), fcSlot('ff1-n4', '5.4', 5), fcSlot('ff1-n3', '5.3', 25)], ['ff1-n1'], ['ff1-n2', 'ff1-n4', 'ff1-n3']);
+      await ffMes(FD_OCT, [fcSlot('ff1-o1', '4.1', 20, FD_OCT)], ['ff1-o1']);   // abierto octubre: el de en medio
+      reloj('2026-11-10', '12:00'); M._in.clearToasts();
+      const u0 = M._test.hist().undo;
+      await revisarV();
+      igual((await ffDe(fdN, 'ff1-n1') || {}).v, 'publicado', 'la Programada de noviembre (un mes posterior) no pasó sola');
+      igual([(await ffDe(ffS, 'ff1-s1') || {}).v, slot('ff1-o1').estado.v], ['publicado', 'publicado'], 'las de septiembre y octubre');
+      igual(M._test.hist().undo, u0 + 1, 'las tres, en un solo paso de ⌘Z');
+      ok(/3 publicaciones pasan a Publicado/.test(qa('.toasts .toast').map(t => t.textContent).join(' | ')), 'sin el aviso de las tres');
+      igual(vencidasV().map(v => [v.id, v.aqui]), [['ff1-s2', false], ['ff1-n2', false], ['ff1-n4', false]], 'las vencidas, con las de noviembre');
+      await hasta(() => /3 vencidas/.test((q('.side > .cal') || { textContent: '' }).textContent), 3000, 'la cifra «3 vencidas» del calendario');
+      abrirV();
+      await hasta(() => filaV('ff1-n2'), 3000, 'la fila de la de noviembre');
+      ok(/Noviembre 2026, otro tablero/.test(filaV('ff1-n2').textContent), 'la de noviembre no dice su mes');
+      ok(!filaV('ff1-n2').querySelector('[data-cal="v-rep"]').disabled, 'la de noviembre no se puede reprogramar (su tablero tiene días por delante)');
+      enFilaV('ff1-n4', 'v-can');
+      (await hasta(() => filaV('ff1-n4').querySelector('input[data-v="motivo"]'), 2000, 'el motivo')).value = 'FF1';
+      enFilaV('ff1-n4', 'v-can-ok');
+      igual(await ffDe(fdN, 'ff1-n4'), { v: 'cancelado', motivo: 'FF1' }, '«Cancelar» de la de noviembre');
+      await hasta(() => filaV('ff1-n2'), 3000, 'la fila de la de noviembre, otra vez');
+      enFilaV('ff1-n2', 'v-pub');
+      igual((await ffDe(fdN, 'ff1-n2') || {}).v, 'publicado', '«Ya se publicó» de la de noviembre');
+      await hasta(() => (marcas('ff1-n2') || []).includes('e-publicado'), 3000, 'la marca de Publicado en su casilla del feed');
+      M._in.closeDetail();
+      igual(M.status().key, fdO, 'el abierto sigue siendo octubre');
+      await ffZ();
+      igual([M.status().key, (await ffDe(fdN, 'ff1-n2') || {}).v], [fdN, 'aprobado'], '⌘Z de un paso de noviembre: a noviembre, y la devuelve');
+      await ffZ();
+      igual((await ffDe(fdN, 'ff1-n4') || {}).v, 'aprobado', '⌘Z: la cancelada vuelve');
+      await ffZ();
+      const e1 = await ffDe(fdN, 'ff1-n1'), e2 = await ffDe(ffS, 'ff1-s1'), e3 = await ffDe(fdO, 'ff1-o1');
+      igual([e1.v, !!e1.tarde, e2.v, !!e2.tarde, e3.v, !!e3.tarde], ['programado', true, 'programado', true, 'programado', true], '⌘Z: las tres vuelven, como vencidas');
+      igual(M.status().key, fdN, 'el paso de las tres tenía noviembre (el abierto): se queda');
+      const lista = () => json(vencidasV().map(v => [v.id, v.aqui]).sort());
+      await hasta(() => lista() === json([['ff1-n1', true], ['ff1-n2', true], ['ff1-n4', true], ['ff1-o1', false], ['ff1-s1', false], ['ff1-s2', false]]), 3000, 'las vencidas con noviembre abierto: ' + lista());
+      await fdAct(fdO);
+      await hasta(() => lista() === json([['ff1-n1', false], ['ff1-n2', false], ['ff1-n4', false], ['ff1-o1', true], ['ff1-s1', false], ['ff1-s2', false]]), 3000, 'tras activar octubre, todas menos las de octubre de fuera: ' + lista());
+      abrirV();
+      await hasta(() => filaV('ff1-n2'), 3000, 'la fila de la de noviembre');
+      enFilaV('ff1-n2', 'v-rep');
+      await hasta(() => M.status().key === fdN && dialogo() && dialogo().dataset.slot === 'ff1-n2', 4000, '«Reprogramar» de una posterior: su tablero y su publicación');
+      igual(M._in.mesActivo.lee(), MES, 'el mes activo, el de la publicación');
+      M._in.closeDetail();
+    } finally { volverReloj(); M._in.closeDetail(); await limpiar(); }
+  });
+
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;
   $('resumen').textContent = `${T.length} pruebas listas.`;

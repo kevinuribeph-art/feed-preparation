@@ -364,7 +364,12 @@
   // client opened, «Usar aquí», a pause or a newer tab let them all go (memSoltar). A copy read while its board was written is not kept.
   const MEM = { tab: new Map(), gen: new Map(), epoca: 0 };
   function memSoltar() { MEM.epoca++; MEM.tab.clear(); MEM.gen.clear(); }
-  function memTocado(clave) { if (typeof clave !== 'string') { memSoltar(); return; } MEM.gen.set(clave, (MEM.gen.get(clave) || 0) + 1); MEM.tab.delete(clave); }
+  function memTocado(clave) {
+    if (typeof clave !== 'string') { memSoltar(); return; }
+    MEM.gen.set(clave, (MEM.gen.get(clave) || 0) + 1); MEM.tab.delete(clave);
+    // a copy whose month before (its strip, S.prev: what the calendar and the feed's image show) came from that board goes too (pieza 3a)
+    for (const [k, m] of [...MEM.tab]) if (m.PB && m.PB.key === clave) { MEM.gen.set(k, (MEM.gen.get(k) || 0) + 1); MEM.tab.delete(k); }
+  }
   // a store of 'boards' in a transaction that writes: each put, add, delete, clear and cursor's update or delete lets its copy go
   function conMem(o, n, mode) {
     if (mode !== 'readwrite' || n !== 'boards') return o;
@@ -3779,12 +3784,13 @@ ${TK_FUENTES}
   // the html of the whole feed drawn again from nothing (for the battery: a drawing by comparison, lesson 20)
   function feedHTMLEntero() { const now = ahora(); return feedMeses().filter(e => e.B).map(e => `<${e.m}>` + mesHTML(e, now).html).join(''); }
   function feedHTMLGuardado() { return feedMeses().filter(e => e.B && FMEM.has(e.m)).map(e => `<${e.m}>` + FMEM.get(e.m).html).join(''); }
-  // its photos: the open board's (and any already made) at once; the others when they come into sight (blob: has no lazy loading)
+  // its photos: the open board's at once; the others when they come into sight (blob: has no lazy loading; an <img> off the screen
+  // with its src would still be fetched and kept decoded)
   function feedFotos(w, ya) {
     const feed = w.closest('.feed');
     w.querySelectorAll('img[data-mini], img[data-pmini]').forEach(im => {
       const pid = im.dataset.pmini, f = !pid && M.files[im.dataset.mini];
-      if (pid ? false : f && (ya || URLS_MINI.has(f))) { im.src = f.thumbUrl || ''; return; }
+      if (!pid && f && ya) { im.src = f.thumbUrl || ''; return; }
       if (!feed) return;
       if (!feed._io) feed._io = new IntersectionObserver(es => es.forEach(x => {
         if (!x.isIntersecting) return;
@@ -3833,6 +3839,7 @@ ${TK_FUENTES}
     const grid = root.querySelector('.feed .grid'); if (!grid) return;
     if (memoEdit && !S.slots.some(s => s.id === memoEdit)) memoEdit = null;
     const L = feedMeses(), now = ahora(), cm = root.classList.contains('client');
+    if (!grid.firstChild) FMEM.clear();   // a new grid (another client): nothing drawn is kept
     [...grid.children].forEach(n => { if (!n.classList.contains('fmes')) n.remove(); });
     const ya = new Map([...grid.children].map(n => [n.dataset.mes, n]));
     let estructura = false; const plan = [];
@@ -3861,11 +3868,11 @@ ${TK_FUENTES}
       if (!w) { w = document.createElement('div'); w.className = 'fmes'; w.dataset.mes = e.m; }
       if (w.dataset.tablero !== e.key) w.dataset.tablero = e.key;
       if (e.src === 'notion') w.dataset.notion = '1'; else delete w.dataset.notion;
+      const ref = prev ? prev.nextSibling : grid.firstChild; if (w !== ref) grid.insertBefore(w, ref);   // in the page first: its photos are watched from the feed
+      prev = w;
       if (r && w._h !== r.html) { const kept = ponerMes(w, r.html, r.esS); w._h = kept ? null : r.html; w._n = r.n; }   // kept: drawn again whole once the Nota's editing ends
       else if (r && r.esS && !w._ya) feedFotos(w, true);
       w._ya = !!(r && r.esS);
-      const ref = prev ? prev.nextSibling : grid.firstChild; if (w !== ref) grid.insertBefore(w, ref);
-      prev = w;
     }
     ya.forEach((w, m) => { if (!quedan.has(m)) { w.remove(); FMEM.delete(m); } });
     if (ancla && ancla.el.isConnected) { const d = ancla.el.getBoundingClientRect().top - ancla.top; if (d) feed.scrollTop += d; }
@@ -7335,6 +7342,22 @@ ${TK_FUENTES}
 
   M.open = async (key, o = {}) => {
     const MIRA = MOVIL && !!(o && o.mirar);   // the iPhone (D-267): to look, without writing
+    // another month of the open client (pieza 3a): it doesn't open again nor make .main again; it becomes the active one (activar) and
+    // the feed goes to it. With a window, a menu, a field or the editor open (activar says no), as before: opened again (M.init)
+    if (!MIRA && S && S.key !== key && !locked && shellReady() && MB.some(b => b.key === key) && boardClient(S) === curClient) {
+      await claim();
+      if (!locked && S && S.key !== key) {
+        const r = await activar(key, { mes: o.mes, quien: o.quien || 'open' });
+        if (r && r.ok) {
+          lsSet('mesa-last', key); lsSet('mesa-lastClient', curClient);   // a reload comes back to it (as M.init)
+          let lastBy = {}; try { lastBy = JSON.parse(lsGet('mesa-lastByClient') || '{}'); } catch (e) { /* */ }
+          lastBy[curClient] = key; lsSet('mesa-lastByClient', JSON.stringify(lastBy));
+          renderFeed();                  // the last used owns a month two boards hold (D-318)
+          feedMovido = false; feedIr(mesActivo, { instantaneo: true });
+          return M.status();
+        }
+      }
+    }
     if (S && !MIRA) { try { await flushNow(); } catch (e) { /* */ } }   // its linked slots reach the board being opened first
     if (!MIRA) await migrateLegacy();
     const b = newest(key, await idbGet('boards', key));        // cfg (Notion values included) from the copy init uses
@@ -9421,6 +9444,8 @@ ${TK_FUENTES}
     tablerosMem: { leer: conTableros(memLeer), leerCliente: conTableros(memLeerCliente), ver: k => (MEM.tab.get(k) || {}).tablero || null, soltar: memSoltar, claves: () => [...MEM.tab.keys()] }
   };
   M._test = {
+    // forget every thumbnail made (its blob: URL) and read: as a page just loaded (the feed's photos when seen, pieza 3a)
+    olvidarMinis: () => { for (const id of Object.keys(M.files)) { const f = M.files[id], u = URLS_MINI.get(f); if (u && u !== HUECO_U && /^blob:/.test(u)) URL.revokeObjectURL(u); delete M.files[id]; delete M.thumbBlobs[id]; } memSoltar(); },
     entBorrarTodo: async () => { if (NUBE.activa) throw new Error('con la nube encendida no se vacía nada (D-256)'); entGen++; await tx('entregas', 'readwrite', st => st.clear()); ENT = new Map(); entAvisar(false); },   // D-290
     mesBorrarTodo: async () => { if (NUBE.activa) throw new Error('con la nube encendida no se vacía nada (D-256)'); mesGen++; await tx('meses', 'readwrite', st => st.clear()); MES = new Map(); mesAvisar(false); },   // the battery's months (D-238)
     acuOlvidar: () => { ACU = null; PAQ = null; },   // the battery: as if the agreements had never been read (AR3)

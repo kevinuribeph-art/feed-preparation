@@ -23369,6 +23369,59 @@
     } finally { await limpiar(); }
   });
 
+  // seis publicaciones por mes: el feed se desliza
+  const feSeis = (pre, mes, ini = 2) => Array.from({ length: 6 }, (_, i) => fcSlot(`${pre}${i + 1}`, `${pre}.${i + 1}`, ini + i * 3, mes));
+  async function feTres() {   // septiembre, octubre y noviembre, seis cada uno; abierto noviembre
+    await limpiar();
+    for (const [p, m] of [['fe-s', '2026-09'], ['fe-o', FD_OCT], ['fe-n', MES]]) { await M.init({ client: CLIENTE, clientName: NOMBRE, month: m, cycleDay: 1, slots: feSeis(p, m), past: [], force: true }); await M.flush(); }
+    await feTodo([MES, FD_OCT, '2026-09']);
+  }
+  prueba('FE6', 'MESA.open de otro mes (pieza 3a): deja S y el mes activo en ese mes, lleva el feed a su punto (su primera publicación en la fila de abajo) y no vuelve a abrirlo ni reinicia ⌘Z; abrir el cliente coloca el mes de hoy', async () => {
+    try {
+      await feTres();
+      M._test.setNote('fe-n1', 'FE6'); await M.flush(); const h0 = M._test.hist().undo;
+      const feed = q('.feed');
+      const r = await M.open(`${CLIENTE}-2026-09`);
+      ok(r && !r.error, 'MESA.open: ' + json(r));
+      igual([M._in.S.key, M._in.mesActivo.lee(), M._test.hist().undo], [`${CLIENTE}-2026-09`, '2026-09', h0], 'S, el mes activo y ⌘Z');
+      ok(feed.scrollHeight > feed.clientHeight + 50, 'el feed no se desliza: la prueba no vale');
+      const punto = M._in.feedPunto('2026-09'); igual(feed.scrollTop, punto, 'el feed no fue al punto de septiembre');
+      const ult = celda('fe-s1').getBoundingClientRect(), fb = feed.getBoundingClientRect();
+      ok(punto === feed.scrollHeight - feed.clientHeight || Math.abs(ult.bottom - (fb.top + feed.clientHeight - (parseFloat(getComputedStyle(feed).paddingBottom) || 0))) <= 2, `la primera de septiembre no está en la fila de abajo: ${ult.bottom} frente a ${fb.bottom}`);
+      await M.open(fdN); igual([M._in.S.key, M._in.mesActivo.lee()], [fdN, MES], 'de vuelta a noviembre');
+      igual(feed.scrollTop, M._in.feedPunto(MES), 'el punto de noviembre');
+      ok(M.board() && M.plan && Array.isArray(M.plan()), 'board() y plan()');
+      await M.openClient(CLIENTE); await M.flush(); await feTodo([MES, FD_OCT, '2026-09']);
+      igual([M._in.S.key, M._in.mesActivo.lee(), feed.scrollTop], [fdO, FD_OCT, M._in.feedPunto(FD_OCT)], 'abrir el cliente: el mes de hoy, colocado');
+    } finally { await limpiar(); }
+  });
+
+  prueba('FE8', 'Fotos al verse (pieza 3a): con seis meses, al abrir solo las casillas cercanas a lo que se ve tienen su foto puesta; al acercarse, las demás la ganan; ninguna casilla cambia de tamaño (lección 297)', async () => {
+    const meses = ['2026-06', '2026-07', '2026-08', '2026-09', FD_OCT, MES];
+    try {
+      await limpiar();
+      for (const m of meses) {
+        const p = 'fe8-' + m.slice(5) + '-';
+        await M.init({ client: CLIENTE, clientName: NOMBRE, month: m, cycleDay: 1, slots: feSeis(p, m), past: [], force: true });
+        await poner(p + '6', [await foto(`fe8-${m}-a.jpg`)]); await poner(p + '5', [await foto(`fe8-${m}-b.jpg`)]);
+        await M.flush();
+      }
+      await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 1, slots: [pub(1)], past: [], force: true }); await M.flush();
+      M._test.olvidarMinis();
+      await M.openClient(CLIENTE); await M.flush();
+      await feTodo([...meses].reverse());
+      const feed = q('.feed'), conFoto = m => qa(`.feed .grid > .fmes[data-mes="${m}"] .cell img.crop`);
+      ok(feed.scrollHeight > feed.clientHeight * 2.5, 'el feed es corto: la prueba no vale');
+      const alto = () => qa('.feed .grid .cell').map(c => Math.round(c.getBoundingClientRect().height));
+      const h0 = alto();
+      igual(conFoto('2026-06').map(i => i.getAttribute('src')), [null, null], 'junio, lejos, ya tiene sus fotos ');
+      ok(conFoto(FD_OCT).every(i => /^blob:/.test(i.getAttribute('src') || '')), 'octubre, a la vista, sin sus fotos');
+      feed.scrollTop = feed.scrollHeight;
+      await hasta(() => conFoto('2026-06').every(i => /^blob:/.test(i.getAttribute('src') || '')), 3000, 'las fotos de junio al acercarse');
+      igual(alto(), h0, 'una casilla cambió de tamaño al cargar');
+    } finally { await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 1, slots: [], past: [], force: true }); await limpiar(); }
+  });
+
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;
   $('resumen').textContent = `${T.length} pruebas listas.`;

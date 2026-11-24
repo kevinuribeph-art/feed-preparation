@@ -24779,6 +24779,25 @@
       await M.open(FN); ok(Array.isArray(M.notionChanges()), 'notionChanges tras abrir'); igual(SK.ver() && SK.ver().key, FN, 'la concesión, en noviembre otra vez');
     } finally { SK.cerrar(); await limpiar(); }
   });
+  prueba('FM8', 'markSynced con ids nunca guarda y da error a la vez (feed continuo, pieza 9; D-335): con la concesión en otro tablero, da el error sin haber marcado nada; con el tablero de la skill abierto, marca y devuelve lo de siempre (las llamadas de la Mesa por dentro no pasan por la envoltura de la skill)', async () => {
+    const FN = `${CLIENTE}-${MES}`, SK = M._in.skill || { ver: () => null, cerrar() {} };
+    try {
+      await fjSeis(); await M.open(FN); await fjQuieto(300);
+      ok(Array.isArray(M.plan()), 'plan()');
+      const rp = await M._in.mesActivo.pon('2026-10', 'prueba'); ok(rp && rp.ok, 'pon de octubre: ' + json(rp));   // como un ⌘Z que lleva a otro mes: no cierra la concesión
+      igual(M._in.S.key, FJ_SO, 'octubre abierto');
+      const n0 = M._in.S.notionAt || null, d0 = json(slot('fj-o1'));
+      const e = M.markSynced(['fj-o1']);
+      const guardo = (M._in.S.notionAt || null) !== n0 || json(slot('fj-o1')) !== d0, error = !!(e && !Array.isArray(e) && e.error);
+      ok(!(guardo && error), 'markSynced marcó octubre y además dijo que no tocó nada: ' + json(e).slice(0, 160));
+      ok(error && !guardo, 'con la concesión en noviembre, markSynced de octubre no dio el error sin tocar nada');
+      await M.open(FJ_SO); await fjQuieto(300); ok(Array.isArray(M.plan()), 'plan() de octubre');
+      const n1 = M._in.S.notionAt || null, r = M.markSynced(['fj-o1']);
+      ok(Array.isArray(r) && (M._in.S.notionAt || null) !== n1, 'con su tablero abierto, markSynced no marcó o no devolvió la lista: ' + json(r).slice(0, 160));
+      const u = M.markUploaded([{ slotId: 'fj-o1', fileIds: [], note: 'FM8' }]); ok(Array.isArray(u), 'markUploaded no devolvió el plan: ' + json(u).slice(0, 160));
+      igual(SK.ver() && SK.ver().key, FJ_SO, 'la concesión no sigue en octubre');
+    } finally { SK.cerrar(); await limpiar(); }
+  });
 
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;

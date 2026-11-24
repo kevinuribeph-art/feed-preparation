@@ -8353,7 +8353,7 @@ ${TK_FUENTES}
   // end it (the skill's next call starts it again on its board). And a call with a post that isn't in the open board but in another
   // of the client's, or markSynced / notionChanges without ids with the concession on another board, gives an error and touches nothing.
   const SKILL_MS = 10 * 60 * 1000;
-  let SKILL = null, estadoRaw = null, cambiosRaw = null;   // {key, t}; the calls as the Mesa makes them inside (never a concession)
+  let SKILL = null, estadoRaw = null, cambiosRaw = null, planRaw = null;   // {key, t}; the calls as the Mesa makes them inside (never a concession)
   const skillViva = () => !!(SKILL && S && !MOVIL && Date.now() - SKILL.t < SKILL_MS);
   function skillToca() { if (S && !locked && !MOVIL) SKILL = { key: S.key, t: Date.now() }; }
   const nomTablero = k => { const b = MB.find(x => x.key === k); return b ? rangeLabel(b.month, b.span, false, cdOf(b.cycleDay)) : k; };
@@ -8534,7 +8534,7 @@ ${TK_FUENTES}
       s.uploaded = { fileIds, note: nt, crop: JSON.stringify(sigs), at: new Date().toISOString() };
     });
     changed();
-    return M.plan();
+    return (planRaw || M.plan)();   // the Mesa's own call: never through a skill's wrapper (pieza 9, D-335)
   };
   // Dates/times changed here and the renames they cause (numbering «W.N» / collab «Mes K»), to write to Notion.
   // dateMadrid = the new date as Madrid wall clock ('YYYY-MM-DDTHH:MM', or 'YYYY-MM-DD' when date-only).
@@ -8552,7 +8552,7 @@ ${TK_FUENTES}
     S.slots.forEach(s => { if (only ? only.has(s.id) : vivo(s)) { s.notionDate = s.date; s.notionName = s.name; s.notionType = s.type; delete s.hold; } });
     S.notionAt = new Date().toISOString();
     holdOrphans(); renumber(); changed(); refreshDetail();
-    return M.notionChanges();
+    return (cambiosRaw || M.notionChanges)();   // the Mesa's own call: never through a skill's wrapper (pieza 9, D-335)
   };
   // States (3.32): ids = a slotId or a list; estado = 'aprobado' or 'noaprobado' (only from «Por aprobar», D-082) |
   // 'programado' | 'publicado' | 'cancelado' | 'empezar', 'captions' or 'aprobar' to put it back by hand, never past what its
@@ -9865,7 +9865,7 @@ ${TK_FUENTES}
   };
   // a board switch in progress (the designer refuses to open meanwhile: its board is about to go away)
   let switching = 0;
-  estadoRaw = M.setEstado; cambiosRaw = M.notionChanges;
+  estadoRaw = M.setEstado; cambiosRaw = M.notionChanges; planRaw = M.plan;
   for (const k of ['plan', 'render', 'startUpload', 'startZernio', 'markUploaded', 'markSynced', 'setEstado', 'notionChanges']) { const f = M[k]; M[k] = (...a) => {   // a skill's calls (D-329): the same names and answers
     const e = skillAntes(k, a); if (e) return k === 'render' ? Promise.resolve(e) : e;
     const r = f(...a); skillToca(); return r; }; }

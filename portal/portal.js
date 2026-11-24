@@ -6,6 +6,7 @@
   'use strict';
   const V = '1.8';   // 1.8: un cliente de solo contenido sin meses: su lista entera y sus sesiones que vienen, sin calendario, como la «Vista cliente» (D-312). 1.7: «Tus pagos» con el acuerdo de cuándo a cuándo, lo que incluye su paquete y la siguiente por su fecha (D-308). 1.6: a pantalla completa (D-293), «Ver más en Zernio» (D-294), la ventana de una publicación como Instagram (D-295), las flechas del carrusel (D-296), «Tus pagos» con su tramo, las entregas de un cliente de solo contenido y la reunión (D-297). 1.5: el aviso de demasiados intentos ya no promete un minuto (D-280). 1.4: la cuenta que solo mira: ve cada cliente como lo ve él, sin aprobar, pedir cambios ni comentar (D-266). 1.3: el monograma a la izquierda de la barra, sin pulsar, y la página con las medidas de la «Vista cliente» (D-264)
   const app = document.getElementById('app');
+  try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (e) { /* */ }   // el feed se coloca solo en su mes: al recargar, el navegador no lo mueve a donde estaba
   const CFG = window.PORTAL_CONFIG || {};
   const TZ = 'Europe/Madrid';
   const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -41,7 +42,6 @@
   const dsem = dia => DIAS[new Date(dia + 'T12:00:00Z').getUTCDay()];
   const madrid = dia => new Date(dia + 'T11:00:00Z').toISOString();   // una entrega, a mediodía de su día en Madrid (para ordenar la lista)
   const may = t => t ? t[0].toUpperCase() + t.slice(1) : t;
-  const mesCorto = m => may(MESES[+m.slice(5, 7) - 1].slice(0, 3)) + ' ' + m.slice(0, 4);
   const mesEt = m => may(MESES[+m.slice(5, 7) - 1].slice(0, 3)) + (m.slice(0, 4) !== hoy().slice(0, 4) ? ' ' + m.slice(2, 4) : '');   // «Nov», «Ene 27»: el año solo si no es el de hoy
   const mesNom = m => MESES[+m.slice(5, 7) - 1] + (m.slice(0, 4) !== hoy().slice(0, 4) ? ' ' + m.slice(0, 4) : '');
   const mesAntes = m => { let [y, mo] = m.split('-').map(Number); mo--; if (!mo) { mo = 12; y--; } return `${y}-${String(mo).padStart(2, '0')}`; };
@@ -220,12 +220,24 @@
     const cols = pv.querySelector(':scope > .cols'), k = st.cli + '|' + st.mes;
     if (st.colsDe !== k) st.ys = new Map(); else scrollCols();   // otro mes: el calendario y la columna derecha, arriba
     if (cont) { const e = seguro(pintarEntregas), v = cols.querySelector(':scope > .entw'); if (e && v) v.replaceWith(e); }
-    else { seguro(feedNodo); const c = seguro(pintarCentro), v = cols.querySelector(':scope > .cent'); if (c && v) v.replaceWith(c); }
+    else { seguro(feedNodo); seguro(cabPoner); const c = seguro(pintarCentro), v = cols.querySelector(':scope > .cent'); if (c && v) v.replaceWith(c); }
     const lado = pintarLado(cli), lv = cols.querySelector(':scope > .lado');
     if (lv && lado) lv.replaceWith(lado); else if (lv) lv.remove(); else if (lado) cols.append(lado);
     cols.classList.toggle('con-lado', !!lado);
     lleno(); scrollCols(true); st.colsDe = k;
     pintarMinis();
+  }
+  // Cambió el mes activo: solo lo que cuelga del mes (el calendario o «Por qué», y «Cómo fue»). El feed, la cabecera y «Tus pagos»
+  // ni se tocan.
+  function pintarMes() {
+    const cols = app.querySelector('.pv > .cols'), cli = st.clientes.find(c => c.id === st.cli); if (!cols) return;
+    st.ys.forEach((v, k) => { if (k.startsWith('cent|') || k === 'h-comofue' || k === 'card') st.ys.delete(k); }); st.colsDe = st.cli + '|' + st.mes;
+    const c = seguro(pintarCentro), v = cols.querySelector(':scope > .cent'); if (c && v) v.replaceWith(c);
+    const cf = seguro(() => pintarComoFue(cli)); let lado = cols.querySelector(':scope > .lado'); const vcf = lado && lado.querySelector(':scope > [data-p="comofue"]');
+    if (cf && vcf) vcf.replaceWith(cf);
+    else if (cf) { if (!lado) { lado = h('div', { class: 'lado' }); cols.append(lado); } lado.append(cf); }
+    else if (vcf) { vcf.remove(); if (!lado.children.length) { lado.remove(); lado = null; } }
+    cols.classList.toggle('con-lado', !!lado);
   }
   const pintarLado = cli => { const l = [seguro(() => pintarPagos(cli)), seguro(() => pintarComoFue(cli))].filter(Boolean); return l.length ? h('div', { class: 'lado' }, l) : null; };
   function pintarAviso() {
@@ -243,15 +255,14 @@
       st.clientes.length > 1 ? st.clientes.map(c => h('button', { type: 'button', class: 'pv-obs-c' + (c.id === st.cli ? ' on' : ''), 'aria-pressed': String(c.id === st.cli), text: c.nombre, onclick: () => irA(c.id) })) : null) : null };
   }
   function pintarTop(cli, cont) {
-    const meses = cont ? [] : mesesDisponibles();   // de solo contenido, sin meses (D-312)
-    const sig = [st.cli, st.todoMira, st.clientes.map(c => c.id + c.nombre).join(','), meses.join(','), st.mes].join('|');
+    // los meses ya no van aquí: la cabecera de meses va arriba del feed (feed continuo)
+    const sig = [st.cli, st.todoMira, st.clientes.map(c => c.id + c.nombre).join(',')].join('|');
     return { sig, nodo: h('header', { class: 'pv-top' },
       h('img', { class: 'pv-marca', src: 'marca/monograma.svg', alt: 'Uribe Visuals', width: '24', height: '24' }),   // la marca, sin pulsar (D-264)
       // la cuenta que solo mira ve, como el cliente, solo su nombre; cambia de cliente en la tira (D-266)
       h('nav', { class: 'pv-clis', 'aria-label': 'Tus cuentas' }, (st.todoMira ? st.clientes.filter(c => c.id === st.cli) : st.clientes).map(c => h('button', { type: 'button', class: 'pv-cli' + (c.id === st.cli ? ' on' : ''), 'aria-current': c.id === st.cli ? 'page' : null, text: c.nombre,
         onclick: () => irA(c.id) }))),
-      h('button', { type: 'button', class: 'pv-salir', onclick: salir, 'aria-label': 'Salir' }, ico('out'), h('span', { class: 'tx', text: 'Salir' })),
-      meses.length > 1 ? h('nav', { class: 'pv-meses', 'aria-label': 'Meses' }, meses.map(m => h('button', { type: 'button', class: 'pv-mes' + (m === st.mes ? ' on' : ''), 'aria-pressed': String(m === st.mes), text: mesCorto(m), onclick: () => { st.mes = m; pintar(); } }))) : null) };
+      h('button', { type: 'button', class: 'pv-salir', onclick: salir, 'aria-label': 'Salir' }, ico('out'), h('span', { class: 'tx', text: 'Salir' }))) };
   }
   // la página entera: al entrar, al cambiar de cliente o si pasa a ser (o deja de ser) de solo contenido
   function pintarTodo() {
@@ -271,14 +282,16 @@
     lleno();
     scrollCols(true);
     st.colsDe = k;
+    if (!cont) seguro(cabPoner);
     pintarMinis();
   }
   // A pantalla completa (D-293): con las tres columnas (desde 1100 px de ancho) y 700 px de alto o más, cada columna mide el
   // alto de la pantalla menos lo de encima (la cabecera, el aviso) y se desliza dentro (portal.css, `.pv.lleno`).
   function lleno() {
     const pv = app.querySelector('.pv'), cols = pv && pv.querySelector('.cols'); if (!cols) return;
-    const si = app.clientWidth >= 1100 && window.innerHeight >= 700;
+    const si = app.clientWidth >= 1100 && window.innerHeight >= 700, antes = pv.classList.contains('lleno');
     pv.classList.toggle('lleno', si);
+    if (si !== antes && st.feed && st.feed.puesto) { const y = feedPuntoDe(st.mes); if (y != null) feedEscribir(y); }   // cambia quién desliza el feed: vuelve a su mes
     if (si) pv.style.setProperty('--cols-top', Math.round(cols.getBoundingClientRect().top + window.scrollY) + 'px');   // CSSOM: la CSP lo deja (lección 243)
   }
   // A pantalla completa cada columna se desliza dentro: repintar (una pestaña, «Ver las anteriores», aprobar, el repaso de cada
@@ -324,12 +337,14 @@
     for (const p of L) { if (!por.has(p.mes)) por.set(p.mes, []); por.get(p.mes).push(p); }
     return [...por.keys()].sort().reverse().map(m => ({ m, items: por.get(m).sort((a, b) => a.orden - b.orden).map((p, i) => ({ p, et: i ? null : mesEt(m) })) }));
   }
-  function limpiarFeed() { st.feed = null; }
+  function limpiarFeed() { if (st.feed && st.feed.ro) st.feed.ro.disconnect(); st.feed = null; }
   function feedNodo() {
     let F = st.feed;
     if (!F || F.cli !== st.cli) {
-      const grid = h('div', { class: 'feed' }), vacio = h('p', { class: 'vacio', text: 'Aún no hay publicaciones.' });
-      F = st.feed = { cli: st.cli, envs: new Map(), grid, vacio, nodo: h('section', { class: 'feedw', 'aria-label': 'Tu feed' }) };
+      const grid = h('div', { class: 'feed' }), vacio = h('p', { class: 'vacio', text: 'Aún no hay publicaciones.' }), sc = h('div', { class: 'fm-sc' });
+      const cab = FeedMov.cabecera({ icono: n => ico(n), alPulsar: k => irMes(k) });
+      const host = h('div', { class: 'fm-host' }, cab.nodo, h('div', { class: 'fm-svh', 'aria-hidden': 'true' }));
+      F = st.feed = { cli: st.cli, envs: new Map(), grid, vacio, sc, host, cab, puesto: false, nodo: h('section', { class: 'feedw', 'aria-label': 'Tu feed' }, host, sc) };
     }
     const G = feedGrupos(), nc = cuentaComs(), vivos = new Set(); let ant = null;
     for (const g of G) {
@@ -349,8 +364,50 @@
     }
     for (const [m, E] of F.envs) if (!vivos.has(m)) { E.nodo.remove(); F.envs.delete(m); }
     const dentro = G.length ? F.grid : F.vacio;
-    if (F.nodo.firstChild !== dentro || F.nodo.childNodes.length !== 1) F.nodo.replaceChildren(dentro);
+    if (F.sc.firstChild !== dentro || F.sc.childNodes.length !== 1) F.sc.replaceChildren(dentro);
     return F.nodo;
+  }
+  // ---------- la cabecera de meses y dónde está el feed ----------
+  // los meses de la cabecera, del más viejo al más nuevo: los que tienen publicaciones y los que solo tienen una sesión o una
+  // entrega (se eligen, pero no tienen sitio en el feed); un mes sin nada entre dos enviados, escondido (no llega)
+  const feedMeses = () => mesesDisponibles().slice().sort().map(m => ({ key: m, label: mesEt(m), title: may(MESES[+m.slice(5, 7) - 1]) + ' ' + m.slice(0, 4) }));
+  // quién desliza el feed: a pantalla completa, su panel; si no, la página (opción B)
+  const feedModo = () => (app.querySelector('.pv.lleno') ? 'el' : 'win');
+  // el punto de un mes: la posición en la que su primera publicación (la más vieja) queda en la fila de abajo de lo que se ve;
+  // null: el mes no tiene casillas. Con la página, el alto pequeño de la pantalla (100svh: la barra de Safari no lo mueve)
+  function feedPunto(key, modo) {
+    const F = st.feed, E = F && F.envs.get(key), c = E && E.nodo.lastElementChild; if (!c) return null;
+    const b = c.getBoundingClientRect().bottom;
+    if ((modo || feedModo()) === 'el') { const sc = F.sc, max = sc.scrollHeight - sc.clientHeight; return Math.max(0, Math.min(max, Math.round(sc.scrollTop + b - sc.getBoundingClientRect().top - sc.clientHeight))); }
+    const vh = F.host.querySelector('.fm-svh').offsetHeight || innerHeight, max = document.documentElement.scrollHeight - innerHeight;
+    return Math.max(0, Math.min(max, Math.round(scrollY + b - vh + 8)));
+  }
+  // el punto al que va el feed para un mes: el suyo o, si no tiene casillas, el del mes con casillas más cercano (antes el más nuevo)
+  function feedPuntoDe(key) {
+    const ms = feedMeses().map(m => m.key), i = ms.indexOf(key);
+    for (let d = 0; d < ms.length; d++) for (const j of [i + d, i - d]) { if (j < 0 || j >= ms.length) continue; const p = feedPunto(ms[j]); if (p != null) return p; }
+    return null;
+  }
+  const feedEscribir = y => { if (feedModo() === 'el') st.feed.sc.scrollTop = y; else window.scrollTo(0, y); };
+  // la cabecera, al día: sus meses y el activo; colocada sobre la rejilla en el cuadro siguiente; la primera vez, el feed en el mes
+  function cabPoner() {
+    const F = st.feed; if (!F) return;
+    F.cab.poner(feedMeses()); F.cab.marcar(st.mes); F.cab.mover(Math.max(0, F.cab.indice(st.mes)));
+    if (!F.ro && typeof ResizeObserver === 'function') { F.ro = new ResizeObserver(() => cabColocar()); F.ro.observe(F.grid); F.ro.observe(F.host); }
+    cabColocar();
+    if (!F.puesto) {
+      F.puesto = true; const y = feedPuntoDe(st.mes); if (y != null) feedEscribir(y);
+      // con las letras ya cargadas lo de encima puede medir otra cosa: si nadie ha movido el feed, otra vez a su punto
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (st.feed !== F || y == null) return; const s = feedModo() === 'el' ? F.sc.scrollTop : scrollY; if (Math.abs(s - y) < 1) { const y2 = feedPuntoDe(st.mes); if (y2 != null) feedEscribir(y2); } });
+    }
+  }
+  function cabColocar() { const F = st.feed; if (!F || !F.nodo.isConnected) return; F.cab.colocar(F.grid); F.cab.mover(Math.max(0, F.cab.indice(st.mes))); }
+  // pulsar un mes o una flecha: el mes activo al momento, y el feed a su punto
+  function irMes(key) {
+    const F = st.feed; if (!F) return;
+    if (key !== st.mes) { st.mes = key; pintarMes(); }
+    F.cab.marcar(key); F.cab.mover(F.cab.indice(key));
+    const y = feedPunto(key); if (y != null) feedEscribir(y);
   }
   // Las entregas de un cliente de solo contenido (D-297), en el sitio del feed: las del mes, «N de M entregadas»; cada una con
   // qué, cuánto y su fecha; entregada, su enlace (solo entonces) y el día; si no, «En camino»; las del mes siguiente, aparte.

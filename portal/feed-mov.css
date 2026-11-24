@@ -1,0 +1,44 @@
+/* La cabecera de meses del feed continuo (feed-mov.js) y quién desliza el feed. Las medidas y los colores de la «Vista cliente» de
+   la Mesa (mesa.js, .mescab, D-323, D-325); con el dedo, la altura sube a 44 px (las dianas del portal). Sin estilos en línea (CSP). */
+.feedw{display:flex;flex-direction:column;--fm-fondo:var(--bg-2)}
+/* la cabecera va arriba del panel del feed, sobre la rejilla (no en la barra de arriba: ahí no se puede pegar, lección 298) */
+.fm-host{flex:none;position:relative;z-index:2;display:flex;align-items:center;padding:0 0 10px;background:var(--fm-fondo)}
+.fm-host[hidden]{display:none}
+.fm-sc{flex:1 1 auto;min-height:0;overflow-anchor:none}   /* el que desliza a pantalla completa; el feed recoloca él mismo lo que se ve */
+.fm-sc>.vacio{padding:12px 6px}
+.fm-svh{position:fixed;left:0;top:0;width:0;height:100vh;height:100svh;visibility:hidden;pointer-events:none}   /* el alto pequeño de la pantalla (sin la barra de Safari): con él se miden los puntos de los meses cuando desliza la página */
+
+.fm-cab{flex:1 1 0;display:flex;align-items:center;min-width:0}
+.fm-in{flex:none;display:inline-flex;align-items:center;gap:2px}
+.fm-cab button{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer;-webkit-appearance:none;appearance:none}
+.fm-cab .fm-fl{flex:none;width:28px;height:32px;border-radius:var(--r-pill);display:inline-flex;align-items:center;justify-content:center;color:var(--ink-2)}
+.fm-fl svg.i{width:16px;height:16px}
+@media (hover:hover){.fm-cab .fm-fl:hover:not([aria-disabled="true"]){background:var(--bg-3);color:var(--ink);transition:background-color var(--d1) ease-out,color var(--d1) ease-out}}
+.fm-cab .fm-fl[aria-disabled="true"]{color:var(--faint);cursor:default}
+.fm-vent{position:relative;flex:none;width:calc(var(--fm-w,64px) * 3);height:30px;overflow:hidden;border:1px solid var(--line);border-radius:var(--r-pill)}
+.fm-tira{position:absolute;left:0;top:0;height:100%;display:flex;will-change:transform}
+/* un nombre que entra o sale por el borde de la ventana se funde con el fondo (los de los lados, en reposo, enteros) */
+.fm-vent::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,var(--fm-fondo) 0,transparent 12%,transparent 88%,var(--fm-fondo) 100%)}
+.fm-vent.fmes::after{display:none}
+.fm-cab .fm-mes{flex:none;display:block;width:var(--fm-w,auto);height:100%;padding:0 10px;box-sizing:border-box;line-height:30px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12.5px;font-weight:600;color:var(--ink-2)}
+@media (hover:hover){.fm-cab button.fm-mes:hover{color:var(--acc-ink);transition:color var(--d1) ease-out}}
+.fm-cab button.fm-mes:focus-visible{outline:2px solid var(--focus);outline-offset:-3px;border-radius:var(--r-pill)}
+.fm-pild{position:absolute;left:var(--fm-w,64px);top:-1px;bottom:-1px;width:var(--fm-w,64px);border-radius:var(--r-pill);background:var(--ink);overflow:hidden;pointer-events:none}
+.fm-pild>.fm-tira{top:1px;height:calc(100% - 2px)}
+.fm-cab .fm-tira2>.fm-mes{color:var(--on-ink)}
+.fm-vent.fpild>.fm-pild{outline:2px solid var(--focus);outline-offset:-2px}
+/* como la barra de la Mesa a 720 */
+@media (max-width:720px){.fm-cab .fm-fl{height:30px}.fm-vent{height:28px}.fm-cab .fm-mes{line-height:28px;font-size:12px}}
+/* con el dedo: 44 px de alto (las dianas del portal) */
+@media (pointer:coarse){.fm-cab .fm-fl{width:40px;height:44px}.fm-vent{height:40px}.fm-cab .fm-mes{line-height:40px;font-size:13px}}
+
+/* quién desliza el feed (feed continuo, opción B de Kevin): a pantalla completa (.lleno, desde 1100 × 700) el panel, como hoy;
+   por debajo, la página entera, con la cabecera pegada arriba mientras pasa el feed */
+.pv.lleno .cols>.feedw{overflow:hidden}
+.pv.lleno .fm-sc{overflow-y:auto;overscroll-behavior:contain}
+.pv:not(.lleno) .fm-host{position:sticky;top:0;margin:-10px -10px 0;padding:10px 10px 10px;border-radius:var(--r-lg) var(--r-lg) 0 0}   /* a todo el ancho del panel, con sus esquinas */
+@container app (max-width:559px){
+  .feedw{--fm-fondo:var(--bg)}
+  .pv:not(.lleno) .fm-host{margin:0;padding:max(8px,env(safe-area-inset-top)) 16px 8px;border-radius:0}
+}
+@media (prefers-reduced-motion:reduce){.fm-cab .fm-fl,.fm-cab button.fm-mes{transition:none}}

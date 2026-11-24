@@ -75,9 +75,6 @@ svg.i *{vector-effect:non-scaling-stroke}
 .escr textarea[disabled]{opacity:.6;cursor:not-allowed}
 .pv-cli{border:0;background:none;font-size:13px;font-weight:600;padding:8px 13px 10px;border-bottom:2px solid transparent;color:var(--mute);min-height:44px}
 .pv-cli.on{border-bottom-color:var(--acc);color:var(--ink)}
-.pv-meses{display:flex;gap:6px;flex-wrap:wrap}
-.pv-mes{border:1px solid var(--line);background:none;border-radius:var(--r-pill);padding:0 14px;min-height:44px;font-size:13px;font-weight:600;color:var(--ink-2)}
-.pv-mes.on{background:var(--ink);color:var(--on-ink);border-color:var(--ink)}
 .pv-salir{display:inline-flex;align-items:center;gap:6px;border:0;background:none;color:var(--ink-2);font-size:13px;min-height:44px;padding:0 10px;border-radius:var(--r-sm)}
 .aviso{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:var(--r-lg);background:var(--panel)}
 .aviso .t{display:flex;flex-direction:column;gap:2px;margin-right:auto;min-width:0}
@@ -331,7 +328,6 @@ svg.i *{vector-effect:non-scaling-stroke}
   .pv-obs{padding:8px 16px}
   .pv-obs-t{flex-basis:100%}
   .pv-cli{padding:8px 4px 10px}
-  .pv-meses{order:3;width:100%}
   .pv-salir .tx{display:none}
   .pv-salir{width:44px;justify-content:center}
   .aviso{display:grid;grid-template-columns:auto minmax(0,1fr);row-gap:12px}

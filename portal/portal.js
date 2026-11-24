@@ -126,7 +126,7 @@
   const legal = () => h('footer', { class: 'legal' }, h('a', { href: 'privacidad.html', text: 'Privacidad' }), h('a', { href: 'aviso-legal.html', text: 'Aviso legal' }));
   const entrada = c => h('div', { class: 'ent' }, c, legal());
   function pintarEntrada(paso, correo, error, tecleado) {
-    st.d = null; st.urls.clear(); cerrar(true);
+    st.d = null; st.urls.clear(); st.pvDe = ''; limpiarFeed(); cerrar(true);
     document.querySelectorAll('.dlg,.velo,.toast').forEach(x => x.remove());
     const err = error ? h('p', { class: 'err', id: 'ent-err' }, ico('alert'), error) : null;
     if (paso !== 'codigo') {
@@ -189,10 +189,12 @@
     }
   }
   function pintarSinCliente() {
+    st.pvDe = '';
     app.replaceChildren(entrada(h('div', { class: 'ent-c' }, logo(), h('h1', { text: 'Aún no hay nada que enseñarte' }),
       h('p', { text: 'Tu acceso todavía no tiene ningún calendario. Escríbele a Kevin.' }), h('button', { class: 'btn s', type: 'button', text: 'Salir', onclick: salir }))));
   }
   function pintarError(t) {
+    st.pvDe = '';
     app.replaceChildren(h('div', { class: 'pv' }, h('div', { class: 'aviso mal', role: 'alert' }, h('div', { class: 't' }, h('b', { text: 'No se pudo cargar tu calendario' }), h('span', { text: t })),
       h('button', { class: 'btn s', type: 'button', text: 'Reintentar', onclick: arrancar }))));
   }
@@ -201,32 +203,69 @@
     await S.salir(); st.urls.clear(); st.d = null; lsSet('portal-cliente', null); pintarEntrada('correo', lsGet('portal-correo') || '');
   }
 
+  // Pintar en su sitio (feed continuo): la primera vez de un cliente, la página entera (`pintarTodo`); después, solo lo que
+  // cambió: la barra y el aviso si cambiaron, las casillas del feed cuya firma cambió (el nodo del feed se conserva: ni se
+  // mueve ni pierde su posición) y lo que cuelga del mes (calendario o «Por qué», y la columna derecha). Lo llaman el repaso
+  // de cada minuto, aprobar, pedir cambios, deshacer, comentar y cerrar un diálogo con algo que llegó mientras tanto.
   function pintar() {
-    const cli = st.clientes.find(c => c.id === st.cli), cont = !!(cli && cli.servicio === 'contenido'), meses = cont ? [] : mesesDisponibles();   // de solo contenido, sin meses (D-312)
-    const top = h('header', { class: 'pv-top' },
+    const cli = st.clientes.find(c => c.id === st.cli), cont = !!(cli && cli.servicio === 'contenido');
+    const pv = app.querySelector(':scope > .pv');
+    if (!pv || st.pvDe !== st.cli + '|' + cont) return pintarTodo();
+    const top = pintarTop(cli, cont), tira = pintarTira();
+    if (top.sig !== st.sigTop) { pv.querySelector(':scope > .pv-top').replaceWith(top.nodo); st.sigTop = top.sig; }
+    if (tira.sig !== st.sigTira) { app.querySelector(':scope > .pv-obs')?.remove(); if (tira.nodo) app.prepend(tira.nodo); st.sigTira = tira.sig; }
+    const av = pintarAviso(), avV = pv.querySelector(':scope > .aviso');
+    if (av.sig !== st.sigAviso) { if (avV) avV.remove(); if (av.nodo) pv.querySelector(':scope > .pv-top').after(av.nodo); st.sigAviso = av.sig; }
+    const cols = pv.querySelector(':scope > .cols'), k = st.cli + '|' + st.mes;
+    if (st.colsDe !== k) st.ys = new Map(); else scrollCols();   // otro mes: el calendario y la columna derecha, arriba
+    if (cont) { const e = seguro(pintarEntregas), v = cols.querySelector(':scope > .entw'); if (e && v) v.replaceWith(e); }
+    else { seguro(feedNodo); const c = seguro(pintarCentro), v = cols.querySelector(':scope > .cent'); if (c && v) v.replaceWith(c); }
+    const lado = pintarLado(cli), lv = cols.querySelector(':scope > .lado');
+    if (lv && lado) lv.replaceWith(lado); else if (lv) lv.remove(); else if (lado) cols.append(lado);
+    cols.classList.toggle('con-lado', !!lado);
+    lleno(); scrollCols(true); st.colsDe = k;
+    pintarMinis();
+  }
+  const pintarLado = cli => { const l = [seguro(() => pintarPagos(cli)), seguro(() => pintarComoFue(cli))].filter(Boolean); return l.length ? h('div', { class: 'lado' }, l) : null; };
+  function pintarAviso() {
+    const pend = pendientes();
+    return { sig: String(pend.length), nodo: pend.length ? h('section', { class: 'aviso', 'aria-label': 'Por aprobar' }, h('span', { class: 'dot', 'aria-hidden': 'true' }),
+      h('div', { class: 't' }, h('b', { text: pend.length === 1 ? 'Una publicación espera tu visto bueno' : `${pend.length} publicaciones esperan tu visto bueno` }),
+        h('span', { text: 'Ábrelas una a una: puedes aprobar o pedir cambios.' })),
+      h('button', { type: 'button', class: 'btn p', text: pend.length === 1 ? 'Revisarla' : 'Revisarlas', onclick: () => { const p = pendientes()[0]; if (p) abrir(p.pid); } })) : null };
+  }
+  function pintarTira() {
+    const sig = st.todoMira ? st.cli + '|' + st.clientes.map(c => c.id + c.nombre).join(',') : '';
+    return { sig, nodo: st.todoMira ? h('div', { class: 'pv-obs', role: 'region', 'aria-label': 'Cuenta que solo mira' },
+      h('span', { class: 'pv-obs-t' }, h('b', { text: 'Solo mirar' }), ' · ves cada calendario como lo ve su cliente'),
+      st.clientes.length > 1 ? h('span', { class: 'pv-obs-l', text: 'Ver como' }) : null,
+      st.clientes.length > 1 ? st.clientes.map(c => h('button', { type: 'button', class: 'pv-obs-c' + (c.id === st.cli ? ' on' : ''), 'aria-pressed': String(c.id === st.cli), text: c.nombre, onclick: () => irA(c.id) })) : null) : null };
+  }
+  function pintarTop(cli, cont) {
+    const meses = cont ? [] : mesesDisponibles();   // de solo contenido, sin meses (D-312)
+    const sig = [st.cli, st.todoMira, st.clientes.map(c => c.id + c.nombre).join(','), meses.join(','), st.mes].join('|');
+    return { sig, nodo: h('header', { class: 'pv-top' },
       h('img', { class: 'pv-marca', src: 'marca/monograma.svg', alt: 'Uribe Visuals', width: '24', height: '24' }),   // la marca, sin pulsar (D-264)
       // la cuenta que solo mira ve, como el cliente, solo su nombre; cambia de cliente en la tira (D-266)
       h('nav', { class: 'pv-clis', 'aria-label': 'Tus cuentas' }, (st.todoMira ? st.clientes.filter(c => c.id === st.cli) : st.clientes).map(c => h('button', { type: 'button', class: 'pv-cli' + (c.id === st.cli ? ' on' : ''), 'aria-current': c.id === st.cli ? 'page' : null, text: c.nombre,
         onclick: () => irA(c.id) }))),
       h('button', { type: 'button', class: 'pv-salir', onclick: salir, 'aria-label': 'Salir' }, ico('out'), h('span', { class: 'tx', text: 'Salir' })),
-      meses.length > 1 ? h('nav', { class: 'pv-meses', 'aria-label': 'Meses' }, meses.map(m => h('button', { type: 'button', class: 'pv-mes' + (m === st.mes ? ' on' : ''), 'aria-pressed': String(m === st.mes), text: mesCorto(m), onclick: () => { st.mes = m; pintar(); } }))) : null);
-    const pend = pendientes();
-    const aviso = pend.length ? h('section', { class: 'aviso', 'aria-label': 'Por aprobar' }, h('span', { class: 'dot', 'aria-hidden': 'true' }),
-      h('div', { class: 't' }, h('b', { text: pend.length === 1 ? 'Una publicación espera tu visto bueno' : `${pend.length} publicaciones esperan tu visto bueno` }),
-        h('span', { text: 'Ábrelas una a una: puedes aprobar o pedir cambios.' })),
-      h('button', { type: 'button', class: 'btn p', text: pend.length === 1 ? 'Revisarla' : 'Revisarlas', onclick: () => abrir(pend[0].pid) })) : null;
+      meses.length > 1 ? h('nav', { class: 'pv-meses', 'aria-label': 'Meses' }, meses.map(m => h('button', { type: 'button', class: 'pv-mes' + (m === st.mes ? ' on' : ''), 'aria-pressed': String(m === st.mes), text: mesCorto(m), onclick: () => { st.mes = m; pintar(); } }))) : null) };
+  }
+  // la página entera: al entrar, al cambiar de cliente o si pasa a ser (o deja de ser) de solo contenido
+  function pintarTodo() {
+    const cli = st.clientes.find(c => c.id === st.cli), cont = !!(cli && cli.servicio === 'contenido');
+    if (cont) limpiarFeed();
+    const top = pintarTop(cli, cont), tira = pintarTira(), av = pintarAviso();
     // la columna derecha solo si tiene algo; sin ella, el calendario ocupa su sitio (como la «Vista cliente» de la Mesa, D-230, D-246)
-    const lado = [seguro(() => pintarPagos(cli)), seguro(() => pintarComoFue(cli))].filter(Boolean);
+    const lado = pintarLado(cli);
     // de solo contenido (D-312): su lista entera, sin calendario ni meses, y «Tus pagos» a la derecha, como la «Vista cliente»
-    const cols = h('div', { class: 'cols' + (cont ? ' cont' : '') + (lado.length ? ' con-lado' : '') }, cont ? seguro(pintarEntregas) : pintarFeed(), cont ? null : seguro(pintarCentro), lado.length ? h('div', { class: 'lado' }, lado) : null);
+    const cols = h('div', { class: 'cols' + (cont ? ' cont' : '') + (lado ? ' con-lado' : '') }, cont ? seguro(pintarEntregas) : seguro(feedNodo), cont ? null : seguro(pintarCentro), lado);
     const pie = h('footer', { class: 'pie' }, h('a', { href: 'privacidad.html', text: 'Privacidad' }), h('a', { href: 'aviso-legal.html', text: 'Aviso legal' }), h('span', { text: 'Uribe Visuals' }));
-    const tira = st.todoMira ? h('div', { class: 'pv-obs', role: 'region', 'aria-label': 'Cuenta que solo mira' },
-      h('span', { class: 'pv-obs-t' }, h('b', { text: 'Solo mirar' }), ' · ves cada calendario como lo ve su cliente'),
-      st.clientes.length > 1 ? h('span', { class: 'pv-obs-l', text: 'Ver como' }) : null,
-      st.clientes.length > 1 ? st.clientes.map(c => h('button', { type: 'button', class: 'pv-obs-c' + (c.id === st.cli ? ' on' : ''), 'aria-pressed': String(c.id === st.cli), text: c.nombre, onclick: () => irA(c.id) })) : null) : null;
     const y = window.scrollY, k = st.cli + '|' + st.mes;
     if (st.colsDe !== k) st.ys = new Map(); else scrollCols();   // otro cliente u otro mes: arriba
-    app.replaceChildren(...[tira, h('div', { class: 'pv' }, top, aviso, cols, pie)].filter(Boolean));
+    app.replaceChildren(...[tira.nodo, h('div', { class: 'pv' }, top.nodo, av.nodo, cols, pie)].filter(Boolean));
+    st.sigTop = top.sig; st.sigTira = tira.sig; st.sigAviso = av.sig; st.pvDe = st.cli + '|' + cont;
     window.scrollTo(0, y);
     lleno();
     scrollCols(true);
@@ -256,26 +295,59 @@
 
   async function irA(id) {
     if (id === st.cli) return;
-    st.cli = id; lsSet('portal-cliente', id); const n = ++st.carga; cerrar(true);
+    st.cli = id; lsSet('portal-cliente', id); const n = ++st.carga; cerrar(true); limpiarFeed();
     const d = await cargarDatos(id).catch(e => { if (n === st.carga) pintarError(msgError(e)); return null; });
     if (d && n === st.carga) { st.d = d; st.mes = mesInicial(); pintar(); }
   }
   const soloMira = () => st.observa.has(st.cli);   // D-266
   function seguro(f) { try { return f(); } catch (e) { if (window.console) console.error(e); return null; } }
-  function pintarFeed() {
+  // ---------- el feed ----------
+  // Un nodo que se conserva por cliente (st.feed): `pintar()` no lo rehace; solo cambia las casillas cuya firma cambió (foto, estado,
+  // fecha, tipo, comentarios, etiqueta) y, si un mes cambia de publicaciones, solo ese mes. Cada mes, en su envoltorio `.fm-m`
+  // (display: contents: no rompe las filas de la rejilla).
+  const cuentaComs = () => { const n = new Map(); for (const c of st.d.coms) n.set(c.pid, (n.get(c.pid) || 0) + 1); return n; };
+  const sigCelda = (p, et, nc) => [p.estado, p.fecha, p.sin_hora, p.tipo, p.imagenes.length && p.imagenes[0].mini, nc.get(p.pid) || 0, JSON.stringify(et || '')].join('|');
+  function celda(p, rotulo, nc) {
+    const n = nc.get(p.pid) || 0, im = p.imagenes[0];
+    return h('button', { type: 'button', class: 'cel' + (im ? '' : ' vacia'), 'data-pid': p.pid, 'aria-label': `${TIPO[p.tipo] || 'Publicación'} · ${fechaPub(p)} · ${ESTADO[p.estado][0]}`, onclick: () => abrir(p.pid) },
+      im ? h('img', { alt: '', 'data-ruta': im.mini, loading: 'lazy', decoding: 'async' }) : h('span', { class: 'pre', text: p.estado === 'preparando' ? 'En preparación' : 'Sin imagen aún' }),
+      p.tipo === 'carrusel' ? h('span', { class: 'ty' }, ico('copy')) : /reel/.test(p.tipo) ? h('span', { class: 'ty' }, ico('clap')) : null,
+      rotulo ? h('span', { class: 'pub' }, h('span', { class: 'l', text: rotulo[0] }), h('span', { class: 'c', text: rotulo[1] })) : null,
+      n ? h('span', { class: 'nc' }, ico('msg'), String(n), h('span', { class: 'sr', text: n === 1 ? ' comentario' : ' comentarios' })) : null);
+  }
+  // los grupos del feed, de arriba abajo: [{m, items: [{p, et}]}]
+  function feedGrupos() {
     const ahora = delMes(st.mes), antes = delMes(mesAntes(st.mes)).filter(p => p.estado === 'publicada' || p.estado === 'programada');
-    const celda = (p, rotulo) => {
-      const n = st.d.coms.filter(c => c.pid === p.pid).length, im = p.imagenes[0];
-      return h('button', { type: 'button', class: 'cel' + (im ? '' : ' vacia'), 'data-pid': p.pid, 'aria-label': `${TIPO[p.tipo] || 'Publicación'} · ${fechaPub(p)} · ${ESTADO[p.estado][0]}`, onclick: () => abrir(p.pid) },
-        im ? h('img', { alt: '', 'data-ruta': im.mini, loading: 'lazy', decoding: 'async' }) : h('span', { class: 'pre', text: p.estado === 'preparando' ? 'En preparación' : 'Sin imagen aún' }),
-        p.tipo === 'carrusel' ? h('span', { class: 'ty' }, ico('copy')) : /reel/.test(p.tipo) ? h('span', { class: 'ty' }, ico('clap')) : null,
-        rotulo ? h('span', { class: 'pub' }, h('span', { class: 'l', text: rotulo[0] }), h('span', { class: 'c', text: rotulo[1] })) : null,
-        n ? h('span', { class: 'nc' }, ico('msg'), String(n), h('span', { class: 'sr', text: n === 1 ? ' comentario' : ' comentarios' })) : null);
-    };
     const mA = MESES[+mesAntes(st.mes).slice(5, 7) - 1];
-    const celdas = [...ahora.map(p => celda(p)), ...antes.map((p, i) => celda(p, i === 0 ? [may(mA.slice(0, 3)) + '. · publicado', may(mA.slice(0, 3)) + '.'] : null))];
-    return h('section', { class: 'feedw', 'aria-label': 'Tu feed' },
-      celdas.length ? h('div', { class: 'feed' }, celdas) : h('p', { class: 'vacio', text: 'Este mes aún no tiene publicaciones.' }));
+    return [{ m: st.mes, items: ahora.map(p => ({ p })) }, { m: mesAntes(st.mes), items: antes.map((p, i) => ({ p, et: i === 0 ? [may(mA.slice(0, 3)) + '. · publicado', may(mA.slice(0, 3)) + '.'] : null })) }].filter(g => g.items.length);
+  }
+  function limpiarFeed() { st.feed = null; }
+  function feedNodo() {
+    let F = st.feed;
+    if (!F || F.cli !== st.cli) {
+      const grid = h('div', { class: 'feed' }), vacio = h('p', { class: 'vacio', text: 'Este mes aún no tiene publicaciones.' });
+      F = st.feed = { cli: st.cli, envs: new Map(), grid, vacio, nodo: h('section', { class: 'feedw', 'aria-label': 'Tu feed' }) };
+    }
+    const G = feedGrupos(), nc = cuentaComs(), vivos = new Set(); let ant = null;
+    for (const g of G) {
+      vivos.add(g.m);
+      let E = F.envs.get(g.m); const ids = g.items.map(x => x.p.pid).join(',');
+      if (!E || E.ids !== ids) {   // ese mes cambió de publicaciones (o de orden): se rehace solo él
+        const sigs = new Map(), n = h('div', { class: 'fm-m', 'data-mes': g.m }, g.items.map(x => { sigs.set(x.p.pid, sigCelda(x.p, x.et, nc)); return celda(x.p, x.et, nc); }));
+        if (E) E.nodo.replaceWith(n);
+        F.envs.set(g.m, E = { nodo: n, ids, sigs });
+      } else for (const x of g.items) {   // el mismo mes: solo la casilla que cambió
+        const s = sigCelda(x.p, x.et, nc); if (E.sigs.get(x.p.pid) === s) continue;
+        const v = E.nodo.querySelector(`.cel[data-pid="${CSS.escape(x.p.pid)}"]`); if (v) v.replaceWith(celda(x.p, x.et, nc)); E.sigs.set(x.p.pid, s);
+      }
+      const aqui = ant ? ant.nextSibling : F.grid.firstChild;
+      if (E.nodo !== aqui) F.grid.insertBefore(E.nodo, aqui);
+      ant = E.nodo;
+    }
+    for (const [m, E] of F.envs) if (!vivos.has(m)) { E.nodo.remove(); F.envs.delete(m); }
+    const dentro = G.length ? F.grid : F.vacio;
+    if (F.nodo.firstChild !== dentro || F.nodo.childNodes.length !== 1) F.nodo.replaceChildren(dentro);
+    return F.nodo;
   }
   // Las entregas de un cliente de solo contenido (D-297), en el sitio del feed: las del mes, «N de M entregadas»; cada una con
   // qué, cuánto y su fecha; entregada, su enlace (solo entonces) y el día; si no, «En camino»; las del mes siguiente, aparte.
@@ -309,7 +381,7 @@
     try { const m = await urls([r]); if (m[r] && i.isConnected) i.src = m[r]; } catch (x) { /* se queda el hueco */ }
   }
   async function pintarMinis() {
-    const imgs = [...app.querySelectorAll('img[data-ruta]')], rutas = imgs.map(i => i.dataset.ruta);
+    const imgs = [...app.querySelectorAll('img[data-ruta]:not([src])')], rutas = imgs.map(i => i.dataset.ruta);
     if (!rutas.length) return;
     try {
       const m = await urls(rutas);
@@ -366,10 +438,13 @@
     const hayPq = st.d.meses.some(x => x.mes === st.mes && x.porque) || (ultimoPq && st.mes > ultimoPq);
     if (!hayPq && st.tab === 'pq') st.tab = 'cal';
     const tabs = hayPq ? h('div', { class: 'tabs', role: 'tablist' },
-      h('button', { type: 'button', role: 'tab', class: 'tab' + (st.tab === 'cal' ? ' on' : ''), 'aria-selected': String(st.tab === 'cal'), text: 'Calendario', onclick: () => { st.tab = 'cal'; pintar(); } }),
-      h('button', { type: 'button', role: 'tab', class: 'tab' + (st.tab === 'pq' ? ' on' : ''), 'aria-selected': String(st.tab === 'pq'), text: 'Por qué este calendario', onclick: () => { st.tab = 'pq'; pintar(); } })) : null;
+      h('button', { type: 'button', role: 'tab', class: 'tab' + (st.tab === 'cal' ? ' on' : ''), 'aria-selected': String(st.tab === 'cal'), text: 'Calendario', onclick: () => { st.tab = 'cal'; pintarCentroSolo(); } }),
+      h('button', { type: 'button', role: 'tab', class: 'tab' + (st.tab === 'pq' ? ' on' : ''), 'aria-selected': String(st.tab === 'pq'), text: 'Por qué este calendario', onclick: () => { st.tab = 'pq'; pintarCentroSolo(); } })) : null;
     return h('section', { class: 'card cent', 'data-tab': st.tab, 'aria-label': st.tab === 'pq' ? 'Por qué este calendario' : 'Calendario' }, tabs, st.tab === 'pq' ? h('div', { class: 'pq-w' }, pintarPorque()) : pintarCalendario());
   }
+  // la pestaña «Calendario / Por qué»: solo esa columna; «Ver las anteriores»: solo «Tus pagos» (sin pintar la página)
+  function pintarCentroSolo() { const v = app.querySelector('.cols > .cent'), n = seguro(pintarCentro); if (!v || !n) return pintar(); scrollCols(); v.replaceWith(n); scrollCols(true); }
+  function pintarPagosSolo() { const v = app.querySelector('[data-p="pagos"]'), n = seguro(() => pintarPagos(st.clientes.find(c => c.id === st.cli))); if (!v || !n) return pintar(); scrollCols(); v.replaceWith(n); scrollCols(true); }
   function estadoPago(r, H) {
     if (r.cobrada) return ['Pagada', 'ok', 'check', 'pagada el ' + diaCorto(r.cobrada)];
     if (!r.emitida || r.emitida > H) return ['Sin emitir', 'sin', 'clock', r.emitida ? 'se emite el ' + diaCorto(r.emitida) : ''];
@@ -409,8 +484,8 @@
     const emite = sig && !tramo ? h('p', { class: 'emite' }, ico('file'), `Próxima factura, ${sig}`) : null;   // con tramo, va en «Cubre …»
     const cubre = tramo && cli.cubre_de && cli.cubre_hasta ? h('p', { class: 'cubre' }, 'Cubre ', h('b', { text: tramoTxt(cli.cubre_de, cli.cubre_hasta) }), cli.pago !== 'unico' && prox && prox >= H ? ` · próxima factura, ${sig}` : '') : null;
     const inc = cli && Array.isArray(cli.incluye) && cli.incluye.length ? h('p', { class: 'incluye', text: 'Incluye ' + cli.incluye.join(' · ') }) : null;   // lo que incluye su paquete (D-307)
-    const mas = N ? h('button', { type: 'button', class: 'lnk ver-ant', 'aria-expanded': String(ver), text: ver ? 'Ocultar las anteriores' : `Ver las anteriores (${N})`, onclick: () => { st.verAnt = ver ? null : st.cli; pintar(); } }) : null;
-    return h('section', { class: 'card', 'aria-labelledby': 'h-pagos' },
+    const mas = N ? h('button', { type: 'button', class: 'lnk ver-ant', 'aria-expanded': String(ver), text: ver ? 'Ocultar las anteriores' : `Ver las anteriores (${N})`, onclick: () => { st.verAnt = ver ? null : st.cli; pintarPagosSolo(); } }) : null;
+    return h('section', { class: 'card', 'aria-labelledby': 'h-pagos', 'data-p': 'pagos' },
       h('div', { class: 'ti pagos-ti' }, h('h2', { id: 'h-pagos', text: 'Tus pagos' }), tramo ? h('span', { text: `${PAGO[cli.pago] || 'Pago'} · ${eur(cli.pago_cent)}${rg ? ' · ' + rg + (cli.acuerdo_renueva ? ', se\u00a0renueva' : '') : ''}` }) : cli && cli.cuota_cent ? h('span', { text: eur(cli.cuota_cent) + ' al mes' + (rg ? ' · ' + rg : '') }) : null), inc, cubre,
       deber.length ? h('p', { class: 'pend-pago' }, 'Pendiente de pago ', h('b', { text: eur(deber.reduce((s, r) => s + r.importe_cent, 0)) }), venc ? h('em', { text: `· ${venc === 1 ? '1 vencida' : venc + ' vencidas'}` }) : null) : null,
       filas.map(fila), mas, emite);
@@ -430,8 +505,8 @@
     if (!ultimo) return null;
     const cab = x => h('div', { class: 'ti' }, h('h2', { text: 'Cómo fue ' + mesNom(p) }), x ? h('span', { text: x }) : null);
     if (!r) {
-      if (p >= hoy().slice(0, 7)) return h('section', { class: 'card' }, cab(''), zernio(cli), camino(`${may(MESES[+p.slice(5, 7) - 1])} aún no ha terminado: el resumen llega los primeros días de ${MESES[+st.mes.slice(5, 7) - 1]}.`));
-      if (p > ultimo) return h('section', { class: 'card' }, cab(''), zernio(cli), camino(`El resumen de ${MESES[+p.slice(5, 7) - 1]} llega en unos días.`));
+      if (p >= hoy().slice(0, 7)) return h('section', { class: 'card', 'data-p': 'comofue' }, cab(''), zernio(cli), camino(`${may(MESES[+p.slice(5, 7) - 1])} aún no ha terminado: el resumen llega los primeros días de ${MESES[+st.mes.slice(5, 7) - 1]}.`));
+      if (p > ultimo) return h('section', { class: 'card', 'data-p': 'comofue' }, cab(''), zernio(cli), camino(`El resumen de ${MESES[+p.slice(5, 7) - 1]} llega en unos días.`));
       return null;
     }
     const res = r.resumen, c = res.cifras, ant = mesAntes(p), n = c.publicaciones.valor;
@@ -451,7 +526,7 @@
       barras.append(h('button', { type: 'button', class: i === best ? 'top' : null, 'aria-pressed': 'false', 'aria-label': `${x.nombre}: ${num(x.alcance)} de alcance`, onclick: () => ver(i) }, bar));
     });
     const T = res.tipos || [], maxT = Math.max(1, ...T.map(t => t.alcance));
-    return h('section', { class: 'card', 'aria-labelledby': 'h-comofue' },
+    return h('section', { class: 'card', 'aria-labelledby': 'h-comofue', 'data-p': 'comofue' },
       h('div', { class: 'ti' }, h('h2', { id: 'h-comofue', text: 'Cómo fue ' + mesNom(p) }), h('span', { text: n === 1 ? '1 publicación' : num(n) + ' publicaciones' })),
       zernio(cli), h('div', { class: 'cif' }, fichas), h('p', { class: 'sub', text: 'Frente a ' + MESES[+ant.slice(5, 7) - 1] }),
       P.length ? [h('p', { class: 'h3', text: 'Alcance de cada publicación' }), barras, h('div', { class: 'fechas' }, h('span', { text: diaCorto(P[0].fecha) }), P.length > 1 ? h('span', { text: diaCorto(P[P.length - 1].fecha) }) : null), dato] : null,

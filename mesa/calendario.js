@@ -129,7 +129,7 @@
   // ---------- the vista cliente's structure (D-230) ----------
   // Its parts are given by others through M._in.vc (mesa.js): tabs beside «Calendario» and the right column. Each part draws
   // for the board's client and the calendar's month; one with nothing ('') doesn't show, and with none the page is as before.
-  let vcTab = 'cal';                             // the tab chosen (this visit; back to «Calendario» with another board)
+  let vcTab = 'cal';                             // the tab chosen (this visit; back to «Calendario» with another client)
   function vcPartes(X, m, cli) {
     const V = X.vc, ctx = { cliente: cli || X.S.client, mes: m, S: X.S || null };
     const html = p => { try { return String(p.html(ctx) || ''); } catch (e) { return ''; } };
@@ -164,7 +164,7 @@
     const client = root.classList.contains('client'), sp = span(X);
     // the active month (feed continuo, pieza 3a): its month, not today's, when it changes; ‹ › still move only the calendar
     const act = X.mesActivo && X.mesActivo.lee ? X.mesActivo.lee() : null;
-    if (view.key !== S.key || view.act !== act || !sp.list.includes(view.m)) { if (view.key !== S.key) vcTab = 'cal'; view = { key: S.key, act, m: act && sp.list.includes(act) ? act : mesInicial(X, sp) }; }
+    if (view.key !== S.key || view.act !== act || !sp.list.includes(view.m)) { if (view.cli !== S.client) vcTab = 'cal'; view = { key: S.key, cli: S.client, act, m: act && sp.list.includes(act) ? act : mesInicial(X, sp) }; }   // the vista cliente's tab stays while the active month changes, also to another board (pieza 6, D-327); another client, «Calendario»
     // ‹ › only with another month of the board's own days to go to, in the vista cliente (D-228); without, its month (also when
     // the view comes on while my calendar shows the previous month)
     const propios = sp.list.filter(x => x >= sp.lo.slice(0, 7)), flechas = !client || propios.length > 1;

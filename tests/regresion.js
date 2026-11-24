@@ -24414,6 +24414,168 @@
       await estable('tras «Vista cliente»');
     } finally { await limpiar(); }
   });
+  // ---------- feed continuo, pieza 6: la «Vista cliente» con el feed seguido ----------
+  // Los datos de fjSeis: junio, julio, (agosto sin tablero), septiembre–octubre en un tablero, noviembre (abierto) y enero de 2027.
+  const fkVis = e => !!e && e.getClientRects().length > 0 && W.getComputedStyle(e).visibility !== 'hidden';
+  const fkCmes = () => (q('.side > .cal .cmes') || { textContent: '' }).textContent;
+  const fkNombre = e => e.textContent + (e.classList.contains('sin') ? '·' : '');
+
+  prueba('FK1', 'Qué ve el cliente (feed continuo, pieza 6; D-318, D-323, D-327): el mismo feed seguido y la misma cabecera que en mi Mesa, sin «sin crear» ni los meses sin tablero, sin cifras ni avisos internos (título sin «con foto», sin « · 2 tableros», estados, pasos, candado ni franja) y la etiqueta de cada mes a la vista; el mes activo es el de la Mesa al entrar y al salir', async () => {
+    try {
+      await fjSeis();
+      igual(fgHuecos().map(fkNombre), ['Jun', 'Jul', 'Ago·', 'Sep', 'Oct', 'Nov', 'Dic·', 'Ene 27', 'Feb 27·'], 'mi cabecera');
+      await fgPulsar(fgHueco('Oct')); await fjQuieto(700);
+      const a = fgActivo(), y = fjFeed().scrollTop;
+      await vistaCliente(true); await fjQuieto(300);
+      igual(fgActivo(), a, 'al entrar, el mes activo no es el de la Mesa');
+      igual(fjFeed().scrollTop, fjP('2026-10'), 'al entrar, el feed fuera del punto de octubre');
+      igual(feMeses(), FJ_MESES, 'los meses del feed del cliente');
+      igual(fgHuecos().map(fkNombre), ['Jun', 'Jul', 'Sep', 'Oct', 'Nov', 'Ene 27'], 'la cabecera del cliente: solo los meses con tablero, sin «sin crear»');
+      ok(fgHuecos().every(e => e.tagName === 'BUTTON' && e.title && !/con foto|sin crear|Claude|tablero/i.test(e.title)), 'un título de la cabecera dice algo interno: ' + json(fgHuecos().map(e => e.title)));
+      igual(fgPildora(), ['Oct'], 'la píldora');
+      // lo que se lee en el feed: solo los nombres de los meses (la etiqueta de su casilla más nueva, a la vista)
+      igual(fjFeed().innerText.split('\n').map(x => x.trim()).filter(Boolean), ['Ene 27', 'Nov', 'Oct', 'Sep', 'Jul', 'Jun'], 'lo que se lee en el feed');
+      for (const m of FJ_MESES) { const c = q(`.feed .grid > .fmes[data-mes="${m}"] .cell`); ok(fkVis(c && c.querySelector('.mpill')), `la etiqueta de ${m} no se ve en su casilla más nueva`); }
+      ok(!qa('.feed .cell.past, .feed .pmonth, .feed .bd, .feed .mdos, .feed .mks, .feed .mk, .feed .vdate, .feed .lab, .feed .hx').some(fkVis), 'en el feed se ve un candado, la franja, un aviso, una marca de estado o una ×');
+      ok(!qa('.bar .rvbtn, .bar [data-web], .side > .cal .cleg, .side > .cal .csync, .side > .cal .cvenc, .side > .cal .ctot, .side > .cal .dmany').some(fkVis), 'se ve «Revisar», «Web del cliente», la barra de pasos u otro aviso interno');
+      ok(!qa('.bar [title], .bar [aria-label], .feed [title]').some(e => fkVis(e) && /con foto|sin crear|tableros|Vencida|bloquead/i.test((e.title || '') + ' ' + (e.getAttribute('aria-label') || ''))), 'un título visible dice algo interno');
+      // las flechas no se paran en lo que no hay: de septiembre, ‹ va a julio
+      await fgPulsar(fgHueco('Sep')); await fjQuieto(700);
+      await fgPulsar(q('.bar .mescab .mescab-fl[data-d="-1"]')); await fjQuieto(700);
+      igual(fgActivo(), [FJ_JL, '2026-07'], '‹ desde septiembre');
+      await vistaCliente(false); await fjQuieto(300);
+      igual(fgActivo(), [FJ_JL, '2026-07'], 'al salir, el mes activo no es el de la vista');
+      igual(fgHuecos().length, 9, 'al salir, mi cabecera');
+      igual(fjFeed().scrollTop, fjP('2026-07'), 'al salir, el feed fuera del punto de julio');
+    } finally { await vistaCliente(false); await limpiar(); }
+  });
+
+  prueba('FK2', 'En la «Vista cliente» solo se mira (feed continuo, pieza 6; D-095, D-327): ni arrastrar (dentro del mes ni a otro), ni menú del clic derecho o ⇧F10, ni doble clic que abra el editor, ni «+ Hueco», «Fijar» ni ×; tocar una publicación de otro mes abre «Ver como el cliente» de esa publicación; nada se escribe', async () => {
+    try {
+      await fjSeis();
+      await vistaCliente(true); await fjQuieto(300);
+      const tabs0 = json((await M.boards()).map(b => [b.key, b.slots]));
+      const c = await fcContar(async () => {
+        await ffArrastrar(celda('fj-n1'), celda('fj-n2'));
+        await ffArrastrar(celda('fj-n3'), celda('fj-o1'));
+        for (const el of [celda('fj-n1'), q('.feed .grid')]) {
+          const r = el.getBoundingClientRect(); el.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: r.x + 5, clientY: r.y + 5, view: W }));
+          await espera(30); ok(!q('.cpmenu'), 'el clic derecho abrió un menú: ' + ((q('.cpmenu') || {}).textContent || ''));
+        }
+        q('.feed .grid').dispatchEvent(new W.KeyboardEvent('keydown', { key: 'F10', shiftKey: true, bubbles: true, cancelable: true })); await espera(30);
+        ok(!q('.cpmenu'), '⇧F10 abrió un menú');
+        celda('fj-n1').dispatchEvent(new W.MouseEvent('dblclick', { bubbles: true, cancelable: true, view: W })); await espera(60);
+        ok(!M.libre.abierto(), 'el doble clic abrió el editor');
+        M._in.closeDetail(); await espera(30);
+        celda('fj-o2').scrollIntoView({ block: 'center' }); await espera(30);
+        celda('fj-o2').click();
+        const d = await hasta(() => dialogo(), 3000, '«Ver como el cliente»');
+        ok(/aquí solo se mira/.test(d.innerText) && /Foto fj-o\.2|fj-o\.2/.test(d.innerText), 'no es «Ver como el cliente» de esa publicación: ' + d.innerText.slice(0, 120));
+        ok(![...d.querySelectorAll('input, textarea, select, [contenteditable="true"]')].some(fkVis), 'la previsualización tiene un campo');
+        ok(![...d.querySelectorAll('button')].some(b => fkVis(b) && /EDITAR|Editar|Fijar/.test(b.textContent)), 'la previsualización tiene «Editar» o «Fijar»');
+        M._in.closeDetail(); await espera(30);
+        ok(![...D.querySelectorAll('.main button, .main [role="menuitem"]')].some(b => fkVis(b) && /\+ Hueco|^Fijar/.test(b.textContent.trim())), 'se ve «+ Hueco» o «Fijar»');
+      });
+      igual([c.idb, c.ls], [0, 0], 'mirar escribió: ' + json(c.que));
+      igual(json((await M.boards()).map(b => [b.key, b.slots])), tabs0, 'cambió algún tablero');
+    } finally { M._in.closeDetail(); await vistaCliente(false); await limpiar(); }
+  });
+
+  prueba('FK3', 'Lo que cuelga del mes en la «Vista cliente» sigue al mes activo (feed continuo, pieza 6; D-230, D-240, D-327): el calendario y cada parte de M._in.vc reciben el mes y el tablero del mes activo al deslizar, al pulsar un mes, con las flechas y con MESA.open; «Tus pagos», que no cuelga del mes, no se vuelve a dibujar; recorrer el feed de punta a punta no escribe ni pide nada', async () => {
+    const V = M._in.vc, log = [];
+    try {
+      await fjSeis({ '2027-01': 12 });   // enero con su punto por debajo del de noviembre: cada mes, el suyo
+      V.poner('pestana', { id: 'fk3p', titulo: 'Por qué este calendario', orden: 10, html: c => { log.push([c.mes, c.S && c.S.key, c.cliente]); return `<p>Por qué ${c.mes}</p>`; } });
+      V.poner('lado', { id: 'fk3l', orden: 10, html: () => '<h2>Tus pagos</h2><p>Sin nada pendiente</p>' });
+      await vistaCliente(true); await fjQuieto(300);
+      const ult = () => log[log.length - 1], parte = () => q('.vc-lado [data-vc="fk3l"]');
+      ok(parte(), 'sin la parte de la columna'); const nodo = parte().firstChild;
+      igual(ult(), [MES, `${CLIENTE}-${MES}`, CLIENTE], 'al entrar');
+      const P = fjPuntos();
+      await fjA(P['2026-07'] - 3); await fjQuieto();
+      igual(fgActivo(), [FJ_JL, '2026-07'], 'deslizar a julio');
+      igual(ult(), ['2026-07', FJ_JL, CLIENTE], 'al deslizar, la parte');
+      ok(/Julio 2026/.test(fkCmes()), 'al deslizar, el calendario: ' + fkCmes());
+      await fgPulsar(fgHueco('Oct')); await fjQuieto();
+      igual(ult(), ['2026-10', FJ_SO, CLIENTE], 'al pulsar octubre'); ok(/Octubre 2026/.test(fkCmes()), 'el calendario en octubre: ' + fkCmes());
+      await fgPulsar(q('.bar .mescab .mescab-fl[data-d="-1"]')); await fjQuieto();
+      igual(ult(), ['2026-09', FJ_SO, CLIENTE], 'con la flecha (septiembre, el mismo tablero)'); ok(/Septiembre 2026/.test(fkCmes()), 'el calendario en septiembre: ' + fkCmes());
+      await M.open(FJ_EN); await fjQuieto();
+      igual(ult(), ['2027-01', FJ_EN, CLIENTE], 'con MESA.open'); ok(/Enero 2027/.test(fkCmes()), 'el calendario en enero: ' + fkCmes());
+      q('.side > .cal .vcp-tab[data-t="fk3p"]').click(); await espera(40);
+      ok(/Por qué 2027-01/.test((q('.side > .cal .vcp-panel') || {}).textContent || ''), 'la pestaña no enseña su mes');
+      await fgPulsar(fgHueco('Nov')); await fjQuieto();
+      ok(/Por qué 2026-11/.test((q('.side > .cal .vcp-panel') || {}).textContent || ''), 'la pestaña abierta no siguió al mes');
+      ok(parte().firstChild === nodo, '«Tus pagos» se volvió a dibujar al cambiar de mes');
+      // de punta a punta, asentándose en cada mes: nada se escribe ni se pide
+      let red = 0; const f0 = W.fetch; W.fetch = (...x) => { red++; return f0.apply(W, x); };
+      let c;
+      try { c = await fcContar(async () => { for (const m of [...FJ_MESES].reverse()) { await fjA(fjP(m) - 2); await fjQuieto(); igual(M._in.mesActivo.lee(), m, 'al asentarse'); } }); }
+      finally { W.fetch = f0; }
+      igual([c.idb, c.ls, red], [0, 0, 0], 'recorrer el feed escribió o pidió algo: ' + json(c.que));
+    } finally { V.quitar('pestana', 'fk3p'); V.quitar('lado', 'fk3l'); await vistaCliente(false); await limpiar(); }
+  });
+
+  prueba('FK4', 'Los anchos de la «Vista cliente» (feed continuo, pieza 6; D-293, D-325): a todo lo ancho, el feed min(440 px, 32vw) con sus partes a la derecha; a 700 con partes, el feed en su caja de 620 px que se desliza dentro, y el salto, el imán y la tira miden con esa caja sin mover la página; a 700 sin partes, el feed ocupa lo que queda y también va; poner y quitar la vista a mitad de un gesto no cambia el mes activo', async () => {
+    const V = M._in.vc;
+    try {
+      await fjSeis();
+      // a mitad de un gesto (en mi Mesa y en la vista): el mes activo no cambia y el feed vuelve a su punto
+      await fgPulsar(fgHueco('Oct')); await fjQuieto(700);
+      fjGesto(); fjFeed().scrollTop += 6; await fjCuadro(); await vistaCliente(true); await fjQuieto(900);
+      igual(fgActivo(), [FJ_SO, '2026-10'], 'poner la vista a mitad de un gesto');
+      igual(fjFeed().scrollTop, fjP('2026-10'), 'poner la vista: el feed fuera del punto'); cerca(fjX(), fjXde(fjJ('2026-10')), 1, 'poner la vista: la tira');
+      fjGesto(); fjFeed().scrollTop -= 6; await fjCuadro(); await vistaCliente(false); await fjQuieto(900);
+      igual(fgActivo(), [FJ_SO, '2026-10'], 'quitar la vista a mitad de un gesto');
+      igual(fjFeed().scrollTop, fjP('2026-10'), 'quitar la vista: el feed fuera del punto'); cerca(fjX(), fjXde(fjJ('2026-10')), 1, 'quitar la vista: la tira');
+      V.poner('lado', { id: 'fk4l', orden: 10, html: () => '<h2>Tus pagos</h2>' });
+      await vistaCliente(true); await fjQuieto(300);
+      const f = fjFeed().getBoundingClientRect(), l = q('.main > .vc-lado').getBoundingClientRect();
+      cerca(f.width, Math.min(440, W.innerWidth * 0.32), 1, 'el feed a todo lo ancho'); ok(f.right <= l.left, 'las partes no van a la derecha del feed');
+      const ir = async (nom, m, que) => {
+        await fgPulsar(fgHueco(nom)); await fjQuieto(700);
+        const feed = fjFeed(); igual(feed.scrollTop, fjP(m), `${que}: el feed fuera del punto de ${m}`);
+        const c = q(`.feed .grid > .fmes[data-mes="${m}"] .cell:last-child`).getBoundingClientRect(), fb = feed.getBoundingClientRect(), pb = parseFloat(W.getComputedStyle(feed).paddingBottom) || 0;
+        ok(fjP(m) === feed.scrollHeight - feed.clientHeight || fjP(m) === 0 || Math.abs(c.bottom - (fb.top + feed.clientHeight - pb)) <= 2, `${que}: la primera de ${m} no está en la fila de abajo de la caja: ${c.bottom} frente a ${fb.top + feed.clientHeight - pb}`);
+        cerca(fjX(), fjXde(fjJ(m)), 1, `${que}: la tira en ${m}`);
+      };
+      await fgAncho(700, async () => {
+        await fjQuieto(300); const feed = fjFeed(), main = q('.main');
+        cerca(feed.getBoundingClientRect().height, 620, 1, 'a 700 con partes, la caja del feed');
+        ok(feed.scrollHeight > feed.clientHeight + 200 && W.getComputedStyle(main).overflowY === 'auto', 'a 700 con partes, el feed no se desliza dentro o la página no se desliza');
+        main.scrollTop = 0; await fjCuadro();
+        for (const [nom, m] of [['Jul', '2026-07'], ['Nov', MES], ['Sep', '2026-09']]) await ir(nom, m, 'a 700 con partes');
+        igual(main.scrollTop, 0, 'el salto movió la página');
+        const fila = fjMov().filaH; ok(fila > 50 && fila < 300, 'la fila medida no es la de la caja: ' + fila);
+        await fjA(Math.round(fjP('2026-10') - .2 * fila)); await fjQuieto(900);
+        igual(feed.scrollTop, fjP('2026-10'), 'a 700 con partes, el imán'); igual(fgActivo(), [FJ_SO, '2026-10'], 'a 700 con partes, el mes al asentarse');
+        V.quitar('lado', 'fk4l'); await espera(60); M._in.render(); await fjQuieto(400);
+        const h = fjFeed().getBoundingClientRect().height;
+        ok(Math.abs(h - 620) > 2 && fjFeed().scrollHeight > fjFeed().clientHeight + 200, 'a 700 sin partes, el feed no ocupa lo que queda: ' + h);
+        for (const [nom, m] of [['Jul', '2026-07'], ['Nov', MES]]) await ir(nom, m, 'a 700 sin partes');
+      });
+    } finally { V.quitar('lado', 'fk4l'); await vistaCliente(false); await limpiar(); }
+  });
+
+  prueba('FK5', '«Web del cliente» y el feed seguido (feed continuo, pieza 6; D-241, D-327): deslizar de un mes a otro no pide ni envía nada hasta asentarse, y asentarse no envía; «Enviar» tras deslizar envía el tablero del mes activo', async () => {
+    try {
+      await fjSeis();
+      await conWeb(async sv => {
+        wbSesion();
+        ok((await M.web.enviar()).ok, 'no se envió noviembre');
+        await espera(3400); const n1 = sv.pedidos.length;
+        const P = fjPuntos();
+        for (let i = 1; i <= 8; i++) await fjA(Math.round(P[MES] + (P['2026-07'] - 3 - P[MES]) * i / 8));
+        igual(sv.pedidos.slice(n1).map(p => p.met + ' ' + p.ruta.split('?')[0]), [], 'deslizar pidió algo antes de asentarse');
+        await fjQuieto(); igual(fgActivo(), [FJ_JL, '2026-07'], 'asentado en julio');
+        await espera(3400);
+        ok(!sv.pedidos.slice(n1).some(p => p.met !== 'GET' && /publicaciones|storage/.test(p.ruta)), 'asentarse envió algo: ' + json(sv.pedidos.slice(n1).map(p => p.met + ' ' + p.ruta.split('?')[0])));
+        const r = await M.web.enviar(); ok(r.ok, 'no se envió julio: ' + json(r));
+        igual([...new Set(sv.db.publicaciones.map(p => p.mes))].sort(), ['2026-07', MES], 'los meses enviados');
+        igual(sv.db.publicaciones.filter(p => p.mes === '2026-07').length, 6, 'las de julio');
+      });
+    } finally { await limpiar(); }
+  });
 
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;

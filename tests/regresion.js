@@ -23252,6 +23252,25 @@
     });
   });
 
+  // ---------- feed continuo, pieza 3a: el feed seguido, todos los meses del cliente en una sola cuadrícula ----------
+  prueba('FE11', 'El mes activo (feed continuo, pieza 3a): MESA.init y MESA.open lo dejan en el primer mes de su tablero, abrir el cliente en el de hoy (D-121), activar en el pedido; pon() de otro mes del mismo tablero no cambia de tablero', async () => {
+    try {
+      await fdDos();   // octubre y noviembre, abierto noviembre
+      const A = M._in.mesActivo; ok(A && A.lee && A.pon && A.quien, 'no hay mesActivo en MESA._in');
+      igual([A.lee(), M._in.S.key], [MES, fdN], 'tras MESA.init de noviembre');
+      await M.open(fdO); igual([A.lee(), A.quien()], [FD_OCT, 'open'], 'MESA.open de octubre');
+      await M.openClient(CLIENTE); await M.flush();
+      igual([A.lee(), A.quien(), M._in.S.key], [FD_OCT, 'cliente', fdO], 'abrir el cliente: el mes de hoy');
+      await fdAct(fdN); igual(A.lee(), MES, 'activar noviembre');
+      const r = await A.pon(FD_OCT, 'prueba'); ok(r && r.ok, 'pon(): ' + json(r));
+      igual([A.lee(), A.quien(), M._in.S.key], [FD_OCT, 'prueba', fdO], 'pon() de octubre');
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: '2026-12', months: 2, slots: [pub(1, 'Foto', 3, '2026-12'), pub(2, 'Foto', 4, '2027-01')], past: [], force: true }); await M.flush();
+      const k2 = M._in.S.key; igual(A.lee(), '2026-12', 'un tablero de dos meses, al abrirlo');
+      const r2 = await A.pon('2027-01'); ok(r2 && r2.ok, 'pon() de enero: ' + json(r2));
+      igual([A.lee(), M._in.S.key], ['2027-01', k2], 'su segundo mes, sin cambiar de tablero');
+    } finally { await limpiar(); }
+  });
+
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;
   $('resumen').textContent = `${T.length} pruebas listas.`;

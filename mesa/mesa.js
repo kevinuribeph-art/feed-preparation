@@ -6791,7 +6791,7 @@ ${TK_FUENTES}
     let lastBy = {}; try { lastBy = JSON.parse(lsGet('mesa-lastByClient') || '{}'); } catch (e) { /* */ }
     const hoy = madParts(ahora()).day, conHoy = mine.filter(b => b.month && monthsOf(b.month, b.span).some(m => cycleStart(m, b.cycleDay) <= hoy && hoy <= cycleEnd(m, b.cycleDay)));
     const pick = conHoy.find(b => b.key === lastBy[id]) || conHoy[0] || mine.find(b => b.key === lastBy[id]) || mine[0];   // the one that holds today; else the last used (D-121)
-    if (pick) return M.open(pick.key);
+    if (pick) return M.open(pick.key, { mes: mesDeHoy(pick) || undefined, quien: 'cliente' });   // its month of today, if it holds it (D-121)
     if (S) { try { await flushNow(); } catch (e) { /* */ } }
     if (shellReady()) closeDetail(); else buildShell();
     if (curClient !== id) memSoltar();
@@ -6992,7 +6992,7 @@ ${TK_FUENTES}
     return null;
   }
   async function activar(key, o = {}) {   // o.paso: for a step of ⌘Z (D-317): a window, a menu or a field don't stop it
-    if (S && S.key === key) return { ok: true, key };
+    if (S && S.key === key) { if (o.mes && mesesTab(S).includes(o.mes) && o.mes !== mesActivo) { mesFijar(o.mes, o.quien || 'activar'); mesSigue(); } return { ok: true, key }; }
     const no = () => { const w = activarNo(); return o.paso && /ventana|menú|campo/.test(w || '') ? null : w; };
     let why = no(); if (why) return { error: why };
     if (activando) return { error: 'ya se está cambiando de mes' };
@@ -7011,7 +7011,7 @@ ${TK_FUENTES}
           why = no(); if (why) return { error: why };
           if (!S || (S.client || boardClient(S)) !== c) return { error: 'cambió el cliente' };
           if (!MEM.tab.has(key)) continue;   // written meanwhile: read again
-          sembrar(key);
+          sembrar(key, o.mes, o.quien || (o.paso ? 'paso' : 'activar'));
           return { ok: true, key };
         }
       }
@@ -7027,7 +7027,7 @@ ${TK_FUENTES}
     }
   }
   // the globals of one board, from its copy (sync: nothing read nor written here); the board left becomes the copy of its key
-  function sembrar(key) {
+  function sembrar(key, mes, quien) {
     const m = MEM.tab.get(key);
     memDejar(S);
     MEM.tab.delete(key);                // S is never a copy
@@ -7037,6 +7037,7 @@ ${TK_FUENTES}
     BODY.set(S, boardBody(S));
     if (!BASE_IDB.has(key)) BASE_IDB.set(key, S.savedAt || null);
     prevOnce = false; pendingUnlock = null; usoS = null; vencSig = '';
+    mesFijar(mes || null, quien);   // its month asked, else its first (pieza 3a)
     activado();
     if (!shellReady()) return;
     renderBar(); renderMain();           // the same .main (by client): its feed, tray and calendar drawn for this month
@@ -7044,7 +7045,51 @@ ${TK_FUENTES}
     vencRefrescar().catch(() => { /* the next minute */ });   // its vencidas of the earlier boards (read only)
     if (M.diseno && M.diseno.prepararKits && S.slots.some(s => s.design)) M.diseno.prepararKits(S).then(() => { if (S && S.key === key) renderFeed(); }).catch(() => { /* */ });
   }
-  function activado() { histBase(); }   // ⌘Z: the client's one history goes on; its present for this month, as it is now (D-317)
+  function activado() { histBase(); }
+  // ---------- the active month (feed continuo, pieza 3a) ----------
+  // mesActivo: the month the Mesa works on ('YYYY-MM', its cycle's start), one of the open board's (S): a board of 2–3 months has
+  // several. Set by MESA.open / MESA.init (the month asked, else the board's first), opening a client (today's, D-121) and touching a
+  // post of another month; never by drawing. mesQuien: who set it last ('open' | 'init' | 'cliente' | 'tocar' | 'paso' | …).
+  let mesActivo = null, mesQuien = null;
+  const mesesTab = B => (B && B.month ? monthsOf(B.month, B.span) : []);
+  function mesDeHoy(B) { const m = cycleOfDay(madParts(ahora()).day, B && B.cycleDay); return mesesTab(B).includes(m) ? m : null; }
+  function mesFijar(m, quien, B = S) { const ms = mesesTab(B); mesActivo = ms.includes(m) ? m : ms[0] || null; mesQuien = quien || null; return mesActivo; }
+  // pon(m): makes month m active; with another board, through activar (it can say no: {error}); the feed doesn't move
+  async function mesPoner(m, quien = 'pon') {
+    if (!S || !/^\d{4}-\d{2}$/.test(String(m || ''))) return { error: 'no es un mes' };
+    if (mesesTab(S).includes(m)) { mesFijar(m, quien); mesSigue(); return { ok: true, mes: mesActivo, key: S.key }; }
+    const k = feedDueno(m); if (!k) return { error: 'ese mes no tiene tablero' };
+    const r = await activar(k, { mes: m, quien }); return r && r.ok ? { ...r, mes: mesActivo } : r;
+  }
+  function mesSigue() { if (!shellReady()) return; calRender(); }   // what follows the active month (the calendar; pieza 3a)
+  // the board that owns month m among the client's (S and the copies): the last used (mesa-lastByClient, as D-121), else the one saved
+  // most recently. null: none of them holds it
+  function feedDueno(m) {
+    const c = S && (S.client || boardClient(S)); if (!c) return null;
+    const cand = MB.filter(b => monthsOf(b.month, b.span).includes(m)); if (!cand.length) return null;
+    if (cand.length === 1) return cand[0].key;
+    let last = null; try { last = JSON.parse(lsGet('mesa-lastByClient') || '{}')[c]; } catch (e) { /* */ }
+    if (cand.some(b => b.key === last)) return last;
+    const sv = b => String((S && S.key === b.key ? S.savedAt : ((MEM.tab.get(b.key) || {}).savedAt || b.savedAt)) || '');
+    return [...cand].sort((a, b) => sv(b).localeCompare(sv(a)))[0].key;
+  }
+  // a month's point (D-246 replaced in pieza 4): the feed's scrollTop at which its first (oldest) post is in the bottom row of what
+  // shows, with the rest of the month above; the feed shorter than its window doesn't move. null: the month isn't drawn
+  function feedPunto(m) {
+    const feed = root && root.querySelector('.feed'); if (!feed) return null;
+    const w = feed.querySelector(`.grid > .fmes[data-mes="${cssq(m)}"]`), cs = w && w.querySelectorAll('.cell[data-slot], .cell.past');
+    const c = cs && cs[cs.length - 1]; if (!c) return null;
+    const max = feed.scrollHeight - feed.clientHeight; if (max <= 0) return feed.scrollTop;
+    const fr = feed.getBoundingClientRect(), cr = c.getBoundingClientRect(), pb = parseFloat(getComputedStyle(feed).paddingBottom) || 0;
+    const y = feed.scrollTop + (cr.bottom - fr.top) - feed.clientHeight + pb;
+    return Math.max(0, Math.min(max, Math.round(y)));
+  }
+  // takes the feed to month m's point (pieza 3a: at once; the animation, the magnet and the quick jump are pieza 5's)
+  function feedIr(m, o = {}) {
+    const feed = root && root.querySelector('.feed'), y = feedPunto(m); if (!feed || y == null) return false;
+    if (feed.scrollTop !== y) feed.scrollTop = y;
+    return true;
+  }   // ⌘Z: the client's one history goes on; its present for this month, as it is now (D-317)
   async function memLeerCliente(client) {   // every board of a client: {key: its copy}
     const out = {};
     for (const b of ((await idbAll('boards')) || []).filter(x => boardClient(x) === client)) { const t = await memLeer(b.key); if (t) out[b.key] = t; }
@@ -7112,6 +7157,7 @@ ${TK_FUENTES}
     const { faltan: missing, retyped, won, deadRenders } = A;
     CLI = { c: client, tray: A.S.tray, carpetas: A.S.carpetas };   // the client's tray, one object for all its months (pieza 2)
     S = atarBandeja(A.S); PB = A.PB; IDX = A.IDX;
+    if (!MIRA) mesFijar(cfg.mes || null, cfg.mes ? cfg.quien || 'open' : cfg.reopen ? 'open' : 'init');   // the active month (pieza 3a): the one asked, else the board's first
     if (A.aDel.length) delList(l => [...new Set([...l, ...A.aDel])]);   // images the editor drew that were in the tray (D-101): deleted once nothing uses them
     A.borrar.forEach(id => { deleteIfUnused(id).catch(() => null); });   // a photo twice in the tray: the copy left out (D-041)
     if (PB && !MIRA) await loadThumbs([...new Set(PB.slots.flatMap(s => publishList(s)))]);
@@ -7162,7 +7208,7 @@ ${TK_FUENTES}
     await loadClients();
     if (esContenido(client)) return MIRA ? { error: 'sin meses', sinMeses: true, client } : M.openClient(client);   // an old board of a client of «Solo contenido»: its page (D-312)
     const t = String(b.title || '');
-    return M.init({ key, client, month, months: b.span || 1, cycleDay: cdOf(b.cycleDay), reopen: true, clientName: t.includes(' · ') ? t.split(' · ')[0].trim() : null, handle: b.handle || '', slots: (b.slots || []).map(({ id, name, type, date, notionName, notionDate, notionType }) => ({ id, name: notionName ?? name, type: notionType ?? type, date: notionDate ?? date })), past: b.past || [], ...(MIRA ? { mirar: true } : {}) });
+    return M.init({ key, client, month, months: b.span || 1, cycleDay: cdOf(b.cycleDay), reopen: true, clientName: t.includes(' · ') ? t.split(' · ')[0].trim() : null, handle: b.handle || '', slots: (b.slots || []).map(({ id, name, type, date, notionName, notionDate, notionType }) => ({ id, name: notionName ?? name, type: notionType ?? type, date: notionDate ?? date })), past: b.past || [], ...(MIRA ? { mirar: true } : {}), ...(o.mes ? { mes: o.mes, quien: o.quien } : {}) });
   };
   async function migrateLegacy() {
     const all = (await idbAll('boards')) || [];
@@ -9233,6 +9279,8 @@ ${TK_FUENTES}
     armarTablero, comoAbierto,   // a board as it opens, without writing (feed continuo, pieza 1)
     // the client's boards in memory (feed continuo, pieza 1; nothing uses them yet): leer(key) and leerCliente(client) read the copies
     // (without writing), ver(key) gives one already read or null, soltar() lets them all go
+    mesActivo: { lee: () => mesActivo, quien: () => mesQuien, pon: (m, quien) => mesPoner(m, quien) },   // the active month (feed continuo, pieza 3a)
+    feedPunto, feedIr: (m, o) => feedIr(m, o), feedDueno,   // a month's point in the feed and going there (pieza 3a; pieza 5 animates it)
     activar,   // another month of the open client becomes the open board, without opening it again (feed continuo, pieza 2)
     tablerosMem: { leer: conTableros(memLeer), leerCliente: conTableros(memLeerCliente), ver: k => (MEM.tab.get(k) || {}).tablero || null, soltar: memSoltar, claves: () => [...MEM.tab.keys()] }
   };

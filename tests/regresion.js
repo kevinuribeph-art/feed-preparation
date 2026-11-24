@@ -23219,6 +23219,39 @@
     igual(M._test.hist().undo, 0, 'volver al cliente trajo su historia vieja');
     await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [], past: [], force: true }); await limpiar();
   });
+  prueba('FD6', 'Trampa 7 (feed continuo, pieza 2): con «Web del cliente», volver a un mes ya visto o activar 10 veces no hace una petición por mes; lo que decide el cliente en otro mes se aplica sin ser un paso de ⌘Z', async () => {
+    await fdDos();
+    await M.open(fdO); await porAprobar(['fd-o1'], 'fd6'); await M.flush();
+    await M.open(fdN); await poner('r1', [await foto('fd6-n.jpg')]); await M.flush();
+    await conWeb(async sv => {
+      wbSesion();
+      await fdAct(fdO);
+      const r0 = await M.web.enviar(); ok(r0.ok, 'no se envió: ' + json(r0));
+      await espera(3400);
+      await fdAct(fdN); await espera(3400);
+      const n1 = sv.pedidos.length;
+      await fdAct(fdO); await espera(3400);
+      await fdAct(fdN); await espera(3400);
+      igual(sv.pedidos.slice(n1).map(p => p.met + ' ' + p.ruta.split('?')[0]), [], 'volver a meses ya vistos pidió al servidor');
+      for (let i = 0; i < 10; i++) await fdAct(i % 2 ? fdN : fdO);
+      await espera(3400);
+      igual(sv.pedidos.slice(n1).map(p => p.met + ' ' + p.ruta.split('?')[0]), [], '10 activaciones pidieron al servidor');
+      // lo que decide el cliente en octubre: aprobado, sin ser un paso
+      const p1 = sv.db.publicaciones.find(x => x.mes === FD_OCT && x.estado === 'por_aprobar');
+      ok(p1, 'octubre no se envió: ' + json(sv.db.publicaciones.map(x => x.mes)));
+      sv.db.aprobaciones.push({ id: 'fd6a', cliente_id: CLIENTE, pid: p1.pid, version: p1.version, decision: 'aprobada', motivo: null, diapositiva: null, autor_nombre: 'Ana', hora: new Date(Date.now() + 1000).toISOString() });
+      await fdAct(fdO);
+      const h0 = M._test.hist();
+      await M.web.leer(); await espera(80);
+      igual(M._in.estadoDe(slot('fd-o1')), 'aprobado', 'la aprobación del cliente');
+      igual(M._test.hist().undo, h0.undo, 'la decisión del cliente es un paso de ⌘Z');
+      await fdZ(true);
+      igual([M._in.S.key, slot('r1').photos], [fdN, []], '⌘Z no deshizo lo de noviembre');
+      await fdAct(fdO);
+      igual(M._in.estadoDe(slot('fd-o1')), 'aprobado', '⌘Z deshizo la decisión del cliente');
+    });
+  });
+
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;
   $('resumen').textContent = `${T.length} pruebas listas.`;

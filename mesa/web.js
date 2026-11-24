@@ -24,7 +24,7 @@
     const c = I() && I().supa ? I().supa() : null;
     if (c !== SB) {
       SB = c;
-      if (SB) SB.alCambiar(() => { if (SB !== c) return; st.dueno = null; st.servidor = null; st.cambios = null; conv.clear(); RESP.clear(); HECHAS.clear(); if (MOVIL) return; if (I() && I().render) I().render(); pedirRepaso(); });   // on the iPhone a session that changes only empties what was read
+      if (SB) SB.alCambiar(() => { if (SB !== c) return; st.dueno = null; st.servidor = null; st.cambios = null; visto.clear(); conv.clear(); RESP.clear(); HECHAS.clear(); if (MOVIL) return; if (I() && I().render) I().render(); pedirRepaso(); });   // on the iPhone a session that changes only empties what was read
     }
     return SB;
   }
@@ -169,7 +169,18 @@
   }
 
   // ---------- Estado de la barra ----------
-  const st = { clave: '', servidor: null, cambios: null, enviando: null, error: '', dueno: null, firma: '', leyendo: null, extra: null, extraT: 0 };
+  const st = { clave: '', cliente: '', servidor: null, cambios: null, enviando: null, error: '', dueno: null, firma: '', leyendo: null, extra: null, extraT: 0 };
+  // what was counted of each month of the open client in this tab (feed continuo, pieza 2): going back to a month already seen asks
+  // the server nothing (its conversation is in conv); another client, the tab coming back into view or a new session read again
+  const visto = new Map();
+  function aOtroMes(B) {
+    if (st.clave && st.cliente === B.client) visto.set(st.clave, { servidor: st.servidor, cambios: st.cambios, firma: st.firma, extra: st.extra, extraT: st.extraT });
+    if (st.cliente !== B.client) visto.clear();
+    const v = visto.get(B.key);
+    st.clave = B.key; st.cliente = B.client;
+    if (v && v.servidor) Object.assign(st, v); else { st.servidor = null; st.cambios = null; st.firma = ''; st.extra = null; }
+    if (!conv.has(B.key)) leerConversacion().catch(() => null);
+  }
   const IMG = new Map();   // «pid|firma de sus fotos» → sus imágenes ya enviadas en esta pestaña: un cambio de caption no las rehace
   async function leerServidor(cli, B) {
     const c = sb(); if (!c || !c.usuario()) return null;
@@ -194,7 +205,7 @@
   async function repaso(todo) {
     const X = I(), B = tablero(), c = sb();
     if (MOVIL || !B || !c || !c.usuario() || st.enviando || X.locked) return;
-    if (st.clave !== B.key) { st.clave = B.key; st.servidor = null; st.cambios = null; st.firma = ''; st.extra = null; leerConversacion().catch(() => null); }
+    if (st.clave !== B.key) aOtroMes(B);
     try {
       if (st.dueno == null) { await esDueno(c); X.renderBar(); }
       if (st.dueno === false) return;   // otra cuenta: la barra lo dice y no ofrece nada
@@ -326,7 +337,7 @@
         await c.borrar(`entregas?cliente_id=eq.${ce}` + (P.entregas.length ? `&id=not.in.(${P.entregas.map(x => `"${x.id}"`).join(',')})` : ''));
       }
       lsS(claveHuella(B), await huellaExtra(P));
-      st.servidor = await leerServidor(cli, B); st.clave = B.key; st.firma = ''; st.cambios = null; st.extra = 0; st.extraT = Date.now(); st.error = '';
+      st.servidor = await leerServidor(cli, B); st.clave = B.key; st.cliente = cli; st.firma = ''; st.cambios = null; st.extra = 0; st.extraT = Date.now(); st.error = '';
       toast(P.contenido ? `Enviado a la web del cliente: ${P.entregas.length} ${P.entregas.length === 1 ? 'entrega' : 'entregas'}` : `Enviado a la web del cliente: ${filasPub.filter(f => f.visible).length} publicaciones`);
       return { ok: true, publicaciones: filasPub.filter(f => f.visible).length, ocultas: sobran.length, imagenes: [...imgs.values()].reduce((n, l) => n + l.length, 0), subidas };
     } catch (e) {
@@ -654,7 +665,7 @@
   if (!document.documentElement.hasAttribute('data-movil')) listo().then(() => {   // the iPhone (D-267): no start of its own; it only reads and replies
     on(document, 'click', alClic, true);
     on(document, 'submit', alEnviarForm, true);
-    on(document, 'visibilitychange', () => { if (!document.hidden) { st.servidor = null; st.firma = ''; st.extra = null; pedirRepaso(); leerConversacion().catch(() => null); leerRespuestas().catch(() => null); } });
+    on(document, 'visibilitychange', () => { if (!document.hidden) { st.servidor = null; st.firma = ''; st.extra = null; visto.clear(); pedirRepaso(); leerConversacion().catch(() => null); leerRespuestas().catch(() => null); } });
     I().estilo('mesa-web-css', ESTILO);
     // Cada 3 s con la pestaña a la vista: si el tablero cambió, se vuelve a contar (solo huellas, sin imágenes).
     tic = setInterval(() => { if (!document.hidden && sb() && tablero()) repaso().catch(() => { /* st.error */ }); }, 3000);

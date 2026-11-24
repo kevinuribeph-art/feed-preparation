@@ -322,7 +322,9 @@
   }
   if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', () => lleno());   // la cabecera, con cada letra que llega (600 y 800 se piden al pintar)
   let llenoRaf = 0;
-  window.addEventListener('resize', () => { cancelAnimationFrame(llenoRaf); llenoRaf = requestAnimationFrame(lleno); });   // una vez por cuadro (lección 113)
+  // una vez por cuadro (lección 113); y los puntos de los meses otra vez: el alto de la pantalla cambió (sin esto, al bajar el alto de la
+  // ventana los puntos se quedaban en los de antes hasta otro cambio de tamaño del contenido; D-P12)
+  window.addEventListener('resize', () => { cancelAnimationFrame(llenoRaf); llenoRaf = requestAnimationFrame(() => { lleno(); seguro(cabColocar); }); });
 
   async function irA(id) {
     if (id === st.cli) return;

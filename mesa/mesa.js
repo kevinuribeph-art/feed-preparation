@@ -5340,7 +5340,11 @@ ${TK_FUENTES}
     if (!pd || e.pointerId !== pd.id) return;
     const p = pd, tg = p.on ? dragTarget(document.elementFromPoint(e.clientX, e.clientY), p.d) : null;
     pdEnd();
-    if (tg && S) dropOn(p.d, tg);
+    const x = tg && tg.cell && p.d.from === 'tray' ? celdaTocada(tg.cell) : null;
+    if (otroTablero(x)) {                // its month first (pieza 3a); then the photo goes on it, in its board
+      const sid = x.c.dataset.slot;
+      tocar(x).then(ok => { const c = ok && S && root.querySelector(`.feed .grid .cell[data-slot="${cssq(sid)}"]`); if (c) { dropOn(p.d, { ...tg, cell: c }); flushRender(); } });
+    } else if (tg && S) dropOn(p.d, tg);
     if (p.on) flushRender();
   }
   function pdCancel() { const on = pd && pd.on, id = pd && pd.id; pdEnd(); if (on) { pdHold = id; flushRender(); } }
@@ -5355,6 +5359,55 @@ ${TK_FUENTES}
     pd.over = null; if (pd.lx != null) pdAt(pd.lx, pd.ly);
   }
 
+  // ---------- touching a post of another month (feed continuo, pieza 3a) ----------
+  // Opening it, its right click, ⌘+click, dropping a photo of the tray or a file on it: its month becomes the active one first
+  // (activar; the feed doesn't move), then what was asked happens in its board. With a window, a menu, a field, a drag or a job
+  // (activar says no) nothing happens and why is said, as the busy notices. A press on it doesn't start a drag the first time.
+  let tocando = null;                   // {key, p}: the activation under way
+  function celdaTocada(t) {
+    const c = t && t.closest && t.closest('.feed .grid > .fmes:not([data-notion]) .cell'), w = c && c.parentElement;
+    if (!c || !w || !S || !w.dataset.tablero) return null;
+    return { c, w, key: w.dataset.tablero, mes: w.dataset.mes };
+  }
+  function tocar(x) {                   // -> Promise<boolean>: its board is S now
+    if (x.key === S.key) { if (x.mes !== mesActivo && mesesTab(S).includes(x.mes)) { mesFijar(x.mes, 'tocar'); mesSigue(); } return Promise.resolve(true); }
+    if (tocando && tocando.key === x.key) return tocando.p;
+    const p = activar(x.key, { mes: x.mes, quien: 'tocar' }).then(r => {
+      if (r && r.ok) return true;
+      if (r && r.error && !/^ya se está/.test(r.error)) toast(`No se cambia de mes ahora: ${r.error}.`);
+      return false;
+    }).finally(() => { if (tocando && tocando.p === p) tocando = null; });
+    tocando = { key: x.key, p };
+    return p;
+  }
+  const otroTablero = x => !!(x && S && x.key !== S.key);
+  // the same gesture again on the same post, once its board is S (a cell drawn again is found again by its id)
+  function repetir(e, x) {
+    const sel = x.c.dataset.slot ? `.cell[data-slot="${cssq(x.c.dataset.slot)}"]` : x.c.dataset.filler != null ? `.fmes[data-tablero="${cssq(x.key)}"] .cell.filler[data-filler="${x.c.dataset.filler}"]` : null;
+    const el = sel && root.querySelector(`.feed .grid ${sel}`); if (!el) return;
+    const o = { bubbles: true, cancelable: true, clientX: e.clientX, clientY: e.clientY, screenX: e.screenX, screenY: e.screenY, button: e.button, buttons: 0, detail: e.detail, metaKey: e.metaKey, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, altKey: e.altKey };
+    el.dispatchEvent(new MouseEvent(e.type, o));
+  }
+  function alTocar(e) {
+    const x = celdaTocada(e.target); if (!x) return;
+    if (!otroTablero(x)) { if (x.mes !== mesActivo) tocar(x); return; }   // another month of the same board: at once
+    e.stopPropagation(); e.stopImmediatePropagation();
+    if (e.type === 'contextmenu' || e.type === 'click' || e.type === 'dblclick') e.preventDefault();
+    const p = tocar(x);
+    if (e.type !== 'pointerdown') p.then(ok => { if (ok) repetir(e, x); });
+  }
+  // a file dropped from the computer on a post of another month
+  function alSoltarOtro(e) {
+    const x = celdaTocada(e.target); if (!otroTablero(x) || !hasFiles(e) || root.classList.contains('client')) return;
+    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); sprParar(); clearOver();
+    const files = [...e.dataTransfer.files], sid = x.c.dataset.slot; if (!files.length || !sid) return;
+    tocar(x).then(ok => {
+      if (!ok || !S) return;
+      const tgt = S.slots.find(s => s.id === sid); if (!tgt) return;
+      if (tgt.photos.length && isMulti(tgt.type)) { M.addFiles(files, null, { aviso: sid }).then(got => askAddMode(sid, got)); return; }
+      M.addFiles(files, sid);
+    });
+  }
   function wire() {
     if (!M._winWired) {
       M._winWired = true;
@@ -5398,6 +5451,8 @@ ${TK_FUENTES}
       else if (hasFiles(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }
     });
     root.addEventListener('dragleave', e => { if (!e.relatedTarget || !root.contains(e.relatedTarget)) { sprParar(); clearOver(); } });
+    ['pointerdown', 'click', 'dblclick', 'contextmenu'].forEach(t => root.addEventListener(t, alTocar, true));   // a post of another month (pieza 3a)
+    root.addEventListener('drop', alSoltarOtro, true);
     root.addEventListener('drop', e => {
       sprParar();
       const cell = e.target.closest('.cell[data-slot]');

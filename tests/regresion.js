@@ -23422,6 +23422,65 @@
     } finally { await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 1, slots: [], past: [], force: true }); await limpiar(); }
   });
 
+  prueba('FE7', 'Dibujar no escribe (pieza 3a; contado de verdad, lección 171): deslizar el feed de punta a punta, activar cada mes y fijar el mes activo = 0 escrituras en IndexedDB y en localStorage y 0 peticiones; una pestaña en pausa tampoco', async () => {
+    try {
+      await feTres(); await M.flush(); await M._test.fueraListo(); await espera(300);
+      const feed = q('.feed');
+      let red = 0; const f0 = W.fetch; W.fetch = (...a) => { red++; return f0.apply(W, a); };
+      let c, c2;
+      try {
+        c = await fcContar(async () => {
+          for (let y = 0; y <= feed.scrollHeight; y += 120) { feed.scrollTop = y; await espera(16); }
+          for (const k of [fdO, `${CLIENTE}-2026-09`, fdN]) await fdAct(k);
+          for (const m of [FD_OCT, '2026-09', MES]) { const r = await M._in.mesActivo.pon(m, 'prueba'); ok(r && r.ok, 'pon: ' + json(r)); }
+          M._in.renderFeed(); feed.scrollTop = 0; await espera(30);
+        });
+        // en pausa
+        const bc = new W.BroadcastChannel('mesa-feed'); bc.postMessage({ t: 'claim', id: 'otra-pestana-de-prueba' });
+        await hasta(() => M._in.locked && q('.lock'), 3000, 'la mesa pausada');
+        c2 = await fcContar(async () => {
+          for (let y = 0; y <= feed.scrollHeight; y += 120) { feed.scrollTop = y; await espera(16); }
+          const r = await M._in.mesActivo.pon(FD_OCT, 'prueba'); ok(r && r.error, 'en pausa cambió de mes');
+          M._in.renderFeed(); await espera(300);
+        });
+      } finally { W.fetch = f0; qa('.lock').forEach(x => x.remove()); await M._test.claim(); }
+      igual([c.idb, c.ls, red], [0, 0, 0], 'mirar escribió o pidió algo: ' + json(c.que));
+      igual([c2.idb, c2.ls], [0, 0], 'en pausa escribió: ' + json(c2.que));
+    } finally { await limpiar(); }
+  });
+
+
+  prueba('FE5', 'Tocar una publicación de otro mes la activa (pieza 3a): abrirla, su clic derecho y soltarle un archivo ocurren en su tablero (solo se guarda ese) y el feed no se mueve; con una ventana abierta el gesto no cambia de mes; ⌘Z deshace en ese mes', async () => {
+    try {
+      await feTres();
+      const feed = q('.feed'), st = feed.scrollTop;
+      const toca = async (id, tipo) => { const c = celda(id); c.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: tipo === 'contextmenu' ? 2 : 0 })); c.dispatchEvent(new W.MouseEvent(tipo, { bubbles: true, cancelable: true, button: tipo === 'contextmenu' ? 2 : 0, clientX: 50, clientY: 50 })); await espera(120); };
+      await toca('fe-o2', 'click');
+      igual([M._in.S.key, M._in.mesActivo.lee(), M._in.mesActivo.quien(), feed.scrollTop], [fdO, FD_OCT, 'tocar', st], 'abrir una de octubre');
+      ok(dialogo() && dialogo().dataset.slot === 'fe-o2', 'no se abrió su ventana');
+      // con la ventana abierta, tocar otra de septiembre no cambia de mes
+      await toca('fe-s2', 'click'); igual(M._in.S.key, fdO, 'con la ventana abierta cambió de mes');
+      M._in.closeDetail(); await espera(40);
+      await toca('fe-s3', 'contextmenu');
+      igual(M._in.S.key, `${CLIENTE}-2026-09`, 'el clic derecho en septiembre');
+      ok(q('.cpmenu'), 'no salió su menú');
+      M._in.menuCerrar && M._in.menuCerrar(); D.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await espera(40);
+      await fdAct(fdN); await M.flush();
+      const nov0 = json(await M._in.idbGet('boards', fdN));
+      // un archivo soltado en una de octubre
+      const dt = new W.DataTransfer(); dt.items.add(await foto('fe5.jpg'));
+      celda('fe-o4').dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+      await hasta(() => M._in.S.key === fdO && (slot('fe-o4') || { photos: [] }).photos.length === 1, 4000, 'la foto en la de octubre');
+      await M.flush();
+      igual(json(await M._in.idbGet('boards', fdN)), nov0, 'se guardó noviembre');
+      igual(((await M._in.idbGet('boards', fdO)).slots.find(s => s.id === 'fe-o4') || {}).photos.length, 1, 'octubre no guardó la foto');
+      igual(feed.scrollTop, st, 'el feed se movió');
+      await fdAct(fdN); await fdZ(true);
+      igual([M._in.S.key, slot('fe-o4').photos.length], [fdO, 0], '⌘Z no la deshizo en octubre');
+    } finally { M._in.closeDetail(); await limpiar(); }
+  });
+
+
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;
   $('resumen').textContent = `${T.length} pruebas listas.`;

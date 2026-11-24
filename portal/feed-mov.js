@@ -202,7 +202,9 @@
     function alScroll() {
       sC = sc.scrollTop;
       if (anim) { pedir(); return; }      // los cuadros de nuestra animación (un gesto la para antes de su desplazamiento)
-      if (Math.abs(sC - ultimaEsc) >= MOV.ECO && viva()) {   // de quien mira
+      // de quien mira: con un gesto vivo o, ya empezado su desplazamiento, mientras siga (la inercia del dedo en Safari puede durar más
+      // de 2,5 s: sin esto, el imán tiraba antes de parar y peleaba con ella; D-P13, lo que añade el portal)
+      if (Math.abs(sC - ultimaEsc) >= MOV.ECO && (viva() || huboScroll)) {
         huboScroll = true; ultimaEsc = -9;
         if (ancla && Math.abs(sC - ancla.st) >= 1) ancla = null;
         if (desv && !desv.fijo && filaH > 0 && Math.abs(sC - desv.sR) >= filaH) desv = null;

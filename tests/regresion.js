@@ -23006,6 +23006,149 @@
     const d = fcDifiere(await foto1(), a); ok(!d, 'abrir otra vez cambió algo: ' + d);
     igual(json(M.board()), json(M._in.S), 'MESA.board() no es la copia del abierto');
   });
+  // ---------- feed continuo, pieza 2: el mes activo cambia sin reabrir; ⌘Z, una historia por cliente ----------
+  // MESA._in.activar(key) cambia el tablero abierto (S) a otro mes del mismo cliente sin releer ni escribir nada; la bandeja y las
+  // carpetas son un solo objeto del cliente; un paso de ⌘Z sabe de qué tablero es y, si no es el que se ve, lo activa (D-317).
+  const FD_OCT = '2026-10', fdO = `${CLIENTE}-${FD_OCT}`, fdN = `${CLIENTE}-${MES}`;
+  async function fdDos(masN = [], masO = []) {   // octubre y noviembre del cliente, guardados; abierto noviembre
+    await limpiar();
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: FD_OCT, slots: [fcSlot('fd-o1', '4.1', 20, FD_OCT), fcSlot('fd-o2', '4.2', 22, FD_OCT), ...masO], past: [], force: true });
+    await M.flush();
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1), pub(2), ...masN], past: [], force: true });
+    await M.flush();
+  }
+  async function fdAct(key) {
+    ok(M._in.activar, 'no hay activar en MESA._in');
+    const r = await M._in.activar(key);
+    ok(r && !r.error, `no se activó ${key}: ` + json(r));
+    igual(M._in.S && M._in.S.key, key, 'el tablero activo');
+    return r;
+  }
+  async function fdZ(atras) { if (atras) M._test.undo(); else M._test.redo(); if (M._test.histListo) await M._test.histListo(); await espera(30); }
+  const fdDisco = async (k, id) => { await M._test.fueraListo(); return ((await M._in.idbGet('boards', k)) || { slots: [] }).slots.find(s => s.id === id) || null; };
+  const fdVeces = (l, ids) => ids.map(id => l.filter(x => x === id).length);
+
+  prueba('FD1', 'Trampa 1 (feed continuo, pieza 2): el contexto de una collab enlazada, editado y con otro mes activado antes de 250 ms, llega al otro cliente y se guarda en su tablero; igual la nota y el motivo de una cancelación (sus temporizadores); nada se guarda en el mes que se activa', async () => {
+    try {
+      await fdDos([pub(3)]);
+      await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(1)], past: [], force: true }); await M.flush();   // r1: collab con el otro cliente
+      await M.open(fdN); await M.flush();
+      ok(M._test.shared('r1').length, 'r1 no está enlazada con el otro cliente');
+      const oct0 = json(await M._in.idbGet('boards', fdO));
+      M._test.setNote('r1', 'Contexto FD1');
+      await fdAct(fdO);
+      igual([(await fdDisco(fdN, 'r1')).note, (await fdDisco(`${CLIENTE2}-${MES}`, 'r1')).note], ['Contexto FD1', 'Contexto FD1'], 'el contexto de la collab, en los dos tableros');
+      await fdAct(fdN);
+      M._test.setMemo('r2', 'Nota FD1');
+      await fdAct(fdO);
+      igual((await fdDisco(fdN, 'r2')).memo, 'Nota FD1', 'la nota');
+      await fdAct(fdN);
+      M.setEstado('r3', 'cancelado'); await M.flush();
+      ok(M._test.setMotivo, 'no hay setMotivo en MESA._test');
+      M._test.setMotivo('r3', 'Motivo FD1');
+      await fdAct(fdO);
+      igual((await fdDisco(fdN, 'r3')).estado, { v: 'cancelado', motivo: 'Motivo FD1' }, 'el motivo de la cancelación');
+      await espera(600);   // lo que quedara de los temporizadores
+      igual(json(await M._in.idbGet('boards', fdO)), oct0, 'se guardó algo en octubre');
+      igual([(await fdDisco(fdN, 'r1')).note, (await fdDisco(fdN, 'r2')).memo], ['Contexto FD1', 'Nota FD1'], 'noviembre, al final');
+    } finally { await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [], past: [], force: true }); await limpiar(); }
+  });
+
+  prueba('FD3', 'R1 (feed continuo, pieza 2): subir una carpeta, activar otro mes a mitad, seguir y subir otra: no se pierde ninguna foto y la bandeja del cliente (memoria y disco) las tiene todas, una vez', async () => {
+    await fdDos();
+    const sb = await M._in.empezarSubida(); ok(sb, 'no empezó la subida');
+    let a, b;
+    try {
+      a = await M._in.entrarFoto(sb, null, await foto('fd3-a.jpg'), 'image/jpeg');
+      await fdAct(fdO);
+      b = await M._in.entrarFoto(sb, null, await foto('fd3-b.jpg'), 'image/jpeg');
+    } finally { await M._in.acabarSubida(sb, []); }
+    const sb2 = await M._in.empezarSubida(); ok(sb2, 'no empezó la segunda subida');
+    const c = await M._in.entrarFoto(sb2, null, await foto('fd3-c.jpg'), 'image/jpeg');
+    await M._in.acabarSubida(sb2, []);
+    await M.flush();
+    const ids = [a.id, b.id, c.id];
+    igual(fdVeces(M.board().tray, ids), [1, 1, 1], 'la bandeja en memoria');
+    igual(fdVeces((await M._in.idbGet('bandejas', CLIENTE)).tray, ids), [1, 1, 1], 'la bandeja guardada');
+    await fdAct(fdN);
+    igual(fdVeces(M.board().tray, ids), [1, 1, 1], 'la bandeja al volver a noviembre');
+    await M.flush(); await M.open(fdO);
+    igual(fdVeces(M.board().tray, ids), [1, 1, 1], 'la bandeja al abrir octubre de lo guardado');
+  });
+
+  prueba('FD4', 'Activar no escribe ni pide nada a la red (feed continuo, pieza 2; contado de verdad, lección 171) y 10 activaciones seguidas dejan el tablero, MESA.board(), plan() y lo que se dibuja como al abrirlo con MESA.open', async () => {
+    await fdDos([pub(3, 'Carrusel')]);
+    await poner('r1', [await foto('fd4-n.jpg')]); M._test.setNote('r1', 'Contexto FD4');
+    await M.flush(); await M.open(fdO);
+    await poner('fd-o1', [await foto('fd4-o.jpg')]); M._test.setCrop(slot('fd-o1').photos[0], 'fd-o1', { cx: 0.4, cy: 0.6, z: 1.3 });
+    await M.flush(); await M.open(fdN); await M.flush(); await M._test.fueraListo(); await espera(300);
+    let red = 0; const f0 = W.fetch; W.fetch = (...a) => { red++; return f0.apply(W, a); };
+    let c;
+    try { c = await fcContar(async () => { ok(M._in.activar, 'no hay activar en MESA._in'); const out = []; for (let i = 0; i < 10; i++) out.push(await M._in.activar(i % 2 ? fdN : fdO)); return out; }); }
+    finally { W.fetch = f0; }
+    ok(c.r.every(r => r && !r.error), 'una activación falló: ' + json(c.r));
+    igual([c.idb, c.ls, red], [0, 0, 0], 'activar escribió o pidió algo: ' + json(c.que));
+    igual(M._in.S.key, fdN, 'el activo tras 10');
+    const sinHora = o => { const x = JSON.parse(json(o)); delete x.savedAt; delete x.editedAt; return x; };
+    const foto1 = async () => ({ s: sinHora(M._in.S), b: sinHora(M.board()), p: M.plan(), cel: qa('.feed .grid .cell').map(e => [e.dataset.slot || '', e.className]), cal: qa('.side > .cal [data-slot]').map(e => e.dataset.slot) });
+    const r = await M._in.comoAbierto(fdN);
+    const d0 = fcDifiere(sinHora(r.S), sinHora(M._in.S)); ok(!d0, 'el activo no es el tablero «como abierto»: ' + d0);
+    const a = await foto1();
+    await M.open(fdN); await M.flush(); await espera(100);
+    const d = fcDifiere(await foto1(), a); ok(!d, 'activado no es lo que da MESA.open: ' + d);
+  });
+
+  prueba('FD5', 'Trampa 6 (feed continuo, pieza 2): activar otro mes no rehace .main: el feed, la bandeja y el calendario son los mismos nodos, y la bandeja conserva su desplazamiento y el foco', async () => {
+    await fdDos();
+    const fs = []; for (let i = 0; i < 18; i++) fs.push(await foto(`fd5-${i}.jpg`, 300, 375));
+    await M.addFiles(fs); M._in.render(); await espera(80);
+    const feed = q('.main > .feed'), tray = q('.main .tray'), cal = q('.main .side > .cal'), tb = q('.main .tray .tbody');
+    ok(feed && tray && tb, 'sin feed o bandeja');
+    if (tb.scrollHeight > tb.clientHeight + 30) tb.scrollTop = 30;
+    const st = tb.scrollTop, btn = q('.main .tray .tfil [data-v="todas"]'); btn.focus();
+    ok(D.activeElement === btn, 'no se pudo poner el foco');
+    await fdAct(fdO); await espera(80);
+    ok(q('.main > .feed') === feed && q('.main .tray') === tray && q('.main .side > .cal') === cal, 'activar rehízo .main');
+    igual(tb.scrollTop, st, 'el desplazamiento de la bandeja');
+    ok(D.activeElement === btn, 'el foco de la bandeja se perdió');
+    ok(qa('.feed .grid .cell[data-slot="fd-o1"]').length === 1, 'el feed no es el de octubre');
+  });
+
+  prueba('FD8', 'Activar se niega (feed continuo, pieza 2) con una ventana abierta, un campo en edición, un arrastre o un trabajo en marcha, y no cambia nada', async () => {
+    await fdDos();
+    await poner('r1', [await foto('fd8.jpg')]); await M.flush();
+    ok(M._in.activar, 'no hay activar en MESA._in');
+    const igualQue = async que => { const antes = json(M._in.S); const r = await M._in.activar(fdO); ok(r && r.error, `${que}: se activó`); igual([M._in.S.key, json(M._in.S)], [fdN, antes], `${que}: cambió algo`); };
+    M._in.openDetail('r1'); await espera(40);
+    await igualQue('con la ventana de una publicación'); M._in.closeDetail(); await espera(40);
+    const inp = D.createElement('input'); inp.type = 'text'; q('.main .tray').append(inp); inp.focus();
+    try { await igualQue('con un campo en edición'); } finally { inp.remove(); }
+    const c = celda('r1'); c.dispatchEvent(new W.DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: new W.DataTransfer() }));
+    try { await igualQue('con un arrastre'); } finally { c.dispatchEvent(new W.DragEvent('dragend', { bubbles: true })); }
+    M.uploads.__fd8 = { state: 'uploading' };
+    try { await igualQue('con una subida en marcha'); } finally { delete M.uploads.__fd8; }
+    await fdAct(fdO);
+  });
+
+  prueba('FD9', 'Collabs (D-008) tras activar (feed continuo, pieza 2): un cambio en una publicación enlazada llega al otro cliente y recibe una revisión nueva (s.at), con el mes que llegó de una copia y con el que vuelve de ser copia', async () => {
+    try {
+      await fdDos();
+      await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(1)], past: [], force: true }); await M.flush();
+      await M.open(fdO); await M.flush();
+      await fdAct(fdN);
+      ok(M._test.shared('r1').length, 'activado, r1 no sale enlazada');
+      const at0 = (await fdDisco(fdN, 'r1')).at || 0;
+      M._test.setSlot('r1', { note: 'Collab FD9 uno' }); await M.flush();
+      const n1 = await fdDisco(fdN, 'r1');
+      igual([(await fdDisco(`${CLIENTE2}-${MES}`, 'r1')).note, n1.note], ['Collab FD9 uno', 'Collab FD9 uno'], 'tras la primera activación');
+      ok((n1.at || 0) > at0, 'no recibió una revisión nueva');
+      await fdAct(fdO); await fdAct(fdN);
+      M._test.setSlot('r1', { note: 'Collab FD9 dos' }); await M.flush();
+      igual((await fdDisco(`${CLIENTE2}-${MES}`, 'r1')).note, 'Collab FD9 dos', 'tras volver de ser copia');
+      ok(((await fdDisco(fdN, 'r1')).at || 0) > (n1.at || 0), 'la segunda vez no recibió una revisión nueva');
+    } finally { await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [], past: [], force: true }); await limpiar(); }
+  });
+
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;
   $('resumen').textContent = `${T.length} pruebas listas.`;

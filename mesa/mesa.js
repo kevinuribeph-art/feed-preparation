@@ -3224,12 +3224,12 @@ ${TK_FUENTES}
     if (on && ms.scrollWidth > ms.clientWidth + 1) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 
-  let mainMode = null;   // 'board:<key>' | 'empty-client' | 'no-clients'
+  let mainMode = null;   // 'board:<client>' (by client, not by month: activar never makes .main again, pieza 2) | 'empty-client' | 'no-clients'
   function renderMain() {
     const main = root.querySelector('.main');
     const cn = (CL.find(x => x.id === curClient) || {}).name || '';
     const cc = contCli(), cont = !!cc;   // a client of «Solo contenido» (D-290): no feed nor tray; one page, without months (D-312)
-    const mode = cc ? 'cont:' + cc : S ? 'board:' + S.key : CL.length ? 'empty-client:' + curClient + ':' + cn : 'no-clients';
+    const mode = cc ? 'cont:' + cc : S ? 'board:' + (S.client || boardClient(S)) : CL.length ? 'empty-client:' + curClient + ':' + cn : 'no-clients';
     if (mode !== mainMode) {
       { const t = main.querySelector('.tray'); if (t) trayDonde(t); }   // the place of the folder it showed (D-092)
       if (mainMode && mainMode.startsWith('cont:') && M.entregasUI && M.entregasUI.salir) { try { M.entregasUI.salir(); } catch (e) { /* */ } }   // a «Solo contenido» page left (D-290)
@@ -4231,6 +4231,8 @@ ${TK_FUENTES}
       if (perez) minisPerezosas(grid);
     }
     if (otra) { grid._vista = vista; trayDonde(tray, true); }   // and where the one it shows now was
+    else if (grid._key && grid._key !== S.key && !(tray.clientWidth && tray.clientHeight)) trayDonde(tray, true);   // another month while it is hidden («Vista cliente»): back to where it was once it shows (D-092; the same tray since pieza 2)
+    grid._key = S.key;
     if (perez) grid.querySelectorAll('.titem').forEach(x => x.classList.toggle('sel', x.dataset.file === sel));
     { const ven = new Set(vis.map(x => x.f)); traySel.forEach(f => { if (!ven.has(f)) traySel.delete(f); }); const cv = new Set(carpetasDeVista().map(c => c.id)); traySelC.forEach(c => { if (!cv.has(c)) traySelC.delete(c); }); }
     marcarTray();
@@ -6850,9 +6852,92 @@ ${TK_FUENTES}
     const r = await comoAbierto(key);
     if (!r || !r.S) return null;
     const { tray: _t, carpetas: _c, ...tablero } = r.S;
-    if (ep === MEM.epoca && (MEM.gen.get(key) || 0) === g0) MEM.tab.set(key, { tablero, savedAt: tablero.savedAt || null });   // written meanwhile: not kept
+    if (ep === MEM.epoca && (MEM.gen.get(key) || 0) === g0) MEM.tab.set(key, { tablero, savedAt: tablero.savedAt || null, PB: r.PB, IDX: r.IDX, sig: r.sig });   // written meanwhile: not kept. With what activar needs (pieza 2): its month before, its links and its slots' signature before opening
     return tablero;
   }
+  // the board activar leaves becomes the copy of its key (pieza 2): nothing pending (flushed), so it is the newest there is; its
+  // tray stays the client's (CLI), and its links and signature go with it
+  function memDejar(B) {
+    if (!B || !B.key) return;
+    const { tray: _t, carpetas: _c, ...tablero } = B;
+    MEM.tab.set(B.key, { tablero, savedAt: tablero.savedAt || null, PB, IDX, sig: SIG.b === B ? SIG.m : null });
+  }
+  // ---------- the active month (feed continuo, pieza 2) ----------
+  // activar(key): another month of the open client becomes the open board (S) without opening it again: what was pending is saved
+  // first (flushPending, only if there is something), then the board is taken from its copy in memory (read once if it isn't there,
+  // never written) and the globals of one board are sown from it; the board left becomes a copy. Nothing is written, nothing asked to
+  // the network, ⌘Z goes on (one history per client) and .main is not made again (renderMain goes by client). It says no, changing
+  // nothing, with a drag, a field being edited, a window, a menu, the editor or the designer, or a job going on.
+  let activando = 0;
+  const pendiente = () => !!(saveTimer || noteTimer || motTimer);
+  function activarNo() {
+    if (!S || locked) return 'no hay un mes abierto aquí';
+    if (MOVIL) return 'en el iPhone se mira un tablero cada vez';
+    if (importEscribe || importing || uploadsBusy() || xferRun) return 'hay un trabajo en marcha';
+    if (M.web && M.web.estado && M.web.estado().enviando) return '«Web del cliente» está enviando';
+    if (drag || (pd && pd.on)) return 'hay un arrastre';
+    if (dibujoZ || (M.libre && M.libre.aplicando && M.libre.aplicando()) || (M.diseno && M.diseno.aplicando && M.diseno.aplicando())) return 'se está dibujando una publicación';
+    if ((M.libre && M.libre.abierto && M.libre.abierto()) || (M.diseno && M.diseno.abierto && M.diseno.abierto())) return 'el editor está abierto';
+    if (!root) return null;
+    const d = root.querySelector('.detail'); if (d && !d.hidden) return 'hay una ventana abierta';
+    if (root.querySelector('.cpmenu')) return 'hay un menú abierto';
+    const a = document.activeElement;
+    if (memoEdit != null || (a && root.contains(a) && (a.isContentEditable || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || (a.tagName === 'INPUT' && !/^(range|checkbox|radio|button|submit|file|color)$/.test(a.type || ''))))) return 'hay un campo en edición';
+    return null;
+  }
+  async function activar(key) {
+    if (S && S.key === key) return { ok: true, key };
+    let why = activarNo(); if (why) return { error: why };
+    if (activando) return { error: 'ya se está cambiando de mes' };
+    const c = S.client || boardClient(S);
+    activando++; switching++;
+    try {
+      for (let n = 0; ; n++) {         // what is pending is saved first; an edit that comes in while it saves is saved too
+        if (n > 20) return { error: 'no se pudo guardar lo pendiente' };
+        if (pendiente()) await flushPending();
+        if (!pendiente()) {
+          if (!MEM.tab.has(key)) { await memLeer(key); if (pendiente()) continue; }   // read once, never written
+          const m = MEM.tab.get(key);
+          if (!m) return { error: 'ese mes no se pudo leer' };
+          if (boardClient(m.tablero) !== c) return { error: 'ese mes es de otro cliente' };
+          await mesCargar(m); if (pendiente()) continue;   // the photos of its month before (read only)
+          why = activarNo(); if (why) return { error: why };
+          if (!S || (S.client || boardClient(S)) !== c) return { error: 'cambió el cliente' };
+          if (!MEM.tab.has(key)) continue;   // written meanwhile: read again
+          sembrar(key);
+          return { ok: true, key };
+        }
+      }
+    } finally { activando--; switching--; }
+  }
+  async function mesCargar(m) {          // what M.init reads for a board's month before, before drawing it: read only
+    const pb = m.PB, t = m.tablero;
+    if (pb) await loadThumbs([...new Set((pb.slots || []).flatMap(s => publishList(s)))]);
+    for (const p of t.past || []) {
+      if (M.pastThumbs[p.id]) continue;
+      const rec = await idbGet('files', 'past:' + p.id);
+      if (rec && rec.thumb instanceof Blob) { M.pastBlobs[p.id] = rec.thumb; M.pastThumbs[p.id] = URL.createObjectURL(rec.thumb); }
+    }
+  }
+  // the globals of one board, from its copy (sync: nothing read nor written here); the board left becomes the copy of its key
+  function sembrar(key) {
+    const m = MEM.tab.get(key);
+    memDejar(S);
+    MEM.tab.delete(key);                // S is never a copy
+    const B = {};
+    for (const [k, v] of Object.entries(m.tablero)) { B[k] = v; if (k === 'slots') { B.tray = null; B.carpetas = null; } }   // the tray and folders in their place (as armarTablero)
+    S = atarBandeja(B); PB = m.PB || null; IDX = m.IDX || {}; SIG = { b: S, m: m.sig || Object.fromEntries(S.slots.map(s => [s.id, slotSig(s, S)])), dirty: new Set() };
+    BODY.set(S, boardBody(S));
+    if (!BASE_IDB.has(key)) BASE_IDB.set(key, S.savedAt || null);
+    prevOnce = false; pendingUnlock = null; usoS = null; vencSig = '';
+    activado();
+    if (!shellReady()) return;
+    renderBar(); renderMain();           // the same .main (by client): its feed, tray and calendar drawn for this month
+    usosOtros();                         // the client's other boards, read in the background (never written)
+    vencRefrescar().catch(() => { /* the next minute */ });   // its vencidas of the earlier boards (read only)
+    if (M.diseno && M.diseno.prepararKits && S.slots.some(s => s.design)) M.diseno.prepararKits(S).then(() => { if (S && S.key === key) renderFeed(); }).catch(() => { /* */ });
+  }
+  function activado() { /* ⌘Z: the client's history follows (pieza 2c) */ }
   async function memLeerCliente(client) {   // every board of a client: {key: its copy}
     const out = {};
     for (const b of ((await idbAll('boards')) || []).filter(x => boardClient(x) === client)) { const t = await memLeer(b.key); if (t) out[b.key] = t; }
@@ -9039,6 +9124,7 @@ ${TK_FUENTES}
     armarTablero, comoAbierto,   // a board as it opens, without writing (feed continuo, pieza 1)
     // the client's boards in memory (feed continuo, pieza 1; nothing uses them yet): leer(key) and leerCliente(client) read the copies
     // (without writing), ver(key) gives one already read or null, soltar() lets them all go
+    activar,   // another month of the open client becomes the open board, without opening it again (feed continuo, pieza 2)
     tablerosMem: { leer: conTableros(memLeer), leerCliente: conTableros(memLeerCliente), ver: k => (MEM.tab.get(k) || {}).tablero || null, soltar: memSoltar, claves: () => [...MEM.tab.keys()] }
   };
   M._test = {
@@ -9049,7 +9135,7 @@ ${TK_FUENTES}
     // the battery's clients as made: no service, day of deliveries nor link of metrics (D-289, D-290, D-292)
     camposBorrar: async ids => { for (const id of ids) { const c = CL.find(x => x.id === id); if (c && CAMPOS_CLI.some(([k, kAt]) => k in c || kAt in c)) await editarCliente(id, x => { CAMPOS_CLI.forEach(([k, kAt]) => { delete x[k]; delete x[kAt]; }); return x; }); } await loadClients(); },
     reloj: t => { RELOJ = t == null ? null : +t; }, vencRevisar: abrir => vencRevisar(!!abrir), avisadas: () => new Set(), fueraListo: () => fueraQ,   // a fixed clock for the battery (D-120)
-    place, swap, unassign, move, movePhoto, setType, removeFile, setCover, setNote, setMemo, pastList, addToSlot, setPreview, refreshDetail,
+    place, swap, unassign, move, movePhoto, setType, removeFile, setCover, setNote, setMemo, setMotivo, pastList, addToSlot, setPreview, refreshDetail,
     versionNueva, claim, nubeAbrir, escrito: k => ESCRITO.get(k), cuerpoNube: () => S && cuerpoNube(S),
     perBorrar: async () => { if (NUBE.activa) throw new Error('con la nube encendida no se vacía nada (D-256)'); for (const c of CL) if (c.personas) await editarCliente(c.id, o => { delete o.personas; delete o.personasAt; return o; }); await loadClients(); },   // the battery's lists of people go (D-130)
     setPersona: (slotId, campo, usuario, poner = true) => setPersona(slotId, campo, usuario, poner),

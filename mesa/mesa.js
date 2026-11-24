@@ -74,7 +74,7 @@
   // so it runs first, also before the editor's own keys
   let eligiendo = false;
   { const para = e => { if (eligiendo) { e.preventDefault(); e.stopImmediatePropagation(); } }; ['pointerdown', 'mousedown', 'click', 'dblclick', 'auxclick', 'contextmenu', 'keydown', 'keypress'].forEach(t => window.addEventListener(t, para, true)); }
-  M.version = '4.52'; // 4.52: the adjustments of the 4.49, lot C — a client of «Solo contenido» has no months: one page with all its deliveries (the pending ones by deadline and, apart, the delivered ones by month), the calendar at half height on today's month with its sessions under it («+ Sesión», «+ Reunión») and «Acuerdo y pagos»; its vista cliente and the portal, the same list without a calendar; the iPhone, its page at #cli/<client>; «Web del cliente» by client; «caduca» beside a WeTransfer link, only for Kevin; MESA.init makes nothing (sinMeses), MESA.open of an old board opens the page, MESA.board() is null (entregas 1.3, movil 1.7, web 1.8, personal 1.18, revisar 1.12, historias 1.21, portal 1.8, D-312); each day of every calendar under the mouse, --cx-hov with --d1, also in the vista cliente, Tareas, the clients' strips and the portal (calendario 1.30, D-313); the agreement's head whole at 280–340 px (cobros 1.5, D-314). 4.51: the adjustments of the 4.49, lot B — the agreement's fields with options and calendars: «Se emite el día» and «Inicio de ciclo» / «Entregas antes del día» Día 1 · 5 · 15 · Otro… (the days 1–28), «Vence a los» 7 · 15 · 30 · Otro…, «Cubre desde» a month field with its calendar, «Duración» 1 · 3 · 6 meses · 1 año · Sin fin · Otra… (controles 1.8, D-304); a client's agreements with their history, «Nuevo acuerdo» and «Termina en», each invoice in the agreement of its first month (IndexedDB 26 with 'acuerdos', file v21, D-305, D-306); the packages, a catalog of Kevin's, a copy of what it included in each agreement ('paquetes', D-307); «Tus pagos» and the portal say the agreement from when to when and what its package includes (web 1.7, portal 1.7, D-308); «Se factura» in each agreement, the same month by default or the month before (D-309) (cobros 1.4, copia 1.4, nube 1.8, personal 1.17, entregas 1.2). 4.50: the adjustments of the 4.49, lot A — today's and past marks also on tasks and in the iPhone, from the core (personal 1.16, movil 1.6, D-300); a date's calendar never narrows by the edge, the vencidas' field at 32 px (controles 1.7, D-301); the ring under the mouse on a hole and on a day of the calendar, with --d1 (calendario 1.29, D-302); the notices below in the brand's terracotta, in the Mac, the iPhone and the portal (portal.css 1.6, D-303). 4.49: the adjustments of the 4.42, lot E — a new device's notice says which one and when («Safari · Mac · hoy a las 10:12») and has «Es mío» (kept in the server, gone in every device) and «No lo reconozco» (asks, closes every session of the account at once, this one too, and on signing in again proposes a new password); a session closed in the server takes the Mesa to sign in again with nothing set aside (nube 1.7, entrada 1.5, D-298); «Visto» of the «Nube» notices in the server, an old Mesa keeps its own (D-299). 4.48: the adjustments of the 4.42, lot D — the vista cliente as the portal: the right column fills the screen, «Tus pagos» 1/3 and «Cómo fue» 2/3 (D-293); «Ver más en Zernio» under «Cómo fue» (informe 1.1, D-294); a post's window as the portal's, its state and what the client said, without likes (D-295); the carousel's arrows, 30 px (D-296); «Tus pagos» with its stretch, a «Solo contenido» client's deliveries and its «Vista cliente» and «Web del cliente», a meeting with its eye open to the web (cobros 1.3, entregas 1.1, calendario 1.28, web 1.6, D-297). 4.47: the adjustments of the 4.42, lot C — clients: each one's agreement (how often it pays, from when, for how long, whether it renews, when to renegotiate) and invoices that cover a stretch, «Acuerdos» in Avisos (cobros 1.2, D-288); «Nuevo cliente» in three cards, MESA.addClient's servicio (D-289); a client of «Solo contenido»: no feed, its board in three columns with its deliveries (entregas.js 1.0, IndexedDB 25 with 'entregas', file v20, D-290); «Reunión», a kind of session (sesiones 1.9, D-291); the link of its metrics in Zernio (D-292); calendario 1.27, personal 1.15, movil 1.5, web 1.5, copia 1.3, nube 1.6, revisar 1.11, historias 1.20, vigía 1.2. 4.46: the marks of a saved note opened again in the iPhone, on their own line too (WebKit's empty box at the end of the line above, escritura 1.4, D-286). 4.45: the iPhone's notes, after trying them in the iPhone — a bullet, a checkbox and the separator drawn on their own line (iOS leaves the text in one node per line and they went to the end of the line above), and «Cancelar · Guardar» over the drawn marks when the sheet scrolls (escritura 1.3, movil 1.4, D-286). 4.44: the adjustments of the 4.42, lot B — the iPhone's notes: the sheet follows the keyboard also when iOS moves the view, from the top to over the keyboard, «Cancelar · Guardar» on it, the caret in view without animating, the page behind still; a note, «Detalles» and a session's texts written with the Mac's field (escritura.js: its marks and its «/» menu, «Casilla» a subtask in «Detalles») (movil 1.3, escritura 1.2, D-286); the iPhone's state marks are the Mac's, from the core (D-287). 4.43: the adjustments of the 4.42, lot A — the tray's chosen photos go out as they are, one file or a ZIP with their folders (descargar 1.9, carpetas 1.7, D-281); «+ Hueco» and the notes in the feed's right click, its grid a stop of Tab with ⇧F10 (D-282); lists in terracotta, «/.» a list and «/-» a separator «⸻», Tab 4 spaces and the numbers written again (escritura 1.1, movil 1.2, D-283); the symbol's menu «Nuevo cliente · Exportar… · Importar…», «Exportar…» asking which copy, no «+ Cliente» (D-284); the board's calendar's right click: a new session, task or story in a day, a session opened, duplicated or deleted (calendario 1.26, personal 1.14, sesiones 1.8, D-285). 4.42: the portal's «too many tries» no longer promises a minute, and the Mesa's email code says another can be asked for in 3 minutes, as the real project allows (supa 1.4, entrada 1.4, D-280). 4.41: importing a copy of «Exportar todo» writes each file with its own bytes, never a piece of the .tar (Safari stored a piece as the whole 2 GB part: the disk filled); no file over 200 MB goes in, from a copy or from the disk; never more than the copy brings; the progress says how much is written (copia 1.2, carpetas 1.6, D-279). 4.40: the portal in «Avisos» (D-278) — a portal account's new device or first entry, an entry of an account that is no client's and many codes asked for one email, written by the server (nube 1.5). 4.39: the iPhone's adjustments after trying it (D-271 to D-272, D-275): task and session fields as operations (T_CAMPO, S_CAMPO, finalDe). 4.38: a client's account of the portal doesn't go on in the Mesa — right after the email code (or the password) the server says it isn't the owner's, the sign-in closes its session and says its calendar is at clientes.uribevisuals.studio, before any password or app code is made in its account (entrada 1.3, D-274). 4.37: the Mesa in the iPhone (D-267 to D-270) — movil.html and its face (movil.js 1.0) over the same core: the core without the desk, looking without writing, each change an operation applied as a patch over what is stored (D-267); the phone's cloud, looking in the pause and taking the Mesa for each change without reloading (nube 1.3, D-268); its face, its sign-in and the old address that takes an iPhone there (entrada 1.2, tema 1.1, arranque 1.2, vigia 1.1, D-269); changing from the phone, with its date and time drawn by the Mesa (D-270); personal 1.12, web 1.4; on the Mac, «no contesta» at once and «La Mesa se abrió en un aparato nuevo». 4.36: the Uribe Visuals monogram, 24 px and not pressed, where the vista cliente kept the symbol's place empty (D-264); no «Haz una copia» nor ⇅ in the header — the copies (Exportar, Exportar todo, Importar…) open with a right click on the symbol, or ⇧F10 / the menu key on it, in a small menu that says at its foot when this browser may delete the data; its click still opens the personal page; nothing in the vista cliente (D-263). 4.35: «Configura tu entrada» with the session of before goes to sign in (password and code) when the account already has its code or that session no longer works (entrada 1.1, D-262). 4.34: the Mesa's sign-in (entrada.js, D-262) — email and password in each new window or tab (a reload doesn't ask), the code of the Passwords app the first time in each browser and every 30 days, checked by the server (aal2 with a TOTP of the last 30 days, behind a switch); the session kept encrypted with the password; a new computer brings its Mesa down on its own with the loading screen (the monogram fills); «¿Olvidaste tu contraseña?»; no «Entrar y traer tu Mesa» nor the email code of «Web del cliente» (supa 1.3, nube 1.2, web 1.3, arranque 1.1). 4.33: the cloud's photos, lot 4 of the traspaso — with the cloud on, each photo's working copy of 2560 px (made in a worker, never kept here) and its thumbnail go up behind, the rest as it is; a record goes up once its files are up; in another computer the thumbnail comes down when seen and the photo when opened, marked `copia` (its real size, never sent up); what needs the original (Descargar «Original», Notion, Zernio, a big zoom) says so; «Entrar y traer tu Mesa»; MESA.nube.subirTodo and comprobar for the move; IndexedDB 24 (D-259). 4.32: the cloud, lot 3 of the traspaso — with nube.js on (only when activated in a browser), the Mesa downloads what changed on the server before drawing and uploads each change of the journal behind, one Mesa open at a time across computers (the turn, in two phases), nothing lost without network (D-253 to D-257); a CSP in index.html: no inline script nor on…= handler (D-252); IndexedDB 23. 4.31: the journal of changes — every write in IndexedDB notes «this record of this store changed» (never its value) in a new store 'diario', in the same transaction; a delete by range, each key it removes; a clear, «this whole store again»; a way without it for what comes down from the server (lot 3); IndexedDB 22 (D-250). 4.30: «Exportar todo» in ⇅ — the whole mesa at its original size, a .tar per client and one general, each file with its SHA-256, in parts over 2 GB, each from its own click; «Importar…» reads them in parts, checks every hash, refuses a damaged or incomplete set without touching anything and merges as always (copia.js 1.0, D-249); a discreet notice when the browser doesn't keep the storage (D-249). 4.29: el aviso de demasiados códigos dice cuánto esperar (portal/supa.js 1.1, D-247). 4.28: portal de clientes, lote 2 — «Web del cliente» en la barra del mes envía al servidor lo que ve el cliente (web.js, portal/supa.js, D-241). 4.27: point 9 of the 4.24's adjustments — each client's month's why and how the month before went, loaded by Claude (MESA.informe) into a new store 'meses' (IndexedDB 21, file v19, D-238); `tools/zernio.mjs resumen`, read only, the per-post figures of a month and of the one before (D-239); in the vista cliente, the tab «Por qué este calendario» and «Cómo fue <mes anterior>» under «Tus pagos», following the calendar's month, «En camino» when they're still to come (informe.js 1.0, D-240). 4.26: the payments of each client, lot B of the 4.24's adjustments — one record per invoice ('cobros') and its PDF apart ('cfacturas'), a tombstone for a deleted one, a monthly client's fee; their states with Madrid's day (D-232); «Editar cliente» of any client, over the personal page, with «Datos · Cobros» (D-233); a sporadic client's payments in its file (D-234); each client's most urgent payment under its block and the sums in the header of Clientes (D-235); a late invoice in «Se ha pasado» (D-236); «Tus pagos» in the vista cliente (D-237); IndexedDB 20, file v18, M.cobros (cobros.js 1.0, personal 1.7, sesiones 1.4). 4.25: the personal page's adjustments of the 4.24, lot A — today's posts not scheduled stand out from tomorrow's (D-222); the page, a card and a session's sheet change in place only what changed: no blink, no entrance again, no photo drawn again (D-223); widen and reduce drawn in the ×'s box (D-224); Tareas folded or open as this tab left it (D-225); a session stands out in Lista, Semana and Mes (D-226); the vista cliente shows only its client (D-227) and nothing unused — no «Feed / Historias» without stories it sees, no logo, no total, no «Editar», no ‹ › without another month, no empty sections in a session's sheet, its separator still (D-228); no Σ anywhere (D-229); its structure, tabs over the calendar and a right column, ready for their content (M._in.vc, D-230); the reviews' pending points (D-231) (personal 1.6, sesiones 1.3, calendario 1.24, historias 1.17, controles 1.6). 4.24: the personal page's adjustments, lot B — a session has several clients, a chip each and «+ Cliente», shown once wherever it goes (D-217); a session's end, «– Fin», kept when its start moves, and its days in Avisos, Semana and Mes (D-218); a session's chip in each of its monthly clients' boards' calendar, which opens its sheet over the board, fixed in «Ver como el cliente» in the vista cliente (calendario 1.23, D-219); several named templates of material, «Equipo completo» by default, and a session retouched apart (D-220); «Duplicar sesión» (D-221); IndexedDB 19, file v17 (personal 1.5, sesiones 1.2, descargar 1.7). 4.23: the personal page's adjustments, lot A — a click on what an open card shows writes there, Esc and a click outside close it also writing, the eye, widen and × at the top right (D-209); a session's sheet widens (D-210); the mood board in columns as wide as a cell of the feed (D-211); a figure for today and another for tomorrow in Avisos (D-212); one thin terracotta line on what is written (D-213); the shots' tabs as the sections' titles (D-214); «Capas» with a handle, Lucide's eye, lock and link and the order in each row's right click (libre 1.65, D-215); the sheet's right column 20 px more inside (D-216) (personal 1.4, sesiones 1.1). 4.22: quick writing in the personal page's notes and details (escritura.js, D-202–D-205); its sessions and sporadic clients (D-206, D-207). 4.21: the editor's «1 / 2» questions with their key drawn, as the mesa's (D-199); a mouse click on an open title that has a double click folds it 0.2 s later, so a double click never folds it (D-200); the right-click menus offer only what does something — «Diseño» and its photo, a designed carousel's grey, a reel's «⋯», the tray's «Pegar» (D-201) (libre 1.64, diseño 1.26, carpetas 1.5). 4.20: design-in-layers adjustments — the «1 / 2» question hugs its key and word and the chosen answer turns terracotta before it closes (D-194); «Capas» no longer sticks out of the panel (D-195); «Restablecer ajustes» and «Soltar del kit» go to the right-click and «⋯» menus, «Volver al diseño» too (D-196); the «Diseño» panel's titles without a grey datum, a double click on a title puts it back to 100 % or Auto, the engine's warnings in the title of «Texto» (D-197); <br> seen as line breaks in the text fields (D-198) (libre 1.63, diseño 1.25). 4.19: a designed carousel or reel cover opens in EDITAR in layers — its «Foto» and its «Diseño», drawn by the engine — to retouch texts, place, size, photo and free layers, keeping the design on «Aplicar»; «Soltar del kit» / «Volver al diseño»; IndexedDB 17, file v15 (libre 1.62, diseño 1.24, motor 1.7, D-193). 4.18: the title «Calendario» at the size of «Bandeja» (D-186); «Usa Notion» says Conectado / Desconectado (D-187); a task without a date (D-188); No aprobado and Cancelado in the bar only when there is one (D-189); the personal page marks what is not scheduled (D-190); «Por aprobar» and «Aprobado» are seen as «En revisión» and «Por programar» (D-191); the month's step goes on and back on its own, an empty chosen caption doesn't count (D-192). 4.17: the personal page counts the reels left to schedule in «Falta programar», «se programa a mano» (personal 1.1, D-181); a task or a note opens big with a click and is written in with a double click, a task's date and client change there (D-182); a task has details and subtasks, a thin bar «2/5» also in small, IndexedDB 16, file v14 (D-183); «Usa Notion» in «Editar cliente»: off, nothing compares with Notion nor invites to upload, and a Programada says what changed since it was programmed (calendario 1.21, D-184); the editor's veil and texture are layers of «Capas», and every layer can be dragged there (libre 1.61, D-185). 4.16: the personal page (personal.js 1.0, D-180): the logo opens a page with every client — what went past, what goes out today and tomorrow, what waits for the client and what is left to schedule, each client's two months and week, tasks and notes; the mesa starts on it; IndexedDB 15 (+ 'tareas'), file v13; a post keeps since when it waits for the client; the hidden board takes no keys. 4.15: the editor's «Barra de progreso», Visto and Aspa (D-179): IndexedDB 14, file v12. 4.14: client tabs measure what they did with 13.5 px letters (D-175); no /favicon.ico, dialog fields at 13 px, a ⌘Z pressed while a type change redraws waits for it (D-176). 4.13: the aesthetic review (D-168 to D-174): one icon stroke (Lucide, non-scaling, 1.33 px), no character as an icon, one look for sliders, radios, heights and menus, one rule per state, type within the scale and the weights the font has, motion tokens for folding and dropdowns, less stroke. 4.12: without M.showOut and M.diseno._sustituir, which nothing used (D-167). 4.11: five faults of the 4.10 (D-166): the tray photo's title says a click shows it big; no «Arrastra las miniaturas…» on a designed post; the designer's «+ Diapositiva» on one line; «Girar»'s field and title say the real angle, a double click chooses it; a ⌘Z pressed while a drop is drawn waits for it. 4.10: «Mesa más limpia», 46 propuestas: fuera botones y textos que repetían algo a la vista, y dobles clics que vuelven al valor de siempre (D-154 a D-165). 4.09: in the posts' calendar, the days of another month of the board that show in the month seen are dimmed as the previous month's, their chips muted in their type's colour and working as the others (calendario 1.17, D-153). 4.08: no row over the feed — the range and its count are in the month's chip, the previous month in its franja and its label, which is now its only lock, with a Lucide lock and its count in its title; «Abrir notas» is an icon in the month's bar (D-152). 4.07: an element's panel in the editor folds like a slide's, one section open at a time, the last one opened remembered by kind of element (libre 1.55, D-149); the dropdowns' lists with their text where the closed field's starts and the ✓ on the right (controles 1.2, D-150); the tray's tab in use in the colour of «Añadir fotos», saying its folder (the fixed one too), no path in text, the whole path in its title (D-151). 4.06: the posts' calendar with the look of the date's, sharing its tokens (D-147); the right column shared by the tray and the calendar with a separator, the tray folds and, both folded, two tabs (D-148). 4.05: eight interface adjustments — «+ Diapositiva» (D-139); the editor's header with the name alone (D-140); section titles alone, 21 px (D-141); the post window's header with «Fijar» left of the × and EDITAR, its main button, Ubicación alone on its row (D-142); the light / dark switch centred, without stars (D-143); one «N cambiadas» (D-144); no «Ajustar», double click on the percentage (D-145); «Libres» (D-146). 4.04: 4.04: seven interface changes — no help texts that say nothing new (D-133); a pill switch for light / dark that marks the mode in use (D-134); the mesa's own dropdowns, dates and times, controles.js (D-135, D-136); the editor's slide panel in folding sections and the calendar's fold with the same movement (D-137); the post's window in two columns, its head beside the × (D-138); 4.03: dark mode — a moon / sun button in the header, left of ⇅, switches the interface between light and dark; remembered in this browser (localStorage «mesa-tema»), never in a board nor in «⇅ Exportar»; starts light; other tabs follow; the images that go out don't change (libre 1.52, D-132). 4.02: visual redesign with the Uribe Visuals brand — one block of colour tokens, Schibsted Grotesk for the interface, Lucide line icons, paper tones for hierarchy and terracotta as the only accent; no change of behaviour, texts, data, IndexedDB, export or output images (libre 1.51, diseño 1.18, calendario 1.13, revisar 1.7, historias 1.12, descargar 1.4, D-131). 4.01: each Foto, Carrusel and Reel may tag people (up to 20) and have collaborators (up to 3), chosen in its window under the location's row from its client's closed list of people (in a collab, both clients'), loaded by Claude with M.personas once each account is checked; plan() gives them for Zernio; a step of ⌘Z, linked in collabs; IndexedDB 13, export v11 (D-130). 4.00: «Revisar» and M.diseno.cargar warn when the carousel's name (the footer of its cards and final) has a word or a figure its cover's title doesn't (diseño 1.17, revisar 1.6, D-129). 3.99: the final slide stays the last in the designer (▲ ▼, «Deshacer», cargar), and reloading a design's texts gives the old final's adjustments to the new final, never to a card; one client's kit centres its final (diseño 1.16, D-128). 3.98: a photo whose tray mark is orange (used only as filling) goes in without asking, with a light notice that names its use; blue, already in this post, in a story or used with no mark, the usual window; in a batch, one notice for the orange ones and the list for the rest; in the mesa and in the editor (libre 1.50, D-127). 3.97: «N cambiadas» and «N con fecha nueva» of the month's bar open one list of those posts, by date, with what changed; its name opens the post (calendario 1.12, D-126). 3.96: ← → in the designer go to the previous and next slide, as ↑ ↓ (diseño 1.15, D-125). 3.95: each post (Foto, Carrusel, Reel) may have a location, chosen in its window from its client's closed list (in a collab, both clients' lists); one catalog for every client, loaded by Claude with M.ubicaciones; the Facebook Page id goes to Zernio with «programa»; a step of ⌘Z, linked in collabs; IndexedDB 12, export v10 (D-124). 3.94: «Editar …» of a design with a photo missing opens the designer on it, with a notice that names every missing one, instead of an error; the cell keeps its images until «Aplicar a la casilla» (diseño 1.14, libre 1.49, D-123). 3.93: the tray's ✓ tells a cover (blue: dark this month or later, middle last month, light two months ago) from a filling photo (orange), counted from the open board's month; three months ago or more a use no longer counts and the photo is free again; one mark per photo, its title says the use that decides it; a filter «Libres para portada» between «Sin usar» and «Todas» (libre 1.48, D-122). 3.92: opening a client opens its board that holds today and the calendar its month; a Programada passes on its own to Publicado once its time comes, unless it moved after it was scheduled; the vencidas are marked, listed and solved from a window, also those of the client's earlier boards, each one a step of ⌘Z; IndexedDB 11, export v9 (calendario 1.11, D-120, D-121). 3.91: each month of a board has its own step: the calendar's bar is the one of the month it shows, going on carries and lists only that month's posts and «Revisar» looks at that month and its stories; the step saved before goes to the board's first month; IndexedDB 10, export v8 (calendario 1.10, revisar 1.5, D-119). 3.90: the pinch over the tray moves its size slider, in the mesa and in the editor, and the photo under the pointer keeps its place (libre 1.47, D-118). 3.89: audit close, lot 6 (performance and memory) — the editor decodes each photo at the size it needs, only the slide and its neighbours at 2560 px (libre 1.46, D-116); opening a month reads the boards once; a story applied again lets its old image go (D-117); «Cambiar portada» loads thumbnails as they're seen; the editor's history keeps summaries; one ⌘Z copy per save; a month is drawn before its kits arrive; the designer decodes at the size it uses and the engine lets go of its canvases (diseño 1.13, motor 1.6). 3.88: 3.88: audit close, lot 5 (cleanup, no change of behaviour) — one wait for the async modules, one way to put a module's style sheet, mesa-pending read in one place, files let go always by soltarArchivo, the editor's deletes and tray returns in one place each (aBandeja), the loose helpers taken from M._in. 3.87: 3.87: audit close, lot 4 (cheap ones) — a button or a form that fails says so (D-113); ⌘1 / ⌘2 don't answer «Sustituir / Añadir» (D-114); each module says it loaded whole and one that throws while loading is «fallo» (D-115; every module's version goes up); a designed slide's zoom moved before its view is ready goes back; cssq uses window.CSS.escape. 3.86: 3.86: audit close, lot 3 (stories and editing) — sorting a day's stories never moves one in Zernio nor takes one to the next day (D-110); the kit's accent counts for designs with a footer or a final (diseño 1.10, D-111); a field of the post window being typed in is never rebuilt from outside (D-112). 3.85: 3.85: audit close, lot 2 (data) — the client's record changes in one transaction and the editor's client saves go one at a time (D-106); story templates deleted stay deleted with a new kit version, IndexedDB 9 (historias 1.9, D-107); the designer converts on arrival a design whose type changed in Notion (diseño 1.9, D-108); a story date with no zone is Madrid's time (D-109). 3.84: 3.84: audit close, lot 1 (Kevin's decisions) — template 25 says which one goes, with «Deshacer» (libre 1.42, D-102); moving a scheduled post warns that Zernio keeps the old time and a published one doesn't move (calendario 1.7, D-103); deleting a client deletes its logos and final photo nobody else uses (D-104); a photo filling a hole keeps its corners and shadow (D-105). 3.83: 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
+  M.version = '4.53'; // 4.53: the feed continuo — all a client's months in one feed, newest on top, each month from its own board and editable, with no lock, band nor frame (D-318); the active month changes without opening its board again, one history of ⌘Z per client (D-317); what passes on its own and the vencidas in every month, moving a post to another month by state (D-319, D-320, D-324); holes and pinned posts only in the newest board (D-321); the feed image as the feed (D-322); the header of three months with a fixed pill and arrows in place of the chips (D-323); the strip follows the feed, a soft magnet and an animated jump (D-325, D-326); the vista cliente the same, only to look, and «Web del cliente» sends an older board's pinned posts by their date (D-327) (calendario 1.31, descargar 1.10, web 1.9). 4.52: the adjustments of the 4.49, lot C — a client of «Solo contenido» has no months: one page with all its deliveries (the pending ones by deadline and, apart, the delivered ones by month), the calendar at half height on today's month with its sessions under it («+ Sesión», «+ Reunión») and «Acuerdo y pagos»; its vista cliente and the portal, the same list without a calendar; the iPhone, its page at #cli/<client>; «Web del cliente» by client; «caduca» beside a WeTransfer link, only for Kevin; MESA.init makes nothing (sinMeses), MESA.open of an old board opens the page, MESA.board() is null (entregas 1.3, movil 1.7, web 1.8, personal 1.18, revisar 1.12, historias 1.21, portal 1.8, D-312); each day of every calendar under the mouse, --cx-hov with --d1, also in the vista cliente, Tareas, the clients' strips and the portal (calendario 1.30, D-313); the agreement's head whole at 280–340 px (cobros 1.5, D-314). 4.51: the adjustments of the 4.49, lot B — the agreement's fields with options and calendars: «Se emite el día» and «Inicio de ciclo» / «Entregas antes del día» Día 1 · 5 · 15 · Otro… (the days 1–28), «Vence a los» 7 · 15 · 30 · Otro…, «Cubre desde» a month field with its calendar, «Duración» 1 · 3 · 6 meses · 1 año · Sin fin · Otra… (controles 1.8, D-304); a client's agreements with their history, «Nuevo acuerdo» and «Termina en», each invoice in the agreement of its first month (IndexedDB 26 with 'acuerdos', file v21, D-305, D-306); the packages, a catalog of Kevin's, a copy of what it included in each agreement ('paquetes', D-307); «Tus pagos» and the portal say the agreement from when to when and what its package includes (web 1.7, portal 1.7, D-308); «Se factura» in each agreement, the same month by default or the month before (D-309) (cobros 1.4, copia 1.4, nube 1.8, personal 1.17, entregas 1.2). 4.50: the adjustments of the 4.49, lot A — today's and past marks also on tasks and in the iPhone, from the core (personal 1.16, movil 1.6, D-300); a date's calendar never narrows by the edge, the vencidas' field at 32 px (controles 1.7, D-301); the ring under the mouse on a hole and on a day of the calendar, with --d1 (calendario 1.29, D-302); the notices below in the brand's terracotta, in the Mac, the iPhone and the portal (portal.css 1.6, D-303). 4.49: the adjustments of the 4.42, lot E — a new device's notice says which one and when («Safari · Mac · hoy a las 10:12») and has «Es mío» (kept in the server, gone in every device) and «No lo reconozco» (asks, closes every session of the account at once, this one too, and on signing in again proposes a new password); a session closed in the server takes the Mesa to sign in again with nothing set aside (nube 1.7, entrada 1.5, D-298); «Visto» of the «Nube» notices in the server, an old Mesa keeps its own (D-299). 4.48: the adjustments of the 4.42, lot D — the vista cliente as the portal: the right column fills the screen, «Tus pagos» 1/3 and «Cómo fue» 2/3 (D-293); «Ver más en Zernio» under «Cómo fue» (informe 1.1, D-294); a post's window as the portal's, its state and what the client said, without likes (D-295); the carousel's arrows, 30 px (D-296); «Tus pagos» with its stretch, a «Solo contenido» client's deliveries and its «Vista cliente» and «Web del cliente», a meeting with its eye open to the web (cobros 1.3, entregas 1.1, calendario 1.28, web 1.6, D-297). 4.47: the adjustments of the 4.42, lot C — clients: each one's agreement (how often it pays, from when, for how long, whether it renews, when to renegotiate) and invoices that cover a stretch, «Acuerdos» in Avisos (cobros 1.2, D-288); «Nuevo cliente» in three cards, MESA.addClient's servicio (D-289); a client of «Solo contenido»: no feed, its board in three columns with its deliveries (entregas.js 1.0, IndexedDB 25 with 'entregas', file v20, D-290); «Reunión», a kind of session (sesiones 1.9, D-291); the link of its metrics in Zernio (D-292); calendario 1.27, personal 1.15, movil 1.5, web 1.5, copia 1.3, nube 1.6, revisar 1.11, historias 1.20, vigía 1.2. 4.46: the marks of a saved note opened again in the iPhone, on their own line too (WebKit's empty box at the end of the line above, escritura 1.4, D-286). 4.45: the iPhone's notes, after trying them in the iPhone — a bullet, a checkbox and the separator drawn on their own line (iOS leaves the text in one node per line and they went to the end of the line above), and «Cancelar · Guardar» over the drawn marks when the sheet scrolls (escritura 1.3, movil 1.4, D-286). 4.44: the adjustments of the 4.42, lot B — the iPhone's notes: the sheet follows the keyboard also when iOS moves the view, from the top to over the keyboard, «Cancelar · Guardar» on it, the caret in view without animating, the page behind still; a note, «Detalles» and a session's texts written with the Mac's field (escritura.js: its marks and its «/» menu, «Casilla» a subtask in «Detalles») (movil 1.3, escritura 1.2, D-286); the iPhone's state marks are the Mac's, from the core (D-287). 4.43: the adjustments of the 4.42, lot A — the tray's chosen photos go out as they are, one file or a ZIP with their folders (descargar 1.9, carpetas 1.7, D-281); «+ Hueco» and the notes in the feed's right click, its grid a stop of Tab with ⇧F10 (D-282); lists in terracotta, «/.» a list and «/-» a separator «⸻», Tab 4 spaces and the numbers written again (escritura 1.1, movil 1.2, D-283); the symbol's menu «Nuevo cliente · Exportar… · Importar…», «Exportar…» asking which copy, no «+ Cliente» (D-284); the board's calendar's right click: a new session, task or story in a day, a session opened, duplicated or deleted (calendario 1.26, personal 1.14, sesiones 1.8, D-285). 4.42: the portal's «too many tries» no longer promises a minute, and the Mesa's email code says another can be asked for in 3 minutes, as the real project allows (supa 1.4, entrada 1.4, D-280). 4.41: importing a copy of «Exportar todo» writes each file with its own bytes, never a piece of the .tar (Safari stored a piece as the whole 2 GB part: the disk filled); no file over 200 MB goes in, from a copy or from the disk; never more than the copy brings; the progress says how much is written (copia 1.2, carpetas 1.6, D-279). 4.40: the portal in «Avisos» (D-278) — a portal account's new device or first entry, an entry of an account that is no client's and many codes asked for one email, written by the server (nube 1.5). 4.39: the iPhone's adjustments after trying it (D-271 to D-272, D-275): task and session fields as operations (T_CAMPO, S_CAMPO, finalDe). 4.38: a client's account of the portal doesn't go on in the Mesa — right after the email code (or the password) the server says it isn't the owner's, the sign-in closes its session and says its calendar is at clientes.uribevisuals.studio, before any password or app code is made in its account (entrada 1.3, D-274). 4.37: the Mesa in the iPhone (D-267 to D-270) — movil.html and its face (movil.js 1.0) over the same core: the core without the desk, looking without writing, each change an operation applied as a patch over what is stored (D-267); the phone's cloud, looking in the pause and taking the Mesa for each change without reloading (nube 1.3, D-268); its face, its sign-in and the old address that takes an iPhone there (entrada 1.2, tema 1.1, arranque 1.2, vigia 1.1, D-269); changing from the phone, with its date and time drawn by the Mesa (D-270); personal 1.12, web 1.4; on the Mac, «no contesta» at once and «La Mesa se abrió en un aparato nuevo». 4.36: the Uribe Visuals monogram, 24 px and not pressed, where the vista cliente kept the symbol's place empty (D-264); no «Haz una copia» nor ⇅ in the header — the copies (Exportar, Exportar todo, Importar…) open with a right click on the symbol, or ⇧F10 / the menu key on it, in a small menu that says at its foot when this browser may delete the data; its click still opens the personal page; nothing in the vista cliente (D-263). 4.35: «Configura tu entrada» with the session of before goes to sign in (password and code) when the account already has its code or that session no longer works (entrada 1.1, D-262). 4.34: the Mesa's sign-in (entrada.js, D-262) — email and password in each new window or tab (a reload doesn't ask), the code of the Passwords app the first time in each browser and every 30 days, checked by the server (aal2 with a TOTP of the last 30 days, behind a switch); the session kept encrypted with the password; a new computer brings its Mesa down on its own with the loading screen (the monogram fills); «¿Olvidaste tu contraseña?»; no «Entrar y traer tu Mesa» nor the email code of «Web del cliente» (supa 1.3, nube 1.2, web 1.3, arranque 1.1). 4.33: the cloud's photos, lot 4 of the traspaso — with the cloud on, each photo's working copy of 2560 px (made in a worker, never kept here) and its thumbnail go up behind, the rest as it is; a record goes up once its files are up; in another computer the thumbnail comes down when seen and the photo when opened, marked `copia` (its real size, never sent up); what needs the original (Descargar «Original», Notion, Zernio, a big zoom) says so; «Entrar y traer tu Mesa»; MESA.nube.subirTodo and comprobar for the move; IndexedDB 24 (D-259). 4.32: the cloud, lot 3 of the traspaso — with nube.js on (only when activated in a browser), the Mesa downloads what changed on the server before drawing and uploads each change of the journal behind, one Mesa open at a time across computers (the turn, in two phases), nothing lost without network (D-253 to D-257); a CSP in index.html: no inline script nor on…= handler (D-252); IndexedDB 23. 4.31: the journal of changes — every write in IndexedDB notes «this record of this store changed» (never its value) in a new store 'diario', in the same transaction; a delete by range, each key it removes; a clear, «this whole store again»; a way without it for what comes down from the server (lot 3); IndexedDB 22 (D-250). 4.30: «Exportar todo» in ⇅ — the whole mesa at its original size, a .tar per client and one general, each file with its SHA-256, in parts over 2 GB, each from its own click; «Importar…» reads them in parts, checks every hash, refuses a damaged or incomplete set without touching anything and merges as always (copia.js 1.0, D-249); a discreet notice when the browser doesn't keep the storage (D-249). 4.29: el aviso de demasiados códigos dice cuánto esperar (portal/supa.js 1.1, D-247). 4.28: portal de clientes, lote 2 — «Web del cliente» en la barra del mes envía al servidor lo que ve el cliente (web.js, portal/supa.js, D-241). 4.27: point 9 of the 4.24's adjustments — each client's month's why and how the month before went, loaded by Claude (MESA.informe) into a new store 'meses' (IndexedDB 21, file v19, D-238); `tools/zernio.mjs resumen`, read only, the per-post figures of a month and of the one before (D-239); in the vista cliente, the tab «Por qué este calendario» and «Cómo fue <mes anterior>» under «Tus pagos», following the calendar's month, «En camino» when they're still to come (informe.js 1.0, D-240). 4.26: the payments of each client, lot B of the 4.24's adjustments — one record per invoice ('cobros') and its PDF apart ('cfacturas'), a tombstone for a deleted one, a monthly client's fee; their states with Madrid's day (D-232); «Editar cliente» of any client, over the personal page, with «Datos · Cobros» (D-233); a sporadic client's payments in its file (D-234); each client's most urgent payment under its block and the sums in the header of Clientes (D-235); a late invoice in «Se ha pasado» (D-236); «Tus pagos» in the vista cliente (D-237); IndexedDB 20, file v18, M.cobros (cobros.js 1.0, personal 1.7, sesiones 1.4). 4.25: the personal page's adjustments of the 4.24, lot A — today's posts not scheduled stand out from tomorrow's (D-222); the page, a card and a session's sheet change in place only what changed: no blink, no entrance again, no photo drawn again (D-223); widen and reduce drawn in the ×'s box (D-224); Tareas folded or open as this tab left it (D-225); a session stands out in Lista, Semana and Mes (D-226); the vista cliente shows only its client (D-227) and nothing unused — no «Feed / Historias» without stories it sees, no logo, no total, no «Editar», no ‹ › without another month, no empty sections in a session's sheet, its separator still (D-228); no Σ anywhere (D-229); its structure, tabs over the calendar and a right column, ready for their content (M._in.vc, D-230); the reviews' pending points (D-231) (personal 1.6, sesiones 1.3, calendario 1.24, historias 1.17, controles 1.6). 4.24: the personal page's adjustments, lot B — a session has several clients, a chip each and «+ Cliente», shown once wherever it goes (D-217); a session's end, «– Fin», kept when its start moves, and its days in Avisos, Semana and Mes (D-218); a session's chip in each of its monthly clients' boards' calendar, which opens its sheet over the board, fixed in «Ver como el cliente» in the vista cliente (calendario 1.23, D-219); several named templates of material, «Equipo completo» by default, and a session retouched apart (D-220); «Duplicar sesión» (D-221); IndexedDB 19, file v17 (personal 1.5, sesiones 1.2, descargar 1.7). 4.23: the personal page's adjustments, lot A — a click on what an open card shows writes there, Esc and a click outside close it also writing, the eye, widen and × at the top right (D-209); a session's sheet widens (D-210); the mood board in columns as wide as a cell of the feed (D-211); a figure for today and another for tomorrow in Avisos (D-212); one thin terracotta line on what is written (D-213); the shots' tabs as the sections' titles (D-214); «Capas» with a handle, Lucide's eye, lock and link and the order in each row's right click (libre 1.65, D-215); the sheet's right column 20 px more inside (D-216) (personal 1.4, sesiones 1.1). 4.22: quick writing in the personal page's notes and details (escritura.js, D-202–D-205); its sessions and sporadic clients (D-206, D-207). 4.21: the editor's «1 / 2» questions with their key drawn, as the mesa's (D-199); a mouse click on an open title that has a double click folds it 0.2 s later, so a double click never folds it (D-200); the right-click menus offer only what does something — «Diseño» and its photo, a designed carousel's grey, a reel's «⋯», the tray's «Pegar» (D-201) (libre 1.64, diseño 1.26, carpetas 1.5). 4.20: design-in-layers adjustments — the «1 / 2» question hugs its key and word and the chosen answer turns terracotta before it closes (D-194); «Capas» no longer sticks out of the panel (D-195); «Restablecer ajustes» and «Soltar del kit» go to the right-click and «⋯» menus, «Volver al diseño» too (D-196); the «Diseño» panel's titles without a grey datum, a double click on a title puts it back to 100 % or Auto, the engine's warnings in the title of «Texto» (D-197); <br> seen as line breaks in the text fields (D-198) (libre 1.63, diseño 1.25). 4.19: a designed carousel or reel cover opens in EDITAR in layers — its «Foto» and its «Diseño», drawn by the engine — to retouch texts, place, size, photo and free layers, keeping the design on «Aplicar»; «Soltar del kit» / «Volver al diseño»; IndexedDB 17, file v15 (libre 1.62, diseño 1.24, motor 1.7, D-193). 4.18: the title «Calendario» at the size of «Bandeja» (D-186); «Usa Notion» says Conectado / Desconectado (D-187); a task without a date (D-188); No aprobado and Cancelado in the bar only when there is one (D-189); the personal page marks what is not scheduled (D-190); «Por aprobar» and «Aprobado» are seen as «En revisión» and «Por programar» (D-191); the month's step goes on and back on its own, an empty chosen caption doesn't count (D-192). 4.17: the personal page counts the reels left to schedule in «Falta programar», «se programa a mano» (personal 1.1, D-181); a task or a note opens big with a click and is written in with a double click, a task's date and client change there (D-182); a task has details and subtasks, a thin bar «2/5» also in small, IndexedDB 16, file v14 (D-183); «Usa Notion» in «Editar cliente»: off, nothing compares with Notion nor invites to upload, and a Programada says what changed since it was programmed (calendario 1.21, D-184); the editor's veil and texture are layers of «Capas», and every layer can be dragged there (libre 1.61, D-185). 4.16: the personal page (personal.js 1.0, D-180): the logo opens a page with every client — what went past, what goes out today and tomorrow, what waits for the client and what is left to schedule, each client's two months and week, tasks and notes; the mesa starts on it; IndexedDB 15 (+ 'tareas'), file v13; a post keeps since when it waits for the client; the hidden board takes no keys. 4.15: the editor's «Barra de progreso», Visto and Aspa (D-179): IndexedDB 14, file v12. 4.14: client tabs measure what they did with 13.5 px letters (D-175); no /favicon.ico, dialog fields at 13 px, a ⌘Z pressed while a type change redraws waits for it (D-176). 4.13: the aesthetic review (D-168 to D-174): one icon stroke (Lucide, non-scaling, 1.33 px), no character as an icon, one look for sliders, radios, heights and menus, one rule per state, type within the scale and the weights the font has, motion tokens for folding and dropdowns, less stroke. 4.12: without M.showOut and M.diseno._sustituir, which nothing used (D-167). 4.11: five faults of the 4.10 (D-166): the tray photo's title says a click shows it big; no «Arrastra las miniaturas…» on a designed post; the designer's «+ Diapositiva» on one line; «Girar»'s field and title say the real angle, a double click chooses it; a ⌘Z pressed while a drop is drawn waits for it. 4.10: «Mesa más limpia», 46 propuestas: fuera botones y textos que repetían algo a la vista, y dobles clics que vuelven al valor de siempre (D-154 a D-165). 4.09: in the posts' calendar, the days of another month of the board that show in the month seen are dimmed as the previous month's, their chips muted in their type's colour and working as the others (calendario 1.17, D-153). 4.08: no row over the feed — the range and its count are in the month's chip, the previous month in its franja and its label, which is now its only lock, with a Lucide lock and its count in its title; «Abrir notas» is an icon in the month's bar (D-152). 4.07: an element's panel in the editor folds like a slide's, one section open at a time, the last one opened remembered by kind of element (libre 1.55, D-149); the dropdowns' lists with their text where the closed field's starts and the ✓ on the right (controles 1.2, D-150); the tray's tab in use in the colour of «Añadir fotos», saying its folder (the fixed one too), no path in text, the whole path in its title (D-151). 4.06: the posts' calendar with the look of the date's, sharing its tokens (D-147); the right column shared by the tray and the calendar with a separator, the tray folds and, both folded, two tabs (D-148). 4.05: eight interface adjustments — «+ Diapositiva» (D-139); the editor's header with the name alone (D-140); section titles alone, 21 px (D-141); the post window's header with «Fijar» left of the × and EDITAR, its main button, Ubicación alone on its row (D-142); the light / dark switch centred, without stars (D-143); one «N cambiadas» (D-144); no «Ajustar», double click on the percentage (D-145); «Libres» (D-146). 4.04: 4.04: seven interface changes — no help texts that say nothing new (D-133); a pill switch for light / dark that marks the mode in use (D-134); the mesa's own dropdowns, dates and times, controles.js (D-135, D-136); the editor's slide panel in folding sections and the calendar's fold with the same movement (D-137); the post's window in two columns, its head beside the × (D-138); 4.03: dark mode — a moon / sun button in the header, left of ⇅, switches the interface between light and dark; remembered in this browser (localStorage «mesa-tema»), never in a board nor in «⇅ Exportar»; starts light; other tabs follow; the images that go out don't change (libre 1.52, D-132). 4.02: visual redesign with the Uribe Visuals brand — one block of colour tokens, Schibsted Grotesk for the interface, Lucide line icons, paper tones for hierarchy and terracotta as the only accent; no change of behaviour, texts, data, IndexedDB, export or output images (libre 1.51, diseño 1.18, calendario 1.13, revisar 1.7, historias 1.12, descargar 1.4, D-131). 4.01: each Foto, Carrusel and Reel may tag people (up to 20) and have collaborators (up to 3), chosen in its window under the location's row from its client's closed list of people (in a collab, both clients'), loaded by Claude with M.personas once each account is checked; plan() gives them for Zernio; a step of ⌘Z, linked in collabs; IndexedDB 13, export v11 (D-130). 4.00: «Revisar» and M.diseno.cargar warn when the carousel's name (the footer of its cards and final) has a word or a figure its cover's title doesn't (diseño 1.17, revisar 1.6, D-129). 3.99: the final slide stays the last in the designer (▲ ▼, «Deshacer», cargar), and reloading a design's texts gives the old final's adjustments to the new final, never to a card; one client's kit centres its final (diseño 1.16, D-128). 3.98: a photo whose tray mark is orange (used only as filling) goes in without asking, with a light notice that names its use; blue, already in this post, in a story or used with no mark, the usual window; in a batch, one notice for the orange ones and the list for the rest; in the mesa and in the editor (libre 1.50, D-127). 3.97: «N cambiadas» and «N con fecha nueva» of the month's bar open one list of those posts, by date, with what changed; its name opens the post (calendario 1.12, D-126). 3.96: ← → in the designer go to the previous and next slide, as ↑ ↓ (diseño 1.15, D-125). 3.95: each post (Foto, Carrusel, Reel) may have a location, chosen in its window from its client's closed list (in a collab, both clients' lists); one catalog for every client, loaded by Claude with M.ubicaciones; the Facebook Page id goes to Zernio with «programa»; a step of ⌘Z, linked in collabs; IndexedDB 12, export v10 (D-124). 3.94: «Editar …» of a design with a photo missing opens the designer on it, with a notice that names every missing one, instead of an error; the cell keeps its images until «Aplicar a la casilla» (diseño 1.14, libre 1.49, D-123). 3.93: the tray's ✓ tells a cover (blue: dark this month or later, middle last month, light two months ago) from a filling photo (orange), counted from the open board's month; three months ago or more a use no longer counts and the photo is free again; one mark per photo, its title says the use that decides it; a filter «Libres para portada» between «Sin usar» and «Todas» (libre 1.48, D-122). 3.92: opening a client opens its board that holds today and the calendar its month; a Programada passes on its own to Publicado once its time comes, unless it moved after it was scheduled; the vencidas are marked, listed and solved from a window, also those of the client's earlier boards, each one a step of ⌘Z; IndexedDB 11, export v9 (calendario 1.11, D-120, D-121). 3.91: each month of a board has its own step: the calendar's bar is the one of the month it shows, going on carries and lists only that month's posts and «Revisar» looks at that month and its stories; the step saved before goes to the board's first month; IndexedDB 10, export v8 (calendario 1.10, revisar 1.5, D-119). 3.90: the pinch over the tray moves its size slider, in the mesa and in the editor, and the photo under the pointer keeps its place (libre 1.47, D-118). 3.89: audit close, lot 6 (performance and memory) — the editor decodes each photo at the size it needs, only the slide and its neighbours at 2560 px (libre 1.46, D-116); opening a month reads the boards once; a story applied again lets its old image go (D-117); «Cambiar portada» loads thumbnails as they're seen; the editor's history keeps summaries; one ⌘Z copy per save; a month is drawn before its kits arrive; the designer decodes at the size it uses and the engine lets go of its canvases (diseño 1.13, motor 1.6). 3.88: 3.88: audit close, lot 5 (cleanup, no change of behaviour) — one wait for the async modules, one way to put a module's style sheet, mesa-pending read in one place, files let go always by soltarArchivo, the editor's deletes and tray returns in one place each (aBandeja), the loose helpers taken from M._in. 3.87: 3.87: audit close, lot 4 (cheap ones) — a button or a form that fails says so (D-113); ⌘1 / ⌘2 don't answer «Sustituir / Añadir» (D-114); each module says it loaded whole and one that throws while loading is «fallo» (D-115; every module's version goes up); a designed slide's zoom moved before its view is ready goes back; cssq uses window.CSS.escape. 3.86: 3.86: audit close, lot 3 (stories and editing) — sorting a day's stories never moves one in Zernio nor takes one to the next day (D-110); the kit's accent counts for designs with a footer or a final (diseño 1.10, D-111); a field of the post window being typed in is never rebuilt from outside (D-112). 3.85: 3.85: audit close, lot 2 (data) — the client's record changes in one transaction and the editor's client saves go one at a time (D-106); story templates deleted stay deleted with a new kit version, IndexedDB 9 (historias 1.9, D-107); the designer converts on arrival a design whose type changed in Notion (diseño 1.9, D-108); a story date with no zone is Madrid's time (D-109). 3.84: 3.84: audit close, lot 1 (Kevin's decisions) — template 25 says which one goes, with «Deshacer» (libre 1.42, D-102); moving a scheduled post warns that Zernio keeps the old time and a published one doesn't move (calendario 1.7, D-103); deleting a client deletes its logos and final photo nobody else uses (D-104); a photo filling a hole keeps its corners and shadow (D-105). 3.83: 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -184,7 +184,7 @@
   }
   async function lockHere() {
     if (MOVIL) {   // the phone (D-268): another tab of this iPhone took over; this one stops (it writes nothing, its cloud sleeps)
-      movilTurno = false; movilParada = true; locked = true; if (held) { held(); held = null; }
+      movilTurno = false; movilParada = true; locked = true; memSoltar(); if (held) { held(); held = null; }
       try { if (M.nube && M.nube._dormir) M.nube._dormir(); } catch (e) { /* */ }
       const f = MOVIL_IN.alPestana; if (f) { try { f(); } catch (e) { /* */ } }
       return;
@@ -197,7 +197,7 @@
       // a tab that took the lock after waiting for this one in vain may have saved since: never write over it
       const B = S, fresh = B && await idbGet('boards', B.key).catch(() => null);
       if (!(fresh && fresh.savedAt && B.savedAt && fresh.savedAt > B.savedAt)) { try { await flushNow(); } catch (e) { /* */ } }
-    } finally { locked = true; locking = false; }
+    } finally { locked = true; locking = false; memSoltar(); }   // another tab writes now: the boards in memory go
     if (held) { held(); held = null; }                             // the other tab may read the board now
     if (!shellReady()) return;
     root.querySelectorAll('.lock').forEach(x => x.remove());
@@ -277,7 +277,7 @@
   }
   // Another tab opened a newer mesa, whose data this code must not touch: it stops here, without saving, until it is reloaded
   function versionNueva() {
-    locked = true; movilTurno = false; movilParada = true;
+    locked = true; movilTurno = false; movilParada = true; memSoltar();
     if (held) { held(); held = null; }   // the new tab needn't wait for this one
     if (MOVIL) { const f = MOVIL_IN.alVersion; if (f) { try { f(); } catch (e) { /* the phone's face */ } } return; }   // never over the phone's page (D-267)
     const m = 'Hay una versión nueva de la mesa';
@@ -356,6 +356,39 @@
     return false;
   }
   const copiaPropio = v => (M.copia && M.copia._propio ? M.copia._propio(v) : Promise.resolve(v));
+  // ---------- the client's boards in memory (feed continuo, pieza 1: nothing uses them yet) ----------
+  // One copy per board (key -> {tablero, savedAt}): the board as it opens (comoAbierto), never S, and without its tray and folders
+  // (they are the client's, D-041: in 'bandejas' and, while it is open, in S). Reading them writes nothing. Every write of a board
+  // goes through txCon: there each one lets its copy go (memTocado) in the same call that writes it, whoever writes (the open
+  // board's save, pushShared, guardarOtro (another month changed from here), juntarBandeja, an import, purge, removeClient, what comes down from the server); another
+  // client opened, «Usar aquí», a pause or a newer tab let them all go (memSoltar). A copy read while its board was written is not kept.
+  const MEM = { tab: new Map(), gen: new Map(), epoca: 0 };
+  function memSoltar() { MEM.epoca++; MEM.tab.clear(); MEM.gen.clear(); }
+  function memTocado(clave) {
+    if (typeof clave !== 'string') { memSoltar(); return; }
+    MEM.gen.set(clave, (MEM.gen.get(clave) || 0) + 1); MEM.tab.delete(clave);
+    // a copy whose month before (its strip, S.prev: what the calendar and the feed's image show) came from that board goes too (pieza 3a)
+    for (const [k, m] of [...MEM.tab]) if (m.PB && m.PB.key === clave) { MEM.gen.set(k, (MEM.gen.get(k) || 0) + 1); MEM.tab.delete(k); }
+  }
+  // a store of 'boards' in a transaction that writes: each put, add, delete, clear and cursor's update or delete lets its copy go
+  function conMem(o, n, mode) {
+    if (mode !== 'readwrite' || n !== 'boards') return o;
+    const cursor = req => { req.addEventListener('success', () => {
+      const c = req.result; if (!c || c.__mem) return;
+      const up = c.update, del = c.delete; c.__mem = true;
+      if (up) c.update = v => { const r = up.call(c, v); memTocado(c.primaryKey); return r; };
+      if (del) c.delete = () => { const r = del.call(c); memTocado(c.primaryKey); return r; };
+    }, true); return req; };
+    const propios = {
+      put: (v, k) => { const r = o.put(v, k); memTocado(k); return r; },
+      add: (v, k) => { const r = o.add(v, k); memTocado(k); return r; },
+      delete: q => { const r = o.delete(q); memTocado(typeof q === 'string' ? q : null); return r; },   // a range: all of them
+      clear: () => { const r = o.clear(); memSoltar(); return r; },
+      openCursor: (...a) => cursor(o.openCursor(...a)),
+      openKeyCursor: (...a) => cursor(o.openKeyCursor(...a))
+    };
+    return new Proxy(o, { get: (x, p) => { if (Object.prototype.hasOwnProperty.call(propios, p)) return propios[p]; const v = Reflect.get(x, p, x); return typeof v === 'function' ? v.bind(x) : v; } });
+  }
   const tx = (store, mode, fn) => txCon(store, mode, fn, mode === 'readwrite');
   const txSinDiario = (store, mode, fn) => txCon(store, mode, fn, false);
   async function txCon(store, mode, fn, diario) {   // store: a name, or several (fn gets {name: objectStore}: one transaction for all)
@@ -377,7 +410,7 @@
         };
         const v = Reflect.get(x, p, x); return typeof v === 'function' ? v.bind(x) : v;
       } });
-      const st = n => { const o = t.objectStore(n); /* idb-crudo: wrapped here */ return sinTrozos(dj ? conDiario(o, n, dj) : o); };
+      const st = n => { const o = t.objectStore(n); /* idb-crudo: wrapped here */ return conMem(sinTrozos(dj ? conDiario(o, n, dj) : o), n, mode); };
       const req = fn(Array.isArray(store) ? Object.fromEntries(store.map(n => [n, st(n)])) : st(store));
       let out;
       if (req) req.onsuccess = () => { out = req.result; };
@@ -542,7 +575,7 @@
     dias.sort((a, b) => a - b);
     return `<select ${attrs} data-fmt="Día" data-rejilla-t="Día de cada mes" data-rejilla-n="Del 1 al 28: así existe en todos los meses.">${vacio ? `<option value=""${v ? '' : ' selected'}>Sin día</option>` : ''}${dias.map(d => `<option value="${d}"${d === v ? ' selected' : ''}>Día ${d}</option>`).join('')}<option value="otro" data-accion="rejilla">Otro…</option></select>`;
   }
-  const curCd = () => cdOf(S && S.cycleDay);
+  const curCd = (B = S) => cdOf(B && B.cycleDay);   // B: a board (the open one if not given; feed continuo, pieza 1)
   const cycleOfDay = (day, cd) => !day ? null : +day.slice(8, 10) >= cdOf(cd) ? day.slice(0, 7) : prevMonth(day.slice(0, 7));
   const cycleOf = (iso, cd) => cycleOfDay(localDay(iso), cd);
   const cycleStart = (m, cd) => `${m}-${String(cdOf(cd)).padStart(2, '0')}`;
@@ -657,22 +690,23 @@
     save(); renderFeed(); openDetail(slotId, cur.idx);
   }
   // A carousel keeps the format it had when it got its first photo, so reordering never flips it silently.
-  function normalize() {
-    if (!S || MOVIL) return;   // the iPhone writes only what Kevin touches (D-267): no default format (its sizes may not be here), no tray dedup
-    trayUnica(S);
-    S.slots.forEach(s => {
+  // B: the board (the open one if not given); fuera: an array that gets the photos to delete instead of deleting them (armarTablero)
+  function normalize(B = S, fuera = null) {
+    if (!B || MOVIL) return;   // the iPhone writes only what Kevin touches (D-267): no default format (its sizes may not be here), no tray dedup
+    trayUnica(B, fuera);
+    B.slots.forEach(s => {
       if (!isCarousel(s.type)) { delete s.fmt; return; }
       if (!s.photos.length) delete s.fmt;
-      else if (!s.fmt) s.fmt = baseCrop(s.photos[0], S).fmt;
+      else if (!s.fmt) s.fmt = baseCrop(s.photos[0], B).fmt;
     });
-    podarLibre(S);
+    podarLibre(B);
   }
   // a photo once in the tray (D-041): the same id or the same name and size (D-022) twice, the first stays and the other
   // goes (deleted only if nothing uses it, nor a step of ⌘Z)
-  function trayUnica(B) {
-    const ya = new Set(), fuera = [];
+  function trayUnica(B, aparte = null) {
+    const ya = new Set(), fuera = aparte || [];
     B.tray = (B.tray || []).filter(f => { if (ya.has(f)) return false; ya.add(f); const k = fileKey(f); if (!k || ajena(f, B.client)) return true; if (ya.has(k)) { fuera.push(f); return false; } ya.add(k); return true; });   // another client's: on its way to its own tray (guardar)
-    fuera.forEach(f => { deleteIfUnused(f).catch(() => null); });
+    if (!aparte) fuera.forEach(f => { deleteIfUnused(f).catch(() => null); });
   }
   // the free editor's compositions whose image is gone from the board (cover changed, deleted from the tray, replaced):
   // dropped, and the photos behind them go back to the tray (one they were the only use of)
@@ -711,20 +745,21 @@
     const m = nm.match(RX_N); return m ? { c: false, p: m[1], n: +m[3] } : null;
   }
   // group key 'YYYY-MM…' (the cycle's month): a week («YYYY-MM#W») or the collabs of one partner in a cycle («YYYY-MM@PREFIJO»)
-  const grpOf = (k, iso) => { const d = localDay(iso); return !d ? null : k.c ? cycleOfDay(d, curCd()) + '@' + k.p.replace(/\s+/g, ' ').trim().toUpperCase() : weekOf(d, curCd()); };
+  const grpOf = (k, iso, cd = curCd()) => { const d = localDay(iso); return !d ? null : k.c ? cycleOfDay(d, cd) + '@' + k.p.replace(/\s+/g, ' ').trim().toUpperCase() : weekOf(d, cd); };
   // Names from dates: only groups touched by a pending date change (old or new date) — or holding a rename whose
   // cause is already in Notion (s.hold) — get renumbered; every other post keeps its Notion name. A group of a month
   // outside the board is never renumbered (the board doesn't hold all its posts): its posts keep their current name.
-  function kinds() { const K = {}; S.slots.forEach(s => { const k = nameKind(s); if (k) K[s.id] = k; }); return K; }
-  function affected(K, holds) {
-    const aff = new Set();
-    S.slots.forEach(s => { const k = K[s.id]; if (!k) return; if (dateChg(s)) { aff.add(grpOf(k, s.notionDate)); aff.add(grpOf(k, s.date)); } if (holds && s.hold) aff.add(grpOf(k, s.date)); });
+  // B: the board (the open one if not given), idx: its links to other boards (IDX of the open one) — a board not open is named the same way
+  function kinds(B = S) { const K = {}; B.slots.forEach(s => { const k = nameKind(s); if (k) K[s.id] = k; }); return K; }
+  function affected(K, holds, B = S) {
+    const aff = new Set(), cd = curCd(B);
+    B.slots.forEach(s => { const k = K[s.id]; if (!k) return; if (dateChg(s)) { aff.add(grpOf(k, s.notionDate, cd)); aff.add(grpOf(k, s.date, cd)); } if (holds && s.hold) aff.add(grpOf(k, s.date, cd)); });
     return aff;
   }
-  function computeNames() {
-    const out = {}, K = kinds(), aff = affected(K, true), G = {}, bm = boardMonths();
-    S.slots.forEach(s => {
-      const g = K[s.id] && grpOf(K[s.id], s.date), inB = g && bm.includes(g.slice(0, 7)) && !(IDX[s.id] || []).some(x => x.client !== S.client && x.cd !== curCd());   // a collab with a client of other cycles keeps its name
+  function computeNames(B = S, idx = IDX) {
+    const out = {}, K = kinds(B), aff = affected(K, true, B), G = {}, bm = boardMonths(B), cd = curCd(B);
+    B.slots.forEach(s => {
+      const g = K[s.id] && grpOf(K[s.id], s.date, cd), inB = g && bm.includes(g.slice(0, 7)) && !(idx[s.id] || []).some(x => x.client !== B.client && x.cd !== cd);   // a collab with a client of other cycles keeps its name
       out[s.id] = g && !inB ? s.name : s.notionName ?? s.name;
       if (inB && aff.has(g)) (G[g] = G[g] || []).push(s);
     });
@@ -732,7 +767,7 @@
       const k = K[s.id];
       out[s.id] = k.c ? `${k.p}${cap(MONTHS[+g.slice(5, 7) - 1])}${k.sep}${i + 1}` : `${k.p}${g.split('#')[1]}.${i + 1}`;
     });
-    S.slots.forEach(s => { if (typeChg(s)) out[s.id] = reelName(out[s.id], isReel(s.type)); });
+    B.slots.forEach(s => { if (typeChg(s)) out[s.id] = reelName(out[s.id], isReel(s.type)); });
     return out;
   }
   // a type changed here: «X Reel 2.3» ↔ «X 2.3» (the Notion rule «CLIENTE [Reel] Semana.Nº»; a collab keeps its name)
@@ -742,13 +777,13 @@
     const p = reel ? (m[1].trim() ? m[1].replace(/\s*$/, ' ') : '') + 'Reel ' : m[1].replace(/\s*reel\s*$/i, ' ').replace(/^\s+$/, '');
     return `${p}${m[2]}.${m[3]}`;
   }
-  function renumber() { const nm = computeNames(); S.slots.forEach(s => { s.name = nm[s.id]; if (s.hold && !nameChg(s)) delete s.hold; }); }
+  function renumber(B = S, idx = IDX) { const nm = computeNames(B, idx); B.slots.forEach(s => { s.name = nm[s.id]; if (s.hold && !nameChg(s)) delete s.hold; }); }
   // a pending rename that no pending date explains any more (its cause is already in Notion) must not get lost
   // (skip: ids of the posts whose change Notion overrode in init — their own renames go)
-  function holdOrphans(skip) { const K = kinds(), aff = affected(K, false); S.slots.forEach(s => { if (!(skip && skip.has(s.id)) && nameChg(s) && K[s.id] && !aff.has(grpOf(K[s.id], s.date))) s.hold = true; }); }
-  const sortSlots = () => S.slots.sort((a, b) => ts(b.date) - ts(a.date));
-  const boardMonths = () => S ? monthsOf(S.month, S.span) : [];                 // the board's cycles ('YYYY-MM' of their start)
-  const inBoard = day => boardMonths().includes(cycleOfDay(day, curCd()));
+  function holdOrphans(skip, B = S) { const K = kinds(B), aff = affected(K, false, B), cd = curCd(B); B.slots.forEach(s => { if (!(skip && skip.has(s.id)) && nameChg(s) && K[s.id] && !aff.has(grpOf(K[s.id], s.date, cd))) s.hold = true; }); }
+  const sortSlots = (B = S) => B.slots.sort((a, b) => ts(b.date) - ts(a.date));
+  const boardMonths = (B = S) => B ? monthsOf(B.month, B.span) : [];                 // the board's cycles ('YYYY-MM' of their start)
+  const inBoard = (day, B = S) => boardMonths(B).includes(cycleOfDay(day, curCd(B)));
   const outToast = () => toast(`Esa fecha cae fuera de la mesa (${rangeLabel(S.month, S.span, false, curCd()).toLowerCase()}).`);
   // back: return to the Notion date (allowed even outside the board's months); src: the post-view input being typed in
   // A published post doesn't move (back to Notion's date still works); a scheduled one moves and says Zernio keeps the old
@@ -813,6 +848,18 @@
     return out;
   }
   const enCarpetas = l => { const r = new Set(); (l || []).forEach(c => (c.files || []).forEach(f => r.add(f))); return r; };
+  // The open client's tray and folders in memory (feed continuo, pieza 2): ONE object, CLI = {c, tray, carpetas}, whatever month is
+  // open. B.tray and B.carpetas of the open board are accessors to it (atarBandeja), in their place among its fields: JSON.stringify,
+  // {...B}, boardBody and the destructuring of guardar see the same as before, and every writer of the tray (guardar, entrarFoto,
+  // pushShared, takeFromTray, the folders) writes this one object, never a copy of a board. Made by M.init from what it read; a
+  // board copied in memory (MEM) has no tray. The accessor keeps the object it was tied to (a board of another client never sees this one).
+  let CLI = null;
+  function atarBandeja(B, o = CLI) {
+    if (!B || !o) return B;
+    for (const k of ['tray', 'carpetas']) Object.defineProperty(B, k, { get: () => o[k], set: v => { o[k] = v; }, enumerable: true, configurable: true });
+    return B;
+  }
+  const conBandeja = B => !!B && Object.prototype.hasOwnProperty.call(B, 'tray');   // a board that holds its client's tray (not a copy)
   function subCarpetas(l, id) {        // a folder and everything under it
     const r = new Set([id]);
     for (let mas = true; mas;) { mas = false; l.forEach(c => { if (c.parent && r.has(c.parent) && !r.has(c.id)) { r.add(c.id); mas = true; } }); }
@@ -836,7 +883,7 @@
     };
     // while a month opens, the list of boards it read gets this one as written instead of being read again (A4)
     const p0 = tablerosVivo ? tablerosP : null, parchea = v => { if (p0 && tablerosVivo) tablerosP = (tablerosP || p0).then(l => (l.some(x => x.key === B.key) ? l.map(x => x.key === B.key ? b : x) : [...l, b].sort((x, y) => (x.key < y.key ? -1 : x.key > y.key ? 1 : 0)))); return v; };
-    if (!c || MOVIL) return idbPut('boards', B.key, b).then(parchea).then(yaEscrito);   // the iPhone never writes a tray (D-267)
+    if (!c || MOVIL || !conBandeja(B)) return idbPut('boards', B.key, b).then(parchea).then(yaEscrito);   // the iPhone never writes a tray (D-267); a copy has none (pieza 2)
     const tray = (B.tray || []).filter(f => { if (!ajena(f, c)) return true; (fuera[deDe(f)] = fuera[deDe(f)] || []).push(f); return false; });
     return tx(['boards', 'bandejas'], 'readwrite', st => {
       st.boards.put(b, B.key);
@@ -956,6 +1003,11 @@
   const SYNC = ['photos', 'note', 'memo', 'uploaded', 'fmt', 'date', 'notionDate', 'name', 'notionName', 'type', 'notionType', 'design', 'libre', 'caption', 'estado', 'ubicacion', 'etiquetas', 'colaboradores'];   // + its location (D-124), its tags and collaborators (D-130)
   let IDX = {};                                     // slotId -> [{key, client}] of the other boards that have it
   let SIG = { b: null, m: {}, dirty: new Set() };   // open board: signature of each slot as last saved + slots to write through
+  // the same of a board that isn't the open one (pieza 2): a copy changed from here (guardarOtro) or the board activar left, whose
+  // save may still be on its way: {b, m, dirty, idx (its IDX)}
+  const SIGS = new WeakMap();
+  const sigDe = B => (B && SIG.b === B ? SIG : SIGS.get(B) || null);
+  const idxDe = G => (G === SIG ? IDX : (G && G.idx) || {});
   const boardClient = b => b.client || (String(b.key || '').match(/^(.+)-\d{4}-\d{2}$/) || [])[1] || null;
   const slotSig = (s, B) => JSON.stringify([SYNC.map(k => s[k] ?? null), [...(s.photos || []), ...dSrc(s)].map(f => (B.crops || {})[f] || null)]);
   function copyShared(to, toB, from, fromB) {
@@ -967,20 +1019,18 @@
     toB.crops = toB.crops || {};
     for (const f of [...(to.photos || []), ...dSrc(to)]) { const c = fromB.crops && fromB.crops[f]; if (c) toB.crops[f] = { ...c }; else delete toB.crops[f]; }
   }
-  // init: the newest copy of each slot (this board's or another's) becomes the «old» copy the board is built from
-  async function importShared(cfgSlots, old, key) {
-    let pend = pendienteLS();
-    const others = ((await idbAll('boards')) || []).filter(b => b.key !== key)
-      .map(b => pend && pend.board && pend.key === b.key && String(pend.board.savedAt || '') > String(b.savedAt || '') ? pend.board : b);
-    const refs = new Set([...others.flatMap(b => [...refsOf(b)]), ...(await trayRefs())]);   // + the clients' trays (D-041)
+  // opening a board: the newest copy of each slot (this board's or another's) becomes the «old» copy the board is built from.
+  // others: the other saved boards (as read), refs: every photo they and the trays hold. Changes old; gives the board's links
+  // (slotId -> [{key, client, cd}] of the other boards that have it: IDX once the board is open). armarTablero calls it
+  function unirCompartidas(cfgSlots, old, others, refs) {
     old.slots = old.slots || []; old.tray = old.tray || []; old.crops = old.crops || {};
-    IDX = {};
+    const idx = {};
     for (const id of new Set(cfgSlots.map(s => s.id))) {
       const own = old.slots.find(s => s.id === id), capd = [];
       let best = own, from = null;
       for (const b of others) {
         const s = (b.slots || []).find(x => x.id === id); if (!s) continue;
-        (IDX[id] = IDX[id] || []).push({ key: b.key, client: boardClient(b), cd: cdOf(b.cycleDay) });
+        (idx[id] = idx[id] || []).push({ key: b.key, client: boardClient(b), cd: cdOf(b.cycleDay) });
         if (s.caption) capd.push(s);
         if (!best || (s.at || 0) > (best.at || 0)) { best = s; from = b; }
       }
@@ -994,40 +1044,38 @@
       const t = old.slots.find(s => s.id === id);
       if (t) for (const s of capd) if (s !== best) { const m = capMerge(s.caption, t.caption); if (m) t.caption = m; }
     }
-  }
-  // once S is built: keep the revisions; the baseline is each slot as it was before init (base: id -> signature of the
-  // pre-merge copy), so what init changed (Notion wins, synced, renames) gets a new revision and reaches the other boards
-  function sharedInit(oldById, base) {
-    S.slots.forEach(s => { const o = oldById[s.id]; if (o && o.at) s.at = o.at; });
-    SIG = { b: S, m: Object.fromEntries(S.slots.map(s => [s.id, base[s.id] ?? slotSig(s, S)])), dirty: new Set() };
+    return idx;
   }
   // since when a post waits for the client (D-180): in Por aprobar or No aprobado, s.esperaCliente = {v, desde}, written when
   // the open board is saved. On a board's first save with 4.16 (no B.esperaDesde) the posts already waiting get desde null:
   // the personal page counts them only by their date. Not one of the shared fields (SYNC): the page takes a collab's oldest
   const ESPERA = ['aprobar', 'noaprobado'];
   function marcaEspera(B) {
-    if (!B || B !== S || !Array.isArray(B.slots)) return;
+    if (!B || !sigDe(B) || !Array.isArray(B.slots)) return;   // the open board, or one changed from here (pieza 2)
     const prim = !B.esperaDesde, now = new Date(ahora()).toISOString();   // the mesa's clock (D-120)
     for (const s of B.slots) {
-      const e = vivo(s) ? estadoDe(s) : null, x = s.esperaCliente;
+      const e = vivo(s) ? estadoDe(s, B) : null, x = s.esperaCliente;
       if (!ESPERA.includes(e)) { if (x) delete s.esperaCliente; continue; }
       if (!x || x.v !== e) s.esperaCliente = { v: e, desde: prim && !x ? null : now };
     }
     if (prim) B.esperaDesde = now;
   }
   function stamp(B) {              // before saving: new revision for the slots whose shared state changed
-    if (!B || SIG.b !== B) return;
-    const now = Date.now();
-    for (const s of B.slots) { const g = slotSig(s, B); if (SIG.m[s.id] !== g) { SIG.m[s.id] = g; s.at = now; if (IDX[s.id]) SIG.dirty.add(s.id); } }
+    const G = sigDe(B); if (!G) return;
+    const now = Date.now(), X = idxDe(G);
+    for (const s of B.slots) { const g = slotSig(s, B); if (G.m[s.id] !== g) { G.m[s.id] = g; s.at = now; if (X[s.id]) G.dirty.add(s.id); } }
   }
   // after saving: write those slots through to the other boards (one read/put per board; other slots untouched)
   async function pushShared(B) {
-    if (SIG.b !== B || !SIG.dirty.size) return;
-    const ids = [...SIG.dirty]; SIG.dirty.clear();
+    const G = sigDe(B); if (!G || !G.dirty.size) return;
+    const ids = [...G.dirty], X = idxDe(G); G.dirty.clear();
     if (MOVIL) return pushSharedMovil(B, ids);
     const by = {}, cOf = {}, gone = [], srcRefs = refsOf(B), myC = B.client || boardClient(B);
-    ids.forEach(id => (IDX[id] || []).forEach(x => { (by[x.key] = by[x.key] || []).push(id); cOf[x.key] = x.client || boardClient(x); }));
-    const keys = Object.keys(by), otros = [...new Set(keys.map(k => cOf[k]))].filter(Boolean);
+    ids.forEach(id => (X[id] || []).forEach(x => { (by[x.key] = by[x.key] || []).push(id); cOf[x.key] = x.client || boardClient(x); }));
+    // the open board, when the change comes from a copy (another month changed from here, pieza 8): never its record behind its
+    // back (its save 250 ms later would write the old over it, D-008); the change goes to S in memory and S saves as always
+    const enS = S && B !== S && by[S.key] ? S.key : null;
+    const keys = Object.keys(by).filter(k => k !== enS), otros = [...new Set(keys.map(k => cOf[k]))].filter(Boolean);
     let mia = false;
     try {
       // the other board's tray is its client's (D-041): this one's, in memory; another client's, its record (in the same
@@ -1056,8 +1104,24 @@
         let n = otros.length;
         if (!n) go(); else otros.forEach(c => { const g = st.bandejas.get(c); g.onsuccess = () => { if (g.result) trays[c] = g.result; if (--n === 0) go(); }; });
       });
-    } catch (e) { if (SIG.b === B) ids.forEach(id => SIG.dirty.add(id)); return; }
-    if (mia && S && (S.client || boardClient(S)) === myC) { renderTray(); save(); }   // this client's tray changed through another of its boards
+    } catch (e) { if (sigDe(B) === G) ids.forEach(id => G.dirty.add(id)); return; }
+    if (enS && S && S.key === enS && !locked) {   // what the copy shares, into the open board in memory, as part of the same change (no step of ⌘Z of its own)
+      let hit = false;
+      for (const id of by[enS]) {
+        const s = B.slots.find(x => x.id === id), o = S.slots.find(x => x.id === id); if (!s || !o) continue;
+        const had = [...(o.photos || []), ...dSrc(o)].filter(f => trayable(f) && !slotRefs(s).includes(f) && !dOut(o).includes(f) && !lOut(o).includes(f));
+        copyShared(o, S, s, B); hit = true;
+        for (let i = S.tray.length - 1; i >= 0; i--) if (s.photos.includes(S.tray[i])) S.tray.splice(i, 1);
+        const refs = refsOf(S), lost = had.filter(f => !refs.has(f) && !srcRefs.has(f));
+        if (lost.length) S.tray.unshift(...lost);
+      }
+      if (hit) {
+        alinearH(S);
+        if (histMio() && HC.cur.has(S.key)) { const st = editBoard(S); HC.cur.set(S.key, { st, j: JSON.stringify(st) }); if (CLI && HC.curC) { const c = editCliente(); HC.curC = { st: c, j: JSON.stringify(c) }; } }
+        mia = true;
+      }
+    }
+    if (mia && S && (S.client || boardClient(S)) === myC) { renderTray(); if (enS) renderFeed(); save(); }   // this client's tray (or its open board) changed through another of its boards
     if (gone.length) { dropIdx(gone); renderFeed(); }
     if (B === S && Object.keys(by).some(k => MB.some(m => m.key === k))) { await refreshMonths(); renderBar(); }
   }
@@ -1086,7 +1150,7 @@
   }
   async function refreshMonths() {
     const all = (await idbAll('boards')) || [];
-    MB = all.filter(b => b.client === curClient).map(b => ({ key: b.key, month: b.month, span: b.span || 1, cycleDay: cdOf(b.cycleDay), filled: (b.slots || []).filter(s => vivo(s) && (s.photos || []).length).length, n: (b.slots || []).filter(vivo).length }))
+    MB = all.filter(b => b.client === curClient).map(b => ({ key: b.key, month: b.month, span: b.span || 1, cycleDay: cdOf(b.cycleDay), filled: (b.slots || []).filter(s => vivo(s) && (s.photos || []).length).length, n: (b.slots || []).filter(vivo).length, savedAt: b.savedAt || null }))
       .sort((a, b) => String(b.month).localeCompare(String(a.month)));
   }
 
@@ -1196,8 +1260,9 @@
     Object.defineProperty(o, 'thumbUrl', { enumerable: true, configurable: true, get() { let u = URLS_MINI.get(o); if (!u) { u = URL.createObjectURL(thumb); URLS_MINI.set(o, u); } return u; }, set(v) { URLS_MINI.set(o, v); } });
     return o;
   }
+  let sinPedirMini = 0;                 // the feed's other boards read in the background: their thumbnails asked when seen (pieza 3a)
   async function loadThumbs(ids) {
-    if (NUBE.pedirMini) for (const id of new Set(ids)) if (URL_HUECO.has(id)) NUBE.pedirMini(id);   // still a placeholder: asked again (lot 4)
+    if (NUBE.pedirMini && !sinPedirMini) for (const id of new Set(ids)) if (URL_HUECO.has(id)) NUBE.pedirMini(id);   // still a placeholder: asked again (lot 4)
     const faltan = [...new Set(ids)].filter(id => !M.files[id]), missing = [];
     for (let i = 0; i < faltan.length; i += 200) {
       const trozo = faltan.slice(i, i + 200), recs = {};
@@ -1206,7 +1271,7 @@
         if (M.files[id]) continue;
         const rec = recs[id];
         if (rec && rec.thumb && !esRefNube(rec.thumb)) { M.files[id] = metaArchivo(rec, rec.thumb); M.thumbBlobs[id] = rec.thumb; }   // its thumbnail is here (its photo may still be up: lot 4)
-        else if (rec && pendienteRec(rec)) { M.files[id] = metaHueco(rec, id); M.thumbBlobs[id] = hueco(); if (NUBE.pedirMini) NUBE.pedirMini(id); }   // came down without its photo yet (D-256); its thumbnail comes now (lot 4)
+        else if (rec && pendienteRec(rec)) { M.files[id] = metaHueco(rec, id); M.thumbBlobs[id] = hueco(); if (NUBE.pedirMini && !sinPedirMini) NUBE.pedirMini(id); }   // came down without its photo yet (D-256); its thumbnail comes now (lot 4)
         else if (NUBE.activa && !fijo(id)) { M.files[id] = metaHueco(null, id); M.thumbBlobs[id] = hueco(); }   // with the cloud, never «missing»: it may not have arrived
         else missing.push(id);
       }
@@ -1488,6 +1553,7 @@
   }
   // tray photos onto a post: the warning first, then as always (Sustituir / Añadir when it has photos)
   function addToSlot(slotId, ids) {
+    const P = slot(slotId); if (publicadaNo(P)) return;   // a Publicada isn't overwritten (pieza 3c, D-324)
     ids = (ids || []).filter(id => M.files[id]);
     const B = S;
     repetidas(ids.map(f => ({ f, name: M.files[f].name, size: M.files[f].size })), { slot: slotId }).then(async r => { if (!r || !r.length) return; const go = await paraPoner(r.map(x => x.f)); if (S === B && go.length) askAddMode(slotId, go); });
@@ -1522,6 +1588,7 @@
   };
   async function addFilesNow(list, targetSlotId, opts) {
     if (!S) { toast('Abre un mes antes de añadir fotos.'); return []; }
+    { const t = targetSlotId || (opts && opts.aviso); if (t && publicadaNo(slot(t))) return []; }   // files dropped on a Publicada: nothing (D-339)
     const B = S;
     list.filter(f => f && !f.size).forEach(f => toast(`${f.name} está vacío: no se puede añadir.`));
     let files = list.filter(f => f && f.size).sort((a, b) => a.name.localeCompare(b.name, 'es', { numeric: true }));
@@ -1615,6 +1682,7 @@
   }
   function place(slotId, fileId, silent) {
     const s = slot(slotId); if (!s) return;
+    if (publicadaNo(s)) return false;
     if (designed(s) && !isMulti(s.type) && sinPortada(s)) return;
     if (sel === fileId) sel = null;
     const other = S.slots.find(x => x !== s && x.photos.includes(fileId));
@@ -1634,9 +1702,11 @@
   // Two posts of the same type without design swap all their photos, as always. Otherwise (other types, or a designed
   // post) only their covers — the photo the grid shows — change places: each one takes its new post's format with a
   // centred crop, and texts, designs and the other photos stay with their posts (an applied design is drawn again).
-  function swap(a, b) {
+  function swap(a, b, kb) {             // kb: the board of b when it isn't the open one (feed continuo, pieza 3b)
+    if (kb && S && kb !== S.key) return swapOtro(a, b, kb);
     if (a === b) return;
     const A = slot(a), B = slot(b); if (!A || !B) return;
+    if (estadoDe(A) === 'publicado' || estadoDe(B) === 'publicado') { moverAviso('publicada'); return; }   // a Publicada neither moves nor is overwritten, inside its month too (pieza 3c, D-324)
     const kind = x => isCarousel(x.type) ? 'c' : isReel(x.type) ? 'r' : 'f';
     if (kind(A) === kind(B) && !designed(A) && !designed(B)) {
       [A.photos, B.photos] = [B.photos, A.photos];
@@ -1657,7 +1727,7 @@
   // ---------- a post's cover (B1): the photo its grid cell shows ----------
   const designed = s => !!(s && s.design && (isCarousel(s.type) || isReel(s.type)));
   const coverOf = s => designed(s) && M.diseno && M.diseno._portada ? M.diseno._portada(s) : (s.photos[0] || null);
-  function centerCrop(fid, fmt) { if (M.files[fid]) S.crops[fid] = { fmt: fmt || baseCrop(fid, S).fmt, cx: 0.5, cy: 0.5, z: 1 }; }
+  function centerCrop(fid, fmt, B = S) { if (M.files[fid]) (B.crops = B.crops || {})[fid] = { fmt: fmt || baseCrop(fid, B).fmt, cx: 0.5, cy: 0.5, z: 1 }; }   // B: its board (the open one if not given)
   // the cover becomes fid (null: the post loses it); returns the photo it had — the caller decides where that one goes
   function setCoverPhoto(s, fid) {
     if (designed(s) && M.diseno && M.diseno._ponerPortada) return M.diseno._ponerPortada(s, fid);
@@ -1668,9 +1738,9 @@
   }
   // a cover also used elsewhere (another slide of its design, another post) can't change places: it would end up in two
   // posts sharing one reframe
-  function portadaCompartida(s, fid) {
+  function portadaCompartida(s, fid, B = S) {   // B: s's board (the open one if not given)
     if (!fid) return false;
-    if (S.slots.some(x => x !== s && slotRefs(x).includes(fid))) return true;
+    if (B.slots.some(x => x !== s && slotRefs(x).includes(fid))) return true;
     return designed(s) && s.design.slides.filter(x => x.src === fid).length > 1;
   }
   // a designed post's cover is the designer's: without it loaded, or with no cover slide, the post is left as it is
@@ -1681,16 +1751,107 @@
     return true;
   }
   const rerender = s => { if (designed(s) && s.design.out && M.diseno && M.diseno.reaplicar) { const id = s.id; setTimeout(() => M.diseno.reaplicar(id), 0); } };
+  // ---------- moving a post to another month (feed continuo, pieza 3b, D-320) ----------
+  // A cell of the open board dropped on a cell of another of the client's boards: the two swap as swap does inside a board (same
+  // kind and no design: their photos, and a carrusel's format; else their covers, with swap's notices), each keeping its date, state,
+  // name and context. A Publicada neither moves nor is overwritten (by state, not by month); a designed post, or one edited in
+  // «Editar», doesn't go to another month (the designer and the editor work on the open board). What rides with a photo and is its
+  // board's: its crop (B.crops); the base crop and a carrusel's format follow from it in its new board. One step of ⌘Z with two
+  // parts, the open board and the other; the open one saved as always (save), the other as its own save (guardarOtro: its
+  // revisions and its collabs, D-008). The other's copy not read yet: read first, never left half done.
+  const tableroDeCelda = c => { const w = c && c.closest && c.closest('.fmes'); return (w && w.dataset.tablero) || null; };
+  function moverNo(A, BA, X, BX) {      // why A (of BA) and X (of BX) can't change places across months; '' if they can
+    if (estadoDe(A, BA) === 'publicado' || estadoDe(X, BX) === 'publicado') return 'publicada';
+    if (designed(A) || designed(X) || A.libre || X.libre) return 'diseñada';
+    return '';
+  }
+  const moverAviso = no => no === 'publicada' ? toast('Ya está publicada: no se mueve.', { key: 'mover-publicada' })
+    : toast('Una publicación diseñada o editada no pasa a otro mes: cámbiale la portada con «Cambiar portada».', { key: 'mover-disenada', ms: 7000 });
+  const slotPublicada = id => { const s = S && S.slots.find(x => x.id === id); return !!s && estadoDe(s) === 'publicado'; };
+  // a Publicada's photos don't change by any way (pieza 10, D-339): true (and the notice) when s is one
+  const PUB_AVISO = 'Ya está publicada: no se cambia su foto. Para cambiarla, ponla antes en otro estado.', PUB_TIT = 'Ya está publicada: para cambiar su foto, ponla antes en otro estado';
+  function publicadaNo(s, B = S) { if (!s || estadoDe(s, B) !== 'publicado') return false; toast(PUB_AVISO, { key: 'mover-publicada' }); return true; }
+  const abrirEditor = (id, k, o) => { if (publicadaNo(slot(id))) return; if (M.libre && M.libre.abrir) M.libre.abrir(id, k, o); else waitLibre(id, k, o); };
+  // while dragging: a Publicada (the one carried or the one under it), of another month or of its own (pieza 3c), is not a target (no highlight)
+  function moverPublicada(a, b, kb) {
+    const A = S && S.slots.find(x => x.id === a), T = feedTablero(kb), X = T && T.slots.find(x => x.id === b);
+    return (!!A && estadoDe(A) === 'publicado') || (!!X && estadoDe(X, T) === 'publicado');
+  }
+  // fn on the copy of board kb (read first if it isn't in memory: its writes, in order, go first); the open board must stay
+  function conCopia(kb, fn) {
+    const S0 = S, ir = () => { if (S !== S0 || locked || !S) { toast('No se movió: el mes abierto cambió mientras tanto. Vuelve a intentarlo.'); return false; } const T = copiaParaCambiar(kb); if (!T) { toast('No se pudo leer ese mes: vuelve a intentarlo.'); return false; } return fn(T); };
+    if (MEM.tab.has(kb)) return ir();
+    fueraQ = fueraQ.then(async () => { if (!MEM.tab.has(kb)) await memLeer(kb); return ir(); }).catch(e => { toast('No se pudo leer ese mes: ' + ((e && e.message) || e), { ms: 8000 }); });
+    return fueraQ;
+  }
+  // one step of ⌘Z with two parts: the open board (S) and T, a copy of another month; fn changes both (false: nothing changed)
+  function pasoEntre(T, fn) {
+    const mia = histMio();
+    if (mia) { track(S); track(T); }   // a change not saved yet stays a step of its own; T without a present takes it now
+    const eS = mia && HC.cur.get(S.key), eT = mia && HC.cur.get(T.key), c0 = mia ? HC.curC : null;
+    if (fn() === false) return false;
+    normalize();                       // the open board only: a copy has no tray (its save never writes one)
+    if (eS && eT) {
+      const stS = editBoard(S), stT = editBoard(T), cS = CLI ? editCliente() : null, cc = !!(c0 && cS) && JSON.stringify(cS) !== c0.j;
+      histPush({ p: [{ k: S.key, b: eS.st }, { k: T.key, b: eT.st }], ...(cc ? { c: c0.st } : {}) });
+      HC.cur.set(S.key, { st: stS, j: JSON.stringify(stS) }); HC.cur.set(T.key, { st: stT, j: JSON.stringify(stT) });
+      if (cc) HC.curC = { st: cS, j: JSON.stringify(cS) };
+      HC.tag = null;
+    }
+    save(); feedOlvidar(T.key); render();
+    guardarOtro(T);
+    return true;
+  }
+  // the crops of photos that change boards go with them; the one left behind in a board that no longer uses it, out
+  function cropsLlevar(fs, de, a) { fs.forEach(f => { if (f && de.crops && de.crops[f]) (a.crops = a.crops || {})[f] = { ...de.crops[f] }; }); }
+  function cropsSoltar(fs, B) { const r = refsOf(B); fs.forEach(f => { if (f && B.crops && B.crops[f] && !r.has(f)) delete B.crops[f]; }); }
+  function swapOtro(a, b, kb) {
+    if (!S || locked || !S.slots.some(x => x.id === a)) return;
+    return conCopia(kb, T => {
+      const A = S.slots.find(x => x.id === a), X = T.slots.find(x => x.id === b); if (!A || !X) return false;
+      const no = moverNo(A, S, X, T); if (no) { moverAviso(no); return false; }
+      const kind = x => isCarousel(x.type) ? 'c' : isReel(x.type) ? 'r' : 'f';
+      if (kind(A) === kind(X)) return pasoEntre(T, () => {   // (neither designed) all their photos, as swap
+        const fa = A.photos.slice(), fx = X.photos.slice();
+        cropsLlevar(fa, S, T); cropsLlevar(fx, T, S);
+        [A.photos, X.photos] = [X.photos, A.photos];
+        if (isCarousel(A.type) && isCarousel(X.type)) [A.fmt, X.fmt] = [X.fmt, A.fmt];
+        else { delete A.fmt; delete X.fmt; }
+        fixSingle(A); fixSingle(X);
+        cropsSoltar(fa, S); cropsSoltar(fx, T);
+      });
+      const fa = coverOf(A), fx = coverOf(X); if (!fa && !fx) return false;
+      const comp = [[A, fa, S], [X, fx, T]].find(([x, f, B]) => portadaCompartida(x, f, B));
+      if (comp) { toast(`La portada de ${comp[0].name} también se usa en otra diapositiva: cámbiala con «Cambiar portada».`, { ms: 7000 }); return false; }
+      return pasoEntre(T, () => {         // their covers, each with a centred crop of the format it had, in its new board
+        cropsLlevar([fa], S, T); cropsLlevar([fx], T, S);
+        setCoverPhoto(A, fx); setCoverPhoto(X, fa);
+        if (fx) centerCrop(fx, null, S); if (fa) centerCrop(fa, null, T);
+        cropsSoltar([fa], S); cropsSoltar([fx], T);
+      });
+    });
+  }
   // ---------- pinned posts (B8) ----------
   // Up to 3 of the board's posts pinned at the top of the profile, as in Instagram: the last one pinned goes first, and
   // unpinned it goes back to its place by date. Only how the feed looks (mesa, vista cliente, the feed image): dates,
   // names and what goes to Notion don't change. Kept per board (S.pins: slot ids, newest first).
   const MAX_PINS = 3;
-  const pinsOf = () => (S && S.pins ? S.pins.filter(id => S.slots.some(x => x.id === id && vivo(x))) : []);   // a cancelled post is not in the feed
-  const isPinned = s => !!(s && S && S.pins && S.pins.includes(s.id));
-  function feedOrder() { const p = pinsOf(); return [...p.map(id => S.slots.find(x => x.id === id)), ...S.slots.filter(x => !p.includes(x.id) && vivo(x))]; }
+  const pinsOf = (B = S) => (B && B.pins ? B.pins.filter(id => B.slots.some(x => x.id === id && vivo(x))) : []);   // a cancelled post is not in the feed; B: the board (the open one if not given)
+  const isPinned = (s, B = S) => !!(s && B && B.pins && B.pins.includes(s.id));
+  function feedOrder(B = S) { const p = pinsOf(B); return [...p.map(id => B.slots.find(x => x.id === id)), ...B.slots.filter(x => !p.includes(x.id) && vivo(x))]; }
+  // the pinned posts and the fillers are the newest board's (they go on top of the feed, D-318): «Fijar» and «+ Hueco» only add there;
+  // in another month they are off and say why. Taking out one that already is (an old board's) always can (feed continuo, pieza 3b)
+  const NUEVO_TXT = 'Los huecos y las fijadas son del mes más nuevo.';
+  function tableroNuevo() {            // the newest board of the open client: the one that owns its newest month in the feed (D-318)
+    let m = null; for (const b of MB) for (const x of monthsOf(b.month, b.span)) if (!m || x > m) m = x;
+    return m ? feedDueno(m) : null;
+  }
+  const esNuevo = () => !S || !MB.some(b => b.key === S.key) || tableroNuevo() === S.key;   // without its months listed (the iPhone, a skill before drawing), as before
+  // the pinned posts that count for a board's order: its own only if it is the client's newest board; an older board's go by their date (pieza 6, D-327: what «Web del cliente» sends)
+  const fijadasFeed = (B = S) => (!B || !S || B.client !== S.client || !MB.some(b => b.key === B.key) || tableroNuevo() === B.key ? pinsOf(B) : []);
   function setPin(slotId, on) {
     const s = S && S.slots.find(x => x.id === slotId); if (!s) return false;
+    if (on && !isPinned(s) && !esNuevo()) { toast(NUEVO_TXT, { key: 'solo-nuevo' }); return false; }
     const p = pinsOf().filter(id => id !== slotId);
     if (on) { if (p.length >= MAX_PINS) { toast('Como en Instagram, se pueden fijar como mucho 3 publicaciones: quita la fijación de otra antes.', { ms: 6000 }); return false; } p.unshift(slotId); }
     if (p.length) S.pins = p; else delete S.pins;
@@ -1809,15 +1970,16 @@
   // count (S.fillers); old boards have none. Each may hold a preview of next month's first post (S.previews[k], null: none;
   // D-049): a photo from the tray, inside a black border, with its label.
   const MAX_FILLERS = 2;
-  const fillersOf = () => (S && S.fillers > 0 ? Math.min(MAX_FILLERS, Math.floor(S.fillers)) : 0);
+  const fillersOf = (B = S) => (B && B.fillers > 0 ? Math.min(MAX_FILLERS, Math.floor(B.fillers)) : 0);   // B: the board (the open one if not given)
   function setFillers(n) {
     if (!S) return false;
     if (n > MAX_FILLERS) { toast(`Como mucho ${MAX_FILLERS} huecos: con ellos ya cuadran las filas de 3.`, { ms: 6000 }); return false; }
+    if (n > fillersOf() && !esNuevo()) { toast(NUEVO_TXT, { key: 'solo-nuevo' }); return false; }   // adding only in the newest board; taking out, always
     if (n > 0) S.fillers = n; else delete S.fillers;
     save(); renderFeed(); return true;
   }
-  const previewAt = k => (S && k < fillersOf() && (S.previews || [])[k]) || null;
-  function setPreviews(c) { while (c.length && !c[c.length - 1]) c.pop(); if (c.length) S.previews = c; else delete S.previews; }
+  const previewAt = (k, B = S) => (B && k < fillersOf(B) && (B.previews || [])[k]) || null;
+  function setPreviews(c, B = S) { while (c.length && !c[c.length - 1]) c.pop(); if (c.length) B.previews = c; else delete B.previews; }
   function putPreview(k, f) {
     const c = (S.previews || []).slice(), old = c[k];
     while (c.length < k) c.push(null);
@@ -1858,7 +2020,7 @@
   // «Cambiar portada» (post view) and a new photo on a designed reel: a tray photo becomes the cover; the old one goes back
   // to the tray unless something else uses it; the texts stay
   function changeCover(slotId, fid) {
-    const s = S && S.slots.find(x => x.id === slotId); if (!s || !M.files[fid] || sinPortada(s)) return;
+    const s = S && S.slots.find(x => x.id === slotId); if (!s || !M.files[fid] || sinPortada(s) || publicadaNo(s)) return;
     const other = S.slots.find(x => x !== s && x.photos.includes(fid)); if (other) other.photos = other.photos.filter(x => x !== fid);
     takeFromTray(fid); if (sel === fid) sel = null;
     const old = setCoverPhoto(s, fid);
@@ -1867,7 +2029,7 @@
     changed(); rerender(s);
   }
   function unassign(slotId, k, undoable) {
-    const s = slot(slotId); if (!s) return;
+    const s = slot(slotId); if (!s || publicadaNo(s)) return;
     if (k != null && (k < 0 || k >= s.photos.length)) return;
     const back = k == null ? s.photos.slice() : [s.photos[k]];
     if (!back.length) return;
@@ -1889,7 +2051,7 @@
     } });
   }
   function setCover(slotId, k) {
-    const s = slot(slotId); if (!s || k <= 0 || k >= s.photos.length) return;
+    const s = slot(slotId); if (!s || k <= 0 || k >= s.photos.length || publicadaNo(s)) return;
     const [f] = s.photos.splice(k, 1); s.photos.unshift(f);
     changed();
   }
@@ -2023,12 +2185,12 @@
   // p: what is being drawn for post id; ⌘Z / ⇧⌘Z pressed meanwhile wait for it. tirar: if it fails they go, nothing was done
   // (a drop); if not, they act anyway (a type change that could not redraw its images is still a type change)
   function dibujoEspera(id, p, tirar) {
-    const z = dibujoZ ? null : (dibujoZ = Object.assign([], { de: id, b: S, s1: H.b === S ? H.cur : null, a0: (H.drop || 0) + H.undo.length - 1 })), fin = r => { if (z && dibujoZ === z) { if ((r && r.ok) || !tirar) dibujoHecho(); else dibujoZ = null; } };   // an editor without dibujoHecho: its ⌘Z act here
+    const z = dibujoZ ? null : (dibujoZ = Object.assign([], { de: id, b: S, s1: histMio() && HC.cur.get(S.key) ? HC.cur.get(S.key).st : null, a0: HC.drop + HC.undo.length - 1 })), fin = r => { if (z && dibujoZ === z) { if ((r && r.ok) || !tirar) dibujoHecho(); else dibujoZ = null; } };   // an editor without dibujoHecho: its ⌘Z act here
     Promise.resolve(p).then(fin, () => fin(null));
   }
   function askAddMode(slotId, ids) {
     const s = S && S.slots.find(x => x.id === slotId); ids = (ids || []).filter(id => M.files[id]);
-    if (!s || !ids.length) return;
+    if (!s || !ids.length || publicadaNo(s)) return;
     if (!s.photos.length || !isMulti(s.type)) { if (isMulti(s.type)) ids.forEach(id => place(slotId, id, true)); else place(slotId, ids[0], true); changed(); return; }
     pendingAdd = { key: S.key, slotId, ids };
     const n = ids.length;
@@ -2060,7 +2222,7 @@
     const P = pendingAdd; pendingAdd = null; closeDetail();
     if (!P || !S || S.key !== P.key) return;
     if (P.historia) { P.historia(m === 'add' ? 'anadir' : 'sustituir'); return; }
-    const s = S.slots.find(x => x.id === P.slotId), ids = P.ids.filter(id => M.files[id]); if (!s || !ids.length) return;
+    const s = S.slots.find(x => x.id === P.slotId), ids = P.ids.filter(id => M.files[id]); if (!s || !ids.length || publicadaNo(s)) return;
     if (m !== 'add' && designed(s) && sinPortada(s)) return;
     if (isCarousel(s.type) && s.libre && !s.design) {   // drawn in the free editor: its texts stay and the photos go to its holes (libre.js)
       if (M.libre && M.libre.casilla) dibujoEspera(s.id, M.libre.casilla(s.id, ids, m), true);
@@ -2080,7 +2242,14 @@
     if (old && !ids.includes(old) && !dOut(s).includes(old)) S.tray.unshift(old);
     changed();
   }
-  function moveMemo(fromId, toId) {
+  function moveMemo(fromId, toId, kb) {   // kb: the board of toId when it isn't the open one (pieza 3b): one step, two parts
+    if (kb && S && kb !== S.key) {
+      const A0 = S.slots.find(x => x.id === fromId); if (!A0 || !memoOf(A0) || locked) return;
+      return conCopia(kb, T => {
+        const A = S.slots.find(x => x.id === fromId), X = T.slots.find(x => x.id === toId); if (!A || !X || !memoOf(A)) return false;
+        return pasoEntre(T, () => { const ma = A.memo, mx = memoOf(X) ? X.memo : ''; X.memo = ma; if (mx) A.memo = mx; else delete A.memo; });
+      });
+    }
     const A = S && S.slots.find(x => x.id === fromId), B = S && S.slots.find(x => x.id === toId);
     if (!A || !B || A === B || !memoOf(A)) return;
     const ma = A.memo, mb = memoOf(B) ? B.memo : '';
@@ -2089,12 +2258,12 @@
   }
   function move(slotId, k, dir) {
     const s = slot(slotId), j = k + dir;
-    if (!s || j < 0 || j >= s.photos.length) return;
+    if (!s || j < 0 || j >= s.photos.length || publicadaNo(s)) return;
     [s.photos[k], s.photos[j]] = [s.photos[j], s.photos[k]];
     changed();
   }
   function movePhoto(slotId, k, j) {         // a photo dragged in the post view's strip: from place k to place j
-    const s = slot(slotId); if (!s || k === j || !(k >= 0 && j >= 0 && k < s.photos.length && j < s.photos.length)) return;
+    const s = slot(slotId); if (!s || k === j || !(k >= 0 && j >= 0 && k < s.photos.length && j < s.photos.length) || publicadaNo(s)) return;
     const [f] = s.photos.splice(k, 1); s.photos.splice(j, 0, f);
     changed(); openDetail(slotId, j);
   }
@@ -2167,29 +2336,47 @@
   function changed() { normalize(); save(); render(); }
 
   // ---------- undo / redo (⌘Z / ⇧⌘Z) ----------
-  // History of the open board's editable state: photos (publications, tray, previous month), crops, formats, contexto,
-  // nota, dates and states. Every save compares it with the last state and a change becomes one step; typing in one field or
-  // reframing one photo in a burst (< 2 s between saves) is one step. New photos only added to the tray are not a step.
-  // Restoring never loses a photo: one that is in the board now and not in the restored state goes to the tray.
+  // ONE history per client (feed continuo, pieza 2, D-317), HC: each step undoes what was changed, in any of its months. A step has
+  // parts: {k: a board's key, b: that board as it was (editBoard: photos of its posts, crops, formats, contexto, nota, dates, states,
+  // the previous month, fillers, pins, stories, steps)}, {k, e: {slotId: estado|null}} (only the states of some posts: what changes
+  // several boards at once, D-120) or {k} (the month it was done in, nothing of it changed); and c: the client's tray and folders as
+  // they were (one object, CLI), only when the step changed them. Its present: cur (key -> {st, j}) and curC. A step of a month that
+  // isn't the open one makes it the open one first (D-317). 60 steps for the client. A burst in one field (< 2 s) is one step; new
+  // photos only added to the tray are not a step. Restoring never loses a photo: one that leaves the board goes to the tray.
+  // It starts again with another client, an import, «Usar aquí», a deleted month that had steps and a MESA.init of a skill
+  // (elegido sin Kevin); a MESA.open of another month of the same client keeps it.
   const HMAX = 60, HMERGE = 2000;
-  let H = { b: null, cur: null, curJ: '', undo: [], redo: [], tag: null, t: 0 };
-  function editState(B) {
+  const histVacia = c => ({ c, undo: [], redo: [], cur: new Map(), curC: null, tag: null, t: 0, drop: 0, fueraC: null });
+  let HC = histVacia(null);
+  const histMio = () => !!S && !!HC.c && (S.client || boardClient(S)) === HC.c;
+  function editBoard(B) {
     return {
       slots: B.slots.map(s => { const o = { id: s.id, type: s.type, photos: s.photos.slice(), note: s.note ?? '', date: s.date }; if (s.memo) o.memo = s.memo; if (s.fmt) o.fmt = s.fmt; if (s.design) o.design = JSON.parse(JSON.stringify(s.design)); if (s.libre) o.libre = JSON.parse(JSON.stringify(s.libre)); if (s.estado) o.estado = { ...s.estado }; if (s.guias) o.guias = JSON.parse(JSON.stringify(s.guias)); if (s.ubicacion) o.ubicacion = s.ubicacion; if (s.etiquetas) o.etiquetas = s.etiquetas.slice(); if (s.colaboradores) o.colaboradores = s.colaboradores.slice(); return o; }),
-      tray: B.tray.slice(),
-      ...(B.carpetas ? { carpetas: B.carpetas.map(c => ({ ...c, files: c.files.slice() })) } : {}),   // the tray's folders (D-069)
       crops: JSON.parse(JSON.stringify(B.crops || {})),
       prev: (B.prev || []).map(p => ({ id: p.id, own: !!p.own, photos: (p.photos || []).slice(), alt: p.alt || null, hidden: !!p.hidden, fmt: p.fmt || null })),
       ...(previewsOf(B).length ? { previews: B.previews.slice() } : {}),   // the fillers' previews (D-049)
       ...(B.fillers ? { fillers: B.fillers } : {}), ...(B.pins && B.pins.length ? { pins: B.pins.slice() } : {}),   // «+ Hueco» and «Fijar»: steps of ⌘Z too (D-095)
       ...(hsDe(B).length ? { historias: JSON.parse(JSON.stringify(B.historias)) } : {}),   // the stories, whole (D-054)
-      ...(B.pasos && Object.keys(B.pasos).length ? { pasos: { ...B.pasos } } : {}),   // each month's step (D-084, D-119)
-      ...(FUERA.size ? { fuera: Object.fromEntries([...FUERA].map(([k, x]) => [k, x.estado ? JSON.parse(JSON.stringify(x.estado)) : null])) } : {})   // posts of other boards changed from here (D-120): always last
+      ...(B.pasos && Object.keys(B.pasos).length ? { pasos: { ...B.pasos } } : {})   // each month's step (D-084, D-119)
     };
   }
-  const stRefs = st => new Set([...st.tray, ...enCarpetas(st.carpetas), ...st.slots.flatMap(slotRefs), ...st.prev.filter(p => p.own).flatMap(p => p.photos), ...previewsOf(st), ...hRefs(st)]);
-  function histRefs() { const r = new Set(); if (H.b && H.b === S) [...H.undo, ...H.redo].forEach(st => stRefs(st).forEach(f => r.add(f))); return r; }
-  function histReset() { FUERA = new Map(); H = { b: S, cur: S ? editState(S) : null, curJ: '', undo: [], redo: [], tag: null, t: 0 }; if (H.cur) H.curJ = JSON.stringify(H.cur); }
+  const editCliente = (o = CLI) => ({ tray: ((o && o.tray) || []).slice(), ...(o && o.carpetas ? { carpetas: o.carpetas.map(c => ({ ...c, files: c.files.slice() })) } : {}) });   // the tray's folders (D-069)
+  const stRefs = st => new Set([...(st.tray || []), ...enCarpetas(st.carpetas), ...(st.slots || []).flatMap(slotRefs), ...(st.prev || []).filter(p => p.own).flatMap(p => p.photos), ...previewsOf(st), ...hRefs(st)]);
+  // every photo a step of the client's history can bring back (all its months: deleting one a step of another month needs is never done)
+  function histRefs() { const r = new Set(); [...HC.undo, ...HC.redo].forEach(p => { p.p.forEach(x => { if (x.b) stRefs(x.b).forEach(f => r.add(f)); }); if (p.c) stRefs(p.c).forEach(f => r.add(f)); }); return r; }
+  function histReset() { HC = histVacia(S ? S.client || boardClient(S) : null); histBase(); }
+  const histOlvidar = () => { HC = histVacia(null); };
+  function histBase() {                // the open board and the tray as they are now: the present, no step
+    if (!histMio()) return;
+    const st = editBoard(S); HC.cur.set(S.key, { st, j: JSON.stringify(st) });
+    if (CLI) { const c = editCliente(); HC.curC = { st: c, j: JSON.stringify(c) }; }
+  }
+  const parteDe = (p, k) => p && p.p.find(x => x.k === k);
+  function histPush(p) {
+    const dropped = HC.redo.length || HC.undo.length >= HMAX;
+    HC.undo.push(p); if (HC.undo.length > HMAX) { HC.undo.shift(); HC.drop++; } HC.redo = [];
+    if (dropped) delSweep();
+  }
   // what kind of change a→b is, to merge a burst: 'note:<id>' / 'memo:<id>' (one field of one post), 'crop:<file>' (one photo)
   function stepTag(a, b) {
     const J = JSON.stringify;
@@ -2202,64 +2389,75 @@
     const x = a.slots[ds[0]], y = b.slots[ds[0]], ks = ['photos', 'note', 'memo', 'date', 'fmt', 'design'].filter(k => J(x[k]) !== J(y[k]));
     return ks.length === 1 && (ks[0] === 'note' || ks[0] === 'memo' || ks[0] === 'design') ? ks[0] + ':' + x.id : null;
   }
+  // B: the open board (its tray counts) or a copy changed from here; a board with no present yet takes it now (no step)
   function track(B) {
-    if (!B || H.b !== B || !H.cur) return;
-    const st = editState(B), j = JSON.stringify(st);
-    if (j === H.curJ) return;
-    const was = stRefs(H.cur);
-    if (st.tray.some(f => !was.has(f)) && JSON.stringify({ ...st, tray: st.tray.filter(f => was.has(f)) }) === H.curJ) { H.cur = st; H.curJ = j; H.tag = null; return; }   // only new photos in the tray
-    const now = Date.now(), tag = stepTag(H.cur, st);
-    if (!(tag && tag === H.tag && now - H.t < HMERGE)) {
-      const dropped = H.redo.length || H.undo.length >= HMAX;
-      H.undo.push(H.cur); if (H.undo.length > HMAX) { H.undo.shift(); H.drop = (H.drop || 0) + 1; } H.redo = [];
-      if (dropped) delSweep();
+    if (!B || !HC.c || (B.client || boardClient(B)) !== HC.c) return;
+    const e = HC.cur.get(B.key), st = editBoard(B), j = JSON.stringify(st);
+    if (!e) { HC.cur.set(B.key, { st, j }); return; }
+    const sc = B === S && HC.curC ? editCliente() : null, jc = sc ? JSON.stringify(sc) : null, cc = !!sc && jc !== HC.curC.j;
+    if (j === e.j && !cc) return;
+    if (j === e.j) {                   // only new photos in the tray: not a step
+      const was = new Set([...stRefs(e.st), ...stRefs(HC.curC.st)]);
+      if (sc.tray.some(f => !was.has(f)) && JSON.stringify({ ...sc, tray: sc.tray.filter(f => was.has(f)) }) === HC.curC.j) { HC.curC = { st: sc, j: jc }; HC.tag = null; return; }
     }
-    H.cur = st; H.curJ = j; H.tag = tag; H.t = now;
+    const now = Date.now(), t0 = cc ? null : stepTag(e.st, st), tag = t0 && B.key + '|' + t0;
+    if (!(tag && tag === HC.tag && now - HC.t < HMERGE)) histPush({ p: [j === e.j ? { k: B.key } : { k: B.key, b: e.st }], ...(cc ? { c: HC.curC.st } : {}) });
+    HC.cur.set(B.key, { st, j }); if (cc) HC.curC = { st: sc, j: jc };
+    HC.tag = tag; HC.t = now;
   }
   // a double click that puts back what its first click changed leaves no empty step of ⌘Z (D-159 and D-165)
-  function histSinVacio() { if (S && H.b === S && H.undo.length && JSON.stringify(H.undo[H.undo.length - 1]) === H.curJ) { H.undo.pop(); H.tag = null; } }
+  function histSinVacio() {
+    if (!histMio() || !HC.undo.length) return;
+    const p = HC.undo[HC.undo.length - 1], x = p.p.length === 1 && p.p[0], e = HC.cur.get(S.key);
+    if (x && x.k === S.key && e && (x.b ? JSON.stringify(x.b) === e.j : !x.e) && (!p.c || (HC.curC && JSON.stringify(p.c) === HC.curC.j))) { HC.undo.pop(); HC.tag = null; }
+  }
   // the designer (B6): an editing session becomes one step of the mesa's ⌘Z — from the state before it opened to the one
   // it leaves (none if it leaves everything as it was)
-  function histMarca() { if (!S || H.b !== S || !H.cur) return null; track(S); return { b: S, n: H.undo.length, drop: H.drop || 0, st: H.cur, j: H.curJ, redo: H.redo.slice() }; }
+  function histMarca() { if (!histMio()) return null; track(S); const e = HC.cur.get(S.key); if (!e) return null; return { b: S, n: HC.undo.length, drop: HC.drop, st: e.st, j: e.j, c: HC.curC, redo: HC.redo.slice() }; }
   function histJuntar(m) {
-    if (!m || !S || H.b !== m.b || m.b !== S) return;
+    if (!m || !S || m.b !== S || !histMio()) return;
     track(S);
-    const k = m.n - ((H.drop || 0) - m.drop);            // steps dropped from the front meanwhile (more than HMAX)
-    if (H.undo.length < k) return;                        // the history started again meanwhile
-    const was = stRefs(m.st), igual = JSON.stringify({ ...H.cur, tray: H.cur.tray.filter(f => was.has(f)) }) === m.j;   // nothing, or only photos added to the tray
-    H.undo.splice(Math.max(0, k));
-    if (igual) H.redo = m.redo; else { H.undo.push(m.st); H.redo = []; }
-    H.tag = null;
+    const k = m.n - (HC.drop - m.drop);   // steps dropped from the front meanwhile (more than HMAX)
+    if (HC.undo.length < k) return;        // the history started again meanwhile
+    const e = HC.cur.get(S.key), c0 = m.c, c1 = HC.curC, was = new Set([...stRefs(m.st), ...(c0 ? stRefs(c0.st) : [])]);
+    const igual = e.j === m.j && (!c0 || !c1 || JSON.stringify({ ...c1.st, tray: c1.st.tray.filter(f => was.has(f)) }) === c0.j);   // nothing, or only photos added to the tray
+    HC.undo.splice(Math.max(0, k));
+    if (igual) HC.redo = m.redo; else { HC.undo.push({ p: [{ k: S.key, b: m.st }], ...(c0 && c1 && c0.j !== c1.j ? { c: c0.st } : {}) }); HC.redo = []; }
+    HC.tag = null;
     delSweep();
   }
   // an automatic re-render (diseno.js) joins the step of the change that caused it: that post's photos and design are
   // brought up to date in the current state, so ⌘Z undoes the change and its re-render together
   function histAmend(slotId) {
-    if (!S || H.b !== S || !H.cur) return;
-    const s = S.slots.find(x => x.id === slotId); if (!s) return;
+    if (!histMio()) return;
+    const s = S.slots.find(x => x.id === slotId), e = HC.cur.get(S.key); if (!s || !e) return;
     const amend = st => {
       const o = st.slots.find(x => x.id === slotId); if (!o) return;
       o.photos = s.photos.slice(); if (s.design) o.design = JSON.parse(JSON.stringify(s.design)); else delete o.design;
       if (s.libre) o.libre = JSON.parse(JSON.stringify(s.libre)); else delete o.libre;
       if (s.guias) o.guias = JSON.parse(JSON.stringify(s.guias)); else delete o.guias;
-      if (s.fmt) o.fmt = s.fmt; else delete o.fmt;          // (key order as editState writes it: type, photos, note, date, memo, fmt, design, libre, estado, guias, ubicacion, etiquetas, colaboradores)
+      if (s.fmt) o.fmt = s.fmt; else delete o.fmt;          // (key order as editBoard writes it: type, photos, note, date, memo, fmt, design, libre, estado, guias, ubicacion, etiquetas, colaboradores)
       const { id, type, photos, note, date, memo, fmt, design, libre, estado, guias, ubicacion, etiquetas, colaboradores } = o;
       st.slots[st.slots.indexOf(o)] = { id, type, photos, note, date, ...(memo ? { memo } : {}), ...(fmt ? { fmt } : {}), ...(design ? { design } : {}), ...(libre ? { libre } : {}), ...(estado ? { estado } : {}), ...(guias ? { guias } : {}),
         ...(ubicacion ? { ubicacion } : {}), ...(etiquetas ? { etiquetas } : {}), ...(colaboradores ? { colaboradores } : {}) };   // its location, tags and collaborators stay (D-124, D-130: they were lost, D-176)
     };
     const z = dibujoZ, o1 = z && z.de === slotId && z.b === S && z.s1 && z.s1.slots.find(x => x.id === slotId), p0 = o1 ? o1.photos.slice() : null;   // its images before this drawing
-    amend(H.cur);
-    if (p0) H.undo.forEach((st, k) => { if ((H.drop || 0) + k < z.a0) return; const o = st.slots.find(x => x.id === slotId); if (o && o.type === s.type && same(o.photos, p0)) amend(st); });   // the steps taken while it drew (from the one before the change, counted in the whole history) have the new type with the images of before: they get the new ones (D-176)
-    H.curJ = JSON.stringify(H.cur);
+    amend(e.st);
+    if (p0) HC.undo.forEach((p, k) => { if (HC.drop + k < z.a0) return; const x = parteDe(p, S.key), o = x && x.b && x.b.slots.find(y => y.id === slotId); if (o && o.type === s.type && same(o.photos, p0)) amend(x.b); });   // the steps taken while it drew (from the one before the change, counted in the whole history) have the new type with the images of before: they get the new ones (D-176)
+    e.j = JSON.stringify(e.st);
   }
   // The client's decisions from its portal (D-244, web.js): each puts the state as Kevin would, but none is a step of ⌘Z and
   // no ⌘Z takes it away (lesson 87): the history's present and every step back take it; a step forward keeps Kevin's own
   // later state (his ⇧⌘Z still redoes it). All of them, one save and one redraw.
-  function estadoEnPaso(st, id, est) {   // a step's copy of a post with this state, in the key order editState writes
+  function estadoEnPaso(st, id, est) {   // a step's copy of a post with this state, in the key order editBoard writes
     const o = st && st.slots.find(x => x.id === id); if (!o) return;
     const { type, photos, note, date, memo, fmt, design, libre, guias, ubicacion, etiquetas, colaboradores } = o;
     st.slots[st.slots.indexOf(o)] = { id, type, photos, note, date, ...(memo ? { memo } : {}), ...(fmt ? { fmt } : {}), ...(design ? { design } : {}), ...(libre ? { libre } : {}), ...(est ? { estado: { ...est } } : {}), ...(guias ? { guias } : {}),
       ...(ubicacion ? { ubicacion } : {}), ...(etiquetas ? { etiquetas } : {}), ...(colaboradores ? { colaboradores } : {}) };
+  }
+  function estadoEnParte(x, id, est, si) {   // a part of a step: its whole board or its states (si: only if it had this state)
+    if (x.b) { const o = x.b.slots.find(y => y.id === id); if (o && (!si || si(o.estado))) estadoEnPaso(x.b, id, est); }
+    else if (x.e && id in x.e && (!si || si(x.e[id]))) x.e[id] = est ? { ...est } : null;
   }
   function estadoWeb(lista) {
     if (locked) return lista.map(() => 'locked');
@@ -2267,22 +2465,23 @@
       const s = S && S.slots.find(x => x.id === id); if (!s) return 'no existe';
       const j0 = JSON.stringify(s.estado || null);
       const why = setEstado(id, v || null); if (why) return why;
-      if (H.b === S && H.cur) {
-        estadoEnPaso(H.cur, id, s.estado);
-        H.undo.forEach(st => estadoEnPaso(st, id, s.estado));
-        H.redo.forEach(st => { const o = st.slots.find(x => x.id === id); if (o && JSON.stringify(o.estado || null) === j0) estadoEnPaso(st, id, s.estado); });
-        H.curJ = JSON.stringify(H.cur);
+      const e = histMio() && HC.cur.get(S.key);
+      if (e) {
+        estadoEnPaso(e.st, id, s.estado); e.j = JSON.stringify(e.st);
+        HC.undo.forEach(p => p.p.forEach(x => { if (x.k === S.key) estadoEnParte(x, id, s.estado); }));
+        HC.redo.forEach(p => p.p.forEach(x => { if (x.k === S.key) estadoEnParte(x, id, s.estado, est => JSON.stringify(est || null) === j0); }));
       }
       return '';
     });
     if (out.some(x => !x)) changed();
     return out;
   }
-  function applyState(st) {
-    const had = refsOf(S), has = f => !!M.files[f];
-    const enZernio = new Map(hsDe(S).filter(h => h.zernio).map(h => [h.id, h]));   // Zernio's mark is Zernio's, never a step (D-097)
+  // a board's part of a step put back on it (B: the open board, or a copy of another month for the states, D-120)
+  function aplicarTablero(B, st) {
+    const has = f => !!M.files[f];
+    const enZernio = new Map(hsDe(B).filter(h => h.zernio).map(h => [h.id, h]));   // Zernio's mark is Zernio's, never a step (D-097)
     const by = Object.fromEntries(st.slots.map(s => [s.id, s])), pby = Object.fromEntries(st.prev.map(p => [p.id, p]));
-    S.slots.forEach(s => {
+    B.slots.forEach(s => {
       const o = by[s.id]; if (!o) return;
       s.photos = o.photos.filter(has); s.note = o.note; s.date = o.date; if (o.type) s.type = o.type;
       if (o.memo) s.memo = o.memo; else delete s.memo;
@@ -2295,63 +2494,129 @@
       if (o.etiquetas) s.etiquetas = o.etiquetas.slice(); else delete s.etiquetas;   // its tags and collaborators, too (D-130)
       if (o.colaboradores) s.colaboradores = o.colaboradores.slice(); else delete s.colaboradores;
     });
-    (S.prev || []).forEach(p => {
+    (B.prev || []).forEach(p => {
       const o = pby[p.id]; if (!o) return;
       p.own = o.own; p.photos = o.photos.filter(has); p.alt = o.alt; p.hidden = o.hidden;
       if (o.fmt) p.fmt = o.fmt; else delete p.fmt;
     });
-    S.tray = st.tray.filter(has);
-    if (st.carpetas) {                             // a deleted folder never comes back, whatever step this is (D-070)
-      const ya = H.fueraC || new Set();
-      S.carpetas = st.carpetas.filter(c => !ya.has(c.id)).map(c => ({ ...c, parent: ya.has(c.parent) ? null : c.parent, files: c.files.filter(has) }));
-      pestValidar();
-    }
-    S.crops = JSON.parse(JSON.stringify(st.crops));
-    if (st.previews) S.previews = st.previews.map(f => (f && has(f) ? f : null)); else delete S.previews;
-    if (st.fillers) S.fillers = st.fillers; else delete S.fillers;
-    if (st.pins) S.pins = st.pins.slice(); else delete S.pins;
-    if (st.pasos) S.pasos = { ...st.pasos }; else delete S.pasos;
-    fueraDeshacer(st);                             // the posts of other boards as that step had them (D-120)
-    if (st.historias) S.historias = JSON.parse(JSON.stringify(st.historias)); else delete S.historias;
-    if (S.historias || enZernio.size) {            // each story keeps the mark it has now; one in Zernio now never goes, as it is
-      const hs = hsDe(S);
+    B.crops = JSON.parse(JSON.stringify(st.crops));
+    if (st.previews) B.previews = st.previews.map(f => (f && has(f) ? f : null)); else delete B.previews;
+    if (st.fillers) B.fillers = st.fillers; else delete B.fillers;
+    if (st.pins) B.pins = st.pins.slice(); else delete B.pins;
+    if (st.pasos) B.pasos = { ...st.pasos }; else delete B.pasos;
+    if (st.historias) B.historias = JSON.parse(JSON.stringify(st.historias)); else delete B.historias;
+    if (B.historias || enZernio.size) {            // each story keeps the mark it has now; one in Zernio now never goes, as it is
+      const hs = hsDe(B);
       hs.forEach(h => { const z = enZernio.get(h.id); if (z) h.zernio = JSON.parse(JSON.stringify(z.zernio)); else delete h.zernio; });
       const faltan = [...enZernio.values()].filter(z => !hs.some(h => h.id === z.id));
-      if (faltan.length) S.historias = [...hs, ...faltan];
+      if (faltan.length) B.historias = [...hs, ...faltan];
     }
-    const now = refsOf(S), lost = [...had].filter(f => !now.has(f) && has(f)), isD = f => !!M.files[f].design;
-    if (lost.some(f => !isD(f))) S.tray.unshift(...lost.filter(f => !isD(f)));
-    if (lost.some(isD)) delList(l => [...new Set([...l, ...lost.filter(isD)])]);   // rendered images are never photos: deleted once no step needs them
     const ord = Object.fromEntries(st.slots.map((s, i) => [s.id, i]));
-    S.slots.sort((a, b) => (ord[a.id] ?? 1e9) - (ord[b.id] ?? 1e9));
-    renumber();                                    // names follow the restored dates
-    normalize();
-    if (sel && !S.tray.includes(sel)) sel = null;
+    B.slots.sort((a, b) => (ord[a.id] ?? 1e9) - (ord[b.id] ?? 1e9));
   }
-  function histStep(back) {
-    if (!S || locked || H.b !== S || !H.cur) return;
-    track(S);                                      // a change not saved yet is a step too
-    const from = back ? H.undo : H.redo, to = back ? H.redo : H.undo;
-    if (!from.length) { toast(back ? 'Nada que deshacer.' : 'Nada que rehacer.', { ms: 1800 }); return; }
-    const antes = H.curJ;
-    to.push(H.cur);
-    for (;;) {                                     // a step that no longer changes anything (only Zernio's mark, D-097) is passed over
-      applyState(from.pop());
-      H.cur = editState(S); H.curJ = JSON.stringify(H.cur);
-      if (H.curJ !== antes || !from.length) break;
+  function aplicarEstados(B, e) {
+    for (const [id, v] of Object.entries(e)) {
+      for (const T of [B, PB && PB.key === B.key && B !== S ? PB : null]) {   // the month before of the open one shows it too
+        const s = T && (T.slots || []).find(x => x.id === id); if (!s) continue;
+        if (v) s.estado = JSON.parse(JSON.stringify(v)); else delete s.estado;
+      }
     }
-    H.tag = null;
+  }
+  function aplicarCliente(c) {         // the client's tray and folders as the step had them; a deleted folder never comes back (D-070)
+    const has = f => !!M.files[f];
+    S.tray = c.tray.filter(has);
+    if (c.carpetas) {
+      const ya = HC.fueraC || new Set();
+      S.carpetas = c.carpetas.filter(x => !ya.has(x.id)).map(x => ({ ...x, parent: ya.has(x.parent) ? null : x.parent, files: x.files.filter(has) }));
+      pestValidar();
+    }
+  }
+  const estadosDe = (B, ids) => Object.fromEntries(ids.map(id => { const s = B.slots.find(x => x.id === id); return [id, s && s.estado ? JSON.parse(JSON.stringify(s.estado)) : null]; }));
+  // the month a step takes the feed to (D-317): the open one if it is in it; else the one whose board it changes, else its first
+  const aQuien = p => (S && p.p.some(x => x.k === S.key)) ? S.key : (p.p.find(x => x.b) || p.p[0]).k;
+  let histQ = null;                    // ⌘Z / ⇧⌘Z waiting for a month to be made the open one: the next ones wait, in order
+  function histStep(back) {
+    const go = () => histPaso(back, 0);
+    if (!histQ) { const r = go(); if (!r || typeof r.then !== 'function') return r; histQ = r; }
+    else histQ = histQ.then(go, go);
+    const q = histQ, fin = () => { if (histQ === q) histQ = null; };
+    q.then(fin, fin);
+    return q;
+  }
+  function histPaso(back, n) {
+    if (!S || locked || !histMio()) return;
+    track(S);                                      // a change not saved yet is a step too
+    const from = back ? HC.undo : HC.redo, to = back ? HC.redo : HC.undo;
+    if (!from.length) { toast(back ? 'Nada que deshacer.' : 'Nada que rehacer.', { ms: 1800 }); return; }
+    const p0 = from[from.length - 1], k0 = aQuien(p0), faltan = [...new Set(p0.p.map(x => x.k).filter(k => k !== k0 && !MEM.tab.has(k)))];
+    if (k0 !== S.key || faltan.length) {           // another month: it becomes the open one first; the other boards it changes, read
+      if (n > 3) { toast('No se pudo ' + (back ? 'deshacer' : 'rehacer') + ': su mes cambió mientras tanto. Vuelve a intentarlo.', { ms: 5000 }); return; }
+      return (async () => {
+        if (k0 !== S.key) {
+          const r = await activar(k0, { paso: true });
+          if (r && r.error) {
+            if (r.error === 'no existe') { from.pop(); return histPaso(back, n + 1); }   // its month was deleted: that step goes
+            toast(`No se pudo ${back ? 'deshacer' : 'rehacer'}: ${r.error}.`, { ms: 5000 }); return;
+          }
+          feedMovido = false; feedIr(mesActivo, { instantaneo: true });   // the feed (and the strip) to the month of the step (D-317; pieza 5)
+        }
+        for (const k of faltan) if (!MEM.tab.has(k)) await memLeer(k);
+        return histPaso(back, n + 1);
+      })();
+    }
+    const tab = k => (k === S.key ? S : (MEM.tab.get(k) || {}).tablero || null);
+    const otros = new Set();
+    let antes = null, inv = null;
+    for (;;) {
+      const p = from.pop(), partes = p.p.filter(x => tab(x.k));
+      inv = { p: partes.map(x => x.e ? { k: x.k, e: estadosDe(tab(x.k), Object.keys(x.e)) } : x.b ? { k: x.k, b: editBoard(tab(x.k)) } : { k: x.k }), ...(p.c ? { c: editCliente() } : {}) };
+      if (antes == null) antes = JSON.stringify(inv);
+      const had = refsOf(S);
+      if (p.c) aplicarCliente(p.c);
+      for (const x of partes) {
+        const B = tab(x.k);
+        if (x.b) aplicarTablero(B, x.b); else if (x.e) aplicarEstados(B, x.e);
+        if (B !== S && (x.b || x.e)) { otros.add(B); feedOlvidar(x.k); }
+      }
+      if (partes.some(x => x.k === S.key && x.b)) {   // what leaves the open board goes to the tray: never a photo lost
+        const now = refsOf(S), lost = [...had].filter(f => !now.has(f) && M.files[f] && ![...otros].some(B => refsOf(B).has(f))), isD = f => !!M.files[f].design;   // one that went back to another month (pieza 3b) is there
+        if (lost.some(f => !isD(f))) S.tray.unshift(...lost.filter(f => !isD(f)));
+        if (lost.some(isD)) delList(l => [...new Set([...l, ...lost.filter(isD)])]);   // rendered images are never photos: deleted once no step needs them
+        renumber();                                // names follow the restored dates
+      }
+      normalize();
+      partes.forEach(x => { const B = tab(x.k), st = editBoard(B); HC.cur.set(x.k, { st, j: JSON.stringify(st) }); });
+      if (p.c || partes.some(x => x.k === S.key)) { const c = editCliente(); HC.curC = { st: c, j: JSON.stringify(c) }; }
+      const ahora = JSON.stringify({ p: inv.p.map(x => x.e ? { k: x.k, e: estadosDe(tab(x.k), Object.keys(x.e)) } : x.b ? { k: x.k, b: editBoard(tab(x.k)) } : { k: x.k }), ...(inv.c ? { c: editCliente() } : {}) });
+      const sigue = ahora === antes && from.length && aQuien(from[from.length - 1]) === S.key && from[from.length - 1].p.every(x => x.k === S.key || MEM.tab.has(x.k));
+      if (!sigue) break;                           // a step that no longer changes anything (only Zernio's mark, D-097) is passed over
+    }
+    to.push(inv);
+    if (sel && !S.tray.includes(sel)) sel = null;
+    HC.tag = null;
+    otros.forEach(B => guardarOtro(B));
     changed();
     refreshDetail();
   }
   const undo = () => histStep(true), redo = () => histStep(false);
   // A change of the folders that is not a step of ⌘Z (creating one, photos coming in, deleting one): it goes into every step
-  // too, so going back to one never undoes it. fn gets S and then each step: {tray, carpetas…}.
+  // that keeps the tray too, so going back to one never undoes it. fn gets S (its tray is the client's) and then each step's {tray, carpetas}.
   function sinPaso(fn) {
-    const mia = S && H.b === S && H.cur;
+    const mia = histMio();
     if (mia) track(S);                             // a change not saved yet stays a step of its own
     fn(S);
-    if (mia) { [...H.undo, ...H.redo].forEach(st => { if (st.carpetas) fn(st); }); H.cur = editState(S); H.curJ = JSON.stringify(H.cur); H.tag = null; }
+    if (mia) { [...HC.undo, ...HC.redo].forEach(p => { if (p.c && p.c.carpetas) fn(p.c); }); if (CLI) { const c = editCliente(); HC.curC = { st: c, j: JSON.stringify(c) }; } HC.tag = null; }
+  }
+  // a post that passed once (estado.tarde): every step of its board keeps it so, and ⌘Z brings it back as a vencida (D-120)
+  function tardeEnPasos(key, ids) {
+    const pon = est => (est && est.v === 'programado' ? { ...est, tarde: true } : est);
+    const e = HC.cur.get(key);
+    if (e) { e.st.slots.forEach(o => { if (ids.has(o.id)) { const v = pon(o.estado); if (v) o.estado = v; } }); e.j = JSON.stringify(e.st); }
+    [...HC.undo, ...HC.redo].forEach(p => p.p.forEach(x => {
+      if (x.k !== key) return;
+      if (x.b) x.b.slots.forEach(o => { if (ids.has(o.id)) { const v = pon(o.estado); if (v) o.estado = v; } });
+      else if (x.e) Object.keys(x.e).forEach(id => { if (ids.has(id)) x.e[id] = pon(x.e[id]); });
+    }));
   }
   // rendered images (design:true) nothing refers to any more — replaced on another Mac and imported back, or written by an
   // «Aplicar» cut short by a reload — are deleted: once per session (or after an import), never while an «Aplicar» runs
@@ -2390,13 +2655,14 @@
   // From the mesa's own board of that month when it exists; otherwise the posts Claude loaded from Notion.
   // S.prev = the previous month as editable items: {id, name, type, date, src:'mesa'|'notion', base (photo of the
   // previous-month board), own (edited here), photos:[fileId] when own, alt (id whose Notion photo it shows), hidden}.
-  const pastPosts = () => S.past.filter(p => !S.slots.some(s => s.id === p.id));   // a post of this board shows once
-  function buildPrev(oldPrev) {
+  const pastPosts = (B = S) => B.past.filter(p => !B.slots.some(s => s.id === p.id));   // a post of this board shows once
+  // B: the board it is built for and pb its previous month's board (the open ones if not given; feed continuo, pieza 1)
+  function buildPrev(oldPrev, B = S, pb = PB) {
     const oldBy = Object.fromEntries((oldPrev || []).map(p => [p.id, p]));
-    const src = PB && PB.slots.length
-      ? PB.slots.map(s => ({ id: s.id, name: s.name, type: s.type, date: s.date, src: 'mesa', base: publishList(s)[0] || null, fmt: s.fmt || null }))
-      : pastPosts().map(p => ({ id: p.id, name: p.name, type: p.type, date: p.date, src: 'notion', base: null }));
-    S.prev = src.map(p => {
+    const src = pb && pb.slots.length
+      ? pb.slots.map(s => ({ id: s.id, name: s.name, type: s.type, date: s.date, src: 'mesa', base: publishList(s)[0] || null, fmt: s.fmt || null }))
+      : pastPosts(B).map(p => ({ id: p.id, name: p.name, type: p.type, date: p.date, src: 'notion', base: null }));
+    B.prev = src.map(p => {
       const o = oldBy[p.id] || {};
       const it = { ...p, own: !!o.own, photos: o.own ? (o.photos || []).filter(f => M.files[f]) : [], alt: o.own ? (o.alt || null) : null, hidden: !!o.hidden };
       const fmt = (o.own && o.fmt) || p.fmt; if (fmt) it.fmt = fmt; else delete it.fmt;
@@ -2584,15 +2850,27 @@ ${TK_FUENTES}
 #mesa .who{min-width:0}#mesa .who b{display:block;font-size:26px;font-weight:800;line-height:1.05;letter-spacing:-.035em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#mesa .who span{display:block;margin-top:3px;font-size:12px;color:var(--mute)}
 #mesa .ibtn{flex:none;border:0;background:none;width:32px;height:32px;border-radius:50%;color:var(--mute);font-size:17px;line-height:32px;padding:0;transition:background var(--d1) ease-out,color var(--d1) ease-out}
 #mesa .ibtn:hover{background:var(--bg-2);color:var(--ink)}
-#mesa .mgrp,#mesa .months{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 #mesa .mchip{border:1px solid var(--line);background:transparent;border-radius:var(--r-pill);padding:0 13px;min-height:32px;font-size:12.5px;font-weight:600;display:inline-flex;gap:7px;align-items:center;color:var(--ink);transition:background var(--d1) ease-out,border-color var(--d1) ease-out,color var(--d1) ease-out}
-#mesa .mchip i{font-style:normal;font-weight:400;color:var(--mute);font-size:11.5px;font-variant-numeric:tabular-nums}
 #mesa .mchip:hover{border-color:var(--line-strong);background:var(--bg-2)}
-#mesa .mchip.on{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}#mesa .mchip.on i{color:var(--line-strong)}
 #mesa .mchip.ghost{border-color:transparent;color:var(--ink-2);font-weight:400;padding:0 11px}
 #mesa .mchip.ghost:hover{background:var(--bg-2);color:var(--ink)}
 #mesa .mchip.rvbtn{border-color:var(--line);color:var(--ink);font-weight:600}
 #mesa .spacer{flex:1}
+#mesa .bar>.mescab{flex:1 1 0;display:flex;align-items:center;min-width:0}#mesa .bar>.mescab[hidden]{display:none}#mesa .bar>.mescab+.spacer{display:none}
+#mesa .mescab-in{flex:none;display:inline-flex;align-items:center;gap:2px}
+#mesa .mescab button{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer;-webkit-appearance:none;appearance:none}
+#mesa .mescab .mescab-fl{flex:none;width:28px;height:32px;border-radius:var(--r-pill);display:inline-flex;align-items:center;justify-content:center;color:var(--ink-2);transition:background-color var(--d1) ease-out,color var(--d1) ease-out}
+#mesa .mescab-fl::before{content:'';width:16px;height:16px;background:currentColor;-webkit-mask:var(--i-chev-l) center/contain no-repeat;mask:var(--i-chev-l) center/contain no-repeat}#mesa .mescab-fl[data-d="1"]::before{-webkit-mask-image:var(--i-chev-r);mask-image:var(--i-chev-r)}
+#mesa .mescab .mescab-fl:hover:not([aria-disabled="true"]){background:var(--bg-2);color:var(--ink)}#mesa .mescab .mescab-fl[aria-disabled="true"]{color:var(--faint);cursor:default}
+#mesa .mescab-vent{position:relative;flex:none;width:calc(var(--mescab-w,64px) * 3);height:30px;overflow:hidden;border:1px solid var(--line);border-radius:var(--r-pill)}
+#mesa .mescab-tira{position:absolute;left:0;top:0;height:100%;display:flex}
+#mesa .mescab-tira{will-change:transform}#mesa .mescab-vent::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,var(--bg) 0,transparent 12%,transparent 88%,var(--bg) 100%)}#mesa .mescab-vent.mescab-foco::after{display:none}   /* pieza 5: the strip moves; a name cut by the window's edge fades into the bar (the ones at rest, fully seen; the pill is in the clear middle) */
+#mesa .mescab .mescab-mes{flex:none;display:block;width:var(--mescab-w,auto);height:100%;padding:0 10px;box-sizing:border-box;line-height:30px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12.5px;font-weight:600;color:var(--ink-2)}
+#mesa .mescab button.mescab-mes{transition:color var(--d1) ease-out}#mesa .mescab button.mescab-mes:hover{color:var(--acc-ink)}#mesa .mescab .mescab-mes.sin{color:var(--faint);font-weight:400;cursor:default}
+#mesa .mescab button.mescab-mes:focus-visible{outline:2px solid var(--focus);outline-offset:-3px;border-radius:var(--r-pill)}
+#mesa .mescab-pild{position:absolute;left:var(--mescab-w,64px);top:-1px;bottom:-1px;width:var(--mescab-w,64px);border-radius:var(--r-pill);background:var(--ink);overflow:hidden;pointer-events:none}
+#mesa .mescab-pild>.mescab-tira{top:1px;height:calc(100% - 2px)}#mesa .mescab .mescab-tira2>.mescab-mes{color:var(--on-ink)}
+#mesa .mescab-vent.fpild>.mescab-pild{outline:2px solid var(--focus);outline-offset:-4px;box-shadow:inset 0 0 0 2px var(--on-ink)}   /* two tones (pieza 8, D-331): the ring on a band of the pill's text colour, ≥ 3:1 in light and dark */
 #mesa .stats{display:flex;gap:4px 14px;font-size:12.5px;color:var(--mute);flex-wrap:wrap}#mesa .stats b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}#mesa .stats .c{color:var(--chg)}#mesa .stats>button{border:0;background:none;padding:0;margin:0;font:inherit;text-align:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}#mesa .stats>button:hover{text-decoration:underline;text-underline-offset:3px}#mesa .stats>button:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:2px}
 #mesa .sw{display:flex;align-items:center;gap:8px;min-height:32px;font-size:12.5px;cursor:pointer;user-select:none;white-space:nowrap;color:var(--ink-2)}
 #mesa .sw input{appearance:none;-webkit-appearance:none;width:32px;height:19px;border-radius:var(--r-pill);background:var(--line-strong);position:relative;cursor:pointer;margin:0;transition:background var(--d2) var(--ease)}
@@ -2677,6 +2955,8 @@ ${TK_FUENTES}
 #mesa.client .pit{display:none}
 #mesa .st{font-size:10.5px;font-weight:600;border-radius:var(--r-pill);padding:1px 7px;color:var(--on-acc);white-space:nowrap}
 #mesa .st.ok{background:var(--ok)}#mesa .st.chg{background:var(--chg)}
+#mesa .fmes{display:contents}
+#mesa .mdos{pointer-events:auto;font-weight:400}
 #mesa .mpill{font-size:9.5px;font-weight:600;background:var(--photo-chip-2);color:var(--on-photo);border-radius:var(--r-pill);padding:1px 7px;line-height:17px}
 #mesa .dchg{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--chg);box-shadow:0 0 0 1.5px var(--on-photo);margin:0 5px 1px 1px;vertical-align:middle}
 #mesa .dchg.nm{background:none;box-shadow:inset 0 0 0 1.5px var(--chg),0 0 0 1.5px var(--on-photo)}
@@ -2873,6 +3153,7 @@ ${TK_FUENTES}
 #mesa .pe-fijar input::after{content:'';position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:var(--r-pill);background:var(--knob);box-shadow:var(--shadow-xs);transition:transform var(--d-m) var(--ease-m),width var(--d-m) var(--ease-m)}
 #mesa .pe-fijar input:checked{background:var(--sw-on)}#mesa .pe-fijar input:checked::after{transform:translateX(48px)}#mesa .pe-fijar input:active::after{width:25px}#mesa .pe-fijar input:checked:active::after{transform:translateX(45px)}
 #mesa .pe-fijar input:focus-visible{outline:0;box-shadow:0 0 0 3px var(--ring)}
+#mesa .pe-fijar.solonuevo,#mesa .pe-fijar.solonuevo input{cursor:default}#mesa .pe-fijar.solonuevo input{opacity:.4}
 #mesa .pe-f0,#mesa .pe-f1{position:absolute;top:0;bottom:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;line-height:1;white-space:nowrap;pointer-events:none;transition:opacity var(--d2) ease-out}
 #mesa .pe-f0{left:25px;right:3px;color:var(--ink-2)}#mesa .pe-f1{left:3px;right:25px;color:var(--knob);opacity:0}#mesa .pe-fijar input:checked~.pe-f0{opacity:0}#mesa .pe-fijar input:checked~.pe-f1{opacity:1}
 @media (prefers-reduced-motion:reduce){#mesa .pe-fijar input:not(#mx),#mesa .pe-fijar input:not(#mx)::after{transition:background-color .15s linear !important}#mesa .pe-f0:not(#mx),#mesa .pe-f1:not(#mx){transition:opacity .15s linear !important}}
@@ -2991,7 +3272,7 @@ ${TK_FUENTES}
 #mesa .card h3,#mesa .phead h3,#mesa .ecard h3,#mesa .lb-ttl h3{text-wrap-style:balance}#mesa .card p,#mesa .cpnota,#mesa .toast{text-wrap-style:pretty}
 /* every button shrinks a little when pressed, like .btn (D-171) */
 #mesa .mchip:active:not(:disabled),#mesa .ibtn:not(.tema):active:not(:disabled),#mesa .lb-help:active:not(:disabled),#mesa .hv-add:active:not(:disabled),#mesa .dz-more:active:not(:disabled),#mesa .cpvolver:active:not(:disabled),#mesa .lb-trv:active:not(:disabled),#mesa .lb-trb:active:not(:disabled),#mesa .seg button:active:not(:disabled),#mesa button.cpaso:active:not(:disabled),#mesa .x:active:not(:disabled),#mesa .hx:active:not(:disabled),#mesa .cpx:active:not(:disabled){transform:scale(.97)}
-#mesa .pacts button:disabled{opacity:.4;cursor:default}
+#mesa .pacts button:disabled,#mesa .pacts button[aria-disabled="true"],#mesa .pe-ed[aria-disabled="true"]{opacity:.4;cursor:default}#mesa .pacts button[aria-disabled="true"]:hover{border-color:var(--line);background:var(--panel-2)}#mesa .pe-ed[aria-disabled="true"]:hover,#mesa .pe-ed[aria-disabled="true"]:active{background:var(--acc);transform:none}   /* a Publicada's photo controls (D-339) */
 #mesa .pacts .fname{color:var(--mute);font-size:11.5px;margin-right:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:50%}
 #mesa .pright{grid-area:col;padding:18px 20px;display:flex;flex-direction:column;min-width:0}
 #mesa .avrow{display:flex;align-items:center;gap:10px}
@@ -3033,12 +3314,12 @@ ${TK_FUENTES}
 #mesa .toast button:hover{text-decoration-thickness:2px}#mesa .toast button:focus-visible{outline-color:var(--on-acc)}   /* D-303: the notices in the brand's terracotta, white on --acc 5.12:1 in both themes; its focus white (--focus on --acc, 1.19:1) */
 #mesa .lock{position:absolute;inset:0;z-index:20;background:var(--veil-bg);display:flex;align-items:center;justify-content:center;padding:16px}
 /* vista cliente */
-#mesa.client .lab,#mesa.client .badges,#mesa.client .cnt,#mesa.client .pdate,#mesa.client .pmonth,#mesa.client .ptag2,#mesa.client .cell.past.phidden,#mesa.client .ph>*,#mesa.client .tray{display:none}
+#mesa.client .mdos,#mesa.client .lab,#mesa.client .cnt,#mesa.client .pdate,#mesa.client .pmonth,#mesa.client .ptag2,#mesa.client .cell.past.phidden,#mesa.client .ph>*,#mesa.client .tray{display:none}
 #mesa.client .cell.empty::before{display:none}#mesa.client .rvbtn{display:none}
 #mesa.client .cell.filler .hx{display:none}
 #mesa.client .cell.empty{background:var(--cell-ph)}
 #mesa.client .bd{display:none}
-#mesa.client .stats,#mesa.client .mchip i{display:none}
+#mesa.client .stats{display:none}
 #mesa.client .appbar .nubest,#mesa.client .tabs .tedit,#mesa.client .save:not(.err){display:none}
 #mesa.client .tabs .tab:not(.on){display:none}#mesa.client .appbar .brand{pointer-events:none}#mesa.client .appbar .brand svg{display:none}#mesa.client .appbar .brand .mono{display:block}   /* only its own tab (D-227); in its place, the monogram, not pressed (D-264) */#mesa.client .tab.on.hasedit{padding-right:13px}
 #mesa.client .feed{margin:0 auto;padding:10px}#mesa.client .side>.cal{border-top:0}
@@ -3053,10 +3334,8 @@ ${TK_FUENTES}
 #mesa .save{font-size:11.5px}
 #mesa .bar{flex-wrap:wrap;padding:4px 10px 8px;gap:4px 8px}
 #mesa .ident{display:none}
-#mesa .mgrp{flex:1 1 0;min-width:190px;flex-wrap:nowrap}
-#mesa .months{flex:0 1 auto;min-width:0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
-#mesa .months::-webkit-scrollbar{display:none}
-#mesa .mchip{flex:none;min-height:30px;padding:0 11px;font-size:12px;white-space:nowrap}#mesa .mchip i{font-size:11px}
+#mesa .mchip{flex:none;min-height:30px;padding:0 11px;font-size:12px;white-space:nowrap}
+#mesa .mescab .mescab-fl{height:30px}#mesa .mescab-vent{height:28px}#mesa .mescab .mescab-mes{line-height:28px;font-size:12px}
 #mesa .bar .spacer{display:none}
 #mesa .stats{order:9;flex:1 1 100%;min-width:0;font-size:11.5px;line-height:1.25;gap:0 10px}#mesa .stats>span,#mesa .stats>button{white-space:nowrap}#mesa .stats .lg{display:none}
 #mesa .sw{flex:none;gap:6px;font-size:12px}
@@ -3149,10 +3428,10 @@ ${TK_FUENTES}
     const on = nav.querySelector('.tab.on'); if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 
-  function counts() {
-    const L = S.slots.filter(vivo), n = L.length, filled = L.filter(s => s.photos.length).length, notes = L.filter(s => noteOf(s)).length;   // a cancelled post doesn't count
-    if (sinNotion()) return { n, filled, notes, chg: 0, dates: 0, names: 0, cambios: 0 };   // nothing to upload (D-184)
-    return { n, filled, notes, chg: L.map(slotStatus).filter(x => x === 'chg').length, dates: L.filter(dateChg).length, names: L.filter(nameChg).length, cambios: L.filter(s => slotStatus(s) === 'chg' || dateChg(s)).length };   // cambios: each one once, as the list of D-126
+  function counts(B = S) {
+    const L = B.slots.filter(vivo), n = L.length, filled = L.filter(s => s.photos.length).length, notes = L.filter(s => noteOf(s)).length;   // a cancelled post doesn't count
+    if (sinNotion(B)) return { n, filled, notes, chg: 0, dates: 0, names: 0, cambios: 0 };   // nothing to upload (D-184)
+    return { n, filled, notes, chg: L.map(s => slotStatus(s, B)).filter(x => x === 'chg').length, dates: L.filter(dateChg).length, names: L.filter(nameChg).length, cambios: L.filter(s => slotStatus(s, B) === 'chg' || dateChg(s)).length };   // cambios: each one once, as the list of D-126
   }
   function renderBar() {
     if (!shellReady()) return;
@@ -3160,16 +3439,10 @@ ${TK_FUENTES}
     const c = CL.find(x => x.id === curClient);
     root.classList.toggle('picking', !!sel);
     setBusy('sel', sel && M.files[sel] ? `Pulsa una casilla para colocar «${M.files[sel].name}» · Esc cancela` : null);
-    if (!c) { bar.innerHTML = ''; return; }
+    if (!c) { bar.innerHTML = ''; return; }   // the months' header goes out with it (its node is kept: cabNodo)
     // a client of «Solo contenido» has one page, without months (D-312, replaces D-290's chips): «Web del cliente» and «Vista
     // cliente» alone; its old boards stay kept, unseen
     if (esContenido(c.id)) { bar.innerHTML = `<div class="spacer"></div>${M.web && M.web.barra ? M.web.barra() : ''}<label class="sw"><input type="checkbox" class="clientToggle"${root.classList.contains('client') ? ' checked' : ''}> Vista cliente</label>`; return; }
-    const months = MB.map(b => {
-      const live = S && b.key === S.key ? counts() : null;
-      const f = live ? live.filled : b.filled, n = live ? live.n : b.n;
-      const tt = `${f} de ${n} con foto`;   // the chip says what «8/11 con foto» said (D-157); not in «Vista cliente», like its number
-      return `<button class="mchip${S && b.key === S.key ? ' on' : ''}" data-act="month" data-key="${esc(b.key)}" data-tt="${tt}"${root.classList.contains('client') ? '' : ` title="${tt}"`}>${esc(rangeLabel(b.month, b.span, true, b.cycleDay))}<i>${f}/${n}</i></button>`;
-    }).join('');
     let stats = '';
     if (S) {
       const k = counts();
@@ -3179,21 +3452,418 @@ ${TK_FUENTES}
     }
     // no avatar, name nor @ (D-157: the active tab names the client, «⋯» goes next to it) and no «+ Mes» (D-157:
     // a client without months says how to ask Claude for one)
-    bar.innerHTML = `<div class="mgrp"><div class="months">${months}</div></div><div class="spacer"></div>${S && M.web && M.web.barra ? M.web.barra() : ''}${stats}`
+    // the months' header (D-323, replaces the chips) is its own node: kept in its place, never written again here (a click or an
+    // arrow's focus would be lost); the rest of the bar is made again after it
+    const cab = cabNodo();
+    if (bar.firstChild !== cab) bar.prepend(cab);
+    for (const ch of [...bar.childNodes]) if (ch !== cab) ch.remove();
+    bar.insertAdjacentHTML('beforeend', `<div class="spacer"></div>${S && M.web && M.web.barra ? M.web.barra() : ''}${stats}`
       + (S && M.hs && M.hs.barra ? M.hs.barra() : '')
       + (S && M.descargar && M.descargar.barra ? M.descargar.barra() : '')   // «Descargar (n)» with posts chosen with ⌘+click (descargar.js, D-083)
       + (S ? '<button class="mchip ghost rvbtn" data-act="revisar" title="Lo que hay que mirar antes de subir o programar el mes: huecos vacíos, numeración, resolución, márgenes y formato">Revisar</button>' : '')
-      + (S ? `<label class="sw"><input type="checkbox" class="clientToggle"${root.classList.contains('client') ? ' checked' : ''}> Vista cliente</label>` : '');
-    const ms = bar.querySelector('.months'), on = ms.querySelector('.mchip.on');   // narrow: the chips scroll sideways
-    if (on && ms.scrollWidth > ms.clientWidth + 1) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      + (S ? `<label class="sw"><input type="checkbox" class="clientToggle"${root.classList.contains('client') ? ' checked' : ''}> Vista cliente</label>` : ''));
+    cabRender(); cabPedir();
   }
 
-  let mainMode = null;   // 'board:<key>' | 'empty-client' | 'no-clients'
+  // ---------- the months' header (feed continuo, pieza 4; D-323) ----------
+  // [‹] [ the month before | the active month, in a fixed pill | the month after ] [›] in the month bar, over the feed's grid. It
+  // replaces the chips (no numbers: «N de M con foto» stays in its title, D-157). Its own node: renderBar never writes it again (a
+  // click or an arrow's focus would be lost) and puts the rest of the bar after it.
+  // For pieza 5 (the movement): .mescab-tira holds every month of the client, each in a hueco of one width (--mescab-w, W); the window
+  // (.mescab-vent) shows 3; the pill (.mescab-pild, fixed on the middle hueco) holds a second strip (.mescab-tira2) in --on-ink, clipped
+  // to it. One number moves both: cabMover(x), the strip's translateX (the pill's strip, x − W). Still here: x = (1 − i)·W, i = the
+  // active month's hueco. «Sin crear» (no board: the next to the newest, and the gaps) is a dimmed element, never a button, never in
+  // the pill (the arrows skip it) and never in the vista cliente; what isn't in the 3 huecos isn't focused nor read.
+  let CAB = null, CABSIG = '', CABWN = 0, CABW = 0, CABX = null, CABPX = 0, cabRaf = 0, cabRO = null, cabMira = [];
+  let cabCola = null, cabObj = null, cabVa = null, CABL = [];
+  const cabTiras = () => [CAB.querySelector('.mescab-vent > .mescab-tira'), CAB.querySelector('.mescab-tira2')];
+  const cabHuecos = () => [...CAB.querySelectorAll('.mescab-vent > .mescab-tira > .mescab-mes')];
+  function cabNodo() {
+    if (CAB) return CAB;
+    const n = document.createElement('div'); n.className = 'mescab'; n.setAttribute('role', 'group'); n.setAttribute('aria-label', 'Meses');
+    n.innerHTML = '<div class="mescab-in"><button type="button" class="mescab-fl" data-d="-1" aria-label="Mes anterior" title="Mes anterior"></button>'
+      + '<div class="mescab-vent"><div class="mescab-tira"></div><div class="mescab-pild" aria-hidden="true"><div class="mescab-tira mescab-tira2"></div></div></div>'
+      + '<button type="button" class="mescab-fl" data-d="1" aria-label="Mes siguiente" title="Mes siguiente"></button></div>';
+    n.addEventListener('click', cabClic);
+    n.addEventListener('keydown', cabTecla);
+    n.addEventListener('focusin', cabFoco); n.addEventListener('focusout', () => setTimeout(cabFoco, 0));
+    n.querySelector('.mescab-vent').addEventListener('scroll', e => { e.currentTarget.scrollLeft = 0; });   // a focused month never scrolls the window
+    CAB = n; return n;
+  }
+  // the client's months, in calendar order: [{m, cd, sin}]; from its first board to its newest, the gaps «sin crear», and «sin crear»
+  // the month after the newest; in the vista cliente, only the months with a board (D-323, answer 5)
+  function cabMeses() {
+    const cli = root.classList.contains('client'), own = new Map();
+    for (const b of MB) for (const m of monthsOf(b.month, b.span)) if (!own.has(m)) own.set(m, b);
+    const ms = [...own.keys()].sort(); if (!ms.length) return [];
+    const cdS = cdOf(S && S.cycleDay), out = [];
+    for (let m = ms[0]; m <= ms[ms.length - 1]; m = addMonths(m, 1)) { const b = own.get(m); if (b) out.push({ m, cd: cdOf(b.cycleDay) }); else if (!cli) out.push({ m, cd: cdS, sin: true }); }
+    if (!cli) out.push({ m: addMonths(ms[ms.length - 1], 1), cd: cdS, sin: true });
+    return out;
+  }
+  // its title: the whole range and, only for Kevin, «N de M con foto» of that month (D-157)
+  function cabTitulo(e, cli) {
+    const nom = rangeLabel(e.m, 1, false, e.cd);
+    if (e.sin) return `${nom} sin crear: los meses los crea Claude.`;
+    if (cli) return nom;
+    const k = feedDueno(e.m), B = k && feedTablero(k);
+    if (B) { const L = B.slots.filter(s => vivo(s) && mesDe(s, B) === e.m); return `${nom} · ${L.filter(s => (s.photos || []).length).length} de ${L.length} con foto`; }
+    const b = MB.find(x => x.key === k);   // a board not read yet: its own numbers, when it holds one month
+    return b && (b.span || 1) === 1 ? `${nom} · ${b.filled} de ${b.n} con foto` : nom;
+  }
+  function cabRender() {
+    if (!root) return;
+    const n = cabNodo(), cli = root.classList.contains('client'), L = cabMeses();
+    n.hidden = !L.length; if (!L.length) { CABSIG = ''; return; }
+    const lab = e => feedEtiqueta(e.m, e.cd);
+    const sig = (cli ? 'c|' : 'k|') + L.map(e => `${e.m}${e.sin ? '-' : ''}${lab(e)}`).join(',');
+    const [t1, t2] = cabTiras();
+    if (sig !== CABSIG) {               // only when the months change (a new board, the vista cliente): never on renderBar
+      CABSIG = sig;
+      if (MOVM) { const antes = CABL.map(e => e.m); MOVM.reindex(j => L.findIndex(e => e.m === antes[j])); cabPedir(); }   // the engine's huecos, by month (pieza 5)
+      t1.innerHTML = L.map(e => e.sin ? `<span class="mescab-mes sin" data-mes="${e.m}" aria-disabled="true">${esc(lab(e))}</span>` : `<button type="button" class="mescab-mes" data-mes="${e.m}">${esc(lab(e))}</button>`).join('');
+      t2.innerHTML = L.map(e => `<span class="mescab-mes${e.sin ? ' sin' : ''}">${esc(lab(e))}</span>`).join('');
+      cabMedir();
+    }
+    const H = cabHuecos();
+    let i = L.findIndex(e => e.m === mesActivo); if (i < 0) i = Math.max(0, L.findIndex(e => !e.sin));
+    CABL = L;
+    H.forEach((h, j) => {
+      if (L[j].sin) return;
+      const ve = Math.abs(j - i) <= 1, on = j === i;
+      if (h.tabIndex !== (ve ? 0 : -1)) h.tabIndex = ve ? 0 : -1;
+      if (ve) h.removeAttribute('aria-hidden'); else if (h.getAttribute('aria-hidden') !== 'true') h.setAttribute('aria-hidden', 'true');
+      if (on) { if (h.getAttribute('aria-current') !== 'true') h.setAttribute('aria-current', 'true'); } else h.removeAttribute('aria-current');
+    });
+    const hay = d => { for (let j = i + d; j >= 0 && j < L.length; j += d) if (!L[j].sin) return true; return false; };
+    n.querySelectorAll('.mescab-fl').forEach(f => { if (hay(+f.dataset.d)) f.removeAttribute('aria-disabled'); else if (f.getAttribute('aria-disabled') !== 'true') f.setAttribute('aria-disabled', 'true'); });
+    if (CABW) { if (MOVM) MOVM.repintar(); else cabMover((1 - i) * CABW); }   // the strip where the feed is (pieza 5), not where renderBar is
+    movActivo(i);
+    cabFoco();
+  }
+  // one number moves the two strips (pieza 5 animates only this, from a passive listener and requestAnimationFrame)
+  function cabMover(x) {
+    if (!CAB || x === CABX) return; CABX = x;
+    const [t1, t2] = cabTiras();
+    t1.style.transform = `translateX(${x}px)`; t2.style.transform = `translateX(${x - CABW}px)`;
+  }
+  function cabMedir() {                 // the huecos' width: the longest name (a layout read, only when the months change)
+    const [t1] = cabTiras();
+    CAB.style.removeProperty('--mescab-w');
+    const w = Math.max(0, ...[...t1.children].map(h => h.offsetWidth));
+    CABWN = w ? Math.max(56, Math.ceil(w)) : 0;
+    if (CABWN) { CABW = CABWN; CABX = null; CAB.style.setProperty('--mescab-w', CABW + 'px'); }
+    else CABW = 0;
+  }
+  // its place: centred over the feed's grid and never wider than it; in the bar, where the chips were, without covering nor pushing
+  // anything (if it doesn't fit centred, at the start of its place, as the chips). Read in the next frame, never in renderBar.
+  function cabPedir() { if (!cabRaf) cabRaf = requestAnimationFrame(() => { cabRaf = 0; try { cabColocar(); } catch (e) { /* the bar goes on without it */ } }); }
+  function cabColocar() {
+    const n = CAB; if (!n || !n.isConnected || n.hidden || !root) return;
+    cabTitulos();
+    const feed = root.querySelector('.feed'), grid = feed && feed.querySelector('.grid');
+    cabVigilar([n, feed, grid]);
+    if (!CABWN) { cabMedir(); if (!CABWN) return; cabRender(); }
+    const inn = n.firstElementChild, vent = inn.querySelector('.mescab-vent');
+    const extra = inn.offsetWidth - vent.offsetWidth + 2;   // the arrows and the gaps (the window's border is in its 3·W + 2)
+    const g = grid && grid.offsetWidth ? grid.getBoundingClientRect() : null;
+    const w = g ? Math.max(40, Math.min(CABWN, Math.floor((g.width - extra) / 3))) : CABW;
+    if (w !== CABW) { CABW = w; CABX = null; n.style.setProperty('--mescab-w', w + 'px'); cabRender(); }
+    const iw = extra + 3 * CABW;
+    if (n.style.minWidth !== iw + 'px') n.style.minWidth = iw + 'px';
+    if (g) {
+      const s = n.getBoundingClientRect(), want = g.left + (g.width - iw) / 2 - s.left;
+      CABPX = want >= -0.5 && want + iw <= s.width + 0.5 ? Math.max(0, Math.round(want * 2) / 2) : 0;
+    }                                    // without the feed («Historias»): where it was
+    const tx = CABPX ? `translateX(${CABPX}px)` : '';
+    if (inn.style.transform !== tx) inn.style.transform = tx;
+    movMedir();                          // the months' points again (pieza 5): the size or the content changed
+  }
+  function cabTitulos() {               // the titles, out of renderBar (it runs many times): in the next frame, only those that changed
+    const cli = root.classList.contains('client'), H = cabHuecos();
+    H.forEach((h, j) => { const e = CABL[j]; if (!e || e.m !== h.dataset.mes) return; const t = cabTitulo(e, cli); if (h.title !== t) h.title = t; });
+  }
+  function cabVigilar(els) {            // placed again when the bar, the feed or the grid change size
+    els = els.filter(Boolean);
+    if (els.length === cabMira.length && els.every((e, k) => e === cabMira[k])) return;
+    if (cabRO) cabRO.disconnect();
+    cabMira = els; if (typeof ResizeObserver !== 'function') return;
+    cabRO = cabRO || new ResizeObserver(() => cabPedir());
+    els.forEach(e => cabRO.observe(e));
+  }
+  // the focus on the active month (under the pill): the ring goes on the pill
+  function cabFoco() {
+    if (!CAB) return;
+    const a = document.activeElement, v = CAB.querySelector('.mescab-vent');
+    const si = !!(a && CAB.contains(a) && a.getAttribute('aria-current') === 'true' && a.matches(':focus-visible'));
+    if (v.classList.contains('fpild') !== si) v.classList.toggle('fpild', si);
+    const fm = !!(a && v.contains(a) && a.classList.contains('mescab-mes') && a.matches(':focus-visible'));   // a month with the ring: no edge fade over it (pieza 5)
+    if (v.classList.contains('mescab-foco') !== fm) v.classList.toggle('mescab-foco', fm);   // not «fmes»: that is each month's wrapper in the feed (display: contents; pieza 8, D-331)
+  }
+  // the month next to the active one (or to where it is going) in direction d, skipping «sin crear»; null: none
+  function cabVecino(d) {
+    const H = cabHuecos(), base = cabCola || cabObj || mesActivo;
+    for (let j = H.findIndex(h => h.dataset.mes === base) + d; j >= 0 && j < H.length; j += d) if (!H[j].classList.contains('sin')) return H[j].dataset.mes;
+    return null;
+  }
+  function cabClic(e) {
+    const b = e.target.closest && e.target.closest('button'); if (!b || !CAB.contains(b)) return;
+    if (b.classList.contains('mescab-fl')) { if (b.getAttribute('aria-disabled') !== 'true') { const m = cabVecino(+b.dataset.d); if (m) cabIr(m); } return; }
+    if (b.dataset.mes) cabIr(b.dataset.mes);
+  }
+  function cabTecla(e) {                // ← → with the focus in the header: the month before or after (the focus goes with it)
+    if ((e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+    e.preventDefault(); e.stopPropagation();
+    const m = cabVecino(e.key === 'ArrowLeft' ? -1 : 1); if (!m) return;
+    const enMes = e.target.classList && e.target.classList.contains('mescab-mes');
+    cabIr(m).then(() => {
+      if (!enMes || !CAB.contains(document.activeElement)) return;
+      const h = CAB.querySelector(`.mescab-vent > .mescab-tira > button[data-mes="${cssq(mesActivo)}"]`); if (h) h.focus({ preventScroll: true }); cabFoco();
+    });
+  }
+  // a month pressed (or an arrow): the last one asked wins; one at a time
+  function cabIr(m) {
+    cabCola = m; if (cabVa) return cabVa;
+    cabVa = (async () => { try { while (cabCola) { const x = cabCola; cabCola = null; cabObj = x; await cabIr1(x); cabObj = null; } } finally { cabObj = null; cabVa = null; } })();
+    return cabVa;
+  }
+  // what MESA.open of another month does (pieza 3a): it becomes the active one at once and the feed goes to its point; another month of
+  // the same board, only mesFijar. If it can't change now (a window, a menu, a field, the editor, a job), it doesn't and says why
+  async function cabIr1(m) {
+    if (!S || locked) return false;
+    if (m === mesActivo) { feedMovido = false; feedIr(m); return true; }   // the quick jump (pieza 5)
+    if (busyGuard()) return false;
+    const no = activarNo(); if (no) { toast(`No se cambia de mes ahora: ${no}.`); return false; }
+    if (mesesTab(S).includes(m)) { mesFijar(m, 'cabecera'); mesSigue(); feedMovido = false; feedIr(m); return true; }
+    const k = feedDueno(m); if (!k) return false;
+    const r = await activar(k, { mes: m, quien: 'cabecera' });
+    if (!r || !r.ok) { if (r && r.error && !/^ya se está/.test(r.error)) toast(`No se cambia de mes ahora: ${r.error}.`); return false; }
+    trasActivar(k, { animar: true }); return true;
+  }
+
+  // ---------- the feed's movement (feed continuo, pieza 5; D-325) ----------
+  // THE ENGINE, self-contained and written to be ported (the portal adapts it): one scroller and numbers, nothing of the Mesa (no S,
+  // no activar, no header). The strip's place is a number v in huecos of the strip (hueco j centred in the pill: v = j; the mount
+  // turns it into x = (1 − v)·W). What it is told and when:
+  //  · medir(pts, filaH, max, s): pts = [{j, st}], the scrollTop of each month's point (its oldest post in the bottom row; only the
+  //    months with a board: «sin crear» has none and the strip goes past it), measured by the mount when the size or the content
+  //    change, never while scrolling; filaH = one row of the grid; max = scrollHeight − clientHeight. At rest on a month's point
+  //    (ancla) and the layout changed: the feed stays on that month's point.
+  //  · v(s): linear between the two points around s; a tie of points (the top and the bottom clamps): at the top the newest, at the
+  //    bottom the oldest; on the ancla, exactly its month (the one pressed wins a tie); plus desv, an offset that takes the strip back
+  //    to the active month when the feed didn't go there (it fades as Kevin scrolls one row away). Only transform, from a passive
+  //    listener and requestAnimationFrame: no layout read per frame (scrollTop only).
+  //  · Kevin's scroll or not: we write scrollTop only through escribir (ultimaEsc: the scroll it causes is our echo); a scroll is
+  //    Kevin's only with a live intention (wheel, touch, the mouse pressed on the scroller —its scrollbar too— or a scrolling key,
+  //    2.5 s); the rest (our echo, the browser clamping or anchoring) only moves the strip.
+  //  · asentar: MOV.PAUSA ms without scroll, wheel nor key and nothing pressed after Kevin's scroll (scrollend only re-arms it) → the
+  //    magnet: the nearest point within MOV.UMBRAL of a row, an animated scroll there (never with reduce-motion nor o.imanNo()) →
+  //    o.asentado(v), once.
+  //  · ir(dest, j, {instantaneo}): the jump, a fixed duration whatever the distance (o.dur, o.ease); any gesture of Kevin stops it
+  //    where it is; instant with reduce-motion or instantaneo. volver(j): the strip alone back to j (same duration and curve).
+  const MOV = { PAUSA: 150, INTENCION: 2500, UMBRAL: .35, ECO: 1.5, TECLAS: /^(Arrow(Up|Down)|Page(Up|Down)|Home|End| )$/ };
+  function movBez(x1, y1, x2, y2) {     // a CSS cubic-bezier as a function of time (0..1)
+    const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx, cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+    const X = t => ((ax * t + bx) * t + cx) * t, Y = t => ((ay * t + by) * t + cy) * t, dX = t => (3 * ax * t + 2 * bx) * t + cx;
+    return x => { if (x <= 0) return 0; if (x >= 1) return 1; let t = x; for (let i = 0; i < 8; i++) { const e = X(t) - x; if (Math.abs(e) < 1e-5) break; const d = dX(t); if (Math.abs(d) < 1e-6) break; t -= e / d; } return Y(Math.min(1, Math.max(0, t))); };
+  }
+  function movMotor(sc, o) {
+    // o: { pintar(v), jFijo() (the strip with no point nor ancla: the active month's hueco), reducir(), imanNo(), asentado(v),
+    //      dur (ms), ease (0..1 → 0..1) }
+    const ahoraMs = () => performance.now();
+    let pts = [], filaH = 0, max = 0, sC = sc.scrollTop, ancla = null, desv = null, anim = null, raf = 0, glide = null, rafG = 0, rafP = 0;
+    let ultimaEsc = -9, tInt = -1e9, huboScroll = false, tocando = 0, tAs = 0, vu = null, vivo = true;
+    const viva = () => ahoraMs() - tInt < MOV.INTENCION;
+    function interp(s) {
+      if (!pts.length || max <= 0) return ancla ? ancla.j : o.jFijo();
+      if (s <= pts[0].st) return pts[0].j;                       // the top (a tie: the newest)
+      if (s >= pts[pts.length - 1].st) return pts[pts.length - 1].j;   // the bottom (a tie: the oldest)
+      for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1]; if (s <= b.st) { const d = b.st - a.st; return d < 1 ? b.j : a.j + (b.j - a.j) * (s - a.st) / d; } }
+      return pts[pts.length - 1].j;
+    }
+    const base = s => (ancla && Math.abs(s - ancla.st) < 1 ? ancla.j : interp(s));
+    function desvDe(s) {
+      if (!desv) return 0; if (desv.fijo) return desv.d;
+      const k = filaH > 0 ? 1 - Math.abs(s - desv.sR) / filaH : 0; return k > 0 ? desv.d * k : 0;
+    }
+    const v = (s = sC) => base(s) + desvDe(s);
+    function pintar() { rafP = 0; if (!vivo) return; const x = v(); if (x !== vu && Number.isFinite(x)) { vu = x; o.pintar(x); } }
+    function pedir() { if (!rafP) rafP = requestAnimationFrame(pintar); }
+    function escribir(y) { ultimaEsc = y; sc.scrollTop = y; sC = max > 0 ? Math.max(0, Math.min(max, y)) : sC; }
+    function paraGlide() { if (!glide) return; cancelAnimationFrame(rafG); glide = null; if (desv) { desv.fijo = false; desv.sR = sC; } }
+    function cancelar() {               // stops an animated scroll where it is (the strip doesn't jump: its offset stays and fades)
+      if (!anim) return; cancelAnimationFrame(raf); anim = null;
+      if (desv) { desv.fijo = false; desv.sR = sC; }
+    }
+    function mover(dest, j, inst, fin) {   // the jump and the magnet: to dest; at the end, at rest on month j's point
+      cancelar(); paraGlide(); clearTimeout(tAs); tAs = 0; huboScroll = false; tInt = -1e9;
+      const s0 = sC, d = dest - s0, v0 = v(s0);
+      const acabar = () => { anim = null; ancla = { j, st: dest }; desv = null; vu = null; pintar(); if (fin) fin(); };
+      if (inst || o.reducir()) { if (Math.abs(sc.scrollTop - dest) >= .5) escribir(dest); else sC = dest; acabar(); return; }
+      if (Math.abs(d) < .5) { ancla = { j, st: dest }; desv = { d: v0 - j, sR: sC }; volver(j); if (fin) fin(); return; }
+      ancla = null;
+      const d0 = v0 - interp(s0), d1 = j - interp(dest), t0 = ahoraMs(), tok = anim = { s0, d, dest };
+      desv = { fijo: true, d: d0 };
+      const paso = t => {
+        if (anim !== tok) return;
+        const k = Math.min(1, Math.max(0, (t - t0) / o.dur)), e = o.ease(k);
+        escribir(tok.s0 + tok.d * e); desv.d = d0 * (1 - e) + d1 * e; pintar();
+        if (k < 1) raf = requestAnimationFrame(paso); else { ancla = null; acabar(); }
+      };
+      raf = requestAnimationFrame(paso);
+    }
+    function volver(j, inst) {          // the strip alone to hueco j, without moving the feed
+      paraGlide(); const s = sC, a = v(s) - base(s), b = j - base(s);
+      if (Math.abs(b - a) < 1e-3) return;
+      if (inst || o.reducir()) { desv = { d: b, sR: s }; vu = null; pintar(); return; }
+      desv = { d: a, sR: s, fijo: true };
+      const t0 = ahoraMs(), tok = glide = {};
+      const paso = t => {
+        if (glide !== tok) return;
+        const k = Math.min(1, Math.max(0, (t - t0) / o.dur)), e = o.ease(k); desv.d = a + (b - a) * e; pintar();
+        if (k < 1) rafG = requestAnimationFrame(paso); else { glide = null; desv.fijo = false; desv.sR = sC; }
+      };
+      rafG = requestAnimationFrame(paso);
+    }
+    function armar() { clearTimeout(tAs); tAs = setTimeout(asentar, MOV.PAUSA); }
+    function asentar() {                // Kevin's scroll has stopped: the magnet, then the month once
+      tAs = 0; if (!vivo || anim || tocando || !huboScroll) return;
+      huboScroll = false; tInt = -1e9;
+      const s = sC;
+      if (filaH > 0 && max > 0 && pts.length && !o.reducir() && !o.imanNo()) {
+        const vs = v(s); let b = null, bd = Infinity;
+        for (const p of pts) { const dd = Math.abs(p.st - s); if (dd < bd - .01 || (Math.abs(dd - bd) <= .01 && Math.abs(p.j - vs) < Math.abs(b.j - vs))) { b = p; bd = dd; } }
+        if (b && bd <= MOV.UMBRAL * filaH) {
+          if (bd > .5) { mover(b.st, b.j, false, () => o.asentado(b.j)); return; }
+          ancla = { j: b.j, st: b.st }; desv = null; pedir(); o.asentado(b.j); return;
+        }
+      }
+      o.asentado(base(s));                // the month of where the feed is (pieza 10, D-338): not the strip's offset left by centring it at rest
+    }
+    function alScroll() {
+      sC = sc.scrollTop;
+      if (anim) { pedir(); return; }     // our animation's frames (a gesture of Kevin stops it before its scroll)
+      if (Math.abs(sC - ultimaEsc) >= MOV.ECO && (viva() || huboScroll)) {   // Kevin's: with a gesture alive or, his scroll already started, while it goes on (inertia can last over 2,5 s: Safari, a trackpad; pieza 10, D-340, as the portal's D-P13)
+        huboScroll = true; ultimaEsc = -9;
+        if (ancla && Math.abs(sC - ancla.st) >= 1) ancla = null;
+        if (desv && !desv.fijo && filaH > 0 && Math.abs(sC - desv.sR) >= filaH) desv = null;
+        armar();
+      }
+      pedir();
+    }
+    function intento() { if (anim) cancelar(); paraGlide(); tInt = ahoraMs(); }
+    const suelta = () => { tocando = Math.max(0, tocando - 1); armar(); };
+    const on = [
+      ['scroll', alScroll],
+      ['scrollend', () => { if (huboScroll) armar(); }],
+      ['wheel', () => { intento(); armar(); }],
+      ['touchstart', () => { tocando++; intento(); }],
+      ['touchend', suelta], ['touchcancel', suelta],
+      ['pointerdown', e => {
+        if (e.pointerType !== 'mouse' && e.pointerType !== 'pen') return;
+        tocando++; intento();
+        const fin = () => { suelta(); removeEventListener('pointerup', fin, true); removeEventListener('pointercancel', fin, true); };
+        addEventListener('pointerup', fin, true); addEventListener('pointercancel', fin, true);
+      }],
+      ['keydown', e => { if (MOV.TECLAS.test(e.key)) intento(); }],
+    ];
+    on.forEach(([t, f]) => sc.addEventListener(t, f, { passive: true }));
+    return {
+      sc,
+      medir(p, fh, mx, s) {
+        const quieto = !anim && ancla && Math.abs(sC - ancla.st) < 1 ? ancla.j : null;   // at rest on a month's point (before the change)
+        pts = p.slice().sort((a, b) => a.st - b.st || b.j - a.j); filaH = fh; max = mx; if (s != null) sC = s;
+        if (quieto != null) {
+          const q = pts.find(x => x.j === quieto);
+          if (q) { if (Math.abs(q.st - sC) > .5) escribir(q.st); ancla = { j: quieto, st: q.st }; }
+        }
+        vu = null; pintar();
+      },
+      ir: (dest, j, op = {}) => mover(dest, j, !!op.instantaneo),
+      volver: j => volver(j),
+      v: () => v(),
+      repintar() { vu = null; pintar(); },
+      corregir(y, d) {                    // the feed's own correction (renderFeed keeps what is in sight): ours, and an animation follows it
+        if (anim) { anim.s0 += d; anim.dest += d; } else escribir(y);
+        if (ancla) ancla = { j: ancla.j, st: ancla.st + d };
+      },
+      reindex(f) { if (ancla) { const j = f(ancla.j); ancla = j >= 0 ? { j, st: ancla.st } : null; } pts = []; },
+      quieto: () => !anim && !glide && !huboScroll && !tocando && !tAs,
+      anclar(j) {                         // a gesture cut by a change of layout (the vista cliente, pieza 6): no settling on what the new layout puts under it; at rest on month j, its point measured again (medir)
+        cancelar(); paraGlide(); clearTimeout(tAs); tAs = 0; huboScroll = false; tInt = -1e9; desv = null; ancla = { j, st: sC }; vu = null; pintar();
+      },
+      estado: () => ({ v: v(), st: sC, ancla: ancla && { ...ancla }, anim: !!anim, glide: !!glide, desv: desv && { ...desv }, gesto: huboScroll, tocando, puntos: pts.map(x => ({ ...x })), filaH, max }),
+      destruir() { vivo = false; cancelar(); paraGlide(); clearTimeout(tAs); cancelAnimationFrame(rafP); on.forEach(([t, f]) => sc.removeEventListener(t, f, { passive: true })); },
+    };
+  }
+  // THE MOUNT: what joins the engine to the Mesa (the header, feedPunto, activar)
+  let MOVM = null, movDecid = 0, movTk = null, movRed = null;   // movRed: «reducir movimiento» forced by the battery (null: the system's)
+  const MOVRM = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
+  function movTokens() {                // --d-m and --ease-m of the Mesa (read once)
+    if (movTk) return movTk;
+    const cs = getComputedStyle(root), dm = /([\d.]+)\s*(m?s)/.exec(cs.getPropertyValue('--d-m') || ''), em = /cubic-bezier\(([^)]+)\)/.exec(cs.getPropertyValue('--ease-m') || '');
+    const dur = dm ? +dm[1] * (dm[2] === 's' ? 1000 : 1) : 320, n = em ? em[1].split(',').map(Number) : [.32, .72, 0, 1];
+    movTk = { dur: dur > 0 ? dur : 320, ease: movBez(...(n.length === 4 && n.every(Number.isFinite) ? n : [.32, .72, 0, 1])), curva: n };
+    return movTk;
+  }
+  const cabJ = m => CABL.findIndex(e => e.m === m);
+  function cabCercano(v) {              // the hueco with a board nearest to v (a tie: the newer)
+    let b = -1; CABL.forEach((e, j) => { if (!e.sin && (b < 0 || Math.abs(j - v) < Math.abs(b - v) || (Math.abs(j - v) === Math.abs(b - v) && j > b))) b = j; });
+    return b;
+  }
+  function movMontar(feed) {
+    if (MOVM) { MOVM.destruir(); MOVM = null; }
+    if (!feed || MOVIL) return;
+    const tk = movTokens();
+    MOVM = movMotor(feed, {
+      pintar: v => { if (CABW) cabMover((1 - v) * CABW); },
+      jFijo: () => Math.max(0, cabJ(mesActivo)),
+      reducir: () => (movRed != null ? movRed : !!MOVRM.matches),
+      imanNo: () => !!(drag || (pd && pd.on) || /arrastre|campo|menú|editor|ventana/.test(activarNo() || '')),
+      asentado: v => { movAsentado(v).catch(e => console.warn('feed:', e)); },
+      dur: tk.dur, ease: tk.ease,
+    });
+  }
+  // the points of the months of the header (a layout read: when the size or the content change, in the frame after)
+  function movMedir() {
+    const feed = root && root.querySelector('.feed'), grid = feed && feed.querySelector('.grid');
+    if (!MOVM || !grid || MOVM.sc !== feed || !CABL.length) return;
+    const s = feed.scrollTop, ch = feed.clientHeight, max = feed.scrollHeight - ch, fr = feed.getBoundingClientRect();
+    const pb = parseFloat(getComputedStyle(feed).paddingBottom) || 0, pts = [];
+    CABL.forEach((e, j) => {
+      if (e.sin) return;
+      const w = grid.querySelector(`:scope > .fmes[data-mes="${cssq(e.m)}"]`), cs = w && w.querySelectorAll('.cell[data-slot], .cell.past'), c = cs && cs[cs.length - 1];
+      if (!c) return;
+      pts.push({ j, st: max <= 0 ? s : Math.max(0, Math.min(max, Math.round(s + (c.getBoundingClientRect().bottom - fr.top) - ch + pb))) });
+    });
+    const c0 = grid.querySelector('.cell'), fh = c0 ? c0.offsetHeight + (parseFloat(getComputedStyle(grid).rowGap) || 0) : 0;
+    MOVM.medir(pts, fh, Math.max(0, max), s);
+  }
+  // the strip at rest shows the active month (the one in the pill): if it isn't the nearest to where the strip is (a post of another
+  // month touched, activar said no), the strip goes back to it smoothly, without moving the feed
+  function movActivo(i) {               // (also «sin crear» never stays in the pill: the strip rests on the active month's hueco)
+    if (!MOVM || movDecid || !MOVM.quieto() || i < 0) return;
+    if (Math.abs(MOVM.v() - i) > 0.002) MOVM.volver(i);   // at rest the active month whole and centred in the pill, also between two points (pieza 10, D-338); the feed doesn't move
+  }
+  // Kevin's scroll has settled at v: the active month changes once, to the month in the pill; nothing is written (no mesa-last*), no
+  // notice if it can't (a window, a menu, a field, a drag, the editor, a job): the strip goes back to the active month
+  async function movAsentado(v) {
+    const j = cabCercano(v); if (j < 0 || !S) return;
+    const m = CABL[j].m, fin = () => movActivo(cabJ(mesActivo));   // at rest, the strip on the active month's hueco
+    if (m === mesActivo || activarNo()) { fin(); return; }
+    if (mesesTab(S).includes(m)) { mesFijar(m, 'deslizar'); mesSigue(); fin(); return; }
+    const k = feedDueno(m); if (!k) { fin(); return; }
+    movDecid++;
+    try { const r = await activar(k, { mes: m, quien: 'deslizar' }); if (r && r.error === SKILL_NO) skillAviso(); } finally { movDecid--; }
+    fin();
+  }
+
+  let mainMode = null;   // 'board:<client>' (by client, not by month: activar never makes .main again, pieza 2) | 'empty-client' | 'no-clients'
   function renderMain() {
     const main = root.querySelector('.main');
     const cn = (CL.find(x => x.id === curClient) || {}).name || '';
     const cc = contCli(), cont = !!cc;   // a client of «Solo contenido» (D-290): no feed nor tray; one page, without months (D-312)
-    const mode = cc ? 'cont:' + cc : S ? 'board:' + S.key : CL.length ? 'empty-client:' + curClient + ':' + cn : 'no-clients';
+    const mode = cc ? 'cont:' + cc : S ? 'board:' + (S.client || boardClient(S)) : CL.length ? 'empty-client:' + curClient + ':' + cn : 'no-clients';
     if (mode !== mainMode) {
       { const t = main.querySelector('.tray'); if (t) trayDonde(t); }   // the place of the folder it showed (D-092)
       if (mainMode && mainMode.startsWith('cont:') && M.entregasUI && M.entregasUI.salir) { try { M.entregasUI.salir(); } catch (e) { /* */ } }   // a «Solo contenido» page left (D-290)
@@ -3211,7 +3881,7 @@ ${TK_FUENTES}
           + '<div class="tbody"><div class="drop">Arrastra aquí tus fotos o carpetas (JPG o PNG) o pulsa «Añadir fotos».</div><div class="tgrid"></div></div></aside>'
           + '<div class="csplit" aria-hidden="true" title="Arrastra para repartir la columna · doble clic: mitad y mitad"></div><section class="cal" aria-label="Calendario" hidden></section></div>';   // filled by calendario.js (none: the tray takes it all)
         watchFeed(); tamVigilar(); tamAplicar(); fijoAlto();
-        { const t = main.querySelector('.tray'); t.addEventListener('scroll', dondeAlDeslizar, { passive: true }); t.querySelector('.tbody').addEventListener('scroll', dondeAlDeslizar, { passive: true }); }
+        { const t = main.querySelector('.tray'); t.addEventListener('wheel', alRueda, { passive: false }); t.addEventListener('scroll', dondeAlDeslizar, { passive: true }); t.querySelector('.tbody').addEventListener('scroll', dondeAlDeslizar, { passive: true }); }
       } else if (CL.length) {
         const c = CL.find(x => x.id === curClient);
         main.innerHTML = `<div class="empty"><div class="ecard">${IC.grid}<h3>${esc(c ? c.name : 'Elige un cliente')}${c ? ': aún no hay ningún mes en la mesa' : ''}</h3>${c && c.notion === false ? 'Los meses de este cliente los crea Claude con lo que le digas: nombre, tipo, fecha y hora de cada publicación. Pídeselo en el chat:' : 'Los meses se cargan desde Notion, con las publicaciones del calendario ya creado. Pídeselo a Claude en el chat:'}<br><span class="say">«Carga ${esc(nextMonthName(c && c.cycleDay))} de ${esc(c ? c.name : 'este cliente')} en la mesa»</span></div></div>`;
@@ -3224,25 +3894,26 @@ ${TK_FUENTES}
   }
 
   function nextMonthName(cd) { const m = cycleOf(new Date().toISOString(), cd); let [y, mo] = m.split('-').map(Number); mo++; if (mo > 12) { mo = 1; y++; } return MONTHS[mo - 1]; }   // the next cycle to load
-  function photoParts(s) {                    // what changed of its photos and of its contexto since the upload (null: never uploaded)
+  // B (in these and in the post's state below): its board, the open one if not given (feed continuo, pieza 1); its crops decide
+  function photoParts(s, B = S) {                    // what changed of its photos and of its contexto since the upload (null: never uploaded)
     const u = s.uploaded; if (!u) return null;
     const asRendered = publishList(s).length && publishList(s).every(f => (M.files[f] || {}).design);   // a design's images go up as rendered: a new render is new files
-    return { foto: !(same(u.fileIds || [], publishList(s)) && (u.crop == null || asRendered || u.crop === cropSig(s) || (isReel(s.type) && u.crop === cropSig34(s)))), contexto: (u.note || '') !== noteOf(s) };
+    return { foto: !(same(u.fileIds || [], publishList(s)) && (u.crop == null || asRendered || u.crop === cropSig(s, B) || (isReel(s.type) && u.crop === cropSig34(s, B)))), contexto: (u.note || '') !== noteOf(s) };
   }
-  function photoStatus(s) { const p = photoParts(s); return !p ? null : p.foto || p.contexto ? 'chg' : 'ok'; }   // its photos and contexto as uploaded (what plan() reports)
+  function photoStatus(s, B = S) { const p = photoParts(s, B); return !p ? null : p.foto || p.contexto ? 'chg' : 'ok'; }   // its photos and contexto as uploaded (what plan() reports)
   // the post as a whole: «cambiada» when its photo, crop or contexto — or its uploaded caption — changed after the upload;
   // «en Notion» only when its photos and contexto are (an uploaded caption alone never makes it so)
-  function slotStatus(s) { const a = photoStatus(s), b = capStatus(s); return a === 'chg' || b === 'chg' ? 'chg' : a; }
+  function slotStatus(s, B = S) { const a = photoStatus(s, B), b = capStatus(s); return a === 'chg' || b === 'chg' ? 'chg' : a; }
   // what changed since the last upload, in this order (D-081): the cell's one mark of changes says it on hover
-  const CAMBIOS = [['caption', s => capStatus(s) === 'chg'], ['foto o encuadre', s => !!(photoParts(s) || {}).foto], ['fecha u hora', s => dateChg(s)],
-    ['contexto', s => !!(photoParts(s) || {}).contexto], ['nombre o tipo', s => nameChg(s) || typeChg(s)]];
-  const cambiosDe = s => CAMBIOS.filter(([, f]) => f(s)).map(([l]) => l);
+  const CAMBIOS = [['caption', s => capStatus(s) === 'chg'], ['foto o encuadre', (s, B) => !!(photoParts(s, B) || {}).foto], ['fecha u hora', s => dateChg(s)],
+    ['contexto', (s, B) => !!(photoParts(s, B) || {}).contexto], ['nombre o tipo', s => nameChg(s) || typeChg(s)]];
+  const cambiosDe = (s, B = S) => CAMBIOS.filter(([, f]) => f(s, B)).map(([l]) => l);
   // what a Programada keeps of itself (D-184): its photos with their crops and its caption (its date is estado.fecha, D-120);
   // marked Programado again, it keeps them again. For a client without Notion, what changed since is its mark of changes
-  const progFoto = s => JSON.stringify([publishList(s), cropSig(s)]);
+  const progFoto = (s, B = S) => JSON.stringify([publishList(s), cropSig(s, B)]);
   const progSig = s => ({ foto: progFoto(s), cap: capFinal(s) });
-  const CAMBIOS_PROG = [['caption', (s, f) => (f.cap ?? null) !== capFinal(s)], ['foto o encuadre', (s, f) => f.foto !== progFoto(s)], ['fecha u hora', s => !programadaAlDia(s)]];
-  const cambiosProg = s => { const e = s.estado; if (!e || e.v !== 'programado' || !e.firma || estadoDe(s) !== 'programado') return []; return CAMBIOS_PROG.filter(([, f]) => f(s, e.firma)).map(([l]) => l); };
+  const CAMBIOS_PROG = [['caption', (s, f) => (f.cap ?? null) !== capFinal(s)], ['foto o encuadre', (s, f, B) => f.foto !== progFoto(s, B)], ['fecha u hora', s => !programadaAlDia(s)]];
+  const cambiosProg = (s, B = S) => { const e = s.estado; if (!e || e.v !== 'programado' || !e.firma || estadoDe(s, B) !== 'programado') return []; return CAMBIOS_PROG.filter(([, f]) => f(s, e.firma, B)).map(([l]) => l); };
   const listaY = a => a.length > 1 ? a.slice(0, -1).join(', ') + ' y ' + a[a.length - 1] : a[0] || '';
   // the post's state (3.32), one at a time and the same everywhere. The first three follow from its data: «Por empezar»
   // (no photo; the contexto doesn't count since 3.70, D-086), «Captions» (none chosen yet), «Por aprobar» (one chosen, the
@@ -3263,10 +3934,10 @@ ${TK_FUENTES}
   // a chosen caption that is empty doesn't count: the post stays in Captions (D-192)
   const capVacio = s => capFinal(s) === '';
   const estadoAuto = s => !s.photos.length ? 'empezar' : !capFinal(s) ? 'captions' : 'aprobar';
-  const aprobSig = s => JSON.stringify([cropSig(s), noteOf(s), capFinal(s)]);
-  function estadoDe(s) {
+  const aprobSig = (s, B = S) => JSON.stringify([cropSig(s, B), noteOf(s), capFinal(s)]);
+  function estadoDe(s, B = S) {
     const v = s.estado && s.estado.v, a = estadoAuto(s);
-    return !v ? a : RETRASO.includes(v) ? (ORD_AUTO[v] < ORD_AUTO[a] ? v : a) : FIRMADO.includes(v) ? (a === 'aprobar' && s.estado.sig === aprobSig(s) ? v : a) : v;
+    return !v ? a : RETRASO.includes(v) ? (ORD_AUTO[v] < ORD_AUTO[a] ? v : a) : FIRMADO.includes(v) ? (a === 'aprobar' && s.estado.sig === aprobSig(s, B) ? v : a) : v;
   }
   const retrasada = s => !!(s && s.estado && RETRASO.includes(s.estado.v));                       // put back by hand
   const retenida = s => retrasada(s) && ORD_AUTO[s.estado.v] <= ORD_AUTO[estadoAuto(s)];          // ... and that is what holds it now
@@ -3289,7 +3960,7 @@ ${TK_FUENTES}
     if (!B) return null;
     const ms = mesesDe(B); if (!ms.includes(m)) m = ms[0];
     const vivas = (B.slots || []).filter(s => vivo(s) && (!m || mesDe(s, B) === m));
-    return vivas.length ? PASOS[Math.min(...vivas.map(s => PASO_DE[estadoDe(s)] ?? 0))][0] : 'empezar';
+    return vivas.length ? PASOS[Math.min(...vivas.map(s => PASO_DE[estadoDe(s, B)] ?? 0))][0] : 'empezar';
   }
   const motivoDe = s => s && s.estado && s.estado.v === 'cancelado' ? String(s.estado.motivo || '').trim() : '';   // why it was cancelled (optional)
   // v: one of MANUAL, or null (back to the one its data gives). Returns why it can't be, or ''. A cancelled post cancelled
@@ -3316,9 +3987,9 @@ ${TK_FUENTES}
   // A Programada passes to Publicado on its own once its time comes (without a time, once its day is over, Madrid), unless
   // its date or time changed after it was marked Programada (Zernio still has the old one, D-103): s.estado.fecha keeps the
   // date it was marked with (a Programada from before 3.92 gets the one it has when its board first opens). Vencida: not
-  // cancelled nor published, its moment passed and it doesn't pass on its own. It looks at the open board and the client's
-  // earlier boards (months before the open one's); a post of another board is changed from here and its change is a step of
-  // this board's ⌘Z (FUERA). Nothing of it with the mesa paused in another tab or in «Vista cliente»; nothing of Zernio or
+  // cancelled nor published, its moment passed and it doesn't pass on its own. It looks at the open board and every other board
+  // of the client, earlier and later (feed continuo, pieza 3b: every month is edited); a post of another board is changed from here, on its copy, and its change
+  // is a step of that month in the client's ⌘Z (D-317). Nothing of it with the mesa paused in another tab or in «Vista cliente»; nothing of Zernio or
   // Notion: it goes by the date only.
   let RELOJ = null;                    // tests: a fixed clock (M._test.reloj)
   const ahora = () => RELOJ != null ? RELOJ : Date.now();
@@ -3329,99 +4000,111 @@ ${TK_FUENTES}
   const programadaAlDia = s => !!(s && s.estado && s.estado.v === 'programado') && (!('fecha' in s.estado) || sameDate(s.estado.fecha, s.date));
   // it passes once: one marked Programada once its moment had passed, or brought back to Programado after passing (by hand or
   // with ⌘Z), keeps estado.tarde and is a vencida
-  const publicaSola = (s, t) => estadoDe(s) === 'programado' && programadaAlDia(s) && !s.estado.tarde && yaPaso(s, t);
-  const vencida = (s, t) => { const e = estadoDe(s); return e !== 'cancelado' && e !== 'publicado' && yaPaso(s, t) && !publicaSola(s, t); };
+  const publicaSola = (s, t, B = S) => estadoDe(s, B) === 'programado' && programadaAlDia(s) && !s.estado.tarde && yaPaso(s, t);
+  const vencida = (s, t, B = S) => { const e = estadoDe(s, B); return e !== 'cancelado' && e !== 'publicado' && yaPaso(s, t) && !publicaSola(s, t, B); };
   const estadoVisto = s => { const v = s.estado && s.estado.v; return v && (MANUAL.includes(v) || RETRASO.includes(v)) ? v : estadoAuto(s); };   // another board's (its crops are not here)
-  // posts of the client's other boards changed from here: 'key|id' -> {key, id, estado}; every step of ⌘Z keeps them
-  // (editState: fuera), so going back writes them back. A new history (another board, a reload) starts without any.
-  let FUERA = new Map();
-  const fueraK = (key, id) => key + '|' + id;
-  function conFuera(key, s) { const x = FUERA.get(fueraK(key, s.id)); if (!x) return s; const o = { ...s }; if (x.estado) o.estado = x.estado; else delete o.estado; return o; }
-  async function anteriores(B) {       // the client's boards before the open one (its months come first)
+  // Posts of the client's other months changed from here (D-120: «Ya se publicó» or «Cancelar» of a vencida of an earlier board,
+  // and what passes on its own): since the feed continuo (pieza 2, D-317) a change of another month is a step of that month in the
+  // client's one history, done on its copy in memory and written as its own save writes it (its revisions, its collabs). The
+  // copy shows it at once (vencidas); ⌘Z of it makes that month the open one.
+  async function otrosTableros(B) {    // the client's other boards, earlier and later (pieza 3b), the newest month first
     const all = ((await idbAll('boards')) || []).map(b => newest(b.key, b));
-    return all.filter(b => b && b.key !== B.key && boardClient(b) === B.client && b.month && String(b.month) < String(B.month))
+    return all.filter(b => b && b.key !== B.key && boardClient(b) === B.client && b.month)
       .sort((a, b) => String(b.month).localeCompare(String(a.month)));
   }
-  async function deFuera(B, que) {     // [{b, s}] of the earlier boards that que(s) picks; a post the open board has is its own
-    const visto = new Set(B.slots.map(s => s.id)), out = [];
-    for (const b of await anteriores(B)) for (const s0 of b.slots || []) {
-      if (visto.has(s0.id)) continue; visto.add(s0.id);
-      const s = conFuera(b.key, s0); if (que(s)) out.push({ b, s });
+  const enCopia = (key, s) => { const m = MEM.tab.get(key), o = m && m.tablero.slots.find(x => x.id === s.id); return o || s; };   // a post of another board as its copy has it now
+  // [{b, s}] of the client's other boards that que(s, b) picks; a post the open board has is its own. A post two other boards
+  // have (boards that overlap, R12): the one of the board that owns its month in the feed (feedDueno), else the first seen
+  async function deFuera(B, que) {
+    const mio = new Set(B.slots.map(s => s.id)), por = new Map();
+    for (const b0 of await otrosTableros(B)) {
+      const m = MEM.tab.get(b0.key), b = m ? m.tablero : b0;
+      for (const s of b.slots || []) { if (mio.has(s.id)) continue; if (!por.has(s.id)) por.set(s.id, []); por.get(s.id).push({ b, s }); }
     }
+    const out = [];
+    for (const l of por.values()) { const x = (l.length > 1 && l.find(({ b, s }) => feedDueno(mesDe(s, b)) === b.key)) || l[0]; if (que(x.s, x.b)) out.push(x); }
     return out;
   }
+  // a month of a copy changed from here is drawn again in the feed (its copy is the same object: FMEM would keep its old html)
+  function feedOlvidar(key) { for (const [m, c] of FMEM) if (c.key === key) FMEM.delete(m); }
   let fueraQ = Promise.resolve();
-  function escribirFuera(list) {       // [{key, id, estado}] into every other board that has the post (its collab's too)
-    const B = S, now = Date.now();
-    if (PB) list.forEach(x => { const s = (PB.slots || []).find(y => y.id === x.id); if (s) { if (x.estado) s.estado = JSON.parse(JSON.stringify(x.estado)); else delete s.estado; } });
-    fueraQ = fueraQ.then(() => tx('boards', 'readwrite', st => {
-      const r = st.openCursor();
-      r.onsuccess = () => {
-        const c = r.result; if (!c) return;
-        const b = c.value; let hit = false;
-        if (b && b.key !== (B && B.key)) for (const x of list) { const o = (b.slots || []).find(y => y.id === x.id); if (o) { if (x.estado) o.estado = JSON.parse(JSON.stringify(x.estado)); else delete o.estado; o.at = now; hit = true; } }
-        if (hit) { alinearH(b); b.editedAt = new Date().toISOString(); c.update(b); }
-        c.continue();
-      };
-    })).then(() => vencRefrescar()).catch(e => toast('No se pudo cambiar el otro tablero: ' + ((e && e.message) || e), { ms: 8000 }));
+  // a copy of another month changed from here, written as its save would: its posts' revisions (s.at) and what its collabs share
+  function guardarOtro(B) {
+    fueraQ = fueraQ.then(async () => {
+      alinearH(B); marcaEspera(B); stamp(B); edited(B); B.savedAt = new Date().toISOString();
+      await guardar(B); await pushShared(B);
+    }).then(() => vencRefrescar()).catch(e => toast('No se pudo cambiar el otro tablero: ' + ((e && e.message) || e), { ms: 8000 }));
     return fueraQ;
   }
-  function fueraPoner(key, s, estado, tarde) {   // the state of a post of another board, as a change of this board's history
-    const k = fueraK(key, s.id), hist = S && H.b === S && H.cur ? [H.cur, ...H.undo, ...H.redo] : [];
-    if (!FUERA.has(k)) {               // the first time: every step so far had it as it was
-      const antes = s.estado ? JSON.parse(JSON.stringify(s.estado)) : null;
-      FUERA.set(k, { key, id: s.id, estado: antes });
-      hist.forEach(st => { st.fuera = { ...(st.fuera || {}), [k]: antes ? JSON.parse(JSON.stringify(antes)) : null }; });
-    }
-    if (tarde) [FUERA.get(k), ...hist.map(st => ({ get estado() { return st.fuera[k]; }, set estado(v) { st.fuera[k] = v; } }))].forEach(x => { if (x.estado && x.estado.v === 'programado') x.estado = { ...x.estado, tarde: true }; });   // it passed once: going back never makes it pass again
-    if (hist.length) H.curJ = JSON.stringify(H.cur);
-    FUERA.get(k).estado = estado ? JSON.parse(JSON.stringify(estado)) : null;
-    escribirFuera([{ key, id: s.id, estado: FUERA.get(k).estado }]);
+  // a copy to change from here: its signature and links ride with it (stamp and pushShared of a board that isn't the open one)
+  function copiaParaCambiar(key) {
+    const m = MEM.tab.get(key); if (!m) return null;
+    if (!SIGS.has(m.tablero)) SIGS.set(m.tablero, { b: m.tablero, m: m.sig || Object.fromEntries(m.tablero.slots.map(s => [s.id, slotSig(s, m.tablero)])), dirty: new Set(), idx: m.IDX || {} });
+    return m.tablero;
   }
-  function fueraDeshacer(st) {         // applyState: the posts of other boards as that step had them
-    const cambia = [];
-    for (const [k, x] of FUERA) {
-      const v = st.fuera && k in st.fuera ? st.fuera[k] : x.estado;
-      if (JSON.stringify(v ?? null) !== JSON.stringify(x.estado ?? null)) { x.estado = v ? JSON.parse(JSON.stringify(v)) : null; cambia.push({ key: x.key, id: x.id, estado: x.estado }); }
-    }
-    if (cambia.length) escribirFuera(cambia);
+  // one step of ⌘Z for states of posts of several boards at once (D-120): est = [{B, id, estado}]; the open board's own go through
+  // setEstado (fn) and its save; the others, on their copies. tarde: they passed once (going back never makes them pass again)
+  function estadosFuera(lista, tarde) {
+    if (!lista.length) return;
+    track(S);                          // a change not saved yet stays a step of its own
+    const por = new Map(); lista.forEach(x => { if (!por.has(x.B)) por.set(x.B, []); por.get(x.B).push(x); });
+    for (const [B, l] of por) { track(B); if (tarde) { const ids = new Set(l.map(x => x.id)); tardeEnPasos(B.key, ids); B.slots.forEach(s => { if (ids.has(s.id) && s.estado && s.estado.v === 'programado') s.estado = { ...s.estado, tarde: true }; }); } }
+    const partes = [...por].map(([B, l]) => ({ k: B.key, e: estadosDe(B, l.map(x => x.id)) }));
+    for (const [B, l] of por) { aplicarEstados(B, Object.fromEntries(l.map(x => [x.id, x.estado]))); const st = editBoard(B); HC.cur.set(B.key, { st, j: JSON.stringify(st) }); feedOlvidar(B.key); }
+    histPush({ p: partes }); HC.tag = null;
+    for (const B of por.keys()) guardarOtro(B);
   }
-  // a post of another board from the vencidas' list: «Ya se publicó» or «Cancelar» (D-120), one step of ⌘Z
+  // a post of another board from the vencidas' list: «Ya se publicó» or «Cancelar» (D-120), one step of ⌘Z of its month
   function fueraEstado(key, id, estado) {
     if (!S || locked) return 'la mesa está abierta en otra pestaña';
     const it = (vencFuera || []).find(x => x.key === key && x.s.id === id); if (!it) return 'no existe';
-    fueraPoner(key, conFuera(key, it.s), estado);
-    changed();
+    const B0 = S;
+    fueraQ = fueraQ.then(async () => {
+      if (!MEM.tab.has(key)) await memLeer(key);
+      const B = copiaParaCambiar(key);
+      if (!B || S !== B0 || locked || !B.slots.some(s => s.id === id)) return;
+      estadosFuera([{ B, id, estado: estado ? JSON.parse(JSON.stringify(estado)) : null }]);
+      renderFeed(); refreshDetail();
+    }).catch(e => toast('No se pudo cambiar el otro tablero: ' + ((e && e.message) || e), { ms: 8000 }));
     return '';
   }
   const quieta = () => !S || locked || !root || root.classList.contains('client') || root.classList.contains('pp-on') || (M.libre && M.libre.abierto && M.libre.abierto()) || (M.diseno && M.diseno.abierto && M.diseno.abierto()) || uploadsBusy() || importing || switching > 0;
-  // B: the Programadas whose moment came, here and in the earlier boards, pass to Publicado: one step of ⌘Z, with a toast
+  // B: the Programadas whose moment came, here and in the client's other boards (earlier and later, pieza 3b), pass to Publicado: one step of ⌘Z, with a toast
   let pubBusy = false;
   async function publicarSolas() {
     if (quieta() || pubBusy) return 0;
     pubBusy = true;
     try {
-      const B = S, t = ahora(), fuera = await deFuera(B, s => publicaSola(s, t));
+      const B = S, t = ahora(), cand = await deFuera(B, (s, b) => publicaSola(s, t, b));
+      for (const k of new Set(cand.map(x => x.b.key))) if (!MEM.tab.has(k)) await memLeer(k);   // read once, never written here
       if (B !== S || quieta()) return 0;
       const mias = S.slots.filter(s => publicaSola(s, t));
+      const fuera = [...new Set(cand.map(x => x.b.key))].flatMap(k => { const T = copiaParaCambiar(k); return T ? T.slots.filter(s => cand.some(x => x.b.key === k && x.s.id === s.id) && publicaSola(s, t, T)).map(s => ({ B: T, id: s.id })) : []; });
       if (!mias.length && !fuera.length) return 0;
       track(S);                        // a change not saved yet stays a step of its own
       const ids = new Set(mias.map(s => s.id));   // it passed once: every step keeps it so, and ⌘Z brings it back as a vencida
       mias.forEach(s => { s.estado = { ...s.estado, tarde: true }; });
-      if (H.b === S && H.cur) { [H.cur, ...H.undo, ...H.redo].forEach(st => st.slots.forEach(o => { if (ids.has(o.id) && o.estado && o.estado.v === 'programado') o.estado = { ...o.estado, tarde: true }; })); H.curJ = JSON.stringify(H.cur); }
+      if (ids.size) tardeEnPasos(S.key, ids);
+      const u = HC.undo.length;
       mias.forEach(s => setEstado(s.id, 'publicado'));
-      fuera.forEach(({ b, s }) => fueraPoner(b.key, s, { v: 'publicado' }, true));
-      changed(); refreshDetail();
+      if (mias.length) { normalize(); save(); }   // the open board's own step
+      if (fuera.length) {
+        const top = HC.undo.length === u + 1 ? HC.undo[HC.undo.length - 1] : null;
+        estadosFuera(fuera.map(x => ({ ...x, estado: { v: 'publicado' } })), true);
+        if (top) { const p = HC.undo.pop(); top.p.push(...p.p); }   // one step for all of them (D-120)
+      }
+      render(); refreshDetail();
       const n = mias.length + fuera.length;
       toast(`${n} publicaci${n === 1 ? 'ón pasa' : 'ones pasan'} a Publicado. ⌘Z ${n === 1 ? 'la devuelve' : 'las devuelve'}.`, { key: 'publicadas-solas', ms: 9000 });
       return n;
     } finally { pubBusy = false; }
   }
-  // C: the vencidas of the earlier boards (those of the open board are counted at once), kept for the calendar's count
+  // C: the vencidas of the client's other boards, earlier and later (those of the open board are counted at once), kept for the
+  // calendar's count; activar refreshes it for its board (sembrar), so it is always «all but the open one»
   let vencFuera = [], vencDe = null;
   async function vencRefrescar() {
     const B = S; if (!B) { vencFuera = []; vencDe = null; return []; }
-    const t = ahora(), l = await deFuera(B, s => vencida(s, t));
+    const t = ahora(), l = await deFuera(B, (s, b) => vencida(s, t, b));
     if (B !== S) return [];
     vencFuera = l.map(({ b, s }) => ({ key: b.key, s: JSON.parse(JSON.stringify(s)), cd: cdOf(b.cycleDay), month: b.month, span: b.span || 1 })); vencDe = B.key;
     calRender();
@@ -3437,7 +4120,7 @@ ${TK_FUENTES}
     const t = ahora(), cd = curCd();
     const fila = (key, s, aqui, o) => ({ key, id: s.id, name: s.name, type: s.type, date: s.date, estado: aqui ? estadoDe(s) : estadoVisto(s), aqui, mes: o.mes, movida: !!(s.estado && s.estado.v === 'programado' && !programadaAlDia(s)), futuro: hayFuturo(o.month, o.span, o.cd, s, t) });
     const mias = S.slots.filter(s => vencida(s, t)).map(s => fila(S.key, s, true, { mes: mesDe(s), month: S.month, span: S.span, cd }));
-    const fuera = vencDe === S.key ? vencFuera.map(x => ({ x, s: conFuera(x.key, x.s) })).filter(({ s }) => vencida(s, t)).map(({ x, s }) => fila(x.key, s, false, { mes: cycleOf(s.date, x.cd) || x.month, month: x.month, span: x.span, cd: x.cd })) : [];
+    const fuera = vencDe === S.key ? vencFuera.map(x => ({ x, s: enCopia(x.key, x.s) })).filter(({ s }) => vencida(s, t)).map(({ x, s }) => fila(x.key, s, false, { mes: cycleOf(s.date, x.cd) || x.month, month: x.month, span: x.span, cd: x.cd })) : [];
     return [...mias, ...fuera].sort((a, b) => ts(a.date) - ts(b.date));
   }
   // on opening a board (abrir) and every minute: B, then the vencidas. No «N vencidas · Ver» notice on opening: «N vencidas» of
@@ -3478,16 +4161,16 @@ ${TK_FUENTES}
   const estIco = (e, at = '') => SVG_EST[e] ? `<i class="eico e-${e}"${at}>${SVG_EST[e]}</i>` : `<i class="edot e-${e}"${at}></i>`;
   // the mark of changes since the last upload: a yellow ring, a blue disc and a red dot, the size of the old date dot
   const CAMBIO_SVG = '<svg viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="5"/><circle cx="5" cy="5" r="3.4"/><circle cx="5" cy="5" r="1.45"/></svg>';
-  function cambiosIco(s, cls = 'mk') {
-    const sn = sinNotion(), c = sn ? cambiosProg(s) : cambiosDe(s); if (!c.length) return '';
+  function cambiosIco(s, cls = 'mk', B = S) {
+    const sn = sinNotion(B), c = sn ? cambiosProg(s, B) : cambiosDe(s, B); if (!c.length) return '';
     const t = (sn ? 'Cambió después de programarla: ' : 'Cambió desde la última subida: ') + listaY(c);
     return `<i class="${cls} mk-cambios"${cls === 'mk' ? ` title="" data-tip="${esc((sn ? 'Cambió después de programarla: ' : 'Cambió: ') + listaY(c))}"` : ` title="${esc(t)}"`} aria-label="${esc(t)}">${CAMBIO_SVG}</i>`;   // the grid's own tip; elsewhere, the browser's
   }
   // the cell's marks (D-081), in one row before its date: Programado, Publicado, No aprobado and the changes
   const MARCA_GRID = { programado: 'Programado', publicado: 'Publicado', noaprobado: 'No aprobado' };
-  function marcasHTML(s) {
-    const e = estadoDe(s), m = MARCA_GRID[e] ? estIco(e, ` title="" data-tip="${MARCA_GRID[e]}" aria-label="${MARCA_GRID[e]}"`).replace(/class="e(ico|dot) /, 'class="mk e$1 ') : '';
-    const c = cambiosIco(s);
+  function marcasHTML(s, B = S) {
+    const e = estadoDe(s, B), m = MARCA_GRID[e] ? estIco(e, ` title="" data-tip="${MARCA_GRID[e]}" aria-label="${MARCA_GRID[e]}"`).replace(/class="e(ico|dot) /, 'class="mk e$1 ') : '';
+    const c = cambiosIco(s, 'mk', B);
     return m || c ? `<span class="mks">${m}${c}</span>` : '';
   }
   function pickEstado(id, v) {               // from the post view
@@ -3525,7 +4208,9 @@ ${TK_FUENTES}
     return st === 'ok' ? '<span class="st ok" title="Subida a Notion tal como está">✓ en Notion</span>' : st === 'chg' ? '<span class="st chg" title="Cambiada después de subirla a Notion (foto, encuadre, contexto o caption): pide a Claude que la vuelva a subir">cambiada</span>' : '';
   }
   // the cell's top left keeps only the month pill of a range board: its marks go in one row by its date (marcasHTML, D-081)
-  const badgesHTML = (s, pill) => pill ? `<div class="badges"><span class="mpill">${esc(pill)}</span></div>` : '';
+  // pill: its month's name; {t, aviso}: and another board of that month has posts this one hasn't (only Kevin sees it, pieza 3a)
+  const badgesHTML = (s, pill) => !pill ? '' : typeof pill === 'string' ? `<div class="badges"><span class="mpill">${esc(pill)}</span></div>`
+    : `<div class="badges"><span class="mpill">${esc(pill.t)}<span class="mdos" title="Otro tablero de este mes tiene ${pill.aviso} publicaci${pill.aviso === 1 ? 'ón' : 'ones'} que no sale${pill.aviso === 1 ? '' : 'n'} aquí: sale este (el último usado)"> · 2 tableros</span></span></div>`;
   const POSTIT = '<svg viewBox="0 0 17 17" aria-hidden="true"><path d="M1.5 1.5h14v14H7.4C4 15.5 1.5 13 1.5 9.6z" class="postit-a"/><path d="M1.5 1.5h14v2.6h-14z" class="postit-b"/><path d="M1.5 9.6c0 3.3 2.6 5.9 5.9 5.9-1.2-1.6-1.6-3.5-1.2-5.4-1.6.4-3.3.3-4.7-.5z" class="postit-c"/></svg>';
   // the Nota's post-it; while it is edited in its cell (double click once open), a text field in its place
   let memoEdit = null;
@@ -3533,20 +4218,20 @@ ${TK_FUENTES}
     if (memoEdit === s.id) return `<span class="pit edit" data-memo="${esc(s.id)}" title="">${POSTIT}<textarea class="pitin" data-slot="${esc(s.id)}" rows="1" aria-label="Nota (solo para ti, no se sube)">${esc(s.memo || '')}</textarea></span>`;
     const m = memoOf(s); return m ? `<span class="pit" data-memo="${esc(s.id)}" title="" aria-label="Nota: ${esc(m)} (doble clic para editarla; arrástrala a otra publicación para moverla)">${POSTIT}<span class="pt">${esc(m)}</span></span>` : '';
   };
-  function cellHTML(s, pill) {
-    const lab = shortLabel(s.name, s.type), fd = esc(fmtDate(s.date)), when = marcasHTML(s) + (vencida(s) ? `<span class="vdate" title="Vencida: su fecha ya pasó">${fd}</span>` : fd);   // a vencida's date in a red pill (D-120)
-    const icon = typeIcon(s.type, s.photos.length), pin = isPinned(s);
+  function cellHTML(s, pill, B = S, perezosa) {   // B: the post's board, the open one if not given (feed continuo, pieza 1); perezosa: its photo as data-mini, put by the feed (pieza 3a)
+    const lab = shortLabel(s.name, s.type), fd = esc(fmtDate(s.date)), when = marcasHTML(s, B) + (vencida(s, undefined, B) ? `<span class="vdate" title="Vencida: su fecha ya pasó">${fd}</span>` : fd);   // a vencida's date in a red pill (D-120)
+    const icon = typeIcon(s.type, s.photos.length), pin = isPinned(s, B);
     if (!s.photos.length) {
       return `<div class="cell empty" data-slot="${esc(s.id)}" title="${esc(s.name)}">${pin ? `<span class="ico pinned" title="Fijada">${IC.pin}</span>` : ''}${badgesHTML(s, pill)}${M.web && M.web.marca ? M.web.marca(s) : ''}<div class="ph"><span class="pico">${icon || ICON.photo}</span><b>${esc(lab)}</b><span>${when}</span></div>${postit(s)}</div>`;
     }
     const f = M.files[s.photos[0]] || {};
-    const imgStyle = f.w ? rectStyle(f, gridRect(s.photos[0], s)) : '';
+    const imgStyle = f.w ? rectStyle(f, gridRect(s.photos[0], s, B)) : '';
     const n = s.photos.length;
     const cnt = isCarousel(s.type) && (n > 1 || s.type === 'Carrusel') ? `<span class="cnt" title="${n} foto${n === 1 ? '' : 's'}">${n}<span class="cw"> foto${n === 1 ? '' : 's'}</span></span>` : '';
-    return `<div class="cell full" data-slot="${esc(s.id)}" title="${esc(s.name)}"><img class="crop" src="${f.thumbUrl || ''}" style="${imgStyle}" alt="">${pin ? `<span class="ico" title="Fijada">${IC.pin}</span>` : icon ? `<span class="ico">${icon}</span>` : ''}${badgesHTML(s, pill)}${M.web && M.web.marca ? M.web.marca(s) : ''}${cnt}<div class="lab">${postit(s)}<b>${esc(lab)}</b>${when}</div></div>`;
+    return `<div class="cell full" data-slot="${esc(s.id)}" title="${esc(s.name)}"><img class="crop" ${perezosa ? `data-mini="${esc(s.photos[0])}" decoding="async"` : `src="${f.thumbUrl || ''}"`} style="${imgStyle}" alt="">${pin ? `<span class="ico" title="Fijada">${IC.pin}</span>` : icon ? `<span class="ico">${icon}</span>` : ''}${badgesHTML(s, pill)}${M.web && M.web.marca ? M.web.marca(s) : ''}${cnt}<div class="lab">${postit(s)}<b>${esc(lab)}</b>${when}</div></div>`;
   }
-  function fillerHTML(k) {
-    const f = previewAt(k) && M.files[previewAt(k)], x = f ? 'Quitar la portada' : 'Quitar el hueco';
+  function fillerHTML(k, B = S) {
+    const f = previewAt(k, B) && M.files[previewAt(k, B)], x = f ? 'Quitar la portada' : 'Quitar el hueco';
     return `<div class="cell filler${f ? ' tapa' : ''}" data-filler="${k}" title="${f ? `Preview de la primera publicación del mes siguiente: ${esc(f.name)}. No es una publicación.` : 'Hueco: solo para cuadrar el feed (no es una publicación). Suelta una foto de la bandeja para previsualizar el mes siguiente.'}">${f ? `<img class="hfoto" src="${f.thumbUrl}" alt=""><span class="htag">Preview · próximo mes</span>` : ''}<button class="hx" data-act="delfiller" data-k="${k}" title="${x}" aria-label="${x}">×</button></div>`;
   }
   function pastHTML(p, i, N, cuenta) {
@@ -3569,37 +4254,169 @@ ${TK_FUENTES}
     const why = p.thumb && M.pastPending[p.thumb] ? 'cargando…' : p.own ? 'sin foto' : p.item.src === 'mesa' ? 'sin foto en la mesa' : sinNotion() ? 'sin imagen' : 'sin imagen en Notion';
     return `<div class="${cls} nophoto" ${attrs}>${line}${pill}${tags}<div class="ph"><b>${esc(shortLabel(p.name, p.type))}</b><span>${esc(fmtDate(p.date, true))} · ${why}</span></div></div>`;
   }
-  function renderFeed() {
-    if (!S || !shellReady()) return;
-    const grid = root.querySelector('.feed .grid'); if (!grid) return;
-    const N = S.slots.filter(vivo).length, lk = prevLocked(), past = pastList(!lk), shown = past.filter(p => !p.hidden).length, nh = (S.prev || []).filter(p => p.hidden).length;
-    const seen = new Set();   // range board: a month pill on the newest cell of each month
-    const pill = s => { const m = cycleOf(s.date, curCd()); if (S.span < 2 || !m || seen.has(m)) return ''; seen.add(m); return curCd() === 1 ? cap(MONTHS[+m.slice(5) - 1].slice(0, 3)) : cycName(m, curCd()); };
-    if (memoEdit && !S.slots.some(s => s.id === memoEdit)) memoEdit = null;
-    const pinned = new Set(pinsOf());               // pinned first (no month pill: they are out of the date order)
-    const F = fillersOf(), cells = feedOrder().map(s => cellHTML(s, pinned.has(s.id) ? '' : pill(s)));
-    cells.splice(pinned.size, 0, ...Array.from({ length: F }, (_, k) => fillerHTML(k)));   // the fillers right after the pinned posts; the rest moves down
-    const cuenta = `${rangeLabel(prevMonth(S.month), 1, false, curCd())} · ${shown} publicada${shown === 1 ? '' : 's'}${nh ? ` · ${nh} oculta${nh === 1 ? '' : 's'}` : ''}`;   // what the row over the feed said, now the label's title (D-152)
-    const html = cells.join('') + past.map((p, j) => pastHTML(p, N + F + j, N + F, cuenta)).join('');
-    // a Nota being edited in its cell: that cell stays in the page untouched (a rebuilt field would lose an accent being
-    // typed and its own undo); the others are rebuilt around it, and it is redrawn once the editing ends
-    const live = memoEdit && grid.querySelector(`.pit.edit[data-memo="${cssq(memoEdit)}"]`), keep = live && live.closest('.cell');
+  // ---------- the feed (feed continuo, pieza 3a) ----------
+  // One grid with every month of the client, the newest first, each from its own board (S or its copy in memory, MEM): a month
+  // doesn't start a new row (its wrapper, .fmes, is display: contents). Without the previous month's strip, its lock nor any frame
+  // (D-318, replaces D-152 there). What was hidden or changed in the strip (S.prev) is not applied any more (its data stay); Notion's
+  // posts (B.past) show only for the month before a board that no board holds, and only to look. A change draws again only its
+  // month's wrapper (all of its board if it has 2–3): the other months keep their nodes. Drawing writes nothing.
+  const FMEM = new Map();               // month -> {key, B, esS, cm, firma, hasta, html, n}: the html each month was last drawn with
+  const feedTablero = k => (S && S.key === k ? S : (MEM.tab.get(k) || {}).tablero || null);
+  const anioHoy = () => madParts(ahora()).day.slice(0, 4);
+  // the month's label on its newest post: «Nov», with the year only when it isn't this one («Ene 27»); another cycle day, its cycName
+  function feedEtiqueta(m, cd) { return cdOf(cd) !== 1 ? cycName(m, cd) : cap(MONTHS[+m.slice(5) - 1].slice(0, 3)) + (m.slice(0, 4) === anioHoy() ? '' : ' ' + m.slice(2, 4)); }
+  // the months to draw: [{m, key, B, src: 'tab' | 'notion', nuevo, aviso, firma}], newest first; B null: its board not read yet
+  function feedMeses() {
+    const own = new Map();
+    for (const b of MB) for (const m of monthsOf(b.month, b.span)) if (!own.has(m)) own.set(m, feedDueno(m));
+    const ms = [...own.keys()].sort().reverse(), out = [], newest = ms.length ? tableroNuevo() : null;   // the owner of the newest month
+    ms.forEach((m, i) => {
+      const key = own.get(m), B = feedTablero(key);
+      let aviso = 0;                    // another board of this month with posts of it that this one hasn't: only Kevin is told
+      if (B) for (const b of MB) {
+        if (b.key === key || !monthsOf(b.month, b.span).includes(m)) continue;
+        const O = feedTablero(b.key); if (!O) continue;
+        aviso += O.slots.filter(s => vivo(s) && mesDe(s, O) === m && !B.slots.some(x => x.id === s.id)).length;
+      }
+      const nuevo = i === 0 && !!B;     // the newest month: its board's pinned posts and fillers on top (D-002, D-049)
+      const sinPins = !nuevo && key === newest;   // the newest board's pinned posts go on top only, once
+      out.push({ m, key, B, src: 'tab', nuevo, sinPins, aviso, firma: `${nuevo ? 1 : 0}|${sinPins ? 1 : 0}|${aviso}` });
+    });
+    // Notion: the month before a board, when no board holds it (only to look)
+    for (const b of MB) {
+      const B = feedTablero(b.key); if (!B || !B.month) continue;
+      const pm = prevMonth(B.month), pp = pastPosts(B); if (!pp.length || own.has(pm) || out.some(e => e.m === pm)) continue;
+      out.push({ m: pm, key: b.key, B, src: 'notion', nuevo: false, aviso: 0, firma: 'n' });
+    }
+    return out.sort((a, b) => (a.m < b.m ? 1 : a.m > b.m ? -1 : 0));
+  }
+  function notionHTML(p, pill) {         // a Notion post: only to look (no window, no dragging); its thumbnail when it comes into sight
+    const icon = typeIcon(p.type, 0), url = M.pastThumbs[p.id];
+    const ph = url ? `<img data-pmini="${esc(p.id)}" decoding="async" alt="">` : `<div class="ph"><b>${esc(shortLabel(p.name, p.type))}</b><span>${esc(fmtDate(p.date, true))} · ${M.pastPending[p.id] ? 'cargando…' : 'sin imagen en Notion'}</span></div>`;
+    return `<div class="cell past notion${url ? '' : ' nophoto'}" data-notion="${esc(p.id)}" title="${esc(p.name)} · de Notion: solo para mirar">${ph}${badgesHTML(null, pill)}${icon ? `<span class="ico">${icon}</span>` : ''}<span class="pdate">${esc(fmtDate(p.date, true))}</span></div>`;
+  }
+  // one month's html: its posts (cellHTML with its own board), the label on its newest one; -> {html, n, hasta}
+  function mesHTML(e, now) {
+    const B = e.B, cd = cdOf(B.cycleDay);
+    let hasta = 0; const futuro = iso => { const t = ts(iso); if (t > now && (!hasta || t < hasta)) hasta = t; };
+    if (e.src === 'notion') {
+      const L = pastPosts(B).slice().sort((a, b) => ts(b.date) - ts(a.date)), et = feedEtiqueta(e.m, cd);
+      return { html: L.map((p, i) => notionHTML(p, i ? '' : et)).join(''), n: L.length, hasta: 0 };
+    }
+    const pin = e.nuevo || e.sinPins ? new Set(pinsOf(B)) : new Set();
+    const L = (e.nuevo ? feedOrder(B) : B.slots.filter(vivo)).filter(s => e.nuevo && pin.has(s.id) ? true : !pin.has(s.id) && mesDe(s, B) === e.m);
+    let puesta = false;
+    const cells = L.map(s => {
+      futuro(s.date); if (s.estado && s.estado.fecha) futuro(s.estado.fecha);
+      const p = (e.nuevo && pin.has(s.id)) || puesta ? '' : (puesta = true, e.aviso ? { t: feedEtiqueta(e.m, cd), aviso: e.aviso } : feedEtiqueta(e.m, cd));
+      return cellHTML(s, p, B, true);
+    });
+    if (e.nuevo) { const F = fillersOf(B); cells.splice(pin.size, 0, ...Array.from({ length: F }, (_, k) => fillerHTML(k, B))); }
+    return { html: cells.join(''), n: cells.length, hasta };
+  }
+  // the html of the whole feed drawn again from nothing (for the battery: a drawing by comparison, lesson 20)
+  function feedHTMLEntero() { const now = ahora(); return feedMeses().filter(e => e.B).map(e => `<${e.m}>` + mesHTML(e, now).html).join(''); }
+  function feedHTMLGuardado() { return feedMeses().filter(e => e.B && FMEM.has(e.m)).map(e => `<${e.m}>` + FMEM.get(e.m).html).join(''); }
+  // its photos: the open board's at once; the others when they come into sight (blob: has no lazy loading; an <img> off the screen
+  // with its src would still be fetched and kept decoded)
+  function feedFotos(w, ya) {
+    const feed = w.closest('.feed');
+    w.querySelectorAll('img[data-mini], img[data-pmini]').forEach(im => {
+      const pid = im.dataset.pmini, f = !pid && M.files[im.dataset.mini];
+      if (!pid && f && ya) { im.src = f.thumbUrl || ''; return; }
+      if (!feed) return;
+      if (!feed._io) feed._io = new IntersectionObserver(es => es.forEach(x => {
+        if (!x.isIntersecting) return;
+        const t = x.target; feed._io.unobserve(t);
+        if (t.dataset.pmini) { const u = M.pastThumbs[t.dataset.pmini]; if (u) t.src = u; return; }
+        const id = t.dataset.mini, g = M.files[id]; if (!g) return;
+        if (NUBE.pedirMini && URL_HUECO.has(id)) NUBE.pedirMini(id);   // with the cloud, asked only for what is seen
+        t.src = g.thumbUrl || '';
+      }), { root: feed, rootMargin: '600px 0px' });
+      feed._io.observe(im);
+    });
+  }
+  function ponerMes(w, html, esS) {     // a Nota being edited in its cell keeps that cell (its accent and its own undo)
+    const live = esS && memoEdit && w.querySelector(`.pit.edit[data-memo="${cssq(memoEdit)}"]`), keep = live && live.closest('.cell');
     if (keep) {
       const tpl = document.createElement('div'); tpl.innerHTML = html;
       const nodes = [...tpl.children], k = nodes.findIndex(n => n.dataset.slot === memoEdit);
-      [...grid.children].forEach(n => { if (n !== keep) n.remove(); });
-      nodes.forEach((n, i) => { if (i < k) grid.insertBefore(n, keep); else if (i > k) grid.appendChild(n); });
+      [...w.children].forEach(n => { if (n !== keep) n.remove(); });
+      nodes.forEach((n, i) => { if (i < k) w.insertBefore(n, keep); else if (i > k) w.appendChild(n); });
       memoStale = true;
+      feedFotos(w, esS); return true;
     } else {
-      grid.innerHTML = html;
-      const pin = memoEdit && grid.querySelector(`.pitin[data-slot="${cssq(memoEdit)}"]`); if (pin) fitPit(pin);
+      w.innerHTML = html;
+      const pin = esS && memoEdit && w.querySelector(`.pitin[data-slot="${cssq(memoEdit)}"]`); if (pin) fitPit(pin);
     }
+    feedFotos(w, esS); return false;
+  }
+  let cargaResto = null;                // the client's other boards, read once after the open one is drawn (read only)
+  function feedCargarResto() {
+    if (cargaResto || !S || MOVIL) return cargaResto;
+    const c = curClient, falta = () => MB.filter(b => b.key !== S.key && !MEM.tab.has(b.key)).map(b => b.key);
+    if (!falta().length) return null;
+    cargaResto = (async () => {
+      await new Promise(r => setTimeout(r, 0));   // after the open month is painted
+      sinPedirMini++;
+      try { await conTableros(async () => { for (const k of falta()) { if (curClient !== c || !S) return; await memLeer(k); } })(); }
+      catch (e) { console.warn('feed:', e); }
+      finally { sinPedirMini--; cargaResto = null; }
+      if (curClient === c && S && shellReady()) { renderFeed(); if (!feedMovido && !(MOVM && MOVM.estado().anim)) feedIr(mesActivo, { instantaneo: true }); }
+    })();
+    return cargaResto;
+  }
+  let feedMovido = false;               // Kevin moved the feed since it was placed (a board read later doesn't take him back)
+  function renderFeed() {
+    if (!S || !shellReady()) return;
+    const grid = root.querySelector('.feed .grid'); if (!grid) return;
+    if (memoEdit && !S.slots.some(s => s.id === memoEdit)) memoEdit = null;
+    const L = feedMeses(), now = ahora(), cm = root.classList.contains('client');
+    if (!grid.firstChild) FMEM.clear();   // a new grid (another client): nothing drawn is kept
+    [...grid.children].forEach(n => { if (!n.classList.contains('fmes')) n.remove(); });
+    const ya = new Map([...grid.children].map(n => [n.dataset.mes, n]));
+    let estructura = false; const plan = [];
+    for (const e of L) {                // first what each month draws (nothing in the page changes yet)
+      const w = ya.get(e.m);
+      if (!e.B) { if (w) plan.push({ e, w }); continue; }   // its board not read yet: what showed stays
+      const c = FMEM.get(e.m), esS = e.B === S;
+      const r = c && !esS && c.key === e.key && c.B === e.B && c.esS === esS && c.cm === cm && c.firma === e.firma && !(c.hasta && now >= c.hasta) ? c
+        : { key: e.key, B: e.B, esS, cm, firma: e.firma, src: e.src, ...mesHTML(e, now) };
+      FMEM.set(e.m, r);
+      if (!w || w._n !== r.n) estructura = true;
+      plan.push({ e, w, r });
+    }
+    const quedan = new Set(plan.map(x => x.e.m));
+    ya.forEach((w, m) => { if (!quedan.has(m)) estructura = true; });
+    // a month added or one that changed its number of cells: what is in sight stays in sight (lesson 297)
+    const feed = grid.closest('.feed');
+    let ancla = null;
+    if (estructura && feed && feed.scrollTop > 0) {
+      const ft = feed.getBoundingClientRect().top;
+      for (const c of grid.querySelectorAll('.cell')) { const t = c.getBoundingClientRect(); if (t.bottom > ft) { ancla = { el: c, top: t.top }; break; } }
+    }
+    let prev = null;
+    for (const { e, w: w0, r } of plan) {
+      let w = w0;
+      if (!w) { w = document.createElement('div'); w.className = 'fmes'; w.dataset.mes = e.m; }
+      if (w.dataset.tablero !== e.key) w.dataset.tablero = e.key;
+      if (e.src === 'notion') w.dataset.notion = '1'; else delete w.dataset.notion;
+      const ref = prev ? prev.nextSibling : grid.firstChild; if (w !== ref) grid.insertBefore(w, ref);   // in the page first: its photos are watched from the feed
+      prev = w;
+      if (r && w._h !== r.html) { const kept = ponerMes(w, r.html, r.esS); w._h = kept ? null : r.html; w._n = r.n; }   // kept: drawn again whole once the Nota's editing ends
+      else if (r && r.esS && !w._ya) feedFotos(w, true);
+      w._ya = !!(r && r.esS);
+    }
+    ya.forEach((w, m) => { if (!quedan.has(m)) { w.remove(); FMEM.delete(m); } });
+    if (ancla && ancla.el.isConnected) { const d = ancla.el.getBoundingClientRect().top - ancla.top; if (d) { if (MOVM && MOVM.sc === feed) MOVM.corregir(feed.scrollTop + d, d); else feed.scrollTop += d; } }
     if (hov.id) hov.t = Date.now();          // a redrawn post-it opens again after its 0.5 s
     pdRefresh();
     fitGrid();
     calRender();
     hsRender();
     dlRender();
+    cabPedir();                          // the months' points, in the next frame (pieza 5)
+    if (MB.some(b => b.key !== S.key && !MEM.tab.has(b.key))) feedCargarResto();
   }
   // «Abrir todas las notas» / «Cerrar todas las notas» live in the feed's right click (D-282; before, an icon of the bar, D-152)
   function alternarNotas() { memosOpen = !memosOpen; root.classList.toggle('memos', memosOpen); renderFeed(); }
@@ -3621,6 +4438,8 @@ ${TK_FUENTES}
     const feed = root.querySelector('.feed'); if (!feed || typeof ResizeObserver !== 'function') return;
     M._ro = new ResizeObserver(() => fitGrid());
     M._ro.observe(feed);
+    movMontar(feed);                     // the movement (pieza 5)
+    ['wheel', 'pointerdown', 'keydown', 'touchstart'].forEach(t => feed.addEventListener(t, () => { feedMovido = true; }, { passive: true }));   // Kevin moved it (pieza 3a)
   }
   // What a tray shows (D-041), the mesa's and the free editor's alike: the client's tray, a photo once, each with its mark
   // (D-122): c = 'p0' | 'p1' | 'p2' (a cover, dark to light blue) | 'r' (orange) | '' and u = it has one (it counts as
@@ -4194,6 +5013,8 @@ ${TK_FUENTES}
       if (perez) minisPerezosas(grid);
     }
     if (otra) { grid._vista = vista; trayDonde(tray, true); }   // and where the one it shows now was
+    else if (grid._key && grid._key !== S.key && !(tray.clientWidth && tray.clientHeight)) trayDonde(tray, true);   // another month while it is hidden («Vista cliente»): back to where it was once it shows (D-092; the same tray since pieza 2)
+    grid._key = S.key;
     if (perez) grid.querySelectorAll('.titem').forEach(x => x.classList.toggle('sel', x.dataset.file === sel));
     { const ven = new Set(vis.map(x => x.f)); traySel.forEach(f => { if (!ven.has(f)) traySel.delete(f); }); const cv = new Set(carpetasDeVista().map(c => c.id)); traySelC.forEach(c => { if (!cv.has(c)) traySelC.delete(c); }); }
     marcarTray();
@@ -4223,7 +5044,7 @@ ${TK_FUENTES}
     // focus: the close button when the post opens (or when it had it before this re-render, e.g. arrow keys)
     const ae = document.activeElement, fresh = d.hidden || d.dataset.slot !== id || !!d.dataset.prev || !!(ae && d.contains(ae) && ae.matches('.card > .x, .phead > .x'));
     cur = { slot: id, idx };
-    const car = isCarousel(s.type), foto = s.type === 'Foto', reel = isReel(s.type);
+    const car = isCarousel(s.type), foto = s.type === 'Foto', reel = isReel(s.type), pub = estadoDe(s) === 'publicado', off = pub ? ` aria-disabled="true" title="${esc(PUB_TIT)}"` : '';   // a Publicada: what changes its photos, off with why (D-339)
     const fid = s.photos[idx];
     const fd = !!(n && (M.files[fid] || {}).design);   // a designed image: uploaded as rendered
     const live = fd && designed(s) && dState(s) !== 'chg' && s.photos.length === s.design.slides.length;   // a designed slide: reframed here on its photo, drawn live with its texts (B4)
@@ -4245,29 +5066,30 @@ ${TK_FUENTES}
       const nav = n > 1 ? `<button class="nav prev" data-act="prev" title="Anterior" aria-label="Foto anterior" ${idx === 0 ? 'hidden' : ''}>${CHEV.l}</button><button class="nav next" data-act="next" title="Siguiente" aria-label="Foto siguiente" ${idx === n - 1 ? 'hidden' : ''}>${CHEV.r}</button>` : '';
       const strip = n > 1 ? `<div class="strip">${s.photos.map((p, k) => `<button class="th ${k === idx ? 'on' : ''}" data-act="pick" data-k="${k}" title="${esc((M.files[p] || {}).name || '')}"><img src="${(M.files[p] || {}).thumbUrl || ''}" alt="">${k === 0 && (foto || car) ? '<span>Portada</span>' : ''}</button>`).join('')}</div>` : '';
       const acts = `<div class="pacts"><span class="fname">${esc(fd && (car || reel) ? dName(s, fid) : (M.files[fid] || {}).name || '')}${(M.files[fid] || {}).reduced ? ' · 1080 px' : (M.files[fid] || {}).copia ? ' · copia de 2560 px' : ''}</span>`
-        + (car || reel ? `<button data-act="pickcover" data-slot="${esc(id)}" aria-expanded="${pickOpen === id}">Cambiar portada</button>` : '')
-        + (fd && s.design && (car || reel) ? (car ? `<span class="muted">Las demás diapositivas se cambian en «Editar»</span>` : '') : `<button data-act="unpick" data-slot="${esc(id)}" data-k="${idx}">Quitar</button>`) + '</div>';
+        + (car || reel ? `<button data-act="pickcover" data-slot="${esc(id)}" aria-expanded="${!pub && pickOpen === id}"${off}>Cambiar portada</button>` : '')
+        + (fd && s.design && (car || reel) ? (car ? `<span class="muted">Las demás diapositivas se cambian en «Editar»</span>` : '') : `<button data-act="unpick" data-slot="${esc(id)}" data-k="${idx}"${off}>Quitar</button>`) + '</div>';
       const tr = S.tray.filter(f => M.files[f]);
-      const pick = (car || reel) && pickOpen === id ? `<div class="cpick"><span class="muted">${tr.length ? 'Elige la nueva portada en la bandeja (la de ahora vuelve a la bandeja; el texto se queda):' : 'La bandeja está vacía: añade fotos con «Añadir fotos».'}</span>`
+      const pick = (car || reel) && pickOpen === id && !pub ? `<div class="cpick"><span class="muted">${tr.length ? 'Elige la nueva portada en la bandeja (la de ahora vuelve a la bandeja; el texto se queda):' : 'La bandeja está vacía: añade fotos con «Añadir fotos».'}</span>`
         + (tr.length ? `<div class="strip">${tr.map(f => `<button class="th" data-act="setcover" data-slot="${esc(id)}" data-f="${esc(f)}" title="${esc(M.files[f].name)}"><img ${tr.length > MINIS_DE_UNA ? `data-mini="${esc(f)}"` : `src="${M.files[f].thumbUrl}"`} alt=""></button>`).join('')}</div>` : '') + '</div>' : '';   // a long tray: thumbnails as they come into sight (B8)
       left = `<div class="stagewrap"><div class="stage" data-slot="${esc(id)}" data-file="${esc(fid)}"${live ? ' data-live="1"' : ''}><img class="big" alt="" src="${(M.files[fid] || {}).thumbUrl || ''}">${live ? '<canvas class="dzv" hidden></canvas>' : ''}<div class="gguide" hidden><span>Así se ve en el perfil</span></div>${THIRDS}${nav}</div></div>
         <div class="ptools">${tools}</div>
         ${strip}${acts}${pick}`;
     }
     // «Arrastra las miniaturas…» only where they are dragged: never on a designed post (D-166)
-    const hint = car && n > 1 ? `${foto ? 'Foto de varias páginas' : 'Carrusel'}: se suben todas en este orden, con un solo formato.${designed(s) ? '' : ' Arrastra las miniaturas para cambiar el orden.'}` : '';
+    const hint = car && n > 1 ? `${foto ? 'Foto de varias páginas' : 'Carrusel'}: se suben todas en este orden, con un solo formato.${designed(s) || estadoDe(s) === 'publicado' ? '' : ' Arrastra las miniaturas para cambiar el orden.'}` : '';
     const dst = car || reel ? dState(s) : null;
     const dav = (dst === 'ok' || dst === 'nc') && s.design.avisos && s.design.avisos.length ? s.design.avisos : [];   // what «Aplicar» warned about
     const nl = libN(s);
     // the post's only design button (D-089): a designed reel whose cell was emptied keeps it, and the editor applies a design with changes first
-    const edB = car || (reel && (n || designed(s))) ? `<button type="button" class="btn pe-ed" data-act="editar" data-slot="${esc(id)}" data-k="${idx}" aria-label="${edLabel(s)}" title="${edLabel(s)} (⌘E)">Editar</button>` : '';   // in the header, the window's main button (D-142)
+    const edB = car || (reel && (n || designed(s))) ? `<button type="button" class="btn pe-ed" data-act="editar" data-slot="${esc(id)}" data-k="${idx}" aria-label="${edLabel(s)}" ${pub ? `aria-disabled="true" title="${esc(PUB_TIT)}"` : `title="${edLabel(s)} (⌘E)"`}>Editar</button>` : '';   // in the header, the window's main button (D-142)
     const pg = foto ? 'página' : 'diapositiva', lbT = nl ? `<span class="muted">${reel ? 'Portada editada · se sube tal cual' : nl === 1 ? `1 ${pg} editada · se sube tal cual` : `${nl} ${pg}s editadas · se suben tal cual`}</span>` : '';
     const ubB = ubSelectHTML(s);   // the location, alone on its row (D-142; it was right of «Editar …», D-124)
     const peB = perHTML(s);   // «Etiquetar» and «Colaboradores», under that row and above «Contexto» (D-130)
     const dz = !edB ? (ubB ? `<div class="pdz">${ubB}</div>` : '') : `<div class="pdz">${ubB}${lbT}${dst === 'ok' ? '<span class="muted">Diseño aplicado · se sube tal cual</span>' : dst === 'nc' ? '<span class="muted">Diseño aplicado · se sube tal cual (sin comprobar: el diseñador no está cargado)</span>' : dst ? `<span class="muted" style="color:var(--chg)">Diseño con cambios sin aplicar · se aplica en «Editar»</span>` : ''}${dav.length ? `<ul class="pdzav">${dav.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}</div>`;
     // the header first (Tab: Fijar, ×, EDITAR, then its fields; the grid places it): «Fijar en el perfil» left of the ×, EDITAR right of
     // date / time and type / state, as tall as both rows (D-142)
-    const pinB = `<label class="pinsw pe-fijar" title="Como en Instagram: arriba del todo, con la chincheta. Solo cambia cómo se ve el feed (no la fecha${sinNotion() ? '' : ' ni Notion'})."><input type="checkbox" class="pinToggle" role="switch" aria-label="Fijar en el perfil" data-slot="${esc(id)}"${isPinned(s) ? ' checked' : ''}><span class="pe-f0" aria-hidden="true">Fijar</span><span class="pe-f1" aria-hidden="true">Fijada</span></label>`;
+    const pinNo = !isPinned(s) && !esNuevo();   // off in another month than the newest's, with why (a pinned one can always be taken out)
+    const pinB = `<label class="pinsw pe-fijar${pinNo ? ' solonuevo' : ''}" title="${pinNo ? NUEVO_TXT : `Como en Instagram: arriba del todo, con la chincheta. Solo cambia cómo se ve el feed (no la fecha${sinNotion() ? '' : ' ni Notion'}).`}"><input type="checkbox" class="pinToggle" role="switch" aria-label="Fijar en el perfil" data-slot="${esc(id)}"${isPinned(s) ? ' checked' : ''}${pinNo ? ' aria-disabled="true"' : ''}><span class="pe-f0" aria-hidden="true">Fijar</span><span class="pe-f1" aria-hidden="true">Fijada</span></label>`;
     d.innerHTML = `<div class="card post hascap" role="dialog" aria-label="${esc(s.name)}">
       <div class="pbody"><div class="phead"><div class="pe-top"><h3>${esc(s.name)}</h3>${pinB}</div><button class="x" data-act="close" title="Cerrar" aria-label="Cerrar">×</button>${edB ? `<div class="pe-fila pe-con"><div class="pe-in">${edB}<p>${whenHTML(s)}${typeHTML(s)}${estadoHTML(s)}${statusBadge(s)}</p></div></div>` : `<div class="pe-fila"><p>${whenHTML(s)}${typeHTML(s)}${estadoHTML(s)}${statusBadge(s)}</p></div>`}${pnotHTML(s)}${linkLine(s)}</div>
         <div class="pleft">${left}</div>
@@ -4361,6 +5183,7 @@ ${TK_FUENTES}
   function setType(id, to) {
     const s = S && S.slots.find(x => x.id === id);
     if (!s || !to || s.type === to || locked || !typeOpts(s).includes(to)) { refreshDetail(); return; }
+    if (!isMulti(to) && s.photos.length > 1 && publicadaNo(s)) { refreshDetail(); return; }   // a type that would take photos out of a Publicada (D-339)
     if (s.design && !(M.diseno && M.diseno._retipo)) { toast('El diseñador no está cargado: recarga la página para cambiar el tipo de una publicación diseñada.', { ms: 6000 }); refreshDetail(); return; }
     const from = s.type, name0 = s.name;
     if (s.notionType == null) s.notionType = from;
@@ -4451,7 +5274,7 @@ ${TK_FUENTES}
       const fid = s.photos[cur.idx];
       // the state before this gesture (with the click just before, if it is still being joined): a photo that had no saved frame
       // is left without one, which is the same frame, so a double click that changes nothing leaves no step
-      const junto = H.b === S && H.tag === 'crop:' + fid && Date.now() - H.t < HMERGE && H.undo.length, antes = junto ? H.undo[H.undo.length - 1] : H.cur;
+      const e0 = histMio() && HC.cur.get(S.key), junto = !!e0 && HC.tag === S.key + '|crop:' + fid && Date.now() - HC.t < HMERGE && HC.undo.length, antes = junto ? (parteDe(HC.undo[HC.undo.length - 1], S.key) || {}).b : e0 && e0.st;
       const tenia = !!(antes && antes.crops && antes.crops[fid]);
       setCrop(fid, s, { cx: 0.5, cy: 0.5, z: 1 });
       const d = dims(fid), c = S.crops[fid], cerca = (a, b) => Math.abs(a - b) < 1e-9;
@@ -4927,16 +5750,19 @@ ${TK_FUENTES}
     if (d.from === 'memo') return cell && cell.dataset.slot && cell.dataset.slot !== d.slotId ? { el: cell, cell } : null;
     if (cell && cell.dataset.prev && d.from === 'slot') return null;
     if (cell && cell.dataset.slot && d.from === 'prev') return null;
+    if (cell && cell.dataset.slot && d.from === 'slot') { const k = tableroDeCelda(cell); if (k && S && moverPublicada(d.slotId, cell.dataset.slot, k)) return { el: null, cell }; }   // not lit; dropped, its notice (pieza 3b; of its own month too, pieza 3c)
+    if (cell && cell.dataset.slot && d.from === 'tray') { const k = tableroDeCelda(cell), T = k && feedTablero(k), X = T && T.slots.find(x => x.id === cell.dataset.slot); if (X && estadoDe(X, T) === 'publicado') return { el: null, cell }; }   // a tray photo onto a Publicada: not lit (pieza 3c)
     const hueco = d.from === 'tray' && t.closest('.cell.filler'); if (hueco) return { el: hueco, hueco };
     const hcard = d.from === 'tray' && t.closest('.hv-card[data-h]'); if (hcard) return { el: hcard, hcard };
     if (cell) return cell.dataset.slot ? { el: cell, cell } : { el: cell, pc: cell };
+    if (tray && d.from === 'slot' && slotPublicada(d.slotId)) return { el: null, tray };   // a Publicada's cell to the tray: not lit; dropped, its notice (pieza 8, D-330)
     if (tray) return { el: tray, tray };
     return null;
   }
   function dropOn(d, { cell, pc, tray, hueco, hcard, cdest, hacia }) {
     if (cdest) { trayMover(d.lote || { files: [d.fileId] }, hacia); return; }
     if (hcard) { if (M.hs) M.hs.soltar(hcard.dataset.h, d.fileId); return; }
-    if (d.from === 'memo') { if (cell) moveMemo(d.slotId, cell.dataset.slot); return; }
+    if (d.from === 'memo') { if (cell) moveMemo(d.slotId, cell.dataset.slot, tableroDeCelda(cell)); return; }
     if (hueco) { if (d.from === 'tray') setPreview(+hueco.dataset.filler, d.fileId); return; }
     if (pc) {
       if (d.from === 'tray') prevDesdeBandeja(pc.dataset.prev, d.fileId);
@@ -4944,10 +5770,10 @@ ${TK_FUENTES}
     }
     else if (cell) {
       if (d.from === 'tray') { const fs = d.lote && d.lote.files.length ? d.lote.files : [d.fileId]; traySoltar(); addToSlot(cell.dataset.slot, fs); }
-      else if (d.from === 'slot') swap(d.slotId, cell.dataset.slot);
+      else if (d.from === 'slot') swap(d.slotId, cell.dataset.slot, tableroDeCelda(cell));   // a cell of another month: its board (pieza 3b)
       else toast('Una publicación del mes anterior no pasa directamente al mes nuevo: arrástrala antes a la bandeja.');
     }
-    else if (tray && d.from === 'slot') unassign(d.slotId, null, true);
+    else if (tray && d.from === 'slot') { if (slotPublicada(d.slotId)) moverAviso('publicada'); else unassign(d.slotId, null, true); }
     else if (tray && d.from === 'prev') withPrev(() => prevToTray(d.prevId), 'edit');
   }
   function dragSource(t) {
@@ -5054,7 +5880,14 @@ ${TK_FUENTES}
     if (!pd || e.pointerId !== pd.id) return;
     const p = pd, tg = p.on ? dragTarget(document.elementFromPoint(e.clientX, e.clientY), p.d) : null;
     pdEnd();
-    if (tg && S) dropOn(p.d, tg);
+    const x = tg && (tg.cell || tg.hueco) && p.d.from === 'tray' ? celdaTocada(tg.cell || tg.hueco) : null;
+    if (otroTablero(x)) {                // its month first (pieza 3a; a hole, the newest board's: pieza 8, D-332); then the photo goes on it, in its board
+      const sid = x.c.dataset.slot, fk = x.c.dataset.filler, kb = x.key;
+      tocar(x).then(ok => {
+        const c = ok && S && root.querySelector(sid ? `.feed .grid .cell[data-slot="${cssq(sid)}"]` : `.feed .grid > .fmes[data-tablero="${cssq(kb)}"] .cell.filler[data-filler="${cssq(fk)}"]`);
+        if (c) { dropOn(p.d, sid ? { ...tg, cell: c } : { ...tg, hueco: c }); flushRender(); }
+      });
+    } else if (tg && S) dropOn(p.d, tg);
     if (p.on) flushRender();
   }
   function pdCancel() { const on = pd && pd.on, id = pd && pd.id; pdEnd(); if (on) { pdHold = id; flushRender(); } }
@@ -5069,6 +5902,64 @@ ${TK_FUENTES}
     pd.over = null; if (pd.lx != null) pdAt(pd.lx, pd.ly);
   }
 
+  // ---------- touching a post of another month (feed continuo, pieza 3a) ----------
+  // Opening it, its right click, ⌘+click, dropping a photo of the tray or a file on it: its month becomes the active one first
+  // (activar; the feed doesn't move), then what was asked happens in its board. With a window, a menu, a field, a drag or a job
+  // (activar says no) nothing happens and why is said, as the busy notices. A press on it doesn't start a drag the first time.
+  let tocando = null;                   // {key, p}: the activation under way
+  function celdaTocada(t) {
+    const c = t && t.closest && t.closest('.feed .grid > .fmes:not([data-notion]) .cell'), w = c && c.parentElement;
+    if (!c || !w || !S || !w.dataset.tablero) return null;
+    return { c, w, key: w.dataset.tablero, mes: w.dataset.mes };
+  }
+  function tocar(x) {                   // -> Promise<boolean>: its board is S now
+    if (x.key === S.key) { if (x.mes !== mesActivo && mesesTab(S).includes(x.mes)) { mesFijar(x.mes, 'tocar'); mesSigue(); } return Promise.resolve(true); }
+    if (tocando && tocando.key === x.key) return tocando.p;
+    const p = activar(x.key, { mes: x.mes, quien: 'tocar' }).then(r => {
+      if (r && r.ok) return true;
+      if (r && r.error === SKILL_NO) skillAviso();
+      else if (r && r.error && !/^ya se está/.test(r.error)) toast(`No se cambia de mes ahora: ${r.error}.`);
+      return false;
+    }).finally(() => { if (tocando && tocando.p === p) tocando = null; });
+    tocando = { key: x.key, p };
+    return p;
+  }
+  const otroTablero = x => !!(x && S && x.key !== S.key);
+  // the same gesture again on the same post, once its board is S (a cell drawn again is found again by its id)
+  function repetir(e, x) {
+    const sel = x.c.dataset.slot ? `.cell[data-slot="${cssq(x.c.dataset.slot)}"]` : x.c.dataset.filler != null ? `.fmes[data-tablero="${cssq(x.key)}"] .cell.filler[data-filler="${x.c.dataset.filler}"]` : null;
+    const el = sel && root.querySelector(`.feed .grid ${sel}`); if (!el) return;
+    const o = { bubbles: true, cancelable: true, clientX: e.clientX, clientY: e.clientY, screenX: e.screenX, screenY: e.screenY, button: e.button, buttons: 0, detail: e.detail, metaKey: e.metaKey, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, altKey: e.altKey };
+    el.dispatchEvent(new MouseEvent(e.type, o));
+  }
+  function alTocar(e) {
+    const x = celdaTocada(e.target); if (!x) return;
+    if (!otroTablero(x)) { if (x.mes !== mesActivo) tocar(x); return; }   // another month of the same board: at once
+    e.stopPropagation(); e.stopImmediatePropagation();
+    if (e.type === 'contextmenu' || e.type === 'click' || e.type === 'dblclick') e.preventDefault();
+    const p = tocar(x);
+    if (e.type !== 'pointerdown') p.then(ok => { if (ok) repetir(e, x); });
+  }
+  // a file dropped from the computer on a post of another month
+  function alSoltarOtro(e) {
+    const x = celdaTocada(e.target); if (!otroTablero(x) || !hasFiles(e) || root.classList.contains('client')) return;
+    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); sprParar(); clearOver();
+    const files = [...e.dataTransfer.files], sid = x.c.dataset.slot; if (!files.length || !sid) return;
+    tocar(x).then(ok => {
+      if (!ok || !S) return;
+      const tgt = S.slots.find(s => s.id === sid); if (!tgt) return;
+      if (tgt.photos.length && isMulti(tgt.type)) { M.addFiles(files, null, { aviso: sid }).then(got => askAddMode(sid, got)); return; }
+      M.addFiles(files, sid);
+    });
+  }
+  // the wheel over the tray (Ctrl: its size, D-118) and over its narrow strip (sideways). Only on the bar and on the tray, never on an
+  // ancestor of the feed: a listener that isn't passive there would make the feed's scrolling wait for the main thread (pieza 3a)
+  function alRueda(e) {
+    if (e.ctrlKey && e.target.closest && e.target.closest('.side > .tray')) { tamRueda(e); return; }   // a pinch over the tray: its size (D-118)
+    const tb = e.target.closest && e.target.closest('.tbody');   // the narrow tray: the wheel scrolls it sideways (the months' header: nothing special, D-323)
+    if (!tb || tb.scrollWidth <= tb.clientWidth + 1 || tb.scrollHeight > tb.clientHeight + 1 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+    tb.scrollLeft += e.deltaY; e.preventDefault();
+  }
   function wire() {
     if (!M._winWired) {
       M._winWired = true;
@@ -5112,6 +6003,8 @@ ${TK_FUENTES}
       else if (hasFiles(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }
     });
     root.addEventListener('dragleave', e => { if (!e.relatedTarget || !root.contains(e.relatedTarget)) { sprParar(); clearOver(); } });
+    ['pointerdown', 'click', 'dblclick', 'contextmenu'].forEach(t => root.addEventListener(t, alTocar, true));   // a post of another month (pieza 3a)
+    root.addEventListener('drop', alSoltarOtro, true);
     root.addEventListener('drop', e => {
       sprParar();
       const cell = e.target.closest('.cell[data-slot]');
@@ -5158,7 +6051,7 @@ ${TK_FUENTES}
     root.addEventListener('pointerdown', e => {
       const th = e.button === 0 && e.target.closest && e.target.closest('.detail .card.post .strip .th[data-act="pick"]'); if (!th) return;
       const s = slot(root.querySelector('.detail').dataset.slot);
-      if (!s || isPrev(s) || !isCarousel(s.type) || designed(s) || s.photos.length < 2 || locked) return;
+      if (!s || isPrev(s) || !isCarousel(s.type) || designed(s) || s.photos.length < 2 || locked || estadoDe(s) === 'publicado') return;   // a Publicada's order doesn't change (D-339)
       const strip = th.parentElement, k = +th.dataset.k, x0 = e.clientX, y0 = e.clientY, ths = () => [...strip.querySelectorAll('.th[data-act="pick"]')];
       let on = false, to = null;
       const aim = ev => {                  // the place it would drop at: before or after the nearest thumbnail
@@ -5208,15 +6101,11 @@ ${TK_FUENTES}
     root.addEventListener('pointerdown', e => { downOnBackdrop = !!(e.target.classList && e.target.classList.contains('detail')); }, true);
     root.addEventListener('pointerdown', e => { if (e.target.closest && e.target.closest('.main .side > .csplit')) repEmpezar(e); });   // the column's separator (D-148)
     root.addEventListener('pointermove', repMover); root.addEventListener('pointerup', repSoltar); root.addEventListener('pointercancel', repSoltar); root.addEventListener('lostpointercapture', repSoltar);
-    root.addEventListener('wheel', e => {
-      if (e.ctrlKey && e.target.closest && e.target.closest('.side > .tray')) { tamRueda(e); return; }   // a pinch over the tray: its size (D-118)
-      const tb = e.target.closest && e.target.closest('.tbody, .bar .months');   // narrow strips: the wheel scrolls them sideways
-      if (!tb || tb.scrollWidth <= tb.clientWidth + 1 || tb.scrollHeight > tb.clientHeight + 1 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
-      tb.scrollLeft += e.deltaY; e.preventDefault();
-    }, { passive: false });
+    { const bar = root.querySelector('.bar'); if (bar) bar.addEventListener('wheel', alRueda, { passive: false }); }   // not on the root: the feed's wheel never waits for it (pieza 3a)
     ['gesturestart', 'gesturechange', 'gestureend'].forEach(t => root.addEventListener(t, e => { if ((tamG && tamG.gesto && t !== 'gesturestart') || (e.target.closest && e.target.closest('.side > .tray'))) tamGesto(e); }, { passive: false }));   // Safari's pinch over the tray (D-118)
     root.addEventListener('click', e => {
       if (e.target.matches && e.target.matches('.cappick')) { unsetCapPick(e.target.dataset.slot, +e.target.dataset.k); return; }   // before its change: a 2nd click on the chosen one
+      if (e.target.closest && e.target.closest('.pe-fijar.solonuevo')) { e.preventDefault(); toast(NUEVO_TXT, { key: 'solo-nuevo' }); return; }   // «Fijar» off (aria-disabled: a disabled input gets no click to say why): it doesn't change, and says why (pieza 3b)
       const elegible = (e.metaKey || e.ctrlKey) && e.target.closest('.tray') && !e.target.closest('.x') && e.target.closest('.titem[data-file], .tcarpeta[data-id]');
       if (elegible) { e.preventDefault(); trayElegir(elegible); return; }
       if (e.target.closest('.side > .tray.fold > .trayhead') && !e.target.closest('[data-act]') && colPestanas(colSide())) { trayPlegar(false); return; }   // the tray's tab (D-148)
@@ -5284,8 +6173,9 @@ ${TK_FUENTES}
       else if (e.target.matches('.tysel')) setType(e.target.dataset.slot, e.target.value);
       else if (e.target.matches('.essel')) pickEstado(e.target.dataset.slot, e.target.value || null);
       else if (e.target.matches('.clientToggle')) {
+        if (MOVM && !MOVM.quieto() && cabJ(mesActivo) >= 0) MOVM.anclar(cabJ(mesActivo));   // in the middle of a gesture the active month stays, and the feed on its point (pieza 6, D-327)
         root.classList.toggle('client', e.target.checked); menuCerrar(); { const g = root.querySelector('.feed .grid'); if (g) g.tabIndex = e.target.checked ? -1 : 0; }   // the feed's menu: not in the vista cliente (D-282)
-        root.querySelectorAll('.mchip[data-tt]').forEach(b => { if (e.target.checked) b.removeAttribute('title'); else b.title = b.dataset.tt; });
+        cabRender(); cabPedir();   // the months' header: without «sin crear» nor «N de M con foto» in the vista cliente (D-323)
         // the calendar drawn again at once: without the notice on opening (D-160), «N vencidas» of its header must be there as
         // soon as the view is left, and never in it
         if (M.calendario && M.calendario.render) M.calendario.render();
@@ -5363,7 +6253,7 @@ ${TK_FUENTES}
         if (a && d.contains(a) && a.blur) a.blur();
         if (noteTimer) { clearTimeout(noteTimer); noteTimer = null; save(); renderFeed(); renderBar(); capSync(id); }
         if (motTimer) { clearTimeout(motTimer); motTimer = null; save(); calRender(); }
-        if (M.libre && M.libre.abrir) M.libre.abrir(id, k); else waitLibre(id, k);
+        abrirEditor(id, k);
         return;
       }
       // ⌘C / ⌘V of the tray: only with the last press inside it and, ⌘C, with something chosen; the editor has its own (D-077)
@@ -5417,13 +6307,14 @@ ${TK_FUENTES}
     else if (act === 'close') closeDetail();
     else if (act === 'carpeta-borrar') { const id = a.dataset.id; closeDetail(); const r = await M.borrarCarpeta(id); if (r && r.error) toast(r.error); }
     else if (act === 'repe') { const f = repeAsk; repeAsk = null; closeDetail(); if (f) f(a.dataset.m); }
-    else if (act === 'unpick') { const s = slot(a.dataset.slot), f = s && s.photos[+a.dataset.k]; if (f && s.design && (isCarousel(s.type) || isReel(s.type)) && (M.files[f] || {}).design) { toast(`Para cambiar diapositivas, usa «Editar».`); refreshDetail(); return; } unassign(a.dataset.slot, +a.dataset.k); refreshDetail(); }
+    else if (act === 'unpick') { const s = slot(a.dataset.slot), f = s && s.photos[+a.dataset.k]; if (publicadaNo(s)) return; if (f && s.design && (isCarousel(s.type) || isReel(s.type)) && (M.files[f] || {}).design) { toast(`Para cambiar diapositivas, usa «Editar».`); refreshDetail(); return; } unassign(a.dataset.slot, +a.dataset.k); refreshDetail(); }
     else if (act === 'left') { move(a.dataset.slot, +a.dataset.k, -1); openDetail(a.dataset.slot, +a.dataset.k - 1); }
     else if (act === 'right') { move(a.dataset.slot, +a.dataset.k, 1); openDetail(a.dataset.slot, +a.dataset.k + 1); }
     else if (act === 'cover') { setCover(a.dataset.slot, +a.dataset.k); openDetail(a.dataset.slot, 0); }
     else if (act === 'ignav') igNav(+a.dataset.d);
     else if (act === 'igedit') { if (!root.classList.contains('client')) igEditar(); }
     else if (act === 'caporig') capRevert(a.dataset.slot, +a.dataset.k);
+    else if (act === 'pickcover' && publicadaNo(slot(a.dataset.slot))) { /* its notice (D-339) */ }
     else if (act === 'pickcover') { pickOpen = pickOpen === a.dataset.slot ? null : a.dataset.slot; openDetail(a.dataset.slot, cur.idx); }
     else if (act === 'setcover') { const id = a.dataset.slot, f = a.dataset.f; pickOpen = null; if (!M.files[f]) return; repetidas([{ name: M.files[f].name, size: M.files[f].size }], { slot: id }).then(r => { if (r) changeCover(id, f); openDetail(id, 0); }); }
     else if (act === 'prev') openDetail(cur.slot, cur.idx - 1);
@@ -5432,7 +6323,6 @@ ${TK_FUENTES}
     else if (act === 'fmt') { flashThirds(); touchPrev(slot(cur.slot)); setFmt(cur.slot, a.dataset.fmt); }
     else if (act === 'center') centrarFoto();
     else if (act === 'client') { if (a.dataset.id !== curClient && !root.classList.contains('client') && !busyGuard()) await M.openClient(a.dataset.id); }   // the vista cliente never reaches another client (D-227)
-    else if (act === 'month') { if ((!S || a.dataset.key !== S.key) && !busyGuard()) await M.open(a.dataset.key); }
     else if (act === 'newclient') dlgNewClient();
     else if (act === 'nc-atras') dlgNewClient();   // back to the kind (D-289)
     else if (act === 'editclient') { await loadClientPhotos(); await dlgEditClient(curClient); }
@@ -5447,10 +6337,10 @@ ${TK_FUENTES}
       const id = a.dataset.slot, k = +a.dataset.k || 0; closeDetail();
       if (!slot(id)) toast('Esa publicación ya no está en el mes abierto.');
       else if (!a.dataset.ed) openDetail(id, k);
-      else if (M.libre && M.libre.abrir) M.libre.abrir(id, k); else waitLibre(id, k);
+      else abrirEditor(id, k);
     }
     else if (act === 'xfer-go') { if (xferAsk) xferAsk(true); }
-    else if (act === 'editar') { if (M.libre && M.libre.abrir) M.libre.abrir(a.dataset.slot, +a.dataset.k || 0); else waitLibre(a.dataset.slot, +a.dataset.k || 0); }
+    else if (act === 'editar') abrirEditor(a.dataset.slot, +a.dataset.k || 0);
     else if (act === 'perquitar') { setPersona(a.dataset.slot, a.dataset.campo, a.dataset.u, false); perTras(a.dataset.campo); }   // D-130
     else if (act === 'datereset') { const s = slot(a.dataset.slot); if (s && !isPrev(s)) setDate(s.id, s.notionDate, true); }
     else if (act === 'aprobar') pickEstado(a.dataset.slot, 'aprobado');
@@ -5470,7 +6360,7 @@ ${TK_FUENTES}
     else if (act === 'prevtotray') { prevToTray(a.dataset.id); openPast(a.dataset.id); }
     else if (act === 'prevrestore') { prevRestore(a.dataset.id); openPast(a.dataset.id); }
     else if (act === 'recargar') location.reload();
-    else if (act === 'takeover') { const k = S && S.key; S = null; PB = null; await claim(); cobLeer(true).then(() => cobAvisar(false)); mesLeer(true).then(() => mesAvisar(false)); entLeer(true).then(() => entAvisar(false)); if (k && (await idbGet('boards', k))) await M.open(k); else await M.boot(); }
+    else if (act === 'takeover') { const k = S && S.key; S = null; PB = null; memSoltar(); histOlvidar(); await claim(); cobLeer(true).then(() => cobAvisar(false)); mesLeer(true).then(() => mesAvisar(false)); entLeer(true).then(() => entAvisar(false)); if (k && (await idbGet('boards', k))) await M.open(k); else await M.boot(); }
     else if (act === 'delclient') {
       if (a.dataset.mira === '1') return;   // still finding out what goes with it: a second click waits (cold review)
       if (a.dataset.confirm !== '1') {   // its tray goes with it (D-072): the button says how much
@@ -6647,9 +7537,10 @@ ${TK_FUENTES}
     let lastBy = {}; try { lastBy = JSON.parse(lsGet('mesa-lastByClient') || '{}'); } catch (e) { /* */ }
     const hoy = madParts(ahora()).day, conHoy = mine.filter(b => b.month && monthsOf(b.month, b.span).some(m => cycleStart(m, b.cycleDay) <= hoy && hoy <= cycleEnd(m, b.cycleDay)));
     const pick = conHoy.find(b => b.key === lastBy[id]) || conHoy[0] || mine.find(b => b.key === lastBy[id]) || mine[0];   // the one that holds today; else the last used (D-121)
-    if (pick) return M.open(pick.key);
+    if (pick) return M.open(pick.key, { mes: mesDeHoy(pick) || undefined, quien: 'cliente' });   // its month of today, if it holds it (D-121)
     if (S) { try { await flushNow(); } catch (e) { /* */ } }
     if (shellReady()) closeDetail(); else buildShell();
+    if (curClient !== id) memSoltar();
     S = null; PB = null; sel = null; curClient = id;
     lsSet('mesa-lastClient', id); lsSet('mesa-last', '');
     await refreshMonths(); render(); setSave('');
@@ -6688,64 +7579,22 @@ ${TK_FUENTES}
     const p = Object.fromEntries(Object.entries(o).filter(([m, v]) => ms.includes(m) && PASOS.some(x => x[0] === v)));
     return Object.keys(p).length ? { pasos: p } : {};
   }
-  // cfg = { client, month:'YYYY-MM', months?:1-3, slots:[{id,name,type,date}], past:[{id,name,type,date}] }  (key optional)
-  // force: true lets a re-init drop months of the saved board (their photos go to the tray, their notes are lost)
-  // months: how many months the board prepares from `month` (default: the saved board's, else 1); key = client-month.
-  // Legacy cfg {key, handle, title, slots, past} still works: the client is derived from the key.
-  M.init = async (cfg) => {
-    // mirar (the iPhone, D-267): the board as the Mac would open it, in memory only — every write of an opening is left out
-    // (claim, the client's record, its tray, the shell, localStorage, the save, the sweeps, the vencidas, the notices)
-    const MIRA = MOVIL && !!(cfg && cfg.mirar);
-    if (prevDispose) { try { await prevDispose(); } catch (e) { /* */ } prevDispose = null; }
-    if (uploadsBusy() || importing) return { error: 'ocupada: espera a que termine la subida o la importación' };
-    if (!MIRA) await claim();
-    await addQ;
-    if (subida) await subida.paso.catch(() => null);   // a photo being written goes first: the upload waits while the board changes (D-074)
-    cfg = { ...cfg, slots: cfg.slots || [], past: cfg.past || [] };
-    if (cfg.months != null && !(Number.isInteger(+cfg.months) && +cfg.months >= 1 && +cfg.months <= 3)) throw new Error('months debe ser 1, 2 o 3');
-    if (!okCd(cfg.cycleDay)) throw new Error('cycleDay debe ser un día del 1 al 28');
-    let client = cfg.client, month = cfg.month;
-    const km = String(cfg.key || '').match(/^(.+)-(\d{4}-\d{2})$/);
-    if (!client) client = km ? km[1] : String(cfg.key || 'cliente');
-    await loadClients();
-    const askedClient = client;
-    let cl0 = CL.find(c => c.id === client);
-    if (!cl0) {
-      if (cfg.createClient === false || MIRA) throw new Error(`no existe el cliente ${client}`);
-      const t = String(cfg.title || '');
-      const name = cfg.clientName || (t.includes(' · ') ? t.split(' · ')[0].trim() : '') || client;
-      cl0 = await M.addClient({ id: client, name, handle: cfg.handle || '' });
-      client = cl0.id;                                    // an existing client with that name keeps its id
-    }
-    // a client of «Solo contenido» has no months (D-312): nothing is made nor opened, and it says so without an error
-    if (servicioDe(cl0) === 'contenido') return { version: M.version, client: cl0.id, servicio: 'contenido', sinMeses: true, board: null };
-    // cycle day: cfg's; else the saved board's own (a board keeps its cycles); else the client's; else 1 (calendar month)
-    const hasCd = cfg.cycleDay != null && cfg.cycleDay !== '';
-    if (!month) {
-      const cyc = iso => cycleOf(iso, hasCd ? cfg.cycleDay : cl0.cycleDay);
-      if (km) month = km[2];
-      else if (+cfg.months > 1) month = cfg.slots.map(s => cyc(s.date)).filter(Boolean).sort()[0] || cyc(new Date().toISOString());
-      else { const cnt = {}; cfg.slots.forEach(s => { const m = cyc(s.date); if (m) cnt[m] = (cnt[m] || 0) + 1; }); month = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0] || cyc(new Date().toISOString()); }
-    }
-    if (!/^\d{4}-\d{2}$/.test(month)) throw new Error('month debe ser YYYY-MM');
-    const key = cfg.key && client === askedClient ? cfg.key : `${client}-${month}`;
-    if (S && !MIRA) { try { await flushNow(); } catch (e) { /* ignore */ } }
-    const bandeja = MIRA ? (((await idbGet('bandejas', client)) || {}).tray || []).slice() : await juntarBandeja(client);   // the client's tray, shared by all its months (D-041); to look, as it is saved
-    const saved = newest(key, await idbGet('boards', key)), old = saved || { slots: [], tray: [] };
-    const recCarp = await idbGet('bandejas', client);   // its folders; those of the copy a reload left in localStorage, if newer (D-069)
-    BASE_IDB.set(key, (saved && saved.savedAt) || null);   // the copy it starts from (with the cloud, always IndexedDB's)
+  // ---------- a board as it opens (feed continuo, pieza 1) ----------
+  // armarTablero(rec, ctx): the board M.init leaves open, built from what is already read, without S, without writing anything
+  // (IndexedDB, localStorage) and without drawing: M.init uses it, and so can whatever needs a board that is not the open one.
+  // rec: the saved board (newest()), null for a new one; it is taken (changed, as M.init always did). ctx: {cfg (its slots and
+  // past from Notion, reopen), key, client, month, span, cd, mirar (the iPhone, D-267), bandeja (the client's tray, read only),
+  // recCarp (its record in 'bandejas'), todos (every saved board, as read), pend (mesa-pending), refsBandejas (trayRefs()),
+  // cargar (ids -> their thumbnails in M.files; gives those not found: a read)}. Gives {S, PB, IDX (its links), sig (each slot's
+  // shared signature before this opening), faltan, retyped, won, deadRenders, borrar (a photo twice in the tray: for
+  // deleteIfUnused), aDel (images drawn by the editor that were in the tray: for delList)}: the writes are M.init's.
+  async function armarTablero(rec, ctx) {
+    const { cfg, key, client, month, span, cd, bandeja = [], recCarp = null, todos = [], pend = null, refsBandejas = new Set(), cargar = loadThumbs } = ctx;
+    const MIRA = !!ctx.mirar;
+    const old = rec || { slots: [], tray: [] };
     const carp0 = old.carpetas && String(old.savedAt || '') > String((recCarp && recCarp.at) || '') ? old.carpetas : recCarp && recCarp.carpetas;
-    const cd = hasCd ? cdOf(cfg.cycleDay) : saved ? cdOf(saved.cycleDay) : cdOf(cl0.cycleDay);
-    const span = cfg.months != null ? +cfg.months : (old.span || 1);
-    const why = cfg.force ? null : dropCheck(old, cfg.slots, month, span, cd);
-    if (why) throw new Error(why);
-    if (hasCd && !cfg.reopen && !MIRA && cl0.cycleDay !== cd) { await editarCliente(client, c => c.cycleDay === cd ? null : { ...c, cycleDay: cd }); await loadClients(); }   // the latest cycle day given (not a reopened board's own) is the client's
-    if (pd) pdCancel();
-    sel = null; drag = null; pendingRender = false; noteTimer = null; cur = { slot: null, idx: 0 }; memoEdit = null;
-    try { if (navigator.storage && navigator.storage.persist) persistida = await navigator.storage.persist(); } catch (e) { /* ignore */ }
-    if (MOVIL) { /* no shell on the iPhone */ } else if (!shellReady()) buildShell(); else closeDetail();
-    setSave('Cargando…');
-    await importShared(cfg.slots, old, key);
+    const others = todos.filter(b => b.key !== key).map(b => pend && pend.board && pend.key === b.key && String(pend.board.savedAt || '') > String(b.savedAt || '') ? pend.board : b);
+    const idx = unirCompartidas(cfg.slots, old, others, new Set([...others.flatMap(b => [...refsOf(b)]), ...refsBandejas]));   // + the clients' trays (D-041)
     const oldById = Object.fromEntries((old.slots || []).map(s => [s.id, s]));
     const base = Object.fromEntries((old.slots || []).map(s => [s.id, slotSig(s, old)]));   // shared state before init
     const orphans = [], deadRenders = [], retyped = [];
@@ -6783,7 +7632,7 @@ ${TK_FUENTES}
       if (w) { won.push(n.name); wonIds.add(n.id); } else if (o.hold && r.name !== r.notionName) r.hold = true;
       return r;
     };
-    S = {
+    const B = {
       key, client, month, span, cycleDay: cd,
       slots: cfg.slots.map(merge),
       tray: [...bandeja, ...(old.tray || []), ...orphans],   // old.tray: the copy a reload left in localStorage, or a board from before 3.44
@@ -6794,45 +7643,293 @@ ${TK_FUENTES}
       ...(old.fillers > 0 ? { fillers: old.fillers } : {}),
       ...(old.fillers > 0 && previewsOf(old).length ? { previews: old.previews } : {}),
       ...(hsDe(old).length ? { historias: old.historias } : {}),
-      ...pasosIniciales(saved, old, month, span),   // each month's step (D-084, D-119)
+      ...pasosIniciales(rec, old, month, span),   // each month's step (D-084, D-119)
       ...(old.esperaDesde ? { esperaDesde: old.esperaDesde } : {}),   // since when its posts' waits are known (D-180)
       // when the board last had Notion's data (loaded from Notion here, or an upload confirmed by markSynced): the calendar's «Notion a fecha de»
       ...(!cfg.reopen ? { notionAt: new Date().toISOString() } : old.notionAt ? { notionAt: old.notionAt } : {}),
       savedAt: old.savedAt || null, editedAt: old.editedAt || old.savedAt || null
     };
-    if (!MIRA) { holdOrphans(wonIds); renumber(); }   // a rename whose date change is already in Notion stays pending (not the posts Notion won)
-    sortSlots();
+    if (!MIRA) { holdOrphans(wonIds, B); renumber(B, idx); }   // a rename whose date change is already in Notion stays pending (not the posts Notion won)
+    sortSlots(B);
     const oldPrevOwn = (old.prev || []).filter(p => p.own).flatMap(p => p.photos || []);
-    if (!MIRA) alinearH(S);                       // a post that changed while this board was closed (Notion, a collab): its stories follow
+    if (!MIRA) alinearH(B);                       // a post that changed while this board was closed (Notion, a collab): its stories follow
     // to look (D-267): only the month's own photos (their sizes decide the crops' signature, so «Aprobado»); never the tray's
-    const ids = MIRA ? [...new Set([...S.slots.flatMap(s => s.photos), ...previewsOf(S), ...hsDe(S).flatMap(h => h.photos || [])])]
-      : [...new Set([...S.tray, ...enCarpetas(S.carpetas), ...S.slots.flatMap(s => s.photos), ...oldPrevOwn, ...previewsOf(S), ...hsDe(S).flatMap(h => h.photos || [])])];
-    const missing = MIRA ? (await loadThumbs(ids), []) : await loadThumbs(ids);   // to look, nothing is taken out of the board
-    if (missing.length) { const no = new Set(missing); S.carpetas.forEach(c => { c.files = c.files.filter(f => !no.has(f)); }); }
-    if (missing.length && S.previews) setPreviews(S.previews.map(f => (missing.includes(f) ? null : f)));
-    await loadThumbs([...new Set(S.slots.flatMap(dSrc))]);   // a design's photos too: its cover can move to another post (the designer says if one is missing)
-    if (missing.length) { S.tray = S.tray.filter(x => !missing.includes(x)); S.slots.forEach(s => { s.photos = s.photos.filter(x => !missing.includes(x)); }); }
-    if (!MIRA) S.slots.forEach(s => { if (!isMulti(s.type) && s.photos.length > 1) { S.tray.unshift(...aBandeja(s.photos.slice(1).filter(f => !dOut(s).includes(f)))); s.photos = s.photos.slice(0, 1); } });
-    S.tray = aBandeja(S.tray);         // an image the editor drew that a mesa before 3.83 left hidden in the tray (D-101)
-    { const enPost = new Set(S.slots.flatMap(s => s.photos)); S.tray = [...new Set(S.tray)].filter(id => !enPost.has(id)); }
-    if (!MIRA) libresDeCarpetas(S, (await idbAll('boards')) || []);
-    normalize();
+    const ids = MIRA ? [...new Set([...B.slots.flatMap(s => s.photos), ...previewsOf(B), ...hsDe(B).flatMap(h => h.photos || [])])]
+      : [...new Set([...B.tray, ...enCarpetas(B.carpetas), ...B.slots.flatMap(s => s.photos), ...oldPrevOwn, ...previewsOf(B), ...hsDe(B).flatMap(h => h.photos || [])])];
+    const missing = MIRA ? (await cargar(ids), []) : await cargar(ids);   // to look, nothing is taken out of the board
+    if (missing.length) { const no = new Set(missing); B.carpetas.forEach(c => { c.files = c.files.filter(f => !no.has(f)); }); }
+    if (missing.length && B.previews) setPreviews(B.previews.map(f => (missing.includes(f) ? null : f)), B);
+    await cargar([...new Set(B.slots.flatMap(dSrc))]);   // a design's photos too: its cover can move to another post (the designer says if one is missing)
+    if (missing.length) { B.tray = B.tray.filter(x => !missing.includes(x)); B.slots.forEach(s => { s.photos = s.photos.filter(x => !missing.includes(x)); }); }
+    const aDel = [], sinDibujos = fs => { fs = fs.filter(trayable); const d = fs.filter(f => M.files[f] && M.files[f].design); aDel.push(...d); return d.length ? fs.filter(f => !d.includes(f)) : fs; };   // aBandeja, its delList left to M.init
+    if (!MIRA) B.slots.forEach(s => { if (!isMulti(s.type) && s.photos.length > 1 && estadoDe(s, B) !== 'publicado') { B.tray.unshift(...sinDibujos(s.photos.slice(1).filter(f => !dOut(s).includes(f)))); s.photos = s.photos.slice(0, 1); } });
+    B.tray = sinDibujos(B.tray);         // an image the editor drew that a mesa before 3.83 left hidden in the tray (D-101)
+    { const enPost = new Set(B.slots.flatMap(s => s.photos)); B.tray = [...new Set(B.tray)].filter(id => !enPost.has(id)); }
+    if (!MIRA) libresDeCarpetas(B, todos);
+    const borrar = [];
+    normalize(B, borrar);
     // previous month: the same client's board (1–3 months) that covers it — newest if several — only its posts of that month
     const rangeOf = b => { const k2 = String(b.key || '').match(/^(.+)-(\d{4}-\d{2})$/); return { c: b.client || (k2 && k2[1]), m: b.month || (k2 && k2[2]) }; };
-    PB = ((await idbAll('boards')) || []).filter(b => { const r = rangeOf(b); return b.key !== key && r.c === client && r.m && monthsOf(r.m, b.span).includes(pm) && cdOf(b.cycleDay) === cd; })
+    let pb = todos.filter(b => { const r = rangeOf(b); return b.key !== key && r.c === client && r.m && monthsOf(r.m, b.span).includes(pm) && cdOf(b.cycleDay) === cd; })
       .sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')))[0] || null;
-    if (PB) PB = { ...PB, slots: (PB.slots || []).filter(s => cycleOf(s.date, cd) === pm && !S.slots.some(x => x.id === s.id)) };   // a post of this board (moved) shows once
+    if (pb) pb = { ...pb, slots: (pb.slots || []).filter(s => cycleOf(s.date, cd) === pm && !B.slots.some(x => x.id === s.id)) };   // a post of this board (moved) shows once
+    buildPrev(old.prev, B, pb);
+    B.prevUnlocked = !!old.prevUnlocked;
+    { const own = new Set(B.prev.filter(p => p.own).flatMap(p => p.photos)); B.tray = B.tray.filter(id => !own.has(id)); }
+    { const kept = refsOf(B); (old.prev || []).filter(p => p.own).forEach(p => (p.photos || []).forEach(f => { if (M.files[f] && !kept.has(f)) { B.tray.push(f); kept.add(f); } })); }
+    // keep the revisions; the baseline is each slot as it was before (base: the pre-merge copy), so what opening changed (Notion
+    // wins, synced, renames) gets a new revision and reaches the other boards
+    B.slots.forEach(s => { const o = oldById[s.id]; if (o && o.at) s.at = o.at; });
+    const sig = Object.fromEntries(B.slots.map(s => [s.id, base[s.id] ?? slotSig(s, B)]));
+    if (M.libre && M.libre.migrar) M.libre.migrar(B);   // old drawn photo holes become the editor's hole element (libre ≥ 1.9)
+    return { S: B, PB: pb, IDX: idx, sig, faltan: missing, retyped, won, deadRenders, borrar, aDel };
+  }
+  // «como abierto» of a saved board: what MESA.open(key) would leave open, read without writing anything (IndexedDB, localStorage,
+  // what this tab remembers of its writes) and without touching S; the client's tray only read. {S, PB, IDX, …} or {error}
+  async function comoAbierto(key) {
+    const rec = newest(key, await idbGet('boards', key));
+    if (!rec) return { error: 'no existe' };
+    const km = String(rec.key || key).match(/^(.+)-(\d{4}-\d{2})$/);
+    const client = rec.client || (km ? km[1] : key), month = rec.month || (km ? km[2] : null), span = rec.span || 1, cd = cdOf(rec.cycleDay);
+    const cfg = { slots: (rec.slots || []).map(({ id, name, type, date, notionName, notionDate, notionType }) => ({ id, name: notionName ?? name, type: notionType ?? type, date: notionDate ?? date })), past: rec.past || [], reopen: true };
+    const why = dropCheck(rec, cfg.slots, month, span, cd); if (why) return { error: why };
+    const recCarp = await idbGet('bandejas', client);
+    return armarTablero(rec, { cfg, key, client, month, span, cd, mirar: false, bandeja: ((recCarp || {}).tray || []).slice(), recCarp, todos: (await idbAll('boards')) || [], pend: pendienteLS(), refsBandejas: await trayRefs(), cargar: loadThumbs });
+  }
+  // the copy of a board (MEM): as it opens, without its tray and folders; read once, until something writes it or it is let go
+  async function memLeer(key) {
+    const ya = MEM.tab.get(key); if (ya) return ya.tablero;
+    const ep = MEM.epoca, g0 = MEM.gen.get(key) || 0;
+    const r = await comoAbierto(key);
+    if (!r || !r.S) return null;
+    const { tray: _t, carpetas: _c, ...tablero } = r.S;
+    if (ep === MEM.epoca && (MEM.gen.get(key) || 0) === g0) MEM.tab.set(key, { tablero, savedAt: tablero.savedAt || null, PB: r.PB, IDX: r.IDX, sig: r.sig });   // written meanwhile: not kept. With what activar needs (pieza 2): its month before, its links and its slots' signature before opening
+    return tablero;
+  }
+  // the board activar leaves becomes the copy of its key (pieza 2): nothing pending (flushed), so it is the newest there is; its
+  // tray stays the client's (CLI), and its links and signature go with it
+  function memDejar(B) {
+    if (!B || !B.key) return;
+    const { tray: _t, carpetas: _c, ...tablero } = B;
+    MEM.tab.set(B.key, { tablero, savedAt: tablero.savedAt || null, PB, IDX, sig: SIG.b === B ? SIG.m : null });
+    if (SIG.b === B) SIGS.set(B, { b: B, m: SIG.m, dirty: SIG.dirty, idx: IDX });   // a save of it still on its way stamps and shares as before
+  }
+  // ---------- the active month (feed continuo, pieza 2) ----------
+  // activar(key): another month of the open client becomes the open board (S) without opening it again: what was pending is saved
+  // first (flushPending, only if there is something), then the board is taken from its copy in memory (read once if it isn't there,
+  // never written) and the globals of one board are sown from it; the board left becomes a copy. Nothing is written, nothing asked to
+  // the network, ⌘Z goes on (one history per client) and .main is not made again (renderMain goes by client). It says no, changing
+  // nothing, with a drag, a field being edited, a window, a menu, the editor or the designer, or a job going on.
+  let activando = 0;
+  const pendiente = () => !!(saveTimer || noteTimer || motTimer);
+  function activarNo(o = {}) {         // o.key: the board it would go to; o.flojo: Kevin didn't ask for it clearly (settling a scroll, touching a post of another month)
+    if (!S || locked) return 'no hay un mes abierto aquí';
+    if (o.key && o.key !== S.key && o.flojo && skillViva() && SKILL.key === S.key) return SKILL_NO;   // pieza 8 (D-329)
+    if (MOVIL) return 'en el iPhone se mira un tablero cada vez';
+    if (importEscribe || importing || uploadsBusy() || xferRun) return 'hay un trabajo en marcha';
+    if (M.web && M.web.estado && M.web.estado().enviando) return '«Web del cliente» está enviando';
+    if (drag || (pd && pd.on)) return 'hay un arrastre';
+    if (dibujoZ || (M.libre && M.libre.aplicando && M.libre.aplicando()) || (M.diseno && M.diseno.aplicando && M.diseno.aplicando())) return 'se está dibujando una publicación';
+    if ((M.libre && M.libre.abierto && M.libre.abierto()) || (M.diseno && M.diseno.abierto && M.diseno.abierto())) return 'el editor está abierto';
+    if (!root) return null;
+    const d = root.querySelector('.detail'); if (d && !d.hidden) return 'hay una ventana abierta';
+    if (root.querySelector('.cpmenu')) return 'hay un menú abierto';
+    const a = document.activeElement;
+    if (memoEdit != null || (a && root.contains(a) && (a.isContentEditable || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || (a.tagName === 'INPUT' && !/^(range|checkbox|radio|button|submit|file|color)$/.test(a.type || ''))))) return 'hay un campo en edición';
+    return null;
+  }
+  async function activar(key, o = {}) {   // o.paso: for a step of ⌘Z (D-317): a window, a menu or a field don't stop it
+    if (S && S.key === key) { if (o.mes && mesesTab(S).includes(o.mes) && o.mes !== mesActivo) { mesFijar(o.mes, o.quien || 'activar'); mesSigue(); } return { ok: true, key }; }
+    const no = () => { const w = activarNo({ key, flojo: !o.paso && (o.quien === 'deslizar' || o.quien === 'tocar') }); return o.paso && /ventana|menú|campo/.test(w || '') ? null : w; };
+    let why = no(); if (why) return { error: why };
+    if (activando) return { error: 'ya se está cambiando de mes' };
+    const c = S.client || boardClient(S);
+    activando++; switching++;
+    try {
+      for (let n = 0; ; n++) {         // what is pending is saved first; an edit that comes in while it saves is saved too
+        if (n > 20) return { error: 'no se pudo guardar lo pendiente' };
+        if (pendiente()) await flushPending();
+        { const q = fueraQ; await q.catch(() => null); if (q !== fueraQ) continue; }   // a copy of another month still being written (pieza 8): before it becomes S
+        if (!pendiente()) {
+          if (!MEM.tab.has(key)) { await memLeer(key); if (pendiente()) continue; }   // read once, never written
+          const m = MEM.tab.get(key);
+          if (!m) return { error: 'no existe' };
+          if (boardClient(m.tablero) !== c) return { error: 'ese mes es de otro cliente' };
+          await mesCargar(m); if (pendiente()) continue;   // the photos of its month before (read only)
+          why = no(); if (why) return { error: why };
+          if (!S || (S.client || boardClient(S)) !== c) return { error: 'cambió el cliente' };
+          if (!MEM.tab.has(key)) continue;   // written meanwhile: read again
+          sembrar(key, o.mes, o.quien || (o.paso ? 'paso' : 'activar'));
+          return { ok: true, key };
+        }
+      }
+    } finally { activando--; switching--; }
+  }
+  async function mesCargar(m) {          // what M.init reads for a board's month before, before drawing it: read only
+    const pb = m.PB, t = m.tablero;
+    if (pb) await loadThumbs([...new Set((pb.slots || []).flatMap(s => publishList(s)))]);
+    for (const p of t.past || []) {
+      if (M.pastThumbs[p.id]) continue;
+      const rec = await idbGet('files', 'past:' + p.id);
+      if (rec && rec.thumb instanceof Blob) { M.pastBlobs[p.id] = rec.thumb; M.pastThumbs[p.id] = URL.createObjectURL(rec.thumb); }
+    }
+  }
+  // the globals of one board, from its copy (sync: nothing read nor written here); the board left becomes the copy of its key
+  function sembrar(key, mes, quien) {
+    const m = MEM.tab.get(key);
+    memDejar(S);
+    MEM.tab.delete(key);                // S is never a copy
+    const B = {};
+    for (const [k, v] of Object.entries(m.tablero)) { B[k] = v; if (k === 'slots') { B.tray = null; B.carpetas = null; } }   // the tray and folders in their place (as armarTablero)
+    S = atarBandeja(B); PB = m.PB || null; IDX = m.IDX || {}; SIG = { b: S, m: m.sig || Object.fromEntries(S.slots.map(s => [s.id, slotSig(s, S)])), dirty: new Set() };
+    BODY.set(S, boardBody(S));
+    if (!BASE_IDB.has(key)) BASE_IDB.set(key, S.savedAt || null);
+    prevOnce = false; pendingUnlock = null; usoS = null; vencSig = '';
+    mesFijar(mes || null, quien);   // its month asked, else today's or the nearest to it (pieza 3a)
+    activado();
+    if (!shellReady()) return;
+    renderBar(); renderMain();           // the same .main (by client): its feed, tray and calendar drawn for this month
+    usosOtros();                         // the client's other boards, read in the background (never written)
+    vencRefrescar().catch(() => { /* the next minute */ });   // the vencidas of the client's other boards, for this one (read only)
+    if (M.diseno && M.diseno.prepararKits && S.slots.some(s => s.design)) M.diseno.prepararKits(S).then(() => { if (S && S.key === key) renderFeed(); }).catch(() => { /* */ });
+  }
+  function activado() { histBase(); }
+  // ---------- the active month (feed continuo, pieza 3a) ----------
+  // mesActivo: the month the Mesa works on ('YYYY-MM', its cycle's start), one of the open board's (S): a board of 2–3 months has
+  // several. Set by MESA.open / MESA.init (the month asked, else today's or the board's nearest to it, D-121), opening a client (today's, D-121) and touching a
+  // post of another month; never by drawing. mesQuien: who set it last ('open' | 'init' | 'cliente' | 'tocar' | 'paso' | …).
+  let mesActivo = null, mesQuien = null;
+  const mesesTab = B => (B && B.month ? monthsOf(B.month, B.span) : []);
+  function mesDeHoy(B) { const m = cycleOfDay(madParts(ahora()).day, B && B.cycleDay); return mesesTab(B).includes(m) ? m : null; }
+  // none asked: today's, or the board's month nearest to it (as the calendar opened since D-121)
+  function mesCercano(B) { const ms = mesesTab(B); if (!ms.length) return null; const t = cycleOfDay(madParts(ahora()).day, B.cycleDay); return t < ms[0] ? ms[0] : t > ms[ms.length - 1] ? ms[ms.length - 1] : ms.includes(t) ? t : ms[0]; }
+  function mesFijar(m, quien, B = S) { const ms = mesesTab(B); mesActivo = ms.includes(m) ? m : mesCercano(B); mesQuien = quien || null; return mesActivo; }
+  // pon(m): makes month m active; with another board, through activar (it can say no: {error}); the feed doesn't move
+  async function mesPoner(m, quien = 'pon') {
+    if (!S || !/^\d{4}-\d{2}$/.test(String(m || ''))) return { error: 'no es un mes' };
+    if (mesesTab(S).includes(m)) { mesFijar(m, quien); mesSigue(); return { ok: true, mes: mesActivo, key: S.key }; }
+    const k = feedDueno(m); if (!k) return { error: 'ese mes no tiene tablero' };
+    const r = await activar(k, { mes: m, quien }); return r && r.ok ? { ...r, mes: mesActivo } : r;
+  }
+  // after activar of another board from MESA.open or the months' header: a reload comes back to it (as M.init), the last used owns a
+  // month two boards hold (D-318) and the feed goes to the active month's point
+  function trasActivar(key, o = {}) {
+    lsSet('mesa-last', key); lsSet('mesa-lastClient', curClient);
+    let lastBy = {}; try { lastBy = JSON.parse(lsGet('mesa-lastByClient') || '{}'); } catch (e) { /* */ }
+    lastBy[curClient] = key; lsSet('mesa-lastByClient', JSON.stringify(lastBy));
+    renderFeed();
+    feedMovido = false; feedIr(mesActivo, { instantaneo: !o.animar });   // from the header, the quick jump (pieza 5); MESA.open, at once
+  }
+  function mesSigue() { if (!shellReady()) return; calRender(); cabRender(); }   // what follows the active month (the calendar, pieza 3a; the months' header, pieza 4)
+  // the board that owns month m among the client's (S and the copies): the last used (mesa-lastByClient, as D-121), else the one saved
+  // most recently. null: none of them holds it
+  function feedDueno(m) {
+    const c = S && (S.client || boardClient(S)); if (!c) return null;
+    const cand = MB.filter(b => monthsOf(b.month, b.span).includes(m)); if (!cand.length) return null;
+    if (cand.length === 1) return cand[0].key;
+    let last = null; try { last = JSON.parse(lsGet('mesa-lastByClient') || '{}')[c]; } catch (e) { /* */ }
+    if (cand.some(b => b.key === last)) return last;
+    const sv = b => String((S && S.key === b.key ? S.savedAt : ((MEM.tab.get(b.key) || {}).savedAt || b.savedAt)) || '');
+    return [...cand].sort((a, b) => sv(b).localeCompare(sv(a)))[0].key;
+  }
+  // a month's point (D-246 replaced in pieza 4): the feed's scrollTop at which its first (oldest) post is in the bottom row of what
+  // shows, with the rest of the month above; the feed shorter than its window doesn't move. null: the month isn't drawn
+  function feedPunto(m) {
+    const feed = root && root.querySelector('.feed'); if (!feed) return null;
+    const w = feed.querySelector(`.grid > .fmes[data-mes="${cssq(m)}"]`), cs = w && w.querySelectorAll('.cell[data-slot], .cell.past');
+    const c = cs && cs[cs.length - 1]; if (!c) return null;
+    const max = feed.scrollHeight - feed.clientHeight; if (max <= 0) return feed.scrollTop;
+    const fr = feed.getBoundingClientRect(), cr = c.getBoundingClientRect(), pb = parseFloat(getComputedStyle(feed).paddingBottom) || 0;
+    const y = feed.scrollTop + (cr.bottom - fr.top) - feed.clientHeight + pb;
+    return Math.max(0, Math.min(max, Math.round(y)));
+  }
+  // takes the feed to month m's point: o.instantaneo at once (MESA.open, MESA.init, opening a client, ⌘Z); else the quick jump of the
+  // header (pieza 5)
+  function feedIr(m, o = {}) {
+    const feed = root && root.querySelector('.feed'), y = feedPunto(m); if (!feed || y == null) return false;
+    const j = cabJ(m);
+    if (MOVM && MOVM.sc === feed && j >= 0) MOVM.ir(y, j, { instantaneo: !!o.instantaneo });   // pieza 5: animated unless instantaneo (or reduce-motion)
+    else if (feed.scrollTop !== y) feed.scrollTop = y;
+    return true;
+  }   // ⌘Z: the client's one history goes on; its present for this month, as it is now (D-317)
+  async function memLeerCliente(client) {   // every board of a client: {key: its copy}
+    const out = {};
+    for (const b of ((await idbAll('boards')) || []).filter(x => boardClient(x) === client)) { const t = await memLeer(b.key); if (t) out[b.key] = t; }
+    return out;
+  }
+  // cfg = { client, month:'YYYY-MM', months?:1-3, slots:[{id,name,type,date}], past:[{id,name,type,date}] }  (key optional)
+  // force: true lets a re-init drop months of the saved board (their photos go to the tray, their notes are lost)
+  // months: how many months the board prepares from `month` (default: the saved board's, else 1); key = client-month.
+  // Legacy cfg {key, handle, title, slots, past} still works: the client is derived from the key.
+  M.init = async (cfg) => {
+    // mirar (the iPhone, D-267): the board as the Mac would open it, in memory only — every write of an opening is left out
+    // (claim, the client's record, its tray, the shell, localStorage, the save, the sweeps, the vencidas, the notices)
+    const MIRA = MOVIL && !!(cfg && cfg.mirar), abierta = S && S.key;   // abierta: the month open before (⌘Z, D-317)
+    if (prevDispose) { try { await prevDispose(); } catch (e) { /* */ } prevDispose = null; }
+    if (uploadsBusy() || importing) return { error: 'ocupada: espera a que termine la subida o la importación' };
+    if (!MIRA) await claim();
+    await addQ;
+    if (subida) await subida.paso.catch(() => null);   // a photo being written goes first: the upload waits while the board changes (D-074)
+    cfg = { ...cfg, slots: cfg.slots || [], past: cfg.past || [] };
+    if (cfg.months != null && !(Number.isInteger(+cfg.months) && +cfg.months >= 1 && +cfg.months <= 3)) throw new Error('months debe ser 1, 2 o 3');
+    if (!okCd(cfg.cycleDay)) throw new Error('cycleDay debe ser un día del 1 al 28');
+    let client = cfg.client, month = cfg.month;
+    const km = String(cfg.key || '').match(/^(.+)-(\d{4}-\d{2})$/);
+    if (!client) client = km ? km[1] : String(cfg.key || 'cliente');
+    await loadClients();
+    const askedClient = client;
+    let cl0 = CL.find(c => c.id === client);
+    if (!cl0) {
+      if (cfg.createClient === false || MIRA) throw new Error(`no existe el cliente ${client}`);
+      const t = String(cfg.title || '');
+      const name = cfg.clientName || (t.includes(' · ') ? t.split(' · ')[0].trim() : '') || client;
+      cl0 = await M.addClient({ id: client, name, handle: cfg.handle || '' });
+      client = cl0.id;                                    // an existing client with that name keeps its id
+    }
+    if (!MIRA && curClient !== client) memSoltar();   // the boards in memory are one client's (feed continuo, pieza 1)
+    // a client of «Solo contenido» has no months (D-312): nothing is made nor opened, and it says so without an error
+    if (servicioDe(cl0) === 'contenido') return { version: M.version, client: cl0.id, servicio: 'contenido', sinMeses: true, board: null };
+    // cycle day: cfg's; else the saved board's own (a board keeps its cycles); else the client's; else 1 (calendar month)
+    const hasCd = cfg.cycleDay != null && cfg.cycleDay !== '';
+    if (!month) {
+      const cyc = iso => cycleOf(iso, hasCd ? cfg.cycleDay : cl0.cycleDay);
+      if (km) month = km[2];
+      else if (+cfg.months > 1) month = cfg.slots.map(s => cyc(s.date)).filter(Boolean).sort()[0] || cyc(new Date().toISOString());
+      else { const cnt = {}; cfg.slots.forEach(s => { const m = cyc(s.date); if (m) cnt[m] = (cnt[m] || 0) + 1; }); month = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0] || cyc(new Date().toISOString()); }
+    }
+    if (!/^\d{4}-\d{2}$/.test(month)) throw new Error('month debe ser YYYY-MM');
+    const key = cfg.key && client === askedClient ? cfg.key : `${client}-${month}`;
+    if (S && !MIRA) { try { await flushNow(); } catch (e) { /* ignore */ } }
+    const bandeja = MIRA ? (((await idbGet('bandejas', client)) || {}).tray || []).slice() : await juntarBandeja(client);   // the client's tray, shared by all its months (D-041); to look, as it is saved
+    const saved = newest(key, await idbGet('boards', key)), old = saved || { slots: [], tray: [] };
+    const recCarp = await idbGet('bandejas', client);   // its folders; those of the copy a reload left in localStorage, if newer (D-069)
+    BASE_IDB.set(key, (saved && saved.savedAt) || null);   // the copy it starts from (with the cloud, always IndexedDB's)
+    const cd = hasCd ? cdOf(cfg.cycleDay) : saved ? cdOf(saved.cycleDay) : cdOf(cl0.cycleDay);
+    const span = cfg.months != null ? +cfg.months : (old.span || 1);
+    const why = cfg.force ? null : dropCheck(old, cfg.slots, month, span, cd);
+    if (why) throw new Error(why);
+    if (hasCd && !cfg.reopen && !MIRA && cl0.cycleDay !== cd) { await editarCliente(client, c => c.cycleDay === cd ? null : { ...c, cycleDay: cd }); await loadClients(); }   // the latest cycle day given (not a reopened board's own) is the client's
+    if (pd) pdCancel();
+    sel = null; drag = null; pendingRender = false; noteTimer = null; cur = { slot: null, idx: 0 }; memoEdit = null;
+    try { if (navigator.storage && navigator.storage.persist) persistida = await navigator.storage.persist(); } catch (e) { /* ignore */ }
+    if (MOVIL) { /* no shell on the iPhone */ } else if (!shellReady()) buildShell(); else closeDetail();
+    setSave('Cargando…');
+    // the board as it opens (armarTablero, pure: feed continuo, pieza 1), from what is read here; then what opening it does
+    const A = await armarTablero(saved, { cfg, key, client, month, span, cd, mirar: MIRA, bandeja, recCarp, todos: (await idbAll('boards')) || [], pend: pendienteLS(), refsBandejas: await trayRefs(), cargar: loadThumbs });
+    const { faltan: missing, retyped, won, deadRenders } = A;
+    CLI = { c: client, tray: A.S.tray, carpetas: A.S.carpetas };   // the client's tray, one object for all its months (pieza 2)
+    S = atarBandeja(A.S); PB = A.PB; IDX = A.IDX;
+    if (!MIRA) mesFijar(cfg.mes || null, cfg.mes ? cfg.quien || 'open' : cfg.reopen ? 'open' : 'init');   // the active month (pieza 3a): the one asked, else today's or the nearest
+    if (A.aDel.length) delList(l => [...new Set([...l, ...A.aDel])]);   // images the editor drew that were in the tray (D-101): deleted once nothing uses them
+    A.borrar.forEach(id => { deleteIfUnused(id).catch(() => null); });   // a photo twice in the tray: the copy left out (D-041)
     if (PB && !MIRA) await loadThumbs([...new Set(PB.slots.flatMap(s => publishList(s)))]);
     if (!MIRA) for (const p of S.past) {
       if (M.pastThumbs[p.id]) continue;
       const rec = await idbGet('files', 'past:' + p.id);
       if (rec && rec.thumb instanceof Blob) { M.pastBlobs[p.id] = rec.thumb; M.pastThumbs[p.id] = URL.createObjectURL(rec.thumb); }   // still up there (lot 4): it comes down behind (pastLlego)
     }
-    buildPrev(old.prev);
-    S.prevUnlocked = !!old.prevUnlocked; prevOnce = false; pendingUnlock = null;
-    { const own = new Set(S.prev.filter(p => p.own).flatMap(p => p.photos)); S.tray = S.tray.filter(id => !own.has(id)); }
-    { const kept = refsOf(S); (old.prev || []).filter(p => p.own).forEach(p => (p.photos || []).forEach(f => { if (M.files[f] && !kept.has(f)) { S.tray.push(f); kept.add(f); } })); }
-    sharedInit(oldById, base);
+    prevOnce = false; pendingUnlock = null;
+    SIG = { b: S, m: A.sig, dirty: new Set() };   // the slots' revisions as before this opening: what it changed reaches the other boards
     if (!MIRA) pestCargar(client);     // its tabs, as they were left in this browser (D-076)
     curClient = client;
     if (!MIRA) {
@@ -6840,9 +7937,8 @@ ${TK_FUENTES}
       let lastBy = {}; try { lastBy = JSON.parse(lsGet('mesa-lastByClient') || '{}'); } catch (e) { /* */ }
       lastBy[client] = key; lsSet('mesa-lastByClient', JSON.stringify(lastBy));
     }
-    if (M.libre && M.libre.migrar) M.libre.migrar(S);   // old drawn photo holes become the editor's hole element (libre ≥ 1.9)
     BODY.set(S, boardBody(S));        // what init loaded/merged is the baseline: only later changes count as edits
-    histReset();                      // ⌘Z history starts here (another board or a reload: new history)
+    if (MIRA || !cfg.reopen || HC.c !== client || abierta === key) histReset(); else histBase();   // ⌘Z: one history per client (D-317): a MESA.open of another of its months keeps it; another client, opening the same month again (as before), a reload, «Usar aquí», an import or a MESA.init of a skill start it again
     if (deadRenders.length && !MIRA) delList(l => [...new Set([...l, ...deadRenders])]);
     if (NUBE.activa && saved && !(Array.isArray(saved.tray) && saved.tray.length)) ESCRITO.set(key, cuerpoNube({ ...saved, tray: (recCarp && recCarp.tray) || [], carpetas: carpetasBien(recCarp && recCarp.carpetas) }));   // what IndexedDB holds
     else ESCRITO.delete(key);
@@ -6855,6 +7951,7 @@ ${TK_FUENTES}
     // plan() right after init still knows if a design is out of date
     if (M.diseno && M.diseno.prepararKits && S.slots.some(s => s.design)) { render(); await M.diseno.prepararKits(S); }
     render();
+    feedMovido = false; feedIr(mesActivo, { instantaneo: true });   // placed on its month (D-121; pieza 3a)
     usoS = null; usosOtros();         // the photos in use (D-022): this board on the first warning, the client's other boards now
     vencArrancar(); vencSig = ''; vencFuera = []; vencDe = null; vencRevisar(true).catch(e => console.warn('vencidas:', e));   // the Programadas that are due, and the vencidas (D-120)
     if (missing.length) toast(`${missing.length} foto(s) guardadas ya no estaban disponibles y se han quitado.`);
@@ -6865,6 +7962,15 @@ ${TK_FUENTES}
 
   M.open = async (key, o = {}) => {
     const MIRA = MOVIL && !!(o && o.mirar);   // the iPhone (D-267): to look, without writing
+    // another month of the open client (pieza 3a): it doesn't open again nor make .main again; it becomes the active one (activar) and
+    // the feed goes to it. With a window, a menu, a field or the editor open (activar says no), as before: opened again (M.init)
+    if (!MIRA && S && S.key !== key && !locked && shellReady() && MB.some(b => b.key === key) && boardClient(S) === curClient) {
+      await claim();
+      if (!locked && S && S.key !== key) {
+        const r = await activar(key, { mes: o.mes, quien: o.quien || 'open' });
+        if (r && r.ok) { trasActivar(key); return M.status(); }
+      }
+    }
     if (S && !MIRA) { try { await flushNow(); } catch (e) { /* */ } }   // its linked slots reach the board being opened first
     if (!MIRA) await migrateLegacy();
     const b = newest(key, await idbGet('boards', key));        // cfg (Notion values included) from the copy init uses
@@ -6874,7 +7980,7 @@ ${TK_FUENTES}
     await loadClients();
     if (esContenido(client)) return MIRA ? { error: 'sin meses', sinMeses: true, client } : M.openClient(client);   // an old board of a client of «Solo contenido»: its page (D-312)
     const t = String(b.title || '');
-    return M.init({ key, client, month, months: b.span || 1, cycleDay: cdOf(b.cycleDay), reopen: true, clientName: t.includes(' · ') ? t.split(' · ')[0].trim() : null, handle: b.handle || '', slots: (b.slots || []).map(({ id, name, type, date, notionName, notionDate, notionType }) => ({ id, name: notionName ?? name, type: notionType ?? type, date: notionDate ?? date })), past: b.past || [], ...(MIRA ? { mirar: true } : {}) });
+    return M.init({ key, client, month, months: b.span || 1, cycleDay: cdOf(b.cycleDay), reopen: true, clientName: t.includes(' · ') ? t.split(' · ')[0].trim() : null, handle: b.handle || '', slots: (b.slots || []).map(({ id, name, type, date, notionName, notionDate, notionType }) => ({ id, name: notionName ?? name, type: notionType ?? type, date: notionDate ?? date })), past: b.past || [], ...(MIRA ? { mirar: true } : {}), ...(o.mes ? { mes: o.mes, quien: o.quien } : {}) });
   };
   async function migrateLegacy() {
     const all = (await idbAll('boards')) || [];
@@ -7076,7 +8182,7 @@ ${TK_FUENTES}
         else if (publicaSola(s, ahora())) why = 'publicada';   // its moment came: it is Publicada for the Mac (D-120), it doesn't move
         else { const r = setDate(op.slot, iso); if (r !== true) why = r; }
       }
-      else if (op.campo === 'estado') { const v = op.valor ? op.valor.v ?? null : null, r = M.setEstado(op.slot, v, op.valor && op.valor.motivo != null && v === 'cancelado' ? { motivo: op.valor.motivo } : {})[0]; if (r && r.error) why = r.error; }
+      else if (op.campo === 'estado') { const v = op.valor ? op.valor.v ?? null : null, r = (estadoRaw || M.setEstado)(op.slot, v, op.valor && op.valor.motivo != null && v === 'cancelado' ? { motivo: op.valor.motivo } : {})[0]; if (r && r.error) why = r.error; }
       else if (op.campo === 'capElegir') {
         const c = capOf(s), k = op.valor; if (!c) why = 'sin captions';
         else if (k == null) { if (c.pick != null) unsetCapPick(op.slot, c.pick); }
@@ -7199,7 +8305,7 @@ ${TK_FUENTES}
   async function pausaNube(html) {
     if (M.diseno && M.diseno.volcar) { try { M.diseno.volcar(); } catch (e) { /* */ } }
     if (!locked) { try { await flushNow(); } catch (e) { /* */ } }
-    locked = true; NUBE.pausa = true; NUBE.alDia = false; NUBE.pausaHtml = html || '';   // paused: nothing writes, and no cleanup runs
+    locked = true; NUBE.pausa = true; NUBE.alDia = false; NUBE.pausaHtml = html || ''; memSoltar();   // paused: nothing writes, and no cleanup runs
     if (!shellReady()) return;   // buildShell paints it, at once (nothing can be written in between)
     root.querySelectorAll('.lock').forEach(x => x.remove());
     if (!html) return;
@@ -7248,6 +8354,39 @@ ${TK_FUENTES}
   function perPlan(s) {
     const L = perLista(s), col = (s.colaboradores || []).slice(), mal = col.filter(u => !L.get(u));
     return { etiquetas: (s.etiquetas || []).slice(), colaboradores: col, ...(mal.length ? { colaboradoresNoValidos: mal } : {}) };
+  }
+  // ---------- a skill working on a month (pieza 8, D-329) ----------
+  // The calls only a skill makes (startUpload, startZernio, markUploaded, setEstado, markSynced, notionChanges, plan, render) note the
+  // open board and the time. For 10 minutes since the last one, what changes the open board without Kevin asking clearly (settling a
+  // scroll, touching a post of another month) doesn't (activarNo); a month or an arrow of the header, MESA.open / init / openClient
+  // end it (the skill's next call starts it again on its board). And a call with a post that isn't in the open board but in another
+  // of the client's, or markSynced / notionChanges without ids with the concession on another board, gives an error and touches nothing.
+  const SKILL_MS = 10 * 60 * 1000, SKILL_NO = 'una skill está trabajando en este mes';
+  // what Kevin sees when settling a scroll or touching another month doesn't change it (pieza 9, D-336): once, with how to get out
+  const skillAviso = () => toast('Una skill está trabajando en este mes. Para cambiar de mes, púlsalo en la cabecera.', { key: 'skill-mes', ms: 6000 });
+  let SKILL = null, estadoRaw = null, cambiosRaw = null, planRaw = null;   // {key, t}; the calls as the Mesa makes them inside (never a concession)
+  const skillViva = () => !!(SKILL && S && !MOVIL && Date.now() - SKILL.t < SKILL_MS);
+  function skillToca() { if (S && !locked && !MOVIL) SKILL = { key: S.key, t: Date.now() }; }
+  const nomTablero = k => { const b = MB.find(x => x.key === k); return b ? rangeLabel(b.month, b.span, false, cdOf(b.cycleDay)) : k; };
+  const cambioMsg = (k, id) => ({ error: `el mes abierto cambió: ${id ? `«${id}» es de` : 'la skill trabajaba en'} ${nomTablero(k)} (${k}) y está abierto ${nomTablero(S.key)} (${S.key}); vuelve a abrirlo con MESA.open('${k}') y repite` });
+  function skillAntes(k, a) {            // null, or the error that stops the call
+    if (!S || locked || MOVIL) return null;
+    if (skillViva() && SKILL.key !== S.key) return cambioMsg(SKILL.key);   // the board changed under the skill (a click on the header, ⌘Z): any of its calls says so (pieza 9, D-334)
+    let ids = null;
+    if (k === 'setEstado') ids = [].concat(a[0] ?? []);
+    else if (k === 'markUploaded') ids = [].concat(a[0] || []).map(x => x && x.slotId);
+    else if (k === 'markSynced') ids = a[0] == null ? null : [].concat(a[0]);
+    else if (k === 'startUpload' || k === 'startZernio') ids = [].concat(a[0] || []).map(x => x && x.slotId);
+    if (ids) {
+      for (const id of ids) {
+        if (!id || S.slots.some(x => x.id === id)) continue;
+        const f = M._in && M._in.feedSlot ? M._in.feedSlot(id) : null, c = !f && root && root.querySelector(`.feed .grid > .fmes[data-tablero] .cell[data-slot="${cssq(id)}"]`);   // its copy let go: the feed still draws its month
+        const k = f && f.B ? f.B.key : c ? c.parentElement.dataset.tablero : null;
+        if (k && k !== S.key) return cambioMsg(k, id);
+      }
+      return null;
+    }
+    return null;
   }
   // a client of «Solo contenido» has no feed (D-289): nothing to upload nor schedule, and no states: an empty list, never an error
   M.plan = () => S && !esContenido(S.client) ? S.slots.filter(s => vivo(s) && (s.photos.length || noteOf(s) || s.uploaded)).map(s => {   // a cancelled post is never uploaded
@@ -7406,7 +8545,7 @@ ${TK_FUENTES}
       s.uploaded = { fileIds, note: nt, crop: JSON.stringify(sigs), at: new Date().toISOString() };
     });
     changed();
-    return M.plan();
+    return (planRaw || M.plan)();   // the Mesa's own call: never through a skill's wrapper (pieza 9, D-335)
   };
   // Dates/times changed here and the renames they cause (numbering «W.N» / collab «Mes K»), to write to Notion.
   // dateMadrid = the new date as Madrid wall clock ('YYYY-MM-DDTHH:MM', or 'YYYY-MM-DD' when date-only).
@@ -7424,7 +8563,7 @@ ${TK_FUENTES}
     S.slots.forEach(s => { if (only ? only.has(s.id) : vivo(s)) { s.notionDate = s.date; s.notionName = s.name; s.notionType = s.type; delete s.hold; } });
     S.notionAt = new Date().toISOString();
     holdOrphans(); renumber(); changed(); refreshDetail();
-    return M.notionChanges();
+    return (cambiosRaw || M.notionChanges)();   // the Mesa's own call: never through a skill's wrapper (pieza 9, D-335)
   };
   // States (3.32): ids = a slotId or a list; estado = 'aprobado' or 'noaprobado' (only from «Por aprobar», D-082) |
   // 'programado' | 'publicado' | 'cancelado' | 'empezar', 'captions' or 'aprobar' to put it back by hand, never past what its
@@ -7508,22 +8647,38 @@ ${TK_FUENTES}
   // The later months are not drawn, but their place is kept: blank cells at the start (their count mod 3) so every
   // photo sits in the same row/column as in the mesa. Fillers («+ Hueco») drawn black after the pinned posts, with their
   // preview if they have one (D-049), as in the mesa. `check` compares each drawn post with its mesa position.
+  // Since the feed continuo (pieza 3b, D-322) it shows what the feed shows under that month: the month before the board's first comes
+  // from its own board (the one that owns it in the feed, D-318: its posts of that month, as they are, with what was hidden or changed
+  // only in the strip, S.prev, not applied), or Notion's when no board holds it; one board back, as before. The pinned posts and the
+  // fillers only when the open board is the newest (those of an older board go by their date, as in the feed).
+  async function mesAnteriorFeed() {
+    const pm = prevMonth(S.month), k = MB.some(b => monthsOf(b.month, b.span).includes(pm)) ? feedDueno(pm) : null;
+    if (k && k !== S.key) {
+      const T = feedTablero(k) || await memLeer(k); if (!T || !S) return [];
+      return T.slots.filter(s => vivo(s) && mesDe(s, T) === pm && !S.slots.some(x => x.id === s.id)).map(s => {
+        const f = s.photos[0] && M.files[s.photos[0]] ? s.photos[0] : null;
+        return { name: s.name, type: s.type, date: s.date, photos: s.photos, fid: f, item: s, B: T, thumb: null, pin: isPinned(s, T) };
+      });
+    }
+    return pastPosts(S).slice().sort((a, b) => ts(b.date) - ts(a.date)).map(p => ({ name: p.name, type: p.type, date: p.date, photos: [], fid: null, item: p, B: null, thumb: M.pastThumbs[p.id] || M.pastPending[p.id] ? p.id : null }));
+  }
   M.render = async (mode = 'clean', opts = {}) => {
     if (!S) return { error: 'no hay mesa abierta' };
     const only = opts && opts.month ? String(opts.month) : null;
     if (only && !boardMonths().includes(only)) return { error: `${only} no está en esta mesa (${boardMonths().join(', ')})` };
     const W = 1080, GAP = 3, COLS = 3, TW = 358, TH = 477, HEADER = 250, FOOT = 40;
     const c0 = CL.find(c => c.id === S.client) || {};
-    const past = pastList(false);
+    const nuevo = esNuevo(), past = await mesAnteriorFeed();   // what the feed shows under it (pieza 3b)
+    if (!S) return { error: 'no hay mesa abierta' };
     const cd = curCd(), cyc = iso => cycleOf(iso, cd);     // opts.month = a cycle of the board ('YYYY-MM' of its start)
     // pinned posts (B8) first, as in the mesa; a pinned one of a later month keeps its place as a blank cell
-    const order = feedOrder(), pinned = new Set(pinsOf()), un = order.filter(s => !pinned.has(s.id));
+    const order = nuevo ? feedOrder() : S.slots.filter(vivo), pinned = new Set(nuevo ? pinsOf() : []), un = order.filter(s => !pinned.has(s.id));   // an older board's pinned posts, by their date
     const mOf = s => cyc(s.date), inM = s => !only || mOf(s) === only, isLater = s => !!only && !!mOf(s) && mOf(s) > only;
     const fresh = un.filter(inM);
     const earlier = only ? un.filter(s => { const m = mOf(s); return m && m < only; }) : [];
     const later = only ? un.filter(isLater).length : 0;
-    const lead = later % COLS, F = fillersOf();
-    const slotPost = (s, isNew) => ({ mesaIdx: order.indexOf(s) + (pinned.has(s.id) ? 0 : F), name: s.name, type: s.type, n: s.photos.length, date: s.date, isNew, planned: !isNew, pin: pinned.has(s.id), blob: s.photos.length ? M.thumbBlobs[s.photos[0]] : null, rect: s.photos.length && M.files[s.photos[0]] ? { g: gridRect(s.photos[0], s), f: M.files[s.photos[0]] } : null });
+    const lead = later % COLS, F = nuevo ? fillersOf() : 0;
+    const slotPost = (s, isNew) => ({ mesaIdx: order.indexOf(s) + (pinned.has(s.id) ? 0 : F), name: s.name, type: s.type, n: s.photos.length, date: s.date, isNew, planned: !isNew, pin: pinned.has(s.id) || (!nuevo && isPinned(s)), blob: s.photos.length ? M.thumbBlobs[s.photos[0]] : null, rect: s.photos.length && M.files[s.photos[0]] ? { g: gridRect(s.photos[0], s), f: M.files[s.photos[0]] } : null });
     const pinPosts = order.filter(s => pinned.has(s.id)).map(s => isLater(s) ? { blank: true, mesaIdx: null } : slotPost(s, inM(s)));
     const nuevas = fresh.length + order.filter(s => pinned.has(s.id) && !isLater(s) && inM(s)).length;
     const posts = [
@@ -7533,7 +8688,7 @@ ${TK_FUENTES}
       ...fresh.map(s => slotPost(s, true)),
       ...earlier.map(s => slotPost(s, false)),
       ...past.map((p, j) => (p.fid
-        ? { mesaIdx: order.length + F + j, name: p.name, type: p.type, n: (p.photos || []).length, date: p.date, isNew: false, blob: M.thumbBlobs[p.fid] || null, rect: M.files[p.fid] ? { g: gridRect(p.fid, p.item, p.B), f: M.files[p.fid] } : null }
+        ? { mesaIdx: order.length + F + j, name: p.name, type: p.type, n: (p.photos || []).length, date: p.date, isNew: false, pin: !!p.pin, blob: M.thumbBlobs[p.fid] || null, rect: M.files[p.fid] ? { g: gridRect(p.fid, p.item, p.B), f: M.files[p.fid] } : null }
         : { mesaIdx: order.length + F + j, name: p.name, type: p.type, date: p.date, isNew: false, blob: p.thumb ? (M.pastBlobs[p.thumb] || null) : null }))
     ];
     const N = pinPosts.length + F + lead + fresh.length;   // first cell below the line
@@ -8235,7 +9390,7 @@ ${TK_FUENTES}
       setBusy('imp', 'Guardando la mesa importada…');
       back = { key: S && S.key, client: curClient };
       clearTimeout(saveTimer); saveTimer = null; clearTimeout(noteTimer); noteTimer = null;
-      S = null; PB = null; cleared = true; importEscribe = true;   // nothing in memory may overwrite what is written now
+      S = null; PB = null; memSoltar(); histOlvidar(); cleared = true; importEscribe = true;   // nothing in memory may overwrite what is written now
       if (d.copia) {                               // what isn't here goes in as it was: the files first, one by one, then the records
         const pr = root && root.querySelector('.detail .xprog'); let ultP = 0;
         const c = await copiaCrudo(d, parar, (i, n, esc, prev) => {
@@ -8395,7 +9550,8 @@ ${TK_FUENTES}
     if (k != null && k < n) { if (previewAt(k)) l.push({ t: 'Quitar portada', hacer: () => delPreview(k) }); l.push({ t: 'Quitar hueco', hacer: () => quitarHueco(k) }, '-'); }
     l.push({ t: memosOpen ? 'Cerrar todas las notas' : 'Abrir todas las notas', off: !hay && !memosOpen, tip: hay || memosOpen ? '' : 'Ninguna publicación tiene Nota', hacer: alternarNotas });
     const mas = '<span class="i-mas">+</span> Hueco';
-    l.push(n >= MAX_FILLERS ? { html: mas, kb: 'máximo 2', off: true, tip: `Ya hay ${MAX_FILLERS} huecos: es el máximo` }
+    l.push(!esNuevo() ? { html: mas, kb: 'mes más nuevo', off: true, tip: NUEVO_TXT }   // only in the newest board (pieza 3b)
+      : n >= MAX_FILLERS ? { html: mas, kb: 'máximo 2', off: true, tip: `Ya hay ${MAX_FILLERS} huecos: es el máximo` }
       : { html: mas, tip: 'Una casilla negra arriba del grid para cuadrar las filas de 3 (no es una publicación)', hacer: () => setFillers(n + 1) });
     return !!menuMesa(x, y, l, { foco, label: 'Feed' });
   }
@@ -8404,7 +9560,7 @@ ${TK_FUENTES}
     const feed = e.target.closest('.main > .feed'); if (!feed) return;
     if (e.type === 'keydown') {
       if (!(e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) || !e.target.matches('.feed > .grid')) return;
-      const c = feed.querySelector('.grid > .cell'), r = (c || e.target).getBoundingClientRect();
+      const c = feed.querySelector('.grid .cell'), r = (c || e.target).getBoundingClientRect();
       if (menuFeed(r.left + 12, r.top + 12, c && c.dataset.filler != null ? +c.dataset.filler : null, e.target)) { e.preventDefault(); e.stopPropagation(); }
       return;
     }
@@ -8508,6 +9664,8 @@ ${TK_FUENTES}
       delete M.pastThumbs[p.id]; delete M.pastBlobs[p.id];
     }
     await idbDel('boards', key);
+    if ([...HC.undo, ...HC.redo].some(p => p.p.some(x => x.k === key))) { if (S && S.key !== key && histMio()) histReset(); else histOlvidar(); }   // a deleted month's steps can't be undone, nor keep its photos: the client's history starts again (D-317)
+    HC.cur.delete(key);
     if (propia && S.key !== key && libresDeCarpetas(S, others)) save();   // a folder's photo that only this month used is free again
     dropIdx([key]); if (S && S.key !== key) renderFeed();
     if (S && S.key !== key && S.client === c) { usoS = null; usosOtros(); }   // a filler's photo may count as used again (D-049)
@@ -8665,11 +9823,11 @@ ${TK_FUENTES}
     const p = await planCarpeta(id);
     if (p.error) return p;
     const va = new Set(p.borran), enPost = st => st.slots.some(s => slotRefs(s).some(f => va.has(f))) || st.prev.some(x => x.own && x.photos.some(f => va.has(f))) || previewsOf(st).some(f => va.has(f)) || hRefs(st).some(f => va.has(f));
-    if (S && H.b === S && H.cur) {
+    if (histMio()) {
       track(S);
-      const corta = (l, cuenta) => { let k = -1; l.forEach((st, i) => { if (enPost(st)) k = i; }); if (k >= 0) { l.splice(0, k + 1); if (cuenta) H.drop = (H.drop || 0) + k + 1; } };
-      corta(H.undo, true); corta(H.redo, false);   // both lists keep the step furthest from now first
-      H.fueraC = new Set([...(H.fueraC || []), ...p.subs]);
+      const corta = (l, cuenta) => { let k = -1; l.forEach((st, i) => { if (st.p.some(x => x.b && enPost(x.b))) k = i; }); if (k >= 0) { l.splice(0, k + 1); if (cuenta) HC.drop += k + 1; } };
+      corta(HC.undo, true); corta(HC.redo, false);   // both lists keep the step furthest from now first (any month of the client)
+      HC.fueraC = new Set([...(HC.fueraC || []), ...p.subs]);
     }
     sinPaso(st => {
       st.tray = st.tray.filter(f => !va.has(f));
@@ -8681,7 +9839,7 @@ ${TK_FUENTES}
     if (p.subs.has(pestanas[0].carpeta)) pestanas[0].carpeta = p.padre;   // the fixed one stays: on what held it
     pestValidar();
     pestVer();
-    if (H.b === S && H.cur) { H.cur = editState(S); H.curJ = JSON.stringify(H.cur); }
+    histBase();
     delList(l => [...new Set([...l, ...p.borran])]);
     changed();
     await flushNow();
@@ -8718,9 +9876,14 @@ ${TK_FUENTES}
   };
   // a board switch in progress (the designer refuses to open meanwhile: its board is about to go away)
   let switching = 0;
+  estadoRaw = M.setEstado; cambiosRaw = M.notionChanges; planRaw = M.plan;
+  for (const k of ['plan', 'render', 'startUpload', 'startZernio', 'markUploaded', 'markSynced', 'setEstado', 'notionChanges']) { const f = M[k]; M[k] = (...a) => {   // a skill's calls (D-329): the same names and answers
+    const e = skillAntes(k, a); if (e) return k === 'render' ? Promise.resolve(e) : e;
+    const r = f(...a); skillToca(); return r; }; }
   for (const k of ['openClient', 'open', 'init']) { const f = M[k]; M[k] = async (...a) => {
+    SKILL = null;                        // a month opened: a skill's concession ends (its next call starts it on its board, D-329)
     if (importEscribe) { const m = 'Espera: se está importando la mesa.'; toast(m); return k === 'init' ? Promise.reject(new Error(m)) : { error: m }; }   // what is in memory would overwrite what the import writes (D-249)
-    switching++; try { return await f(...a); } finally { switching--; } }; }
+    switching++; try { await fueraQ.catch(() => null); return await f(...a); } finally { switching--; } }; }   // a copy of another month still being written goes in first (pieza 9, D-337; as activar)
   // internal bridge for the designer (diseno.js): the open board and the mesa's own helpers (getters for what changes)
   // ---------- the vista cliente's structure (D-230) ----------
   // Besides the feed and the calendar, the vista cliente has tabs over the calendar («Calendario» and the parts of 'pestana')
@@ -8938,17 +10101,33 @@ ${TK_FUENTES}
     nombreDistinto, nombreAviso,   // the carousel's name against its cover (D-129, mesa ≥ 4.00)
     elegirYa, ELIGE_MS,   // a question «1 / 2» answered: the chosen button in the accent, then it closes (D-194, mesa ≥ 4.20)
     hsDe, hNorm, adelantos, hProblemas, usoHistoria, askModoHistoria, tipoPost, hFecha, ts, isoDe, sameDate, inBoard, pick: () => sel, pickOff: () => { sel = null; render(); },   // for the stories (historias.js, mesa ≥ 3.53)
-    estadoWeb, capFinal, cropSig, mesOtros   // the client's decisions (D-244); what the client's web gets: the chosen caption, the crops' signature, no other client (web.js, D-241, mesa ≥ 4.28)
+    estadoWeb, capFinal, cropSig, mesOtros,   // the client's decisions (D-244); what the client's web gets: the chosen caption, the crops' signature, no other client (web.js, D-241, mesa ≥ 4.28)
+    cellHTML,   // a post's cell drawn with its own board (feed continuo, pieza 1): cellHTML(s, pill, B)
+    armarTablero, comoAbierto,   // a board as it opens, without writing (feed continuo, pieza 1)
+    // the client's boards in memory (feed continuo, pieza 1; nothing uses them yet): leer(key) and leerCliente(client) read the copies
+    // (without writing), ver(key) gives one already read or null, soltar() lets them all go
+    mesActivo: { lee: () => mesActivo, quien: () => mesQuien, pon: (m, quien) => mesPoner(m, quien) },
+    cabecera: { nodo: () => CAB, ir: m => cabIr(m), mover: x => cabMover(x), ancho: () => CABW, colocar: () => cabColocar() },
+    fijadasFeed,
+    estadoPoner: (...a) => (estadoRaw || M.setEstado)(...a), notionCambios: () => (cambiosRaw || M.notionChanges)(),   // setEstado and notionChanges as the Mesa calls them: never a skill's concession (pieza 8, D-329)
+    skill: { ver: () => (SKILL ? { ...SKILL, viva: skillViva() } : null), cerrar: () => { SKILL = null; } },
+    mov: { estado: () => (MOVM ? { ...MOVM.estado(), x: CABX, w: CABW, meses: CABL.map(e => e.m) } : null), medir: () => movMedir(), tokens: () => { const t = movTokens(); return { dur: t.dur, curva: t.curva }; }, umbral: MOV.UMBRAL, pausa: MOV.PAUSA, ease: x => movTokens().ease(x), reducir: b => { movRed = b == null ? null : !!b; } },   // the feed's movement (pieza 5, D-325)   // the months' header (feed continuo, pieza 4, D-323)   // the active month (feed continuo, pieza 3a)
+    feedSlot: id => { if (!S) return null; const s0 = S.slots.find(x => x.id === id); if (s0) return { s: s0, B: S }; for (const b of MB) { const B = feedTablero(b.key), s1 = B && B !== S && B.slots.find(x => x.id === id); if (s1) return { s: s1, B }; } return null; },   // a post of the client's feed and its board (pieza 3a)
+    feedPunto, feedIr: (m, o) => feedIr(m, o), feedDueno, feedHTMLEntero, feedHTMLGuardado, feedCargar: () => feedCargarResto() || Promise.resolve(),   // a month's point in the feed and going there (pieza 3a; pieza 5 animates it)
+    activar,   // another month of the open client becomes the open board, without opening it again (feed continuo, pieza 2)
+    tablerosMem: { leer: conTableros(memLeer), leerCliente: conTableros(memLeerCliente), ver: k => (MEM.tab.get(k) || {}).tablero || null, soltar: memSoltar, claves: () => [...MEM.tab.keys()] }
   };
   M._test = {
+    // forget every thumbnail made (its blob: URL) and read: as a page just loaded (the feed's photos when seen, pieza 3a)
+    olvidarMinis: () => { for (const id of Object.keys(M.files)) { const f = M.files[id], u = URLS_MINI.get(f); if (u && u !== HUECO_U && /^blob:/.test(u)) URL.revokeObjectURL(u); delete M.files[id]; delete M.thumbBlobs[id]; } memSoltar(); },
     entBorrarTodo: async () => { if (NUBE.activa) throw new Error('con la nube encendida no se vacía nada (D-256)'); entGen++; await tx('entregas', 'readwrite', st => st.clear()); ENT = new Map(); entAvisar(false); },   // D-290
     mesBorrarTodo: async () => { if (NUBE.activa) throw new Error('con la nube encendida no se vacía nada (D-256)'); mesGen++; await tx('meses', 'readwrite', st => st.clear()); MES = new Map(); mesAvisar(false); },   // the battery's months (D-238)
     acuOlvidar: () => { ACU = null; PAQ = null; },   // the battery: as if the agreements had never been read (AR3)
     cobBorrarTodo: async () => { if (NUBE.activa) throw new Error('con la nube encendida no se vacía nada (D-256)'); cobGen++; acuGen++; await tx(['cobros', 'cfacturas', 'acuerdos', 'paquetes'], 'readwrite', o => { o.cobros.clear(); o.cfacturas.clear(); o.acuerdos.clear(); o.paquetes.clear(); }); COB = new Map(); ACU = new Map(); PAQ = new Map(); for (const c of CL) if (c.cuota || c.cuotaAt || c.acuerdo || c.acuerdoAt) await editarCliente(c.id, x => { delete x.cuota; delete x.cuotaAt; delete x.acuerdo; delete x.acuerdoAt; return x; }); await loadClients(); cobAvisar(false); },   // the battery's invoices, fees and agreements go (D-232, D-288)
     // the battery's clients as made: no service, day of deliveries nor link of metrics (D-289, D-290, D-292)
     camposBorrar: async ids => { for (const id of ids) { const c = CL.find(x => x.id === id); if (c && CAMPOS_CLI.some(([k, kAt]) => k in c || kAt in c)) await editarCliente(id, x => { CAMPOS_CLI.forEach(([k, kAt]) => { delete x[k]; delete x[kAt]; }); return x; }); } await loadClients(); },
-    reloj: t => { RELOJ = t == null ? null : +t; }, vencRevisar: abrir => vencRevisar(!!abrir), avisadas: () => new Set(), fueraListo: () => fueraQ,   // a fixed clock for the battery (D-120)
-    place, swap, unassign, move, movePhoto, setType, removeFile, setCover, setNote, setMemo, pastList, addToSlot, setPreview, refreshDetail,
+    reloj: t => { RELOJ = t == null ? null : +t; }, vencRevisar: abrir => vencRevisar(!!abrir), avisadas: () => new Set(), fueraListo: () => fueraQ, fueraTapon: p => { fueraQ = fueraQ.then(() => p).catch(() => null); return fueraQ; },   // the battery: a write of another month that hasn't finished (D-337)   // a fixed clock for the battery (D-120)
+    place, swap, unassign, move, movePhoto, setType, removeFile, setCover, setNote, setMemo, setMotivo, pastList, addToSlot, setPreview, refreshDetail,
     versionNueva, claim, nubeAbrir, escrito: k => ESCRITO.get(k), cuerpoNube: () => S && cuerpoNube(S),
     perBorrar: async () => { if (NUBE.activa) throw new Error('con la nube encendida no se vacía nada (D-256)'); for (const c of CL) if (c.personas) await editarCliente(c.id, o => { delete o.personas; delete o.personasAt; return o; }); await loadClients(); },   // the battery's lists of people go (D-130)
     setPersona: (slotId, campo, usuario, poner = true) => setPersona(slotId, campo, usuario, poner),
@@ -8957,7 +10136,7 @@ ${TK_FUENTES}
     setFmt: (slotId, fmt) => { cur = { slot: slotId, idx: 0 }; setFmt(slotId, fmt); },
     postRect: (fid, slotId) => postRect(fid, slot(slotId)), gridRect: (fid, slotId) => gridRect(fid, slot(slotId)),
     cropSig: slotId => cropSig(slot(slotId)), cur: () => ({ ...cur }), setSel: id => { sel = id; render(); },
-    undo, redo, hist: () => ({ undo: H.undo.length, redo: H.redo.length, own: H.b === S }), delList: () => delList(),
+    undo, redo, hist: () => ({ undo: HC.undo.length, redo: HC.redo.length, own: histMio() }), histListo: () => histQ || Promise.resolve(), delList: () => delList(),
     moveMemo, prev: () => JSON.parse(JSON.stringify((S && S.prev) || [])), prevSetFromTray, prevToTray, prevSwap, prevRestore,
     setHidden: (id, v) => { const it = prevItem(id); if (it) { it.hidden = !!v; changed(); } },
     prevLocked: () => prevLocked(), setDate: (slotId, iso) => setDate(slotId, iso), weekOf: day => weekOf(day, 1), weekOfCycle: (day, cd) => weekOf(day, cd), madridISO, cycleOf: (day, cd) => cycleOfDay(day, cd), cycleEnd, rangeLabel,

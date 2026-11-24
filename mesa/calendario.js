@@ -36,7 +36,7 @@
 //   legend. 1.11 (D-121, D-120, mesa ≥ 3.92): a board opens on today's month, today marked; if the board doesn't hold today,
 //   on its month nearest to today (‹ › are kept until another board opens). A vencida (not cancelled nor published, its
 //   moment passed and not a Programada that passes to Publicado on its own) has a thin red border and its time in red; «N
-//   vencidas» in the header opens the window that lists the client's, those of its earlier boards too, by date, each with
+//   vencidas» in the header opens the window that lists the client's, those of its other boards too (earlier and later), by date, each with
 //   «Ya se publicó», «Reprogramar» and «Cancelar», one step of ⌘Z each. Nothing of it in the vista cliente; nothing of
 //   Zernio, captions or emails.
 //   Sessions (1.23, D-219, mesa ≥ 4.24): a session of the personal page (sesiones.js) with a date has a chip on each day of the
@@ -50,7 +50,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.30';   // 1.30: the page of a «Solo contenido» client, any month, without a board (D-312); a day under the mouse also in the vista cliente (D-313). 1.29: a day of the board under the mouse, the date calendar's hover background with --d1; the cells' ring lives in mesa.js (D-302). 1.28: the vista cliente's right column fills the screen, 1/3 and 2/3 (D-293); a «Solo contenido» board in the vista cliente — its «Tus pagos» in place of the agreement, its deliveries «en camino» (D-297). 1.27: a «Solo contenido» board's calendar — its deliveries as chips, no steps, total, Notion nor fold, no «Nueva historia» (D-290); «Nueva reunión» in a day's right click and a meeting's chip with its drawing (D-291). 1.26: a right click in the board's calendar — in a day, «Nueva sesión», «Nueva tarea» and «Nueva historia»; on a post, «Abrir»; on a session, «Abrir», «Duplicar sesión» and «Borrar sesión» (D-285). 1.25: in the vista cliente the calendar's panel round on top, the tabs' panel on the parts' edge and the parts 12 px apart at 720 (D-240). 1.24: no Σ, the month's total always in my view (D-229) and never in the vista cliente, no ‹ › there without another month (D-228); the vista cliente's tabs and right column (D-230); square corners where a session goes on, the legend in --mute (D-231). 1.23: a chip for each day of a session of the board's client, which opens its sheet over the board (D-219). 1.22: «Calendario» at 17 px, as «Bandeja» (D-186); No aprobado and Cancelado in the bar only if the month has one (D-189); the new names of two states (D-191); the month's step goes on and back on its own, the next step shows what holds it back (D-192). 1.21: a client without Notion has nothing of Notion: no «N cambios sin subir» / «Igual que Notion», no «muévela en Notion» (D-184). 1.20: the chips' hours without tabular figures (D-175). 1.18: «Notion a fecha de» in a title, a double click on the month's name, no «Cancelar» / «Cerrar» in its dialogs (D-155, D-156, D-159, D-160). 1.17: the days of another month of the board, dimmed as the previous month's, with their chips muted (D-153). 1.16: the look of the date's calendar, with its tokens (D-147); folds with the column, and is a tab with the tray folded (D-148)
+  const VERSION = '1.31';   // 1.31: the calendar follows the active month of the feed continuo; «Reprogramar» of another board opens the month of its post; the vista cliente's open tab stays when the active month changes board (D-318, D-319, D-327). 1.30: the page of a «Solo contenido» client, any month, without a board (D-312); a day under the mouse also in the vista cliente (D-313). 1.29: a day of the board under the mouse, the date calendar's hover background with --d1; the cells' ring lives in mesa.js (D-302). 1.28: the vista cliente's right column fills the screen, 1/3 and 2/3 (D-293); a «Solo contenido» board in the vista cliente — its «Tus pagos» in place of the agreement, its deliveries «en camino» (D-297). 1.27: a «Solo contenido» board's calendar — its deliveries as chips, no steps, total, Notion nor fold, no «Nueva historia» (D-290); «Nueva reunión» in a day's right click and a meeting's chip with its drawing (D-291). 1.26: a right click in the board's calendar — in a day, «Nueva sesión», «Nueva tarea» and «Nueva historia»; on a post, «Abrir»; on a session, «Abrir», «Duplicar sesión» and «Borrar sesión» (D-285). 1.25: in the vista cliente the calendar's panel round on top, the tabs' panel on the parts' edge and the parts 12 px apart at 720 (D-240). 1.24: no Σ, the month's total always in my view (D-229) and never in the vista cliente, no ‹ › there without another month (D-228); the vista cliente's tabs and right column (D-230); square corners where a session goes on, the legend in --mute (D-231). 1.23: a chip for each day of a session of the board's client, which opens its sheet over the board (D-219). 1.22: «Calendario» at 17 px, as «Bandeja» (D-186); No aprobado and Cancelado in the bar only if the month has one (D-189); the new names of two states (D-191); the month's step goes on and back on its own, the next step shows what holds it back (D-192). 1.21: a client without Notion has nothing of Notion: no «N cambios sin subir» / «Igual que Notion», no «muévela en Notion» (D-184). 1.20: the chips' hours without tabular figures (D-175). 1.18: «Notion a fecha de» in a title, a double click on the month's name, no «Cancelar» / «Cerrar» in its dialogs (D-155, D-156, D-159, D-160). 1.17: the days of another month of the board, dimmed as the previous month's, with their chips muted (D-153). 1.16: the look of the date's calendar, with its tokens (D-147); folds with the column, and is a tab with the tray folded (D-148)
   if (M.calendario && M.calendario._off) { try { M.calendario._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const LS_FOLD = 'mesa-cal-plegado';   // the weekly count Σ is gone, and its «mesa-cal-recuento» no longer read (D-229)
   const DOW = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -129,7 +129,7 @@
   // ---------- the vista cliente's structure (D-230) ----------
   // Its parts are given by others through M._in.vc (mesa.js): tabs beside «Calendario» and the right column. Each part draws
   // for the board's client and the calendar's month; one with nothing ('') doesn't show, and with none the page is as before.
-  let vcTab = 'cal';                             // the tab chosen (this visit; back to «Calendario» with another board)
+  let vcTab = 'cal';                             // the tab chosen (this visit; back to «Calendario» with another client)
   function vcPartes(X, m, cli) {
     const V = X.vc, ctx = { cliente: cli || X.S.client, mes: m, S: X.S || null };
     const html = p => { try { return String(p.html(ctx) || ''); } catch (e) { return ''; } };
@@ -162,7 +162,9 @@
     if (cc) { renderCont(X, root, sec, cc); return; }   // the page of a client of «Solo contenido», without a board (D-312)
     if (!S) { sec.hidden = true; return; }
     const client = root.classList.contains('client'), sp = span(X);
-    if (view.key !== S.key || !sp.list.includes(view.m)) { if (view.key !== S.key) vcTab = 'cal'; view = { key: S.key, m: mesInicial(X, sp) }; }
+    // the active month (feed continuo, pieza 3a): its month, not today's, when it changes; ‹ › still move only the calendar
+    const act = X.mesActivo && X.mesActivo.lee ? X.mesActivo.lee() : null;
+    if (view.key !== S.key || view.act !== act || !sp.list.includes(view.m)) { if (view.cli !== S.client) vcTab = 'cal'; view = { key: S.key, cli: S.client, act, m: act && sp.list.includes(act) ? act : mesInicial(X, sp) }; }   // the vista cliente's tab stays while the active month changes, also to another board (pieza 6, D-327); another client, «Calendario»
     // ‹ › only with another month of the board's own days to go to, in the vista cliente (D-228); without, its month (also when
     // the view comes on while my calendar shows the previous month)
     const propios = sp.list.filter(x => x >= sp.lo.slice(0, 7)), flechas = !client || propios.length > 1;
@@ -203,7 +205,7 @@
     }
     // no weekly count (Σ) anywhere; the month's total, always in my view, under the grid (D-229), and never in the vista cliente (D-228)
     if (!client && !cont) body += `<div class="ctot" title="${total} publicaci${total === 1 ? 'ón' : 'ones'} en ${X.MONTHS[mo - 1]}">Total de ${X.MONTHS[mo - 1]} <b>${total}</b></div>`;
-    const i = sp.list.indexOf(m), pend = M.notionChanges ? M.notionChanges().length : 0, fo = folded();
+    const i = sp.list.indexOf(m), pend = X.notionCambios ? X.notionCambios().length : M.notionChanges ? M.notionChanges().length : 0, fo = folded();
     // «Notion a fecha de» is no longer a text of its own: it goes in the title of the line that already speaks of Notion (D-160)
     const nat = `Notion a fecha de: ${S.notionAt ? esc(X.fmtDate(S.notionAt)) : '—'}`;
     const sync = cont || (X.sinNotion && X.sinNotion()) ? '' : pend ? `<span class="csync c" title="Fecha, hora, tipo o nombre cambiados aquí: se pasan a Notion al subir · ${nat}"><i class="dchg"></i>${pend} cambio${pend === 1 ? '' : 's'} sin subir</span>` : `<span class="csync" title="${nat} · la mesa no lee Notion en directo: es la última vez que este mes se cargó desde Notion o se confirmó una subida">Igual que Notion</span>`;
@@ -391,7 +393,7 @@
     if (!delMes(X, S, m).some(X.vivo)) { X.toast('Este mes no tiene publicaciones.'); return; }
     const van = mueven(X, delMes(X, S, m), to);
     if (van.length && X.locked) { X.toast('La mesa está abierta en otra pestaña: aquí no se cambian las publicaciones.'); return; }
-    const r = van.length ? M.setEstado(van.map(s => s.id), to) : null, hechas = Array.isArray(r) ? r.filter(x => !x.error) : [];
+    const r = van.length ? (I().estadoPoner || M.setEstado)(van.map(s => s.id), to) : null, hechas = Array.isArray(r) ? r.filter(x => !x.error) : [];
     const ok = van.filter(s => hechas.some(x => x.slotId === s.id)), dice = ok.length ? lleva(to, ok.length) : '';
     const fallos = Array.isArray(r) ? r.filter(x => x.error) : [];   // one it couldn't change says why, in the window
     const ahora = idx(X.pasoDe(S, m)), tarde = ahora >= j ? [] : frenan(X, delMes(X, S, m), j);
@@ -404,7 +406,7 @@
   }
 
   // ---------- the vencidas (D-120) ----------
-  // The client's vencidas, by date: this board's and those of its earlier boards, which say their month and open in their
+  // The client's vencidas, by date: this board's and those of its other boards, earlier and later (pieza 3b), which say their month and open in their
   // board. «Ya se publicó» → Publicado. «Reprogramar» → a day and time ahead inside its board (a Programada warns that
   // Zernio keeps the old one, D-103; its stories go with it, D-057); one of another board opens there, and one whose board
   // has no day ahead can't. «Cancelar» → with its reason (D-082). Each one a step of ⌘Z; nothing of Zernio or Notion.
@@ -454,20 +456,20 @@
     if (!v) { vencPintar(); return; }
     if (a === 'v-abrir' || (a === 'v-rep' && !v.aqui)) {   // one of another board opens in its board
       X.closeDetail();
-      if (!v.aqui) { const r = await M.open(v.key); if (r === 'no existe' || (r && r.error)) { I().toast('No se pudo abrir su tablero.'); return; } }
+      if (!v.aqui) { const r = await M.open(v.key, { mes: v.mes }); if (r === 'no existe' || (r && r.error)) { I().toast('No se pudo abrir su tablero.'); return; } }
       const Y = I(); if (Y && Y.slot(v.id)) Y.openDetail(v.id, 0);
       return;
     }
     if (X.locked) { X.toast('La mesa está abierta en otra pestaña: aquí no se cambia nada.'); return; }
     const nom = `«${X.shortLabel(v.name, v.type)}»`;
     if (a === 'v-pub') {
-      const r = v.aqui ? M.setEstado(v.id, 'publicado') : X.fueraEstado(v.key, v.id, { v: 'publicado' });
+      const r = v.aqui ? (I().estadoPoner || M.setEstado)(v.id, 'publicado') : X.fueraEstado(v.key, v.id, { v: 'publicado' });
       if ((Array.isArray(r) && r[0] && r[0].error) || (typeof r === 'string' && r)) { X.toast('No se pudo: ' + (Array.isArray(r) ? r[0].error : r) + '.'); return; }
       X.toast(`${nom} pasa a Publicado. ⌘Z lo deshace.`, { key: 'venc-accion', ms: 6000 });
     } else if (a === 'v-rep' || a === 'v-can') { vabre = { k: vk(v), que: a === 'v-rep' ? 'rep' : 'can' }; vencPintar(); return; }
     else if (a === 'v-can-ok') {
       const mot = String((li.querySelector('input[data-v="motivo"]') || {}).value || '').trim();
-      const r = v.aqui ? M.setEstado(v.id, 'cancelado', mot ? { motivo: mot } : {}) : X.fueraEstado(v.key, v.id, mot ? { v: 'cancelado', motivo: mot } : { v: 'cancelado' });
+      const r = v.aqui ? (I().estadoPoner || M.setEstado)(v.id, 'cancelado', mot ? { motivo: mot } : {}) : X.fueraEstado(v.key, v.id, mot ? { v: 'cancelado', motivo: mot } : { v: 'cancelado' });
       if ((Array.isArray(r) && r[0] && r[0].error) || (typeof r === 'string' && r)) { X.toast('No se pudo: ' + (Array.isArray(r) ? r[0].error : r) + '.'); return; }
       vabre = null;
       X.toast(`${nom} se cancela${mot ? ': ' + mot : ''}. ⌘Z lo deshace.`, { key: 'venc-accion', ms: 6000 });

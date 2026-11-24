@@ -351,7 +351,7 @@
     ok(!celda('r5'), 'una cancelada sale en la cuadrícula');
     const fila = celda('r1').querySelector('.lab .mks');
     ok(fila && fila.nextSibling && fila.nextSibling.nodeType === 3 && /nov/.test(fila.nextSibling.textContent), 'las marcas no van junto a la fecha');
-    ok(celda('r6').querySelector('.ph span') && !celda('r6').querySelector('.badges'), 'la casilla sin foto lleva algo arriba a la izquierda');
+    ok(celda('r6').querySelector('.ph span') && qa('.cell[data-slot="r6"] .badges > *').every(x => x.classList.contains('mpill')), 'la casilla sin foto lleva algo arriba a la izquierda');   // pieza 3a (D-318): solo la etiqueta del mes, en la más nueva
     ok(!qa('.cell .badges .dot, .cell .badges .mk, .cell .dot, .cell .st, .cell .dchg').length, 'quedan indicadores de antes en las casillas');
     const ancho = sel => q(sel).getBoundingClientRect().width;
     ok(ancho('.cell[data-slot="r2"] .e-publicado') <= ancho('.cell[data-slot="r1"] .e-programado') + 0.5, 'el doble tick ocupa más que el ✓');
@@ -2320,7 +2320,7 @@
     await M.flush();
     await M.open(claveNov);
     await hasta(() => vista(false).includes('m25.jpg'), 6000, '«Sin usar» en noviembre');
-    ok(portada(0), 'noviembre perdió su portada');
+    ok(M.board().previews[0] === a, 'noviembre perdió su portada');   // cambiada en la pieza 3a (D-318): con diciembre encima, los huecos de arriba son los de diciembre; el de noviembre sigue guardado
     // se borra diciembre con noviembre abierto: usada otra vez
     await M.purge(claveDic);
     await hasta(() => !vista(false).includes('m25.jpg'), 6000, 'que vuelva a contar como usada');
@@ -2334,7 +2334,7 @@
     igual(vista(false), [], 'ya en una publicación sigue en «Sin usar»');
     await M.flush();
     await M.open(claveNov);
-    ok(portada(0) && M.board().previews[0] === a, 'el hueco de noviembre perdió la foto');
+    ok(M.board().previews[0] === a, 'el hueco de noviembre perdió la foto');   // pieza 3a: no se dibuja (diciembre está encima), sigue guardado
     await hasta(() => vista(true).includes('m25.jpg ✓'), 6000, 'con ✓ en noviembre, por la publicación de diciembre');
     // se borra el mes del hueco, abierto otro mes o abierto él: la foto, que no va en otro sitio, queda en la bandeja del cliente
     for (const abierto of [DIC, MES]) {
@@ -6042,12 +6042,15 @@
       (await hasta(() => filaV('o2').querySelector('input[data-v="motivo"]'), 2000, 'el motivo')).value = 'Se quedó sin hacer';
       enFilaV('o2', 'v-can-ok');
       igual(await de(okey, 'o2'), { v: 'cancelado', motivo: 'Se quedó sin hacer' }, 'cancelar la de octubre');
-      M._test.undo(); M._test.undo();
+      // ⌘Z de un paso de octubre lleva a octubre (D-317, feed continuo): se deshace allí y se guarda con su guardado
+      const zz = async () => { M._test.undo(); if (M._test.histListo) await M._test.histListo(); await M.flush(); };
+      await zz(); await zz();
+      if (M._test.histListo) igual(M.status().key, okey, '⌘Z de octubre no llevó a octubre');
       igual([(await de(okey, 'o2')).v, (await de(okey, 'o3')).v, (await de(okey2, 'o3')).v], ['aprobado', 'aprobado', 'aprobado'], '⌘Z no devolvió octubre');
-      M._test.undo();
+      await zz();
       const e1 = await de(okey, 'o1');
       igual([e1.v, !!e1.tarde], ['programado', true], '⌘Z no devolvió la que pasó sola, como vencida');
-      await revisarV();
+      await revisarV(); await M.flush();
       igual((await de(okey, 'o1')).v, 'programado', 'devuelta con ⌘Z volvió a pasar sola');
       if (M._in.vencRefrescar) await M._in.vencRefrescar(); abrirV();
       await hasta(() => filaV('o3'), 3000, 'la fila de o3');
@@ -10834,26 +10837,18 @@
       ok(ro.width <= fr0.width + 0.5 && ro.left >= fr0.left - 0.5, `la pestaña en uso no se ve desde su principio: ${Math.round(ro.left)}–${Math.round(ro.right)} en ${Math.round(fr0.left)}–${Math.round(fr0.right)}`);
     } finally { fr.style.width = w0; I.trayAbrir(null); }
   });
-  prueba('S1', 'Sin fila encima del feed: ni el mes ni «Debajo: …» ni el botón de bloqueo; la etiqueta del mes anterior es su único candado, con icono de línea y la cuenta en su título (D-152)', async () => {
+  // cambiada a propósito en la pieza 3a del feed continuo (D-318): sin franja ni candado; lo de Notion del mes anterior se ve en su
+  // mes, solo para mirar, con la etiqueta del mes en su casilla más nueva
+  prueba('S1', 'Sin fila encima del feed: ni el mes ni «Debajo: …» ni el botón de bloqueo (D-152); y sin candado ni franja (D-318): el mes anterior de Notion sale en su mes, con su etiqueta y solo para mirar', async () => {
     const oct = (n, dia) => ({ id: `s1-p${n}`, name: `Foto 0.${n}`, type: 'Foto', date: `2026-10-${String(dia).padStart(2, '0')}T12:00:00.000+02:00` });
     await limpiar();
     const r = await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1), pub(2)], past: [oct(1, 5), oct(2, 9)], force: true });
     ok(r && r.key === `${CLIENTE}-${MES}`, 'no se abrió el tablero de prueba: ' + json(r));
-    await hasta(() => q('.feed .grid .cell.past'), 4000, 'el mes anterior en el feed');
+    await hasta(() => q('.feed .grid .cell.notion'), 4000, 'el mes anterior en el feed');
     ok(!q('.feed .legend') && q('.feed').firstElementChild === q('.feed .grid'), 'sigue la fila encima del feed');
     ok(!q('.lockbtn') && !/Debajo:|a preparar|de tu mesa/.test(q('.feed').textContent), 'quedan textos o el botón de la fila');
-    const et = () => qa('.cell.past .pmonth');
-    igual(et().length, 1, 'etiquetas en el mes anterior');
-    const p = et()[0];
-    ok(p.tagName === 'BUTTON' && p.querySelector('svg') && !/[🔒🔓]/u.test(p.textContent), 'la etiqueta no es un botón con icono de línea: ' + p.outerHTML.slice(0, 120));
-    ok(/^Octubre 2026 · 2 publicadas · Bloqueado: /.test(p.title), 'el título de la etiqueta: ' + p.title);
-    ok(qa('.cell.past').every(c => c.classList.contains('locked')), 'el mes anterior no empieza bloqueado');
-    p.click(); await espera(30);
-    await pulsar('[data-act="unlock-always"]');
-    ok(qa('.cell.past').every(c => !c.classList.contains('locked')), 'no se desbloqueó desde la etiqueta');
-    ok(/ · Desbloqueado: pulsa para bloquearlo$/.test(et()[0].title), 'el título desbloqueado: ' + et()[0].title);
-    et()[0].click(); await espera(30);
-    ok(qa('.cell.past').every(c => c.classList.contains('locked')) && / · Bloqueado: /.test(et()[0].title), 'no se volvió a bloquear desde la etiqueta');
+    ok(!q('.feed .pmonth') && !q('.feed .cell.past[data-prev]') && !q('.feed .cell.locked'), 'queda el candado o la franja');
+    igual(qa('.feed .fmes[data-mes="2026-10"] .cell').map(c => [c.dataset.notion, (c.querySelector('.mpill') || { textContent: '' }).textContent]), [['s1-p2', 'Oct'], ['s1-p1', '']], 'octubre de Notion, con su etiqueta');
   });
 
   prueba('S2', '«Abrir todas las notas» va en el clic derecho del feed (D-282, antes un icono de la barra, D-152): apagada sin ninguna Nota, «Cerrar todas las notas» mientras están abiertas y nunca en «Vista cliente»', async () => {
@@ -10939,14 +10934,17 @@
     ok(!/Pulsa uno para abrirlo/.test(t) && !t.includes(NOMBRE + ','), '«Revisar»: ' + t); M._in.closeDetail();
   });
 
-  prueba('LZ4', 'La línea de cifras ya no dice «N/M con foto»: lo dice el chip del mes, con el título «N de M con foto» (no en «Vista cliente») (D-157)', async () => {
+  // al día a propósito (pieza 4, D-323): el chip del mes y su «1/3» ya no existen; el título del mes en la cabecera de meses sigue diciendo
+  // «N de M con foto» solo a Kevin, sin cifras a la vista
+  prueba('LZ4', 'La línea de cifras ya no dice «N/M con foto»: lo dice el título del mes en la cabecera de meses, «Noviembre 2026 · N de M con foto» (no en «Vista cliente»), sin cifras a la vista (D-157, D-323)', async () => {
     await tablero([pub(1), pub(2), pub(3)]);
     await poner('r1', [await foto('lz4.jpg')]);
-    await hasta(() => q('.bar .mchip.on i') && q('.bar .mchip.on i').textContent === '1/3', 3000, 'el chip con 1/3');
+    const mes = () => q('.bar .mescab .mescab-mes[aria-current="true"]');
+    await hasta(() => mes() && mes().title === 'Noviembre 2026 · 1 de 3 con foto', 3000, 'el título del mes con 1 de 3');
     ok(!/con foto/.test(q('.bar .stats').textContent), 'sigue «con foto»: ' + q('.bar .stats').textContent);
-    igual(q('.bar .mchip.on').title, '1 de 3 con foto', 'el título del chip');
-    await conCliente(async () => { ok(!q('.bar .mchip.on').title, 'el título sale en «Vista cliente»'); });
-    igual(q('.bar .mchip.on').title, '1 de 3 con foto', 'el título al quitar la vista');
+    ok(!/\d\s*\/\s*\d/.test(q('.bar .mescab').textContent), 'cifras a la vista: ' + q('.bar .mescab').textContent);
+    await conCliente(async () => { igual(mes().title, 'Noviembre 2026', 'el título en «Vista cliente»'); });
+    igual(mes().title, 'Noviembre 2026 · 1 de 3 con foto', 'el título al quitar la vista');
   });
 
   prueba('LZ5', 'El recuadro «Arrastra aquí…» de la bandeja solo sale con la vista vacía: en una carpeta vacía sí; con fotos o carpetas (la raíz lleva «Historias»), no (D-158)', async () => {
@@ -11023,7 +11021,7 @@
     M.carpetasUI.accion('cp-nueva'); await hasta(() => q('.detail [data-form="cp-nueva"]'), 2000, 'Nueva carpeta'); sinBoton('Nueva carpeta'); M._in.closeDetail();
     const c = M.crearCarpeta('LZ11'); M.pedirBorrarCarpeta(c.id);
     await hasta(() => q('.detail [data-act="carpeta-borrar"]'), 2000, 'Borrar la carpeta'); sinBoton('Borrar la carpeta'); focoEnX('Borrar la carpeta'); M._in.closeDetail();
-    (await hasta(() => q('.cell.past .pmonth'), 3000, 'la etiqueta del mes anterior')).click();
+    M._in.withPrev(() => {}, 'none');   // the feed has no lock since D-318: the calendar's previous month still asks
     await hasta(() => q('.detail [data-act="unlock-always"]'), 2000, 'el bloqueo'); sinBoton('el bloqueo'); focoEnX('el bloqueo'); M._in.closeDetail();
     const [f] = await poner('r1', [await foto('lz11.jpg')]);
     M._test.addToSlot('r2', [f]);
@@ -11065,7 +11063,7 @@
 
   prueba('LZ14', 'Sin «+ Mes» en la barra del mes (D-157)', async () => {
     await tablero([pub(1)]);
-    await hasta(() => q('.bar .months .mchip'), 3000, 'la barra del mes');
+    await hasta(() => q('.bar .mescab .mescab-mes'), 3000, 'la barra del mes');   // al día a propósito: la cabecera de meses en vez de los chips (D-323)
     ok(!q('.bar [data-act="howmonth"]') && !qa('.bar button').some(b => b.textContent.trim() === '+ Mes'), 'sigue «+ Mes»');
   });
 
@@ -11157,7 +11155,7 @@
 
   prueba('LZ28', 'La barra del mes no lleva el avatar, el nombre grande ni el @: «⋯ Editar cliente» va junto a la pestaña del cliente (D-157)', async () => {
     await tablero([pub(1)]);
-    await hasta(() => q('.bar .months'), 3000, 'la barra del mes');
+    await hasta(() => q('.bar .mescab'), 3000, 'la barra del mes');   // al día a propósito: la cabecera de meses en vez de los chips (D-323)
     ok(!q('.bar .ident') && !q('.bar .av') && !q('.bar .who'), 'sigue la identificación');
     const t = q('.tabs .tab.on + .tedit'); ok(t && seVe(t), '«⋯» no está junto a la pestaña');
     t.click(); await hasta(() => q('.detail [data-form="editclient"]'), 3000, '«⋯» no abre Editar cliente'); M._in.closeDetail();
@@ -20601,7 +20599,7 @@
     igual(g.tabIndex, 0, 'el grid no es una parada de Tab'); igual(g.getAttribute('role'), 'group', 'el grid no dice qué es');
     g.focus(); tecla('F10', { shift: true, en: g }); await espera(30);
     ok(a43Menu(), '⇧F10 no abre el menú');
-    const r1 = q('.feed .grid > .cell').getBoundingClientRect(), mr = a43Menu().getBoundingClientRect();
+    const r1 = q('.feed .grid .cell').getBoundingClientRect(), mr = a43Menu().getBoundingClientRect();
     ok(mr.left >= r1.left - 1 && mr.left <= r1.right && mr.top >= r1.top - 1 && mr.top <= r1.bottom, 'el menú no sale sobre la primera casilla');
     ok(a43Menu().contains(D.activeElement), 'el foco no entra en el menú');
     tecla('ArrowDown', { en: D.activeElement }); ok(a43Menu().contains(D.activeElement), '↓ saca el foco del menú');
@@ -22810,6 +22808,2135 @@
       igual(px.textContent.replace(/ /g, ' '), 'Próxima factura, el 25 nov', 'la próxima factura');
     } finally { relojVuelve(); M._in.closeDetail(); await vistaCliente(false); }
   });
+
+  // ---------- feed continuo, pieza 1: cada tablero «como abierto», sin nada a la vista ----------
+  // Las reglas que leen el tablero abierto por omisión (S) aceptan otro (B); «como abierto» (MESA._in.armarTablero, y
+  // comoAbierto, que lo lee) arma un tablero guardado sin escribir nada; las copias en memoria de los tableros del cliente
+  // (MESA._in.tablerosMem) se sueltan en cuanto algo escribe su tablero. Nada de esto cambia lo que se ve ni lo que se guarda.
+  // el primer sitio en que dos valores difieren (para no imprimir dos tableros enteros)
+  function fcDifiere(a, b, ruta = '') {
+    if (json(a) === json(b)) return null;
+    if (a && b && typeof a === 'object' && typeof b === 'object' && Array.isArray(a) === Array.isArray(b)) {
+      const ks = [...new Set([...Object.keys(a), ...Object.keys(b)])];
+      if (!Array.isArray(a) && json(Object.keys(a)) !== json(Object.keys(b)) && ks.every(k => json(a[k]) === json(b[k]))) return `${ruta || '·'}: el orden de sus campos (${Object.keys(a).join(',')} / ${Object.keys(b).join(',')})`;
+      for (const k of ks) { const d = fcDifiere(a[k], b[k], ruta + '.' + k); if (d) return d; }
+    }
+    return `${ruta || '·'}: ${json(a)} frente a ${json(b)}`.slice(0, 600);
+  }
+  // cuántas escrituras reales (IndexedDB y localStorage) hace fn, vistas desde los métodos nativos (lección 171)
+  async function fcContar(fn) {
+    const n = { idb: 0, ls: 0, que: [] }, orig = [];
+    const tapa = (proto, m, tipo) => { const f = proto[m]; if (!f) return; orig.push([proto, m, f]);
+      proto[m] = function (...a) { n[tipo]++; n.que.push(`${m} ${tipo === 'idb' ? ((this.source && this.source.name) || this.name || '?') : a[0]}`); return f.apply(this, a); }; };
+    ['put', 'add', 'delete', 'clear'].forEach(m => tapa(W.IDBObjectStore.prototype, m, 'idb'));
+    ['update', 'delete'].forEach(m => tapa(W.IDBCursor.prototype, m, 'idb'));
+    ['setItem', 'removeItem', 'clear'].forEach(m => tapa(W.Storage.prototype, m, 'ls'));
+    try { const r = await fn(); await espera(150); return { ...n, r }; }   // lo que quedara en vuelo también cuenta
+    finally { orig.reverse().forEach(([p, m, f]) => { p[m] = f; }); }
+  }
+  // abre key (lo guarda al abrir) y lo compara con «como abierto» de lo guardado: el mismo tablero, campo a campo
+  async function fcComo(key, que) {
+    await M.flush(); ok(!(await M.open(key)).error, `${que}: no se abrió`); await M.flush();
+    const r = await M._in.comoAbierto(key);
+    ok(r && r.S, `${que}: «como abierto» no armó el tablero: ` + json(r && r.error));
+    ok(r.S !== M._in.S && r.S.slots !== M._in.S.slots, `${que}: «como abierto» dio el tablero abierto, no uno suyo`);
+    const d = fcDifiere(r.S, M._in.S); ok(!d, `${que}: no es el tablero tal como se abre: ${d}`);
+    igual(r.IDX, M._test.idx(), `${que}: sus enlaces con otros tableros`);
+    return r;
+  }
+  const fcSlot = (id, n, dia, mes = MES) => ({ id, name: `Foto ${n}`, type: 'Foto', date: `${mes}-${String(dia).padStart(2, '0')}T12:00:00.000+0${mes < '2026-10-25' ? 2 : 1}:00` });
+
+  prueba('FC1', '«Como abierto» (feed continuo, pieza 1): armar un tablero guardado da el mismo tablero, campo a campo, que abrirlo con MESA.open: un mes con huecos, portada, fijadas y el mes anterior de Notion; dos meses; día de ciclo 15; una collab enlazada; y con el tablero del mes anterior', async () => {
+    ok(M._in.armarTablero && M._in.comoAbierto, 'no hay armarTablero ni comoAbierto en MESA._in');
+    try {
+      // un mes: huecos con portada, una fijada y el mes anterior cargado de Notion
+      await limpiar();
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1), pub(2), pub(3, 'Carrusel')], past: [fcSlot('fc1-p1', '4.1', 20, '2026-10'), fcSlot('fc1-p2', '4.2', 24, '2026-10')], force: true });
+      await porAprobar(['r1', 'r2'], 'fc1'); M.setEstado('r1', 'aprobado');
+      M._test.setCrop(slot('r2').photos[0], 'r2', { cx: 0.4, cy: 0.6, z: 1.3 });
+      const [pv] = await M.addFiles([await foto('fc1-portada.jpg')]);
+      M._in.S.fillers = 2; M._in.S.pins = ['r2']; M._in.save(); await M._test.setPreview(0, pv);
+      await M.flush();
+      await fcComo(`${CLIENTE}-${MES}`, 'un mes');
+      // dos meses (D-007)
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, months: 2, slots: [pub(1), pub(2), pub(3, 'Carrusel'), pub(4, 'Foto', 5, '2026-12')], past: [], force: true });
+      await poner('r4-2026-12', [await foto('fc1-dic.jpg')]);
+      await fcComo(`${CLIENTE}-${MES}`, 'dos meses');
+      // día de ciclo 15 (otro cliente) y una collab enlazada con el primero (D-008)
+      await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 15, slots: [fcSlot('c15a', '1.1', 20), fcSlot('c15b', '1.2', 28), pub(1)], past: [], force: true });
+      await poner('c15a', [await foto('fc1-c15.jpg')]);
+      const r2 = await fcComo(`${CLIENTE2}-${MES}`, 'día de ciclo 15 con una collab');
+      ok((r2.IDX.r1 || []).some(x => x.key === `${CLIENTE}-${MES}`), 'la collab no sale enlazada: ' + json(r2.IDX));
+      await fcComo(`${CLIENTE}-${MES}`, 'el otro lado de la collab');
+      // con el tablero del mes anterior: su franja sale de ahí
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: '2026-10', slots: [fcSlot('fc1-o1', '4.1', 20, '2026-10'), fcSlot('fc1-o2', '4.2', 24, '2026-10')], past: [], force: true });
+      await poner('fc1-o1', [await foto('fc1-oct.jpg')]);
+      await M.flush();
+      const r3 = await fcComo(`${CLIENTE}-${MES}`, 'con el mes anterior en la mesa');
+      ok(r3.PB && r3.PB.key === `${CLIENTE}-2026-10` && r3.S.prev.some(p => p.id === 'fc1-o1' && p.src === 'mesa'), 'el mes anterior no sale de su tablero: ' + json(r3.S.prev));
+    } finally { await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 1, slots: [], past: [], force: true }); await limpiar(); }
+  });
+
+  prueba('FC2', 'Mirar no escribe (feed continuo, pieza 1; contado de verdad, lección 171): «como abierto» de cada tablero del cliente no hace ni una escritura en IndexedDB ni en localStorage, y no cambia el tablero abierto', async () => {
+    ok(M._in.comoAbierto, 'no hay comoAbierto en MESA._in');
+    await limpiar();
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: '2026-10', slots: [fcSlot('fc2-o1', '4.1', 20, '2026-10')], past: [], force: true });
+    await poner('fc2-o1', [await foto('fc2-oct.jpg')]);
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, months: 2, slots: [pub(1), pub(2), pub(3, 'Foto', 5, '2026-12')], past: [], force: true });
+    await porAprobar(['r1'], 'fc2'); M.setEstado('r1', 'aprobado');
+    await M.flush(); await M._test.fueraListo();
+    const antes = json(M._in.S), keys = (await M.boards()).filter(b => b.client === CLIENTE).map(b => b.key);
+    igual(keys.length, 2, 'los tableros del cliente');
+    const c = await fcContar(async () => { const out = []; for (const k of keys) out.push(await M._in.comoAbierto(k)); return out; });
+    igual([c.idb, c.ls], [0, 0], '«como abierto» escribió: ' + json(c.que));
+    ok(c.r.every(r => r && r.S), 'no armó todos los tableros');
+    igual(json(M._in.S), antes, 'cambió el tablero abierto');
+  });
+
+  prueba('FC3', 'Un mes que no es el abierto se dibuja con su propio tablero (feed continuo, pieza 1, trampa 3): una «Por programar» fijada y con el encuadre movido da, con otro mes abierto, el mismo estado, encuadre, casilla y paso que con su mes abierto; el día de ciclo y los meses, los de su tablero', async () => {
+    const OCT = '2026-10', okey = `${CLIENTE}-${OCT}`, X = M._in;
+    const casilla = (s, B) => X.cellHTML ? X.cellHTML(s, '', B) : 'sin cellHTML en MESA._in';
+    try {
+      await limpiar();
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: OCT, slots: [fcSlot('fc3-o1', '4.1', 20, OCT), fcSlot('fc3-o2', '4.2', 22, OCT)], past: [], force: true });
+      await porAprobar(['fc3-o1'], 'fc3');
+      const fid = slot('fc3-o1').photos[0];
+      M._test.setCrop(fid, 'fc3-o1', { cx: 0.3, cy: 0.35, z: 1.6 });
+      M.setEstado('fc3-o1', 'aprobado');
+      X.S.pins = ['fc3-o1']; X.save(); await M.flush();
+      const S0 = X.S, s0 = S0.slots.find(s => s.id === 'fc3-o1');
+      const antes = { e: X.estadoDe(s0), r: X.gridRect(fid, s0, S0), p: X.pasoDe(S0, OCT), c: casilla(s0, S0) };
+      igual(antes.e, 'aprobado', 'con su mes abierto no está «Por programar»');
+      ok(!X.cellHTML || antes.c.includes('Fijada'), 'la casilla no sale fijada');
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1)], past: [], force: true });
+      igual(X.S.key, `${CLIENTE}-${MES}`, 'no se abrió noviembre');
+      const B = await X.idbGet('boards', okey), s = B.slots.find(x => x.id === 'fc3-o1');
+      const d = fcDifiere({ e: X.estadoDe(s, B), r: X.gridRect(fid, s, B), p: X.pasoDe(B, OCT), c: casilla(s, B) }, antes);
+      ok(!d, 'con noviembre abierto, octubre se ve distinto: ' + d);
+      ok(X.cellHTML, 'no hay cellHTML en MESA._in');
+      // el día de ciclo y los meses, de su tablero (otro cliente, día 15); sin tablero, los del abierto
+      await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 15, slots: [fcSlot('c15a', '1.1', 20)], past: [], force: true });
+      await M.open(okey);
+      const B2 = await X.idbGet('boards', `${CLIENTE2}-${MES}`);
+      igual([X.curCd(B2), X.boardMonths(B2), X.inBoard('2026-12-10', B2), X.inBoard('2026-12-10')], [15, [MES], true, false], 'el día de ciclo y los meses de otro tablero');
+      igual([X.curCd(), X.boardMonths()], [1, [OCT]], 'sin tablero, los del abierto');
+      igual(X.estadoDe(X.S.slots.find(x => x.id === 'fc3-o1')), 'aprobado', 'al volver a octubre');
+    } finally { await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 1, slots: [], past: [], force: true }); await limpiar(); }
+  });
+
+  prueba('FC4', 'Las copias en memoria de los tableros del cliente (feed continuo, pieza 1, trampa 4): leerlas no escribe nada; nunca son el tablero abierto; «Ya se publicó» de una vencida de un mes anterior, una collab que se guarda, guardar ese tablero o cambiar de cliente las sueltan, y al leerlas otra vez traen lo nuevo', async () => {
+    const OCT = '2026-10', okey = `${CLIENTE}-${OCT}`, nkey = `${CLIENTE}-${MES}`, k2 = `${CLIENTE2}-${MES}`, T = M._in.tablerosMem;
+    ok(T && T.leer && T.ver && T.soltar, 'no hay tablerosMem en MESA._in');
+    try {
+      await limpiar();
+      reloj('2026-10-01', '09:00');
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: OCT, slots: [fcSlot('fc4-o1', '4.1', 20, OCT), fcSlot('fc4-o2', '4.2', 22, OCT)], past: [], force: true });
+      await porAprobar(['fc4-o1'], 'fc4'); M.setEstado('fc4-o1', 'aprobado'); await M.flush();
+      await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(1)], past: [], force: true }); await M.flush();   // r1: collab con el otro cliente
+      reloj('2026-11-04', '12:00');
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1), pub(2)], past: [], force: true });
+      await M.flush(); await M._test.fueraListo();
+      // leer no escribe, y la copia no es el tablero abierto
+      const c = await fcContar(async () => [await T.leer(okey), await T.leer(nkey), await T.leerCliente(CLIENTE)]);
+      igual([c.idb, c.ls], [0, 0], 'leer las copias escribió: ' + json(c.que));
+      const [co, cn] = c.r;
+      ok(co && co.key === okey && co.slots.some(s => s.id === 'fc4-o1'), 'la copia de octubre: ' + json(co && co.key));
+      ok(cn && cn !== M._in.S && cn.slots !== M._in.S.slots, 'la copia de noviembre es el tablero abierto');
+      igual(T.ver(okey), co, 'ver no da la copia leída');
+      igual(Object.keys(c.r[2]).sort(), [nkey, okey].sort(), 'leerCliente no da sus dos tableros');
+      ok(!('tray' in co) && !('carpetas' in co), 'una copia lleva su bandeja o sus carpetas: son del cliente');
+      // «Ya se publicó» de la vencida de octubre, desde noviembre: su copia se suelta y, leída otra vez, está publicada
+      await revisarV(); abrirV();
+      await hasta(() => filaV('fc4-o1'), 3000, 'la fila de la vencida de octubre');
+      enFilaV('fc4-o1', 'v-pub'); await M._test.fueraListo(); M._in.closeDetail();
+      ok(!T.ver(okey), '«Ya se publicó» no soltó la copia de octubre');
+      igual(((await T.leer(okey)).slots.find(s => s.id === 'fc4-o1').estado || {}).v, 'publicado', 'la copia de octubre no la trae publicada');
+      // la collab: guardar r1 aquí escribe el tablero del otro cliente y suelta su copia
+      ok(await T.leer(k2), 'la copia del otro cliente');
+      ok(T.ver(okey), 'leer un tablero de otro cliente soltó las de este');
+      M._test.setNote('r1', 'Contexto nuevo fc4'); await M.flush();
+      ok(!T.ver(k2), 'guardar la collab no soltó la copia del otro tablero');
+      igual((await T.leer(k2)).slots.find(s => s.id === 'r1').note, 'Contexto nuevo fc4', 'la copia de la collab no trae el cambio');
+      // guardar el tablero abierto suelta su propia copia
+      await T.leer(nkey); ok(T.ver(nkey), 'la copia de noviembre');
+      M._test.setNote('r2', 'Otro contexto'); await M.flush();
+      ok(!T.ver(nkey), 'guardar noviembre no soltó su copia');
+      // cambiar de cliente las suelta todas
+      await T.leer(okey); ok(T.ver(okey), 'la copia de octubre otra vez');
+      await M.open(k2);
+      ok(!T.ver(okey) && !T.ver(nkey), 'abrir otro cliente no soltó las copias');
+      await T.leer(okey); T.soltar(); ok(!T.ver(okey), 'soltar no las suelta');
+    } finally { volverReloj(); M._in.closeDetail(); }
+  });
+
+  prueba('FC5', 'Guarda de la trampa 4 (feed continuo, pieza 1): «Ya se publicó» de una vencida de octubre desde noviembre → ir a octubre → editarla → volver a leer: siguen las dos cosas (lo publicado y lo editado)', async () => {
+    const OCT = '2026-10', okey = `${CLIENTE}-${OCT}`, nkey = `${CLIENTE}-${MES}`;
+    try {
+      await limpiar();
+      reloj('2026-10-01', '09:00');
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: OCT, slots: [fcSlot('fc5-o1', '4.1', 20, OCT), fcSlot('fc5-o2', '4.2', 22, OCT)], past: [], force: true });
+      await porAprobar(['fc5-o1'], 'fc5'); M.setEstado('fc5-o1', 'aprobado'); await M.flush();
+      reloj('2026-11-04', '12:00');
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1)], past: [], force: true });
+      await revisarV(); abrirV();
+      await hasta(() => filaV('fc5-o1'), 3000, 'la fila de la vencida de octubre');
+      enFilaV('fc5-o1', 'v-pub'); await M._test.fueraListo(); M._in.closeDetail();
+      await M.open(okey);
+      igual((slot('fc5-o1').estado || {}).v, 'publicado', 'al ir a octubre no está publicada');
+      M._test.setMemo('fc5-o1', 'Nota de octubre'); await M.flush();
+      await M.open(nkey); await M.open(okey);   // «recargar»: se vuelve a leer de lo guardado
+      igual([(slot('fc5-o1').estado || {}).v, slot('fc5-o1').memo], ['publicado', 'Nota de octubre'], 'tras volver a leer octubre');
+      const g = (await M._in.idbGet('boards', okey)).slots.find(s => s.id === 'fc5-o1');
+      igual([(g.estado || {}).v, g.memo], ['publicado', 'Nota de octubre'], 'lo guardado de octubre');
+    } finally { volverReloj(); M._in.closeDetail(); }
+  });
+
+  prueba('FC6', 'Guarda de la pieza 1 del feed continuo: abrir otra vez un tablero da el mismo tablero (S, MESA.board(), plan(), lo que dibuja el feed, la imagen del feed y el calendario) y lo guardado no cambia salvo su hora', async () => {
+    await tablero([pub(1), pub(2), pub(3, 'Carrusel'), pub(4)]);
+    await porAprobar(['r1', 'r2'], 'fc6'); M.setEstado('r1', 'aprobado'); M.setEstado('r4', 'cancelado');
+    M._in.S.fillers = 1; M._in.S.pins = ['r2']; M._in.save();
+    await M.flush();
+    const key = M.status().key, sinHora = o => { const c = JSON.parse(json(o)); delete c.savedAt; return c; };
+    const foto1 = async () => ({ s: sinHora(M._in.S), b: sinHora(M.board()), v: await vistaFeed(), g: sinHora(await M._in.idbGet('boards', key)), st: sinHora(M.status()), cal: qa('.side > .cal [data-slot]').map(e => e.dataset.slot) });
+    await M.open(key); await M.flush();
+    const a = await foto1();
+    await M.open(key); await M.flush();
+    const d = fcDifiere(await foto1(), a); ok(!d, 'abrir otra vez cambió algo: ' + d);
+    igual(json(M.board()), json(M._in.S), 'MESA.board() no es la copia del abierto');
+  });
+  // ---------- feed continuo, pieza 2: el mes activo cambia sin reabrir; ⌘Z, una historia por cliente ----------
+  // MESA._in.activar(key) cambia el tablero abierto (S) a otro mes del mismo cliente sin releer ni escribir nada; la bandeja y las
+  // carpetas son un solo objeto del cliente; un paso de ⌘Z sabe de qué tablero es y, si no es el que se ve, lo activa (D-317).
+  const FD_OCT = '2026-10', fdO = `${CLIENTE}-${FD_OCT}`, fdN = `${CLIENTE}-${MES}`;
+  async function fdDos(masN = [], masO = []) {   // octubre y noviembre del cliente, guardados; abierto noviembre
+    await limpiar();
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: FD_OCT, slots: [fcSlot('fd-o1', '4.1', 20, FD_OCT), fcSlot('fd-o2', '4.2', 22, FD_OCT), ...masO], past: [], force: true });
+    await M.flush();
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1), pub(2), ...masN], past: [], force: true });
+    await M.flush();
+  }
+  async function fdAct(key) {   // otro mes abierto para preparar la prueba, como si se abriera con MESA.open: sin la concesión de una skill de antes (D-334)
+    ok(M._in.activar, 'no hay activar en MESA._in');
+    if (M._in.skill) M._in.skill.cerrar();
+    const r = await M._in.activar(key);
+    ok(r && !r.error, `no se activó ${key}: ` + json(r));
+    igual(M._in.S && M._in.S.key, key, 'el tablero activo');
+    return r;
+  }
+  async function fdZ(atras) { if (atras) M._test.undo(); else M._test.redo(); if (M._test.histListo) await M._test.histListo(); await espera(30); }
+  const fdDisco = async (k, id) => { await M._test.fueraListo(); return ((await M._in.idbGet('boards', k)) || { slots: [] }).slots.find(s => s.id === id) || null; };
+  const fdVeces = (l, ids) => ids.map(id => l.filter(x => x === id).length);
+
+  prueba('FD1', 'Trampa 1 (feed continuo, pieza 2): el contexto de una collab enlazada, editado y con otro mes activado antes de 250 ms, llega al otro cliente y se guarda en su tablero; igual la nota y el motivo de una cancelación (sus temporizadores); nada se guarda en el mes que se activa', async () => {
+    try {
+      await fdDos([pub(3)]);
+      await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(1)], past: [], force: true }); await M.flush();   // r1: collab con el otro cliente
+      await M.open(fdN); await M.flush();
+      ok(M._test.shared('r1').length, 'r1 no está enlazada con el otro cliente');
+      const oct0 = json(await M._in.idbGet('boards', fdO));
+      M._test.setNote('r1', 'Contexto FD1');
+      await fdAct(fdO);
+      igual([(await fdDisco(fdN, 'r1')).note, (await fdDisco(`${CLIENTE2}-${MES}`, 'r1')).note], ['Contexto FD1', 'Contexto FD1'], 'el contexto de la collab, en los dos tableros');
+      await fdAct(fdN);
+      M._test.setMemo('r2', 'Nota FD1');
+      await fdAct(fdO);
+      igual((await fdDisco(fdN, 'r2')).memo, 'Nota FD1', 'la nota');
+      await fdAct(fdN);
+      M.setEstado('r3', 'cancelado'); await M.flush();
+      ok(M._test.setMotivo, 'no hay setMotivo en MESA._test');
+      M._test.setMotivo('r3', 'Motivo FD1');
+      await fdAct(fdO);
+      igual((await fdDisco(fdN, 'r3')).estado, { v: 'cancelado', motivo: 'Motivo FD1' }, 'el motivo de la cancelación');
+      await espera(600);   // lo que quedara de los temporizadores
+      igual(json(await M._in.idbGet('boards', fdO)), oct0, 'se guardó algo en octubre');
+      igual([(await fdDisco(fdN, 'r1')).note, (await fdDisco(fdN, 'r2')).memo], ['Contexto FD1', 'Nota FD1'], 'noviembre, al final');
+    } finally { await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [], past: [], force: true }); await limpiar(); }
+  });
+
+  prueba('FD3', 'R1 (feed continuo, pieza 2): subir una carpeta, activar otro mes a mitad, seguir y subir otra: no se pierde ninguna foto y la bandeja del cliente (memoria y disco) las tiene todas, una vez', async () => {
+    await fdDos();
+    const sb = await M._in.empezarSubida(); ok(sb, 'no empezó la subida');
+    let a, b;
+    try {
+      a = await M._in.entrarFoto(sb, null, await foto('fd3-a.jpg'), 'image/jpeg');
+      await fdAct(fdO);
+      b = await M._in.entrarFoto(sb, null, await foto('fd3-b.jpg'), 'image/jpeg');
+    } finally { await M._in.acabarSubida(sb, []); }
+    const sb2 = await M._in.empezarSubida(); ok(sb2, 'no empezó la segunda subida');
+    const c = await M._in.entrarFoto(sb2, null, await foto('fd3-c.jpg'), 'image/jpeg');
+    await M._in.acabarSubida(sb2, []);
+    await M.flush();
+    const ids = [a.id, b.id, c.id];
+    igual(fdVeces(M.board().tray, ids), [1, 1, 1], 'la bandeja en memoria');
+    igual(fdVeces((await M._in.idbGet('bandejas', CLIENTE)).tray, ids), [1, 1, 1], 'la bandeja guardada');
+    await fdAct(fdN);
+    igual(fdVeces(M.board().tray, ids), [1, 1, 1], 'la bandeja al volver a noviembre');
+    await M.flush(); await M.open(fdO);
+    igual(fdVeces(M.board().tray, ids), [1, 1, 1], 'la bandeja al abrir octubre de lo guardado');
+  });
+
+  prueba('FD4', 'Activar no escribe ni pide nada a la red (feed continuo, pieza 2; contado de verdad, lección 171) y 10 activaciones seguidas dejan el tablero, MESA.board(), plan() y lo que se dibuja como al abrirlo con MESA.open', async () => {
+    await fdDos([pub(3, 'Carrusel')]);
+    await poner('r1', [await foto('fd4-n.jpg')]); M._test.setNote('r1', 'Contexto FD4');
+    await M.flush(); await M.open(fdO);
+    await poner('fd-o1', [await foto('fd4-o.jpg')]); M._test.setCrop(slot('fd-o1').photos[0], 'fd-o1', { cx: 0.4, cy: 0.6, z: 1.3 });
+    await M.flush(); await M.open(fdN); await M.flush(); await M._test.fueraListo(); await espera(300);
+    let red = 0; const f0 = W.fetch; W.fetch = (...a) => { red++; return f0.apply(W, a); };
+    let c;
+    try { c = await fcContar(async () => { ok(M._in.activar, 'no hay activar en MESA._in'); const out = []; for (let i = 0; i < 10; i++) out.push(await M._in.activar(i % 2 ? fdN : fdO)); return out; }); }
+    finally { W.fetch = f0; }
+    ok(c.r.every(r => r && !r.error), 'una activación falló: ' + json(c.r));
+    igual([c.idb, c.ls, red], [0, 0, 0], 'activar escribió o pidió algo: ' + json(c.que));
+    igual(M._in.S.key, fdN, 'el activo tras 10');
+    const sinHora = o => { const x = JSON.parse(json(o)); delete x.savedAt; delete x.editedAt; return x; };
+    const foto1 = async () => ({ s: sinHora(M._in.S), b: sinHora(M.board()), p: M.plan(), cel: qa('.feed .grid .cell').map(e => [e.dataset.slot || '', e.className]), cal: qa('.side > .cal [data-slot]').map(e => e.dataset.slot) });
+    const r = await M._in.comoAbierto(fdN);
+    const d0 = fcDifiere(sinHora(r.S), sinHora(M._in.S)); ok(!d0, 'el activo no es el tablero «como abierto»: ' + d0);
+    const a = await foto1();
+    await M.open(fdN); await M.flush(); await espera(100);
+    const d = fcDifiere(await foto1(), a); ok(!d, 'activado no es lo que da MESA.open: ' + d);
+  });
+
+  prueba('FD5', 'Trampa 6 (feed continuo, pieza 2): activar otro mes no rehace .main: el feed, la bandeja y el calendario son los mismos nodos, y la bandeja conserva su desplazamiento y el foco', async () => {
+    await fdDos();
+    const fs = []; for (let i = 0; i < 18; i++) fs.push(await foto(`fd5-${i}.jpg`, 300, 375));
+    await M.addFiles(fs); M._in.render(); await espera(80);
+    const feed = q('.main > .feed'), tray = q('.main .tray'), cal = q('.main .side > .cal'), tb = q('.main .tray .tbody');
+    ok(feed && tray && tb, 'sin feed o bandeja');
+    if (tb.scrollHeight > tb.clientHeight + 30) tb.scrollTop = 30;
+    const st = tb.scrollTop, btn = q('.main .tray .tfil [data-v="todas"]'); btn.focus();
+    ok(D.activeElement === btn, 'no se pudo poner el foco');
+    await fdAct(fdO); await espera(80);
+    ok(q('.main > .feed') === feed && q('.main .tray') === tray && q('.main .side > .cal') === cal, 'activar rehízo .main');
+    igual(tb.scrollTop, st, 'el desplazamiento de la bandeja');
+    ok(D.activeElement === btn, 'el foco de la bandeja se perdió');
+    ok(qa('.feed .grid .cell[data-slot="fd-o1"]').length === 1, 'el feed no es el de octubre');
+  });
+
+  prueba('FD8', 'Activar se niega (feed continuo, pieza 2) con una ventana abierta, un campo en edición, un arrastre o un trabajo en marcha, y no cambia nada', async () => {
+    await fdDos();
+    await poner('r1', [await foto('fd8.jpg')]); await M.flush();
+    ok(M._in.activar, 'no hay activar en MESA._in');
+    const igualQue = async que => { const antes = json(M._in.S); const r = await M._in.activar(fdO); ok(r && r.error, `${que}: se activó`); igual([M._in.S.key, json(M._in.S)], [fdN, antes], `${que}: cambió algo`); };
+    M._in.openDetail('r1'); await espera(40);
+    await igualQue('con la ventana de una publicación'); M._in.closeDetail(); await espera(40);
+    const inp = D.createElement('input'); inp.type = 'text'; q('.main .tray').append(inp); inp.focus();
+    try { await igualQue('con un campo en edición'); } finally { inp.remove(); }
+    const c = celda('r1'); c.dispatchEvent(new W.DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: new W.DataTransfer() }));
+    try { await igualQue('con un arrastre'); } finally { c.dispatchEvent(new W.DragEvent('dragend', { bubbles: true })); }
+    M.uploads.__fd8 = { state: 'uploading' };
+    try { await igualQue('con una subida en marcha'); } finally { delete M.uploads.__fd8; }
+    await fdAct(fdO);
+  });
+
+  prueba('FD9', 'Collabs (D-008) tras activar (feed continuo, pieza 2): un cambio en una publicación enlazada llega al otro cliente y recibe una revisión nueva (s.at), con el mes que llegó de una copia y con el que vuelve de ser copia', async () => {
+    try {
+      await fdDos();
+      await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(1)], past: [], force: true }); await M.flush();
+      await M.open(fdO); await M.flush();
+      await fdAct(fdN);
+      ok(M._test.shared('r1').length, 'activado, r1 no sale enlazada');
+      const at0 = (await fdDisco(fdN, 'r1')).at || 0;
+      M._test.setSlot('r1', { note: 'Collab FD9 uno' }); await M.flush();
+      const n1 = await fdDisco(fdN, 'r1');
+      igual([(await fdDisco(`${CLIENTE2}-${MES}`, 'r1')).note, n1.note], ['Collab FD9 uno', 'Collab FD9 uno'], 'tras la primera activación');
+      ok((n1.at || 0) > at0, 'no recibió una revisión nueva');
+      await fdAct(fdO); await fdAct(fdN);
+      M._test.setSlot('r1', { note: 'Collab FD9 dos' }); await M.flush();
+      igual((await fdDisco(`${CLIENTE2}-${MES}`, 'r1')).note, 'Collab FD9 dos', 'tras volver de ser copia');
+      ok(((await fdDisco(fdN, 'r1')).at || 0) > (n1.at || 0), 'la segunda vez no recibió una revisión nueva');
+    } finally { await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [], past: [], force: true }); await limpiar(); }
+  });
+
+  prueba('FD2', 'Trampa 2 (feed continuo, pieza 2): foto de la bandeja a noviembre → editar octubre (poner otra y quitar una tercera de la mesa) → ⌘Z ×3 → ⇧⌘Z ×3: todo vuelve, cada mes se activa al deshacer lo suyo, nada se duplica ni se pierde, y la foto que un paso de octubre devuelve sigue en el disco', async () => {
+    await fdDos();
+    const [P, Q, R] = await M.addFiles([await foto('fd2-p.jpg'), await foto('fd2-q.jpg'), await foto('fd2-r.jpg')]);
+    const u0 = M._test.hist().undo;
+    M._test.place('r1', P);
+    await fdAct(fdO);
+    M._test.place('fd-o1', Q);
+    M._test.removeFile(R);
+    await fdAct(fdN);
+    igual(M._test.hist().undo, u0 + 3, 'los tres pasos, en una sola historia');
+    await M._test.deleteIfUnused(R);
+    ok(await M._in.idbGet('files', R), 'se borró del disco una foto que un paso de octubre devuelve');
+    await fdZ(true);
+    igual([M._in.S.key, fdVeces(M.board().tray, [R])], [fdO, [1]], '⌘Z 1: octubre, con la foto quitada de vuelta');
+    await fdZ(true);
+    igual([M._in.S.key, slot('fd-o1').photos, fdVeces(M.board().tray, [Q, R])], [fdO, [], [1, 1]], '⌘Z 2');
+    await fdZ(true);
+    igual([M._in.S.key, slot('r1').photos, fdVeces(M.board().tray, [P, Q, R])], [fdN, [], [1, 1, 1]], '⌘Z 3: noviembre');
+    await M.flush(); igual((await fdDisco(fdO, 'fd-o1')).photos, [], 'octubre guardado');
+    await fdZ(false);
+    igual([M._in.S.key, slot('r1').photos, fdVeces(M.board().tray, [P, Q, R])], [fdN, [P], [0, 1, 1]], '⇧⌘Z 1');
+    await fdZ(false);
+    igual([M._in.S.key, slot('fd-o1').photos, fdVeces(M.board().tray, [P, Q, R])], [fdO, [Q], [0, 0, 1]], '⇧⌘Z 2: octubre');
+    await fdZ(false);
+    igual([M._in.S.key, fdVeces(M.board().tray, [P, Q, R])], [fdO, [0, 0, 0]], '⇧⌘Z 3');
+    await M.flush(); igual([(await fdDisco(fdN, 'r1')).photos, (await fdDisco(fdO, 'fd-o1')).photos], [[P], [Q]], 'lo guardado de los dos meses');
+    ok(await M._in.idbGet('files', R), 'la foto quitada ya no está en el disco');
+    const bd = await M._in.idbGet('bandejas', CLIENTE);
+    igual(fdVeces(bd.tray, [P, Q, R]), [0, 0, 0], 'la bandeja guardada del cliente');
+  });
+
+  prueba('FD7', '⌘Z y ⇧⌘Z entre meses (feed continuo, pieza 2; D-317): una sola historia del cliente, en orden, también tras activar; un paso de un mes que no se ve activa ese mes', async () => {
+    await fdDos();
+    M._test.setSlot('r1', { memo: 'N1' });
+    await fdAct(fdO); M._test.setSlot('fd-o1', { memo: 'O1' });
+    await fdAct(fdN); M._test.setSlot('r2', { memo: 'N2' });
+    await fdAct(fdO);
+    const h = M._test.hist();
+    await fdZ(true); igual([M._in.S.key, slot('r2').memo], [fdN, undefined], '⌘Z 1: N2');
+    await fdZ(true); igual([M._in.S.key, slot('fd-o1').memo], [fdO, undefined], '⌘Z 2: O1');
+    await fdZ(true); igual([M._in.S.key, slot('r1').memo], [fdN, undefined], '⌘Z 3: N1');
+    igual([M._test.hist().undo, M._test.hist().redo], [h.undo - 3, h.redo + 3], 'la historia');
+    await fdZ(false); igual([M._in.S.key, slot('r1').memo], [fdN, 'N1'], '⇧⌘Z 1');
+    await fdZ(false); igual([M._in.S.key, slot('fd-o1').memo], [fdO, 'O1'], '⇧⌘Z 2');
+    await fdZ(false); igual([M._in.S.key, slot('r2').memo], [fdN, 'N2'], '⇧⌘Z 3');
+    await M.flush(); igual([(await fdDisco(fdN, 'r1')).memo, (await fdDisco(fdO, 'fd-o1')).memo, (await fdDisco(fdN, 'r2')).memo], ['N1', 'O1', 'N2'], 'lo guardado');
+  });
+
+  prueba('FD10', 'Guarda de la historia por cliente (feed continuo, pieza 2; D-317): MESA.open de otro mes del mismo cliente no la reinicia; MESA.init de una skill sobre un tablero cargado y otro cliente, sí', async () => {
+    await fdDos();
+    M._test.setSlot('r1', { memo: 'H1' });
+    const u = M._test.hist().undo; ok(u >= 1, 'sin el paso');
+    await M.open(fdO);
+    igual(M._test.hist().undo, u, 'MESA.open de otro mes reinició la historia');
+    await M.open(fdN);
+    igual(M._test.hist().undo, u, 'volver con MESA.open la reinició');
+    await fdZ(true); igual(slot('r1').memo, undefined, '⌘Z tras MESA.open');
+    await fdZ(false);
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1), pub(2)], past: [], force: true });
+    igual(M._test.hist().undo, 0, 'MESA.init de una skill no la reinició');
+    M._test.setSlot('r1', { memo: 'H2' }); ok(M._test.hist().undo === 1, 'sin el paso nuevo');
+    await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(1)], past: [], force: true });
+    igual(M._test.hist().undo, 0, 'otro cliente no la reinició');
+    await M.open(fdN);
+    igual(M._test.hist().undo, 0, 'volver al cliente trajo su historia vieja');
+    await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [], past: [], force: true }); await limpiar();
+  });
+  prueba('FD6', 'Trampa 7 (feed continuo, pieza 2): con «Web del cliente», volver a un mes ya visto o activar 10 veces no hace una petición por mes; lo que decide el cliente en otro mes se aplica sin ser un paso de ⌘Z', async () => {
+    await fdDos();
+    await M.open(fdO); await porAprobar(['fd-o1'], 'fd6'); await M.flush();
+    await M.open(fdN); await poner('r1', [await foto('fd6-n.jpg')]); await M.flush();
+    await conWeb(async sv => {
+      wbSesion();
+      await fdAct(fdO);
+      const r0 = await M.web.enviar(); ok(r0.ok, 'no se envió: ' + json(r0));
+      await espera(3400);
+      await fdAct(fdN); await espera(3400);
+      const n1 = sv.pedidos.length;
+      await fdAct(fdO); await espera(3400);
+      await fdAct(fdN); await espera(3400);
+      igual(sv.pedidos.slice(n1).map(p => p.met + ' ' + p.ruta.split('?')[0]), [], 'volver a meses ya vistos pidió al servidor');
+      for (let i = 0; i < 10; i++) await fdAct(i % 2 ? fdN : fdO);
+      await espera(3400);
+      igual(sv.pedidos.slice(n1).map(p => p.met + ' ' + p.ruta.split('?')[0]), [], '10 activaciones pidieron al servidor');
+      // lo que decide el cliente en octubre: aprobado, sin ser un paso
+      const p1 = sv.db.publicaciones.find(x => x.mes === FD_OCT && x.estado === 'por_aprobar');
+      ok(p1, 'octubre no se envió: ' + json(sv.db.publicaciones.map(x => x.mes)));
+      sv.db.aprobaciones.push({ id: 'fd6a', cliente_id: CLIENTE, pid: p1.pid, version: p1.version, decision: 'aprobada', motivo: null, diapositiva: null, autor_nombre: 'Ana', hora: new Date(Date.now() + 1000).toISOString() });
+      await fdAct(fdO);
+      const h0 = M._test.hist();
+      await M.web.leer(); await espera(80);
+      igual(M._in.estadoDe(slot('fd-o1')), 'aprobado', 'la aprobación del cliente');
+      igual(M._test.hist().undo, h0.undo, 'la decisión del cliente es un paso de ⌘Z');
+      await fdZ(true);
+      igual([M._in.S.key, slot('r1').photos], [fdN, []], '⌘Z no deshizo lo de noviembre');
+      await fdAct(fdO);
+      igual(M._in.estadoDe(slot('fd-o1')), 'aprobado', '⌘Z deshizo la decisión del cliente');
+    });
+  });
+
+  // ---------- feed continuo, pieza 3a: el feed seguido, todos los meses del cliente en una sola cuadrícula ----------
+  prueba('FE11', 'El mes activo (feed continuo, pieza 3a): MESA.init y MESA.open lo dejan en el primer mes de su tablero, abrir el cliente en el de hoy (D-121), activar en el pedido; pon() de otro mes del mismo tablero no cambia de tablero', async () => {
+    try {
+      await fdDos();   // octubre y noviembre, abierto noviembre
+      const A = M._in.mesActivo; ok(A && A.lee && A.pon && A.quien, 'no hay mesActivo en MESA._in');
+      igual([A.lee(), M._in.S.key], [MES, fdN], 'tras MESA.init de noviembre');
+      await M.open(fdO); igual([A.lee(), A.quien()], [FD_OCT, 'open'], 'MESA.open de octubre');
+      await M.openClient(CLIENTE); await M.flush();
+      igual([A.lee(), A.quien(), M._in.S.key], [FD_OCT, 'cliente', fdO], 'abrir el cliente: el mes de hoy');
+      await fdAct(fdN); igual(A.lee(), MES, 'activar noviembre');
+      const r = await A.pon(FD_OCT, 'prueba'); ok(r && r.ok, 'pon(): ' + json(r));
+      igual([A.lee(), A.quien(), M._in.S.key], [FD_OCT, 'prueba', fdO], 'pon() de octubre');
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: '2026-12', months: 2, slots: [pub(1, 'Foto', 3, '2026-12'), pub(2, 'Foto', 4, '2027-01')], past: [], force: true }); await M.flush();
+      const k2 = M._in.S.key; igual(A.lee(), '2026-12', 'un tablero de dos meses, al abrirlo');
+      const r2 = await A.pon('2027-01'); ok(r2 && r2.ok, 'pon() de enero: ' + json(r2));
+      igual([A.lee(), M._in.S.key], ['2027-01', k2], 'su segundo mes, sin cambiar de tablero');
+    } finally { await limpiar(); }
+  });
+
+  const feMeses = () => qa('.feed .grid > .fmes').map(w => w.dataset.mes);
+  async function feTodo(meses, que = 'los meses del feed') { await hasta(() => json(feMeses()) === json(meses), 6000, `${que}: ${json(meses)} (hay ${json(feMeses())})`); await espera(30); }
+  const feIds = m => qa(`.feed .grid > .fmes[data-mes="${m}"] .cell`).map(c => c.dataset.slot || c.dataset.notion || c.dataset.filler || '?');
+  // el html de una casilla sin lo que pone la carga de fotos (src), para comparar con cellHTML
+  const feNorm = h => { const t = D.createElement('template'); t.innerHTML = h; t.content.querySelectorAll('img').forEach(i => i.removeAttribute('src')); return t.innerHTML; };
+
+  prueba('FE1', 'El feed seguido (pieza 3a): cada mes una vez, de su tablero, en una sola cuadrícula sin fila nueva, del más nuevo al más antiguo, sin candado, franja ni recuadro; las casillas de cada mes, las mismas (cellHTML) que con su tablero abierto', async () => {
+    try {
+      await fdDos();   // octubre (fd-o1, fd-o2) y noviembre (r1, r2); abierto noviembre
+      await M.open(fdO); await poner('fd-o2', [await foto('fe1.jpg', 1500, 1200)]); M._test.crop && M._test.crop('fd-o2', { cx: 0.3, cy: 0.5, z: 1.4 }); await M.flush();
+      await M.open(fdN); await M.flush();
+      await feTodo([MES, FD_OCT]);
+      igual(feIds(MES), ['r2', 'r1'], 'noviembre, de lo nuevo a lo antiguo');
+      igual(feIds(FD_OCT), ['fd-o2', 'fd-o1'], 'octubre, de su tablero');
+      igual(qa('.feed .grid > .fmes').map(w => w.dataset.tablero), [fdN, fdO], 'el tablero de cada mes');
+      igual(qa('.feed .grid > .fmes').map(w => getComputedStyle(w).display), ['contents', 'contents'], 'la envoltura no rompe las filas');
+      const ids = qa('.feed .grid .cell[data-slot]').map(c => c.dataset.slot); igual(ids.length, new Set(ids).size, 'una publicación dos veces');
+      ok(!q('.feed .pmonth, .feed [data-act="prevlock"], .feed .cell.past[data-prev], .feed .bd'), 'queda el candado, la franja o el mes anterior apagado');
+      const a = celda('r1').getBoundingClientRect(), b = celda('fd-o2').getBoundingClientRect();
+      cerca(b.top, a.top, 1, 'octubre empieza en una fila nueva (su primera casilla, junto a la última de noviembre)');
+      ok(b.left > a.left, 'octubre sigue en la misma fila');
+      // las casillas de octubre: las de su tablero abierto
+      const oct = qa(`.feed .grid > .fmes[data-mes="${FD_OCT}"] .cell`).map(c => feNorm(c.outerHTML));
+      await M.open(fdO); await M.flush();
+      const B = M._in.S, pill = { 'fd-o2': 'Oct' };
+      igual(oct, B.slots.filter(s => M._in.vivo(s)).map(s => feNorm(M._in.cellHTML(s, pill[s.id] || '', B, true))), 'las casillas de octubre, frente a su tablero abierto');
+    } finally { await limpiar(); }
+  });
+
+  prueba('FE2', 'Qué mes sale y de dónde (pieza 3a): un tablero de dos meses reparte sus publicaciones; día de ciclo 15 (límites y nombre); dos tableros con el mismo mes (manda el último usado y su etiqueta lo dice solo a Kevin); un mes sin tablero entre dos, de Notion, se ve y solo se mira', async () => {
+    try {
+      await limpiar();
+      // septiembre de un mes con lo de Notion de agosto; noviembre-diciembre de dos meses con octubre de Notion debajo
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: '2026-09', slots: [fcSlot('fe-s1', '9.1', 10, '2026-09')], past: [{ id: 'fe-ag', name: 'Agosto 1', type: 'Foto', date: '2026-08-20T12:00:00.000+02:00' }], force: true }); await M.flush();
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, months: 2, slots: [pub(1), pub(2, 'Foto', 20, '2026-12')], past: [{ id: 'fe-oc', name: 'Octubre 1', type: 'Foto', date: '2026-10-20T12:00:00.000+02:00' }], force: true }); await M.flush();
+      await feTodo(['2026-12', MES, FD_OCT, '2026-09', '2026-08']);
+      igual([feIds('2026-12'), feIds(MES)], [['r2-2026-12'], ['r1']], 'el tablero de dos meses, repartido');
+      igual(qa('.feed .grid > .fmes').map(w => w.dataset.tablero).slice(0, 2), [`${CLIENTE}-${MES}`, `${CLIENTE}-${MES}`], 'los dos meses, de su tablero');
+      igual([feIds(FD_OCT), feIds('2026-08')], [['fe-oc'], ['fe-ag']], 'los meses de Notion');
+      for (const m of [FD_OCT, '2026-08']) {
+        const c = q(`.feed .grid > .fmes[data-mes="${m}"] .cell`);
+        ok(c.classList.contains('notion') && !c.dataset.slot && !c.dataset.prev && /solo para mirar/.test(c.title), `${m}: no es solo para mirar`);
+        c.click(); await espera(60); ok(!dialogo(), `${m}: abrió una ventana`);
+      }
+      // día de ciclo 15
+      await limpiar();
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, cycleDay: 15, months: 2, slots: [fcSlot('fe-c1', '1', 16, MES), fcSlot('fe-c2', '2', 14, '2026-12'), fcSlot('fe-c3', '3', 16, '2026-12')], past: [], force: true }); await M.flush();
+      await feTodo(['2026-12', MES]);
+      igual([feIds('2026-12'), feIds(MES)], [['fe-c3'], ['fe-c2', 'fe-c1']], 'ciclo 15: el 14 de diciembre es del ciclo de noviembre');
+      const et = qa('.feed .mpill').map(x => x.textContent);
+      ok(et.length === 2 && et.every(t => /\d/.test(t)) && et[0] !== et[1], 'ciclo 15: el nombre del ciclo: ' + json(et));
+      // dos tableros con noviembre: octubre-noviembre y noviembre; el último usado manda
+      await limpiar();
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: FD_OCT, months: 2, cycleDay: 1, slots: [fcSlot('fd-o1', '4.1', 20, FD_OCT), fcSlot('fe-d1', '5.1', 9, MES)], past: [], force: true }); await M.flush();
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1), pub(2)], past: [], force: true }); await M.flush();
+      await feTodo([MES, FD_OCT]);
+      igual([feIds(MES), q(`.feed .grid > .fmes[data-mes="${MES}"]`).dataset.tablero], [['r2', 'r1'], fdN], 'noviembre, del último usado');
+      const md = q(`.feed .grid > .fmes[data-mes="${MES}"] .mdos`);
+      ok(md && /1 publicación/.test(md.title) && getComputedStyle(md).display !== 'none', 'la etiqueta no avisa de los dos tableros');
+      await vistaCliente(true); await espera(60);
+      igual(getComputedStyle(q(`.feed .grid > .fmes[data-mes="${MES}"] .mdos`)).display, 'none', 'el cliente ve el aviso');
+      await vistaCliente(false);
+      await M.open(fdO); await M.flush(); await feTodo([MES, FD_OCT]);
+      igual(feIds(MES), ['fe-d1'], 'noviembre, del último usado (ahora el de dos meses)');
+    } finally { await vistaCliente(false); await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, cycleDay: 1, slots: [], past: [], force: true }); await limpiar(); }
+  });
+
+  prueba('FE3', 'La etiqueta del mes (pieza 3a): solo en su casilla más nueva, nombre corto, con el año solo si no es el de hoy; en la «Vista cliente», igual', async () => {
+    try {
+      await fdDos([pub(3)]);
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: '2027-01', slots: [pub(1, 'Foto', 5, '2027-01'), pub(2, 'Foto', 7, '2027-01')], past: [], force: true }); await M.flush();
+      await feTodo(['2027-01', MES, FD_OCT]);
+      const et = m => qa(`.feed .grid > .fmes[data-mes="${m}"] .cell`).map(c => (c.querySelector('.mpill') || { textContent: '' }).textContent);
+      igual([et('2027-01'), et(MES), et(FD_OCT)], [['Ene 27', ''], ['Nov', '', ''], ['Oct', '']], 'las etiquetas');
+      await vistaCliente(true); await espera(60);
+      igual(getComputedStyle(q('.feed .mpill')).display !== 'none', true, 'el cliente no ve la etiqueta');
+      igual(et(MES), ['Nov', '', ''], 'en la «Vista cliente»');
+    } finally { await vistaCliente(false); await limpiar(); }
+  });
+
+  prueba('FE4', 'Un cambio redibuja solo su mes (pieza 3a): los nodos de los demás meses son los mismos, scrollTop y foco iguales; redibujado entero a mano da el mismo html (lección 20)', async () => {
+    try {
+      await fdDos([pub(3), pub(4), pub(5), pub(6), pub(7)], [fcSlot('fd-o3', '4.3', 24, FD_OCT), fcSlot('fd-o4', '4.4', 25, FD_OCT)]);
+      await feTodo([MES, FD_OCT]);
+      const feed = q('.feed'), oct = qa(`.feed .grid > .fmes[data-mes="${FD_OCT}"] .cell`), nov = qa(`.feed .grid > .fmes[data-mes="${MES}"] .cell`);
+      feed.scrollTop = 40; const st = feed.scrollTop; q('.feed .grid').focus(); const foco = D.activeElement;
+      await poner('r3', [await foto('fe4.jpg')]); await espera(30);
+      ok(oct.every((c, i) => c === qa(`.feed .grid > .fmes[data-mes="${FD_OCT}"] .cell`)[i]), 'se volvieron a hacer las casillas de octubre');
+      ok(celda('r3').querySelector('img'), 'la foto no salió en noviembre');
+      igual([feed.scrollTop, D.activeElement === foco], [st, true], 'scrollTop y foco');
+      igual(M._in.feedHTMLGuardado(), M._in.feedHTMLEntero(), 'el feed redibujado entero a mano');
+    } finally { await limpiar(); }
+  });
+
+  prueba('FE10', 'Lo ocultado en la franja vuelve a verse (pieza 3a, respuesta 7.4) y sus datos siguen guardados sin tocarse', async () => {
+    try {
+      await fdDos();
+      const B = M._in.S, p = (B.prev || []).find(x => x.id === 'fd-o1'); ok(p, 'octubre no está en el mes anterior de noviembre');
+      p.hidden = true; M._in.save(); await M.flush();
+      M._in.render(); await feTodo([MES, FD_OCT]);
+      igual(feIds(FD_OCT), ['fd-o2', 'fd-o1'], 'lo ocultado no se ve');
+      const g = (await M._in.idbGet('boards', fdN)).prev.find(x => x.id === 'fd-o1');
+      igual(g.hidden, true, 'lo ocultado se borró de lo guardado');
+    } finally { await limpiar(); }
+  });
+
+  // seis publicaciones por mes: el feed se desliza
+  const feSeis = (pre, mes, ini = 2) => Array.from({ length: 6 }, (_, i) => fcSlot(`${pre}${i + 1}`, `${pre}.${i + 1}`, ini + i * 3, mes));
+  async function feTres() {   // septiembre, octubre y noviembre, seis cada uno; abierto noviembre
+    await limpiar();
+    for (const [p, m] of [['fe-s', '2026-09'], ['fe-o', FD_OCT], ['fe-n', MES]]) { await M.init({ client: CLIENTE, clientName: NOMBRE, month: m, cycleDay: 1, slots: feSeis(p, m), past: [], force: true }); await M.flush(); }
+    await feTodo([MES, FD_OCT, '2026-09']);
+  }
+  prueba('FE6', 'MESA.open de otro mes (pieza 3a): deja S y el mes activo en ese mes, lleva el feed a su punto (su primera publicación en la fila de abajo) y no vuelve a abrirlo ni reinicia ⌘Z; abrir el cliente coloca el mes de hoy', async () => {
+    try {
+      await feTres();
+      M._test.setNote('fe-n1', 'FE6'); await M.flush(); const h0 = M._test.hist().undo;
+      const feed = q('.feed');
+      const r = await M.open(`${CLIENTE}-2026-09`);
+      ok(r && !r.error, 'MESA.open: ' + json(r));
+      igual([M._in.S.key, M._in.mesActivo.lee(), M._test.hist().undo], [`${CLIENTE}-2026-09`, '2026-09', h0], 'S, el mes activo y ⌘Z');
+      ok(feed.scrollHeight > feed.clientHeight + 50, 'el feed no se desliza: la prueba no vale');
+      const punto = M._in.feedPunto('2026-09'); igual(feed.scrollTop, punto, 'el feed no fue al punto de septiembre');
+      const ult = celda('fe-s1').getBoundingClientRect(), fb = feed.getBoundingClientRect();
+      ok(punto === feed.scrollHeight - feed.clientHeight || Math.abs(ult.bottom - (fb.top + feed.clientHeight - (parseFloat(getComputedStyle(feed).paddingBottom) || 0))) <= 2, `la primera de septiembre no está en la fila de abajo: ${ult.bottom} frente a ${fb.bottom}`);
+      await M.open(fdN); igual([M._in.S.key, M._in.mesActivo.lee()], [fdN, MES], 'de vuelta a noviembre');
+      igual(feed.scrollTop, M._in.feedPunto(MES), 'el punto de noviembre');
+      ok(M.board() && M.plan && Array.isArray(M.plan()), 'board() y plan()');
+      await M.openClient(CLIENTE); await M.flush(); await feTodo([MES, FD_OCT, '2026-09']);
+      igual([M._in.S.key, M._in.mesActivo.lee(), feed.scrollTop], [fdO, FD_OCT, M._in.feedPunto(FD_OCT)], 'abrir el cliente: el mes de hoy, colocado');
+    } finally { await limpiar(); }
+  });
+
+  prueba('FE8', 'Fotos al verse (pieza 3a): con seis meses, al abrir solo las casillas cercanas a lo que se ve tienen su foto puesta; al acercarse, las demás la ganan; ninguna casilla cambia de tamaño (lección 297)', async () => {
+    const meses = ['2026-06', '2026-07', '2026-08', '2026-09', FD_OCT, MES];
+    try {
+      await limpiar();
+      for (const m of meses) {
+        const p = 'fe8-' + m.slice(5) + '-';
+        await M.init({ client: CLIENTE, clientName: NOMBRE, month: m, cycleDay: 1, slots: feSeis(p, m), past: [], force: true });
+        await poner(p + '6', [await foto(`fe8-${m}-a.jpg`)]); await poner(p + '5', [await foto(`fe8-${m}-b.jpg`)]);
+        await M.flush();
+      }
+      await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 1, slots: [pub(1)], past: [], force: true }); await M.flush();
+      M._test.olvidarMinis();
+      await M.openClient(CLIENTE); await M.flush();
+      await feTodo([...meses].reverse());
+      const feed = q('.feed'), conFoto = m => qa(`.feed .grid > .fmes[data-mes="${m}"] .cell img.crop`);
+      ok(feed.scrollHeight > feed.clientHeight * 2.5, 'el feed es corto: la prueba no vale');
+      const alto = () => qa('.feed .grid .cell').map(c => Math.round(c.getBoundingClientRect().height));
+      const h0 = alto();
+      igual(conFoto('2026-06').map(i => i.getAttribute('src')), [null, null], 'junio, lejos, ya tiene sus fotos ');
+      ok(conFoto(FD_OCT).every(i => /^blob:/.test(i.getAttribute('src') || '')), 'octubre, a la vista, sin sus fotos');
+      feed.scrollTop = feed.scrollHeight;
+      await hasta(() => conFoto('2026-06').every(i => /^blob:/.test(i.getAttribute('src') || '')), 3000, 'las fotos de junio al acercarse');
+      igual(alto(), h0, 'una casilla cambió de tamaño al cargar');
+    } finally { await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 1, slots: [], past: [], force: true }); await limpiar(); }
+  });
+
+  prueba('FE7', 'Dibujar no escribe (pieza 3a; contado de verdad, lección 171): deslizar el feed de punta a punta, activar cada mes y fijar el mes activo = 0 escrituras en IndexedDB y en localStorage y 0 peticiones; una pestaña en pausa tampoco', async () => {
+    try {
+      await feTres(); await M.flush(); await M._test.fueraListo(); await espera(300);
+      const feed = q('.feed');
+      let red = 0; const f0 = W.fetch; W.fetch = (...a) => { red++; return f0.apply(W, a); };
+      let c, c2;
+      try {
+        c = await fcContar(async () => {
+          for (let y = 0; y <= feed.scrollHeight; y += 120) { feed.scrollTop = y; await espera(16); }
+          for (const k of [fdO, `${CLIENTE}-2026-09`, fdN]) await fdAct(k);
+          for (const m of [FD_OCT, '2026-09', MES]) { const r = await M._in.mesActivo.pon(m, 'prueba'); ok(r && r.ok, 'pon: ' + json(r)); }
+          M._in.renderFeed(); feed.scrollTop = 0; await espera(30);
+        });
+        // en pausa
+        const bc = new W.BroadcastChannel('mesa-feed'); bc.postMessage({ t: 'claim', id: 'otra-pestana-de-prueba' });
+        await hasta(() => M._in.locked && q('.lock'), 3000, 'la mesa pausada');
+        c2 = await fcContar(async () => {
+          for (let y = 0; y <= feed.scrollHeight; y += 120) { feed.scrollTop = y; await espera(16); }
+          const r = await M._in.mesActivo.pon(FD_OCT, 'prueba'); ok(r && r.error, 'en pausa cambió de mes');
+          M._in.renderFeed(); await espera(300);
+        });
+      } finally { W.fetch = f0; qa('.lock').forEach(x => x.remove()); await M._test.claim(); }
+      igual([c.idb, c.ls, red], [0, 0, 0], 'mirar escribió o pidió algo: ' + json(c.que));
+      igual([c2.idb, c2.ls], [0, 0], 'en pausa escribió: ' + json(c2.que));
+    } finally { await limpiar(); }
+  });
+
+
+  prueba('FE5', 'Tocar una publicación de otro mes la activa (pieza 3a): abrirla, su clic derecho y soltarle un archivo ocurren en su tablero (solo se guarda ese) y el feed no se mueve; con una ventana abierta el gesto no cambia de mes; ⌘Z deshace en ese mes', async () => {
+    try {
+      await feTres();
+      const feed = q('.feed'), st = feed.scrollTop;
+      const toca = async (id, tipo) => { const c = celda(id); c.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: tipo === 'contextmenu' ? 2 : 0 })); c.dispatchEvent(new W.MouseEvent(tipo, { bubbles: true, cancelable: true, button: tipo === 'contextmenu' ? 2 : 0, clientX: 50, clientY: 50 })); await espera(120); };
+      await toca('fe-o2', 'click');
+      igual([M._in.S.key, M._in.mesActivo.lee(), M._in.mesActivo.quien(), feed.scrollTop], [fdO, FD_OCT, 'tocar', st], 'abrir una de octubre');
+      ok(dialogo() && dialogo().dataset.slot === 'fe-o2', 'no se abrió su ventana');
+      // con la ventana abierta, tocar otra de septiembre no cambia de mes
+      await toca('fe-s2', 'click'); igual(M._in.S.key, fdO, 'con la ventana abierta cambió de mes');
+      M._in.closeDetail(); await espera(40);
+      await toca('fe-s3', 'contextmenu');
+      igual(M._in.S.key, `${CLIENTE}-2026-09`, 'el clic derecho en septiembre');
+      ok(q('.cpmenu'), 'no salió su menú');
+      M._in.menuCerrar && M._in.menuCerrar(); D.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await espera(40);
+      await fdAct(fdN); await M.flush();
+      const nov0 = json(await M._in.idbGet('boards', fdN));
+      // un archivo soltado en una de octubre
+      const dt = new W.DataTransfer(); dt.items.add(await foto('fe5.jpg'));
+      celda('fe-o4').dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+      await hasta(() => M._in.S.key === fdO && (slot('fe-o4') || { photos: [] }).photos.length === 1, 4000, 'la foto en la de octubre');
+      await M.flush();
+      igual(json(await M._in.idbGet('boards', fdN)), nov0, 'se guardó noviembre');
+      igual(((await M._in.idbGet('boards', fdO)).slots.find(s => s.id === 'fe-o4') || {}).photos.length, 1, 'octubre no guardó la foto');
+      igual(feed.scrollTop, st, 'el feed se movió');
+      await fdAct(fdN); await fdZ(true);
+      igual([M._in.S.key, slot('fe-o4').photos.length], [fdO, 0], '⌘Z no la deshizo en octubre');
+    } finally { M._in.closeDetail(); await limpiar(); }
+  });
+
+  prueba('FE9', 'El calendario y «Descargar» siguen al mes activo (pieza 3a): el calendario enseña el mes activo (no salta a hoy); «Descargar» conserva lo elegido entre meses del mismo cliente y lo vacía con otro cliente', async () => {
+    try {
+      await limpiar();
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, months: 2, cycleDay: 1, slots: [pub(1), pub(2, 'Foto', 20, '2026-12')], past: [], force: true }); await M.flush();
+      const cmes = () => (q('.side > .cal .cmes') || { textContent: '' }).textContent;
+      await hasta(() => /Noviembre/i.test(cmes()), 3000, 'el calendario en noviembre');
+      const r = await M._in.mesActivo.pon('2026-12'); ok(r && r.ok, json(r));
+      await hasta(() => /Diciembre/i.test(cmes()), 3000, 'el calendario no siguió a diciembre: ' + cmes());
+      // descargar, entre dos tableros
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: FD_OCT, cycleDay: 1, slots: [fcSlot('fd-o1', '4.1', 20, FD_OCT)], past: [], force: true });
+      await poner('fd-o1', [await foto('fe9-o.jpg')]); await M.flush();
+      await M.open(`${CLIENTE}-${MES}`); await M.flush();
+      await poner('r1', [await foto('fe9-n.jpg')]); await M.flush();
+      M.descargar.elegir('r1');
+      await fdAct(fdO);
+      igual(M.descargar.elegidas ? M.descargar.elegidas() : qa('.feed .cell.dlsel').map(c => c.dataset.slot), ['r1'], 'cambiar de mes vació lo elegido');
+      M.descargar.elegir('fd-o1');
+      igual(qa('.feed .cell.dlsel').map(c => c.dataset.slot).sort(), ['fd-o1', 'r1'], 'lo elegido en los dos meses');
+      ok(/Descargar \(2\)/.test((q('.bar .dlbtn') || { textContent: '' }).textContent), 'el botón no cuenta las dos');
+      await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 1, slots: [pub(1)], past: [], force: true }); await M.flush();
+      ok(!q('.bar .dlbtn'), 'otro cliente conserva lo elegido');
+    } finally { M.descargar.vaciar(); await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 1, slots: [], past: [], force: true }); await limpiar(); }
+  });
+
+  // ---------- feed continuo, pieza 3b: las reglas que cruzan meses ----------
+  // Lo que pasa solo y las vencidas miran todos los tableros del cliente (también los posteriores); mover una publicación a otro
+  // mes intercambia las dos casillas entre tableros (cada una conserva su fecha), un paso de ⌘Z con dos partes, y una Publicada
+  // ni se mueve ni se pisa; «+ Hueco» y «Fijar», solo en el tablero más nuevo; la imagen del feed enseña lo que el feed.
+  const FF_SEP = '2026-09', ffS = `${CLIENTE}-${FF_SEP}`;   // fdO (octubre) y fdN (noviembre), los de la pieza 2
+  const ffDe = async (k, id) => { await M._test.fueraListo(); await M.flush(); const b = await M._in.idbGet('boards', k); const s = b && b.slots.find(x => x.id === id); return s ? s.estado || null : 'no está'; };
+  async function ffMes(mes, slots, prog = [], aprob = []) {   // un tablero del cliente, con sus Programadas y sus aprobadas
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: mes, cycleDay: 1, slots, past: [], force: true });
+    if (prog.length || aprob.length) await porAprobar([...prog, ...aprob], 'ff-' + mes);
+    if (prog.length) M.setEstado(prog, 'programado');
+    if (aprob.length) M.setEstado(aprob, 'aprobado');
+    await M.flush();
+  }
+  async function ffZ(atras = true) { if (atras) M._test.undo(); else M._test.redo(); await M._test.histListo(); await M._test.fueraListo(); await M.flush(); await espera(30); }
+
+  prueba('FF1', 'Lo que pasa solo y las vencidas, en todos los meses del cliente (feed continuo, pieza 3b): con octubre abierto, la Programada de noviembre (posterior) pasa sola con las de septiembre y octubre en un solo paso de ⌘Z; las vencidas y su cifra incluyen las de noviembre; «Cancelar», «Ya se publicó» y «Reprogramar» de una posterior; ⌘Z de un paso de noviembre lleva a noviembre; tras activar otro mes la lista es la de todos menos el abierto (D-120)', async () => {
+    try {
+      await limpiar(); reloj('2026-09-01', '09:00');
+      await ffMes(FF_SEP, [fcSlot('ff1-s1', '3.1', 20, FF_SEP), fcSlot('ff1-s2', '3.2', 22, FF_SEP)], ['ff1-s1'], ['ff1-s2']);
+      await ffMes(MES, [fcSlot('ff1-n1', '5.1', 3), fcSlot('ff1-n2', '5.2', 4), fcSlot('ff1-n4', '5.4', 5), fcSlot('ff1-n3', '5.3', 25)], ['ff1-n1'], ['ff1-n2', 'ff1-n4', 'ff1-n3']);
+      await ffMes(FD_OCT, [fcSlot('ff1-o1', '4.1', 20, FD_OCT)], ['ff1-o1']);   // abierto octubre: el de en medio
+      reloj('2026-11-10', '12:00'); M._in.clearToasts();
+      const u0 = M._test.hist().undo;
+      await revisarV();
+      igual((await ffDe(fdN, 'ff1-n1') || {}).v, 'publicado', 'la Programada de noviembre (un mes posterior) no pasó sola');
+      igual([(await ffDe(ffS, 'ff1-s1') || {}).v, slot('ff1-o1').estado.v], ['publicado', 'publicado'], 'las de septiembre y octubre');
+      igual(M._test.hist().undo, u0 + 1, 'las tres, en un solo paso de ⌘Z');
+      ok(/3 publicaciones pasan a Publicado/.test(qa('.toasts .toast').map(t => t.textContent).join(' | ')), 'sin el aviso de las tres');
+      igual(vencidasV().map(v => [v.id, v.aqui]), [['ff1-s2', false], ['ff1-n2', false], ['ff1-n4', false]], 'las vencidas, con las de noviembre');
+      await hasta(() => /3 vencidas/.test((q('.side > .cal') || { textContent: '' }).textContent), 3000, 'la cifra «3 vencidas» del calendario');
+      abrirV();
+      await hasta(() => filaV('ff1-n2'), 3000, 'la fila de la de noviembre');
+      ok(/Noviembre 2026, otro tablero/.test(filaV('ff1-n2').textContent), 'la de noviembre no dice su mes');
+      ok(!filaV('ff1-n2').querySelector('[data-cal="v-rep"]').disabled, 'la de noviembre no se puede reprogramar (su tablero tiene días por delante)');
+      enFilaV('ff1-n4', 'v-can');
+      (await hasta(() => filaV('ff1-n4').querySelector('input[data-v="motivo"]'), 2000, 'el motivo')).value = 'FF1';
+      enFilaV('ff1-n4', 'v-can-ok');
+      igual(await ffDe(fdN, 'ff1-n4'), { v: 'cancelado', motivo: 'FF1' }, '«Cancelar» de la de noviembre');
+      await hasta(() => filaV('ff1-n2'), 3000, 'la fila de la de noviembre, otra vez');
+      enFilaV('ff1-n2', 'v-pub');
+      igual((await ffDe(fdN, 'ff1-n2') || {}).v, 'publicado', '«Ya se publicó» de la de noviembre');
+      await hasta(() => (marcas('ff1-n2') || []).includes('e-publicado'), 3000, 'la marca de Publicado en su casilla del feed');
+      M._in.closeDetail();
+      igual(M.status().key, fdO, 'el abierto sigue siendo octubre');
+      await ffZ();
+      igual([M.status().key, (await ffDe(fdN, 'ff1-n2') || {}).v], [fdN, 'aprobado'], '⌘Z de un paso de noviembre: a noviembre, y la devuelve');
+      await ffZ();
+      igual((await ffDe(fdN, 'ff1-n4') || {}).v, 'aprobado', '⌘Z: la cancelada vuelve');
+      await ffZ();
+      const e1 = await ffDe(fdN, 'ff1-n1'), e2 = await ffDe(ffS, 'ff1-s1'), e3 = await ffDe(fdO, 'ff1-o1');
+      igual([e1.v, !!e1.tarde, e2.v, !!e2.tarde, e3.v, !!e3.tarde], ['programado', true, 'programado', true, 'programado', true], '⌘Z: las tres vuelven, como vencidas');
+      igual(M.status().key, fdN, 'el paso de las tres tenía noviembre (el abierto): se queda');
+      const lista = () => json(vencidasV().map(v => [v.id, v.aqui]).sort());
+      await hasta(() => lista() === json([['ff1-n1', true], ['ff1-n2', true], ['ff1-n4', true], ['ff1-o1', false], ['ff1-s1', false], ['ff1-s2', false]]), 3000, 'las vencidas con noviembre abierto: ' + lista());
+      await fdAct(fdO);
+      await hasta(() => lista() === json([['ff1-n1', false], ['ff1-n2', false], ['ff1-n4', false], ['ff1-o1', true], ['ff1-s1', false], ['ff1-s2', false]]), 3000, 'tras activar octubre, todas menos las de octubre de fuera: ' + lista());
+      abrirV();
+      await hasta(() => filaV('ff1-n2'), 3000, 'la fila de la de noviembre');
+      enFilaV('ff1-n2', 'v-rep');
+      await hasta(() => M.status().key === fdN && dialogo() && dialogo().dataset.slot === 'ff1-n2', 4000, '«Reprogramar» de una posterior: su tablero y su publicación');
+      igual(M._in.mesActivo.lee(), MES, 'el mes activo, el de la publicación');
+      M._in.closeDetail();
+    } finally { volverReloj(); M._in.closeDetail(); await limpiar(); }
+  });
+
+  // las escrituras de IndexedDB, contadas en los nativos (lección 171): sus almacenes y, de 'boards', las claves que escribe
+  async function ffContar(fn) {
+    const n = { stores: [], boards: [] }, orig = [];
+    const tapa = (proto, m, cursor) => { const f = proto[m]; if (!f) return; orig.push([proto, m, f]);
+      proto[m] = function (...a) { const st = (cursor ? this.source && this.source.name : this.name) || '?'; n.stores.push(st);
+        if (st === 'boards') n.boards.push(String(cursor ? (a[0] && a[0].key) || this.primaryKey : m === 'put' || m === 'add' ? a[1] ?? (a[0] && a[0].key) : m === 'delete' ? a[0] : '*'));
+        return f.apply(this, a); }; };
+    ['put', 'add', 'delete', 'clear'].forEach(m => tapa(W.IDBObjectStore.prototype, m));
+    ['update', 'delete'].forEach(m => tapa(W.IDBCursor.prototype, m, true));
+    try { const r = await fn(); await espera(450); await M._test.fueraListo(); await espera(100); return { ...n, r }; }   // sin M.flush: con la nube apagada escribe siempre el abierto
+    finally { orig.reverse().forEach(([p, m, f]) => { p[m] = f; }); }
+  }
+  // un arrastre con el puntero de la mesa (el suyo, no el del navegador): de una casilla (o un post-it) del mes abierto a otra
+  // casilla; devuelve si el destino se resaltó al pasar por encima (no guarda nada él: lo que se lee del disco espera con ffDisco)
+  async function ffArrastrar(de, a) {
+    ok(de && a, 'falta una de las dos casillas del arrastre');
+    a.scrollIntoView({ block: 'nearest' }); de.scrollIntoView({ block: 'nearest' }); await espera(40);
+    const r = de.getBoundingClientRect(), t = a.getBoundingClientRect(), x = t.left + t.width / 2, y = t.top + t.height / 2;
+    puntero('pointerdown', de, r.left + r.width / 2, r.top + r.height / 2);
+    puntero('pointermove', D, r.left + r.width / 2 + 9, r.top + r.height / 2 + 9);
+    puntero('pointermove', D, x, y);
+    const lit = a.classList.contains('over') || !!(a.closest('.cell') || a).classList.contains('over');
+    puntero('pointerup', D, x, y);
+    await espera(40); await M._test.fueraListo(); await espera(40);
+    return lit;
+  }
+  const ffDisco = async k => { await M._test.fueraListo(); await M.flush(); return (await M._in.idbGet('boards', k)) || { slots: [], crops: {} }; };
+  const ffSlot = async (k, id) => (await ffDisco(k)).slots.find(s => s.id === id) || null;
+  const ffMini = id => { const i = celda(id) && celda(id).querySelector('img.crop, img[data-mini]'); return i ? i.dataset.mini || null : null; };
+  const ffTipo = (s, tipo) => ({ ...s, type: tipo, name: s.name.replace('Foto', tipo) });
+  async function ffDosMeses() {   // octubre y noviembre del cliente, con foto en cada una; abierto noviembre
+    await limpiar();
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: FD_OCT, cycleDay: 1, slots: [fcSlot('ff-o1', '4.1', 20, FD_OCT), ffTipo(fcSlot('ff-o2', '4.2', 22, FD_OCT), 'Carrusel'), ffTipo(fcSlot('ff-o3', '4.3', 24, FD_OCT), 'Reel')], past: [], force: true });
+    const [o1] = await poner('ff-o1', [await foto('ff-o1.jpg')]);
+    M._test.setCrop(o1, 'ff-o1', { cx: 0.3, cy: 0.7, z: 1.4 });
+    const o2 = await poner('ff-o2', [await foto('ff-o2a.jpg', 1800, 1200), await foto('ff-o2b.jpg', 1800, 1200)]);
+    const [o3] = await poner('ff-o3', [await foto('ff-o3.jpg', 1080, 1920)]);
+    await M.flush();
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, cycleDay: 1, slots: [fcSlot('ff-n1', '5.1', 3), ffTipo(fcSlot('ff-n2', '5.2', 5), 'Carrusel'), fcSlot('ff-n3', '5.3', 7)], past: [], force: true });
+    const [n1] = await poner('ff-n1', [await foto('ff-n1.jpg')]);
+    M._test.setCrop(n1, 'ff-n1', { cx: 0.6, cy: 0.4, z: 1.2 });
+    const n2 = await poner('ff-n2', [await foto('ff-n2a.jpg'), await foto('ff-n2b.jpg')]);
+    const [n3] = await poner('ff-n3', [await foto('ff-n3.jpg')]);
+    await M.flush(); await M._in.feedCargar(); await feTodo([MES, FD_OCT]);
+    return { o1, o2, o3, n1, n2, n3 };
+  }
+
+  prueba('FF2', 'Mover una publicación a otro mes (feed continuo, pieza 3b; respuesta 4 de Kevin): arrastrar una casilla de noviembre sobre una de octubre las intercambia como dentro de un mes; cada una conserva su fecha, su nombre y su estado; el encuadre viaja con su foto; se guardan solo los dos tableros; un paso de ⌘Z deshace los dos y ⇧⌘Z los rehace; carrusel con carrusel (con su formato), foto con reel (sus portadas, centradas) y una Nota', async () => {
+    try {
+      const f = await ffDosMeses();
+      const cn1 = json(M._in.S.crops[f.n1]), co1 = json((await ffDisco(fdO)).crops[f.o1]);
+      const quien = s => s && [s.id, s.name, s.date, json(s.estado || null), s.note || ''];
+      const n0 = quien(slot('ff-n1')), o0 = quien(await ffSlot(fdO, 'ff-o1')), u0 = M._test.hist().undo;
+      const c = await ffContar(() => ffArrastrar(celda('ff-n1'), celda('ff-o1')));
+      ok(c.r, 'la casilla de octubre no se resaltó al pasar por encima');
+      igual(slot('ff-n1').photos, [f.o1], 'noviembre no tiene la foto de octubre');
+      igual((await ffSlot(fdO, 'ff-o1')).photos, [f.n1], 'octubre (guardado) no tiene la de noviembre');
+      igual([quien(slot('ff-n1')), quien(await ffSlot(fdO, 'ff-o1'))], [n0, o0], 'cada una no conservó su fecha, nombre, estado o contexto');
+      igual([json(M._in.S.crops[f.o1]), json((await ffDisco(fdO)).crops[f.n1])], [co1, cn1], 'el encuadre no viajó con su foto');
+      igual([...new Set(c.boards)].sort(), [fdO, fdN].sort(), 'se guardaron otros tableros');
+      ok(c.stores.every(s => ['boards', 'bandejas', 'diario'].includes(s)), 'escribió en otros almacenes: ' + json([...new Set(c.stores)]));
+      igual(M._test.hist().undo, u0 + 1, 'el intercambio, un solo paso de ⌘Z');
+      igual(M.status().key, fdN, 'cambió el mes abierto');
+      await hasta(() => ffMini('ff-o1') === f.n1 && ffMini('ff-n1') === f.o1, 3000, 'el feed de los dos meses con las fotos cambiadas');
+      igual(feNorm(M._in.feedHTMLGuardado()), feNorm(M._in.feedHTMLEntero()), 'el feed no es el de dibujarlo entero');
+      await ffZ();
+      igual([slot('ff-n1').photos, (await ffSlot(fdO, 'ff-o1')).photos, M.status().key], [[f.n1], [f.o1], fdN], '⌘Z no deshizo los dos');
+      ok(![f.n1, f.o1].some(x => M.board().tray.includes(x)), '⌘Z dejó una foto en la bandeja');
+      await hasta(() => ffMini('ff-o1') === f.o1 && ffMini('ff-n1') === f.n1, 3000, 'el feed tras ⌘Z');
+      await ffZ(false);
+      igual([slot('ff-n1').photos, (await ffSlot(fdO, 'ff-o1')).photos], [[f.o1], [f.n1]], '⇧⌘Z no lo rehízo');
+      // carrusel con carrusel: sus fotos y su formato
+      const fmtN = slot('ff-n2').fmt, fmtO = (await ffSlot(fdO, 'ff-o2')).fmt;
+      ok(fmtN !== fmtO, `los dos carruseles tienen el mismo formato (${fmtN})`);
+      await ffArrastrar(celda('ff-n2'), celda('ff-o2'));
+      igual([slot('ff-n2').photos, slot('ff-n2').fmt], [f.o2, fmtO], 'el carrusel de noviembre');
+      const o2 = await ffSlot(fdO, 'ff-o2'); igual([o2.photos, o2.fmt], [f.n2, fmtN], 'el carrusel de octubre');
+      // foto con reel: sus portadas, centradas, con el formato que tenían
+      await ffArrastrar(celda('ff-n3'), celda('ff-o3'));
+      igual([slot('ff-n3').photos, (await ffSlot(fdO, 'ff-o3')).photos], [[f.o3], [f.n3]], 'la foto y el reel no cambiaron de portada');
+      const cr = M._in.S.crops[f.o3]; ok(cr && cr.cx === 0.5 && cr.cy === 0.5 && cr.z === 1, 'la portada que llega no va centrada: ' + json(cr));
+      // una Nota: un paso, dos partes
+      M._test.setMemo('ff-n1', 'Nota FF2'); await M.flush(); M._in.renderFeed();
+      const u1 = M._test.hist().undo;
+      await ffArrastrar(await hasta(() => q('.feed .pit[data-memo="ff-n1"]'), 2000, 'el post-it'), celda('ff-o3'));
+      igual([(await ffSlot(fdO, 'ff-o3')).memo, slot('ff-n1').memo || ''], ['Nota FF2', ''], 'la Nota no pasó a octubre');
+      igual(M._test.hist().undo, u1 + 1, 'la Nota, un paso');
+      await ffZ();
+      igual([(await ffSlot(fdO, 'ff-o3')).memo || '', slot('ff-n1').memo], ['', 'Nota FF2'], '⌘Z de la Nota');
+      // el calendario de octubre, con su mes activo
+      await fdAct(fdO);
+      await hasta(() => qa('.side > .cal [data-slot]').map(e => e.dataset.slot).includes('ff-o1'), 3000, 'el calendario de octubre');
+      igual(slot('ff-o1').photos, [f.n1], 'octubre activo no tiene la foto de noviembre');
+    } finally { await limpiar(); }
+  });
+
+  prueba('FF3', 'Mover entre meses, por estado (feed continuo, pieza 3b; respuesta 4b): una Publicada de origen o de destino no se mueve ni se resalta, con su aviso y 0 escrituras; una Programada con una aprobada se mueve y la Programada sale «cambió»; una cancelada no está en el feed; una diseñada no pasa a otro mes, con su aviso', async () => {
+    try {
+      const f = await ffDosMeses();
+      await porAprobar(['ff-n3'], 'ff3'); M.setEstado('ff-n3', 'publicado'); await M.flush();
+      M._in.clearToasts();
+      let c = await ffContar(() => ffArrastrar(celda('ff-n3'), celda('ff-o1')));
+      ok(!c.r, 'se resaltó el destino de una Publicada');
+      igual([c.stores.length, slot('ff-n3').photos.length && slot('ff-n3').photos[0] !== f.o1], [0, true], 'una Publicada se movió o escribió algo: ' + json(c.stores));
+      ok(/Ya está publicada: no se mueve/.test(qa('.toasts .toast').map(t => t.textContent).join(' | ')), 'sin el aviso de la Publicada (origen)');
+      // destino Publicada (de octubre)
+      await fdAct(fdO); await porAprobar(['ff-o1'], 'ff3o'); M.setEstado('ff-o1', 'publicado'); await M.flush(); await fdAct(fdN); M._in.clearToasts();
+      c = await ffContar(() => ffArrastrar(celda('ff-n1'), celda('ff-o1')));
+      igual([c.r, c.stores.length, slot('ff-n1').photos], [false, 0, [f.n1]], 'sobre una Publicada de octubre');
+      ok(/Ya está publicada: no se mueve/.test(qa('.toasts .toast').map(t => t.textContent).join(' | ')), 'sin el aviso de la Publicada (destino)');
+      // Programada (noviembre) con aprobada (octubre): se mueve, y la Programada sale «cambió»
+      await M._in.editarCliente(CLIENTE, o => ({ ...o, notion: false, notionAt: new Date().toISOString() })); await M._in.loadClients();   // sin Notion: la marca dice lo que cambió desde que se programó (D-184)
+      await porAprobar(['ff-n1'], 'ff3n'); M.setEstado('ff-n1', 'programado'); await M.flush();
+      await fdAct(fdO); await porAprobar(['ff-o3'], 'ff3o3'); M.setEstado('ff-o3', 'aprobado'); await M.flush(); await fdAct(fdN);
+      const pn = slot('ff-n1').photos[0], po = (await ffSlot(fdO, 'ff-o3')).photos[0];
+      await ffArrastrar(celda('ff-n1'), celda('ff-o3'));
+      igual([slot('ff-n1').photos[0], (await ffSlot(fdO, 'ff-o3')).photos[0]], [po, pn], 'la Programada y la aprobada no se intercambiaron');
+      igual([M._in.estadoDe(slot('ff-n1')), slot('ff-n1').estado.v], ['programado', 'programado'], 'la Programada no sigue Programada');
+      await hasta(() => (marcas('ff-n1') || []).includes('cambios'), 3000, 'la Programada sin la marca de «cambió»');
+      // una cancelada no está en el feed
+      M.setEstado('ff-n2', 'cancelado'); await M.flush();
+      ok(!celda('ff-n2'), 'una cancelada está en el feed');
+      // una diseñada no pasa a otro mes
+      await fdAct(fdO); M._in.S.slots.find(s => s.id === 'ff-o2').design = { slides: [] }; M._in.save(); await M.flush(); await fdAct(fdN); M._in.clearToasts();
+      M.setEstado('ff-n2', null); await M.flush();
+      c = await ffContar(() => ffArrastrar(celda('ff-n2'), celda('ff-o2')));
+      igual(c.stores.length, 0, 'mover una diseñada escribió algo');
+      ok(/diseñada o editada no pasa a otro mes/.test(qa('.toasts .toast').map(t => t.textContent).join(' | ')), 'sin el aviso de la diseñada');
+    } finally { await M._in.editarCliente(CLIENTE, o => { const n = { ...o }; delete n.notion; delete n.notionAt; return n; }); await M._in.loadClients(); await limpiar(); }
+  });
+
+  prueba('FF4', 'Mover a otro mes una collab (feed continuo, pieza 3b; D-008): tras intercambiar una de noviembre con una collab de octubre, la copia del otro cliente tiene su foto nueva, con una revisión más nueva (no la pisa la de antes)', async () => {
+    try {
+      const f = await ffDosMeses();
+      await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: FD_OCT, cycleDay: 1, slots: [fcSlot('ff-o1', '4.1', 20, FD_OCT)], past: [], force: true }); await M.flush();   // ff-o1, collab con el otro cliente
+      await M.open(fdO); await M.flush(); ok(M._test.shared('ff-o1').length, 'ff-o1 no está enlazada con el otro cliente');
+      await M.open(fdN); await M.flush(); await M._in.feedCargar(); await feTodo([MES, FD_OCT]);
+      const k2 = `${CLIENTE2}-${FD_OCT}`, at0 = (await ffSlot(k2, 'ff-o1')).at;
+      await ffArrastrar(celda('ff-n1'), celda('ff-o1'));
+      const s2 = await ffSlot(k2, 'ff-o1');
+      igual(s2.photos, [f.n1], 'la copia del otro cliente no tiene la foto nueva');
+      ok(String(s2.at || '') > String(at0 || ''), `su revisión no es más nueva (${at0} → ${s2.at})`);
+      await M.open(k2); await M.flush();
+      igual(slot('ff-o1').photos, [f.n1], 'al abrir el otro cliente, la de antes la pisó');
+    } finally { await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: FD_OCT, slots: [], past: [], force: true }); await limpiar(); }
+  });
+
+  prueba('FF7', 'Escribe lo justo (feed continuo, pieza 3b; lección 171, contado en los nativos): lo que pasa solo escribe los tableros que cambian (septiembre y noviembre, con octubre abierto sin nada que pase) y nada más', async () => {
+    try {
+      await limpiar(); reloj('2026-09-01', '09:00');
+      await ffMes(FF_SEP, [fcSlot('ff7-s1', '3.1', 20, FF_SEP)], ['ff7-s1']);
+      await ffMes(MES, [fcSlot('ff7-n1', '5.1', 3), fcSlot('ff7-n3', '5.3', 25)], ['ff7-n1'], ['ff7-n3']);
+      await ffMes(FD_OCT, [fcSlot('ff7-o1', '4.1', 28, FD_OCT)], [], ['ff7-o1']);
+      await M._in.feedCargar(); await espera(200);
+      reloj('2026-11-10', '12:00');
+      const c = await ffContar(() => revisarV());
+      igual([(await ffDe(ffS, 'ff7-s1') || {}).v, (await ffDe(fdN, 'ff7-n1') || {}).v], ['publicado', 'publicado'], 'no pasaron solas');
+      igual([...new Set(c.boards)].sort(), [ffS, fdN].sort(), 'escribió otros tableros');
+      ok(c.stores.every(s => ['boards', 'bandejas', 'diario'].includes(s)), 'escribió en otros almacenes: ' + json([...new Set(c.stores)]));
+    } finally { volverReloj(); await limpiar(); }
+  });
+
+  const ffMenuHueco = async () => {   // el «+ Hueco» del clic derecho del feed (D-282), sin pulsarlo
+    const g = await hasta(() => q('.feed .grid'), 4000, 'el feed'), r = g.getBoundingClientRect();
+    g.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: r.x + 5, clientY: r.y + 5, view: W }));
+    const m = await hasta(() => q('.cpmenu[aria-label="Feed"]'), 2000, 'el menú del feed');
+    return [...m.querySelectorAll('[role="menuitem"]')].find(x => /Hueco/.test(x.textContent) && !/Quitar/.test(x.textContent));
+  };
+  const ffFijar = async id => { M._in.closeDetail(); M._in.openDetail(id); return hasta(() => q(`.detail:not([hidden]) .pinToggle[data-slot="${id}"]`), 3000, 'el interruptor «Fijar» de ' + id); };
+
+  prueba('FF5', '«+ Hueco» y «Fijar», solo en el tablero más nuevo (feed continuo, pieza 3b; D-095, D-318): con noviembre (el más nuevo) abierto, como siempre; con octubre, apagados y con su motivo (en su título y, al pulsar «Fijar», un aviso); quitar una fijada que ya tenía octubre sí se puede', async () => {
+    try {
+      await ffDosMeses();
+      // noviembre, el más nuevo: como siempre
+      let b = await ffMenuHueco(); ok(b && !b.disabled, '«+ Hueco» apagado en el tablero más nuevo'); b.click(); await espera(40);
+      igual(M._in.S.fillers, 1, '«+ Hueco» no añadió el hueco en el más nuevo');
+      let t = await ffFijar('ff-n1'); ok(!t.disabled && !t.getAttribute('aria-disabled'), '«Fijar» apagado en el más nuevo'); t.click(); await espera(40);
+      igual(M._in.S.pins, ['ff-n1'], '«Fijar» no fijó en el más nuevo');
+      M._in.closeDetail(); await M.flush();
+      // una fijada de antes en octubre (de cuando cada mes se abría solo)
+      await fdAct(fdO); M._in.S.pins = ['ff-o2']; M._in.save(); await M.flush(); M._in.clearToasts();
+      b = await ffMenuHueco();
+      ok(b && b.disabled && /mes más nuevo/.test(b.title || ''), '«+ Hueco» de octubre no está apagado con su motivo: ' + (b && b.outerHTML));
+      tecla('Escape', { en: D.activeElement || D.body }); await espera(30);
+      ok(!M._in.S.fillers, 'octubre tiene un hueco');
+      t = await ffFijar('ff-o1');
+      ok(t.getAttribute('aria-disabled') === 'true' && /mes más nuevo/.test(t.closest('label').title || ''), '«Fijar» de octubre no está apagado con su motivo');
+      t.click(); await espera(40);
+      ok(/huecos y las fijadas son del mes más nuevo/.test(qa('.toasts .toast').map(x => x.textContent).join(' | ')), 'sin el aviso al pulsar «Fijar» apagado');
+      igual(M._in.S.pins, ['ff-o2'], 'se fijó en octubre');
+      t = await ffFijar('ff-o2'); ok(!t.getAttribute('aria-disabled') && t.checked, 'la fijada de octubre no se puede quitar'); t.click(); await espera(40);
+      ok(!M._in.S.pins, 'no se quitó la fijada de octubre');
+      M._in.closeDetail(); await M.flush();
+      igual((await ffDisco(fdO)).pins || null, null, 'la fijada quitada, guardada');
+      await fdAct(fdN);
+      b = await ffMenuHueco(); ok(b && !b.disabled, 'de vuelta en noviembre, «+ Hueco» sigue apagado'); tecla('Escape', { en: D.activeElement || D.body });
+    } finally { M._in.closeDetail(); await limpiar(); }
+  });
+
+  // el color de una casilla de la imagen del feed (D-005): la media de un cuadrado de 9 px dentro de su foto, lejos de su texto
+  async function ffColor(blob, i) {
+    const bmp = await W.createImageBitmap(blob), c = D.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
+    const x = c.getContext('2d'); x.drawImage(bmp, 0, 0); bmp.close();
+    const px = (i % 3) * 361 + Math.round(358 * 0.62), py = 250 + Math.floor(i / 3) * 480 + Math.round(477 * 0.8), d = x.getImageData(px, py, 9, 9).data;
+    const m = [0, 0, 0]; for (let k = 0; k < d.length; k += 4) { m[0] += d[k]; m[1] += d[k + 1]; m[2] += d[k + 2]; }
+    return m.map(v => Math.round(v / (d.length / 4)));
+  }
+  prueba('FF6', 'La imagen del feed enseña lo que el feed (feed continuo, pieza 3b; D-005, respuesta 7.4): el mes anterior sale de su propio tablero, con lo oculto otra vez y sin lo cambiado solo en la franja; con un tablero que no es el más nuevo, sin sus fijadas ni sus huecos', async () => {
+    try {
+      await limpiar();
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: FD_OCT, cycleDay: 1, slots: [fcSlot('ff6-o1', '4.1', 20, FD_OCT), fcSlot('ff6-o2', '4.2', 22, FD_OCT), fcSlot('ff6-o3', '4.3', 24, FD_OCT)], past: [], force: true });
+      await poner('ff6-o1', [await foto('ff6-o1.jpg', 1200, 1500, '#c03030')]);
+      await poner('ff6-o2', [await foto('ff6-o2.jpg', 1200, 1500, '#c03030')]);
+      await poner('ff6-o3', [await foto('ff6-o3.jpg', 1200, 1500, '#c03030')]);
+      M._in.S.fillers = 1; M._in.S.pins = ['ff6-o3']; M._in.save(); await M.flush();   // octubre con un hueco y una fijada de antes
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, cycleDay: 1, slots: [pub(1), pub(2), pub(3)], past: [], force: true });
+      for (const n of [1, 2, 3]) await poner(`r${n}`, [await foto(`ff6-n${n}.jpg`, 1200, 1500, '#30a040')]);
+      const [azul] = await M.addFiles([await foto('ff6-azul.jpg', 1200, 1500, '#3040c0')]);
+      await M.flush();
+      // en la franja de antes: o1 cambiada por la azul (solo en la franja) y o2 oculta
+      const pv = M._in.S.prev, p1 = pv.find(p => p.id === 'ff6-o1'), p2 = pv.find(p => p.id === 'ff6-o2');
+      ok(p1 && p2, 'noviembre no tiene octubre en S.prev: ' + json(pv.map(p => p.id)));
+      Object.assign(p1, { own: true, photos: [azul] }); p2.hidden = true; M._in.save(); await M.flush();
+      let r = await M.render('clean');
+      ok(r && !r.error && r.check.ok, 'la imagen no cuadra: ' + json(r));
+      igual([r.posts, r.fresh], [6, 3], 'la imagen no enseña las tres de octubre (la oculta, otra vez)');
+      const cols = []; for (let i = 3; i < 6; i++) cols.push(await ffColor(M.out.clean, i));
+      ok(cols.every(c => c[0] > c[2] + 60), 'debajo no van las fotos de octubre de su tablero (lo cambiado en la franja no cuenta): ' + json(cols));
+      // octubre abierto (no es el más nuevo): sin su hueco ni su fijada; noviembre (el de después) no sale
+      await fdAct(fdO);
+      r = await M.render('clean');
+      ok(r && !r.error && r.check.ok, 'la imagen de octubre no cuadra: ' + json(r));
+      igual([r.pinned, r.posts, r.height], [0, 3, 250 + 477 + 40], 'octubre (no es el más nuevo) lleva su fijada o su hueco');
+      // noviembre (el más nuevo), con su hueco y su fijada: como siempre
+      await fdAct(fdN); M._in.S.fillers = 1; M._in.S.pins = ['r2']; M._in.save(); await M.flush();
+      r = await M.render('clean');
+      igual([r.pinned, r.posts, r.check.ok], [1, 6, true], 'noviembre (el más nuevo) sin su fijada');
+    } finally { await limpiar(); }
+  });
+
+  // ---------- feed continuo, pieza 4: la cabecera de meses (estática) ----------
+  // anterior | píldora fija con el mes activo | siguiente, con una flecha a cada lado; sustituye a los chips del mes (D-323)
+  const fgCab = () => q('.bar .mescab');
+  const fgVent = () => q('.bar .mescab .mescab-vent');
+  const fgHuecos = () => qa('.bar .mescab .mescab-vent > .mescab-tira > .mescab-mes');
+  const fgFl = d => q(`.bar .mescab .mescab-fl[data-d="${d}"]`);
+  const fgCentro = r => r.left + r.width / 2;
+  // lo que se ve en los tres huecos de la ventana (por geometría): [{t, sin, on}]
+  function fgVisibles() {
+    const v = fgVent().getBoundingClientRect();
+    return fgHuecos().filter(e => { const x = fgCentro(e.getBoundingClientRect()); return x > v.left && x < v.right; })
+      .map(e => ({ t: e.textContent, sin: e.classList.contains('sin'), on: e.getAttribute('aria-current') === 'true' }));
+  }
+  // el nombre que se ve dentro de la píldora (su capa propia, recortada a la píldora)
+  function fgPildora() {
+    const p = q('.bar .mescab .mescab-pild'), r = p.getBoundingClientRect();
+    const dentro = [...p.querySelectorAll('.mescab-mes')].filter(e => { const x = fgCentro(e.getBoundingClientRect()); return x > r.left && x < r.right; });
+    return dentro.map(e => e.textContent);
+  }
+  const fgHueco = t => fgHuecos().find(e => e.textContent === t);
+  const FG_SO = `${CLIENTE}-2026-09`, FG_EN = `${CLIENTE}-2027-01`;
+  // junio, julio, (agosto sin tablero), septiembre–octubre en un tablero, noviembre (dos publicaciones) y enero de 2027; abierto noviembre
+  async function fgSeis() {
+    await limpiar();
+    const t = async (month, slots, months = 1) => { await M.init({ client: CLIENTE, clientName: NOMBRE, month, months, cycleDay: 1, slots, past: [], force: true }); await M.flush(); };
+    await t('2026-06', [fcSlot('fg-jn', '6.1', 10, '2026-06')]);
+    await t('2026-07', [fcSlot('fg-jl', '7.1', 10, '2026-07')]);
+    await t('2026-09', [fcSlot('fg-s1', '9.1', 10, '2026-09'), fcSlot('fg-o1', '10.1', 12, '2026-10'), fcSlot('fg-o2', '10.2', 20, '2026-10')], 2);
+    await t('2027-01', [{ ...pub(1, 'Foto', 12, '2027-01') }]);
+    await t(MES, [pub(1), pub(2)]);
+    await hasta(() => fgCab() && fgHuecos().length, 3000, 'la cabecera de meses');
+    await hasta(() => fgHuecos().every(e => e.title), 2000, 'los títulos de la cabecera (van en el fotograma siguiente)');
+  }
+  async function fgPulsar(el) { ok(el, 'no está lo que hay que pulsar'); el.click(); await espera(30); if (M._test.histListo) await M._test.histListo(); await hasta(() => !M._in.switching(), 3000, 'el cambio de mes'); await espera(60); }
+  const fgActivo = () => [M._in.S.key, M._in.mesActivo.lee()];
+  const fgEnFila = (a, b) => { const r = a.getBoundingClientRect(), s = b.getBoundingClientRect(); return r.left < s.right && s.left < r.right && r.top < s.bottom && s.top < r.bottom; };
+  async function fgAncho(w, fn) {   // el marco de la batería a otro ancho (la Mesa pasa a una columna a 720)
+    const marco = W.frameElement, w0 = marco.style.width;
+    try { marco.style.width = w + 'px'; W.dispatchEvent(new W.Event('resize')); await espera(250); return await fn(); }
+    finally { marco.style.width = w0; W.dispatchEvent(new W.Event('resize')); await espera(150); }
+  }
+  async function fgOscuro(fn) {
+    const h = D.documentElement, antes = W.localStorage.getItem('mesa-tema');
+    try { if (h.dataset.theme !== 'dark') q('.appbar .ibtn.tema').click(); await espera(60); return await fn(); }
+    finally { if (h.dataset.theme === 'dark') q('.appbar .ibtn.tema').click(); if (antes == null) W.localStorage.removeItem('mesa-tema'); else W.localStorage.setItem('mesa-tema', antes); }
+  }
+
+  prueba('FG1', 'Qué enseña la cabecera de meses (feed continuo, pieza 4; D-323): los tres meses en orden de calendario con el activo en la píldora, sin cifras, nombre corto con el año solo si no es el de hoy, «sin crear» apagado y sin pulsar (los huecos sin tablero también) que nunca sale en «Vista cliente»; flechas apagadas en los extremos; con un solo mes; con día de ciclo distinto de 1; el título dice «N de M con foto» solo a Kevin (D-157)', async () => {
+    try {
+      await fgSeis();
+      ok(!q('.bar .mchip[data-act="month"]') && !q('.bar .months'), 'siguen los chips de mes');
+      igual(fgHuecos().map(e => e.textContent), ['Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic', 'Ene 27', 'Feb 27'], 'los meses de la tira, en orden de calendario');
+      igual(fgHuecos().map(e => e.classList.contains('sin')), [false, false, true, false, false, false, true, false, true], '«sin crear»: el hueco entre dos tableros y el siguiente al más nuevo');
+      for (const e of fgHuecos().filter(x => x.classList.contains('sin'))) {
+        ok(e.tagName !== 'BUTTON' && e.getAttribute('aria-disabled') === 'true' && !e.hasAttribute('tabindex'), '«sin crear» se puede pulsar o enfocar: ' + e.outerHTML);
+        ok(/sin crear/.test(e.title) && /Claude/.test(e.title), 'el título de «sin crear»: ' + e.title);
+      }
+      igual(fgVisibles(), [{ t: 'Oct', sin: false, on: false }, { t: 'Nov', sin: false, on: true }, { t: 'Dic', sin: true, on: false }], 'lo que se ve con noviembre');
+      igual(fgPildora(), ['Nov'], 'en la píldora');
+      ok(!/\d+\s*\/\s*\d+|de \d+ con foto/.test(fgCab().textContent), 'la cabecera enseña cifras: ' + fgCab().textContent);
+      // el título: el rango entero y, solo para Kevin, cuántas con foto (D-157)
+      await poner('r1', [await foto('fg1.jpg')]);
+      await hasta(() => fgHueco('Nov').title === 'Noviembre 2026 · 1 de 2 con foto', 3000, 'el título de noviembre: ' + fgHueco('Nov').title);
+      igual(fgHueco('Oct').title, 'Octubre 2026 · 0 de 2 con foto', 'el título de octubre (de un tablero de dos meses, solo lo suyo)');
+      await conCliente(async () => {
+        igual(fgHuecos().map(e => e.textContent), ['Jun', 'Jul', 'Sep', 'Oct', 'Nov', 'Ene 27'], 'en «Vista cliente», solo los meses con tablero');
+        ok(!qa('.bar .mescab .sin').length, '«sin crear» en «Vista cliente»');
+        igual(fgHueco('Nov').title, 'Noviembre 2026', 'el título en «Vista cliente»');
+        igual(fgVisibles().map(x => x.t), ['Oct', 'Nov', 'Ene 27'], 'lo que se ve en «Vista cliente»');
+      });
+      igual(fgHueco('Nov').title, 'Noviembre 2026 · 1 de 2 con foto', 'el título al quitar la vista');
+      igual([fgFl(-1).getAttribute('aria-disabled'), fgFl(1).getAttribute('aria-disabled')], [null, null], 'las flechas con noviembre');
+      // el más nuevo: la derecha apagada; «sin crear» nunca en la píldora
+      await M.open(FG_EN); await espera(60);
+      igual(fgVisibles(), [{ t: 'Dic', sin: true, on: false }, { t: 'Ene 27', sin: false, on: true }, { t: 'Feb 27', sin: true, on: false }], 'lo que se ve con enero');
+      igual([fgFl(-1).getAttribute('aria-disabled'), fgFl(1).getAttribute('aria-disabled')], [null, 'true'], 'las flechas con el mes más nuevo');
+      // el más antiguo: la izquierda apagada
+      await M.open(`${CLIENTE}-2026-06`); await espera(60);
+      igual(fgVisibles().map(x => x.t), ['Jun', 'Jul'], 'lo que se ve con junio (a su izquierda, nada)');
+      igual(fgFl(-1).getAttribute('aria-disabled'), 'true', 'la flecha izquierda con el mes más antiguo');
+      // un solo mes
+      await tablero([pub(1)]); await hasta(() => fgCab() && fgHuecos().length, 3000, 'la cabecera');
+      igual(fgHuecos().map(e => [e.textContent, e.classList.contains('sin')]), [['Nov', false], ['Dic', true]], 'con un solo mes');
+      igual(fgPildora(), ['Nov'], 'con un solo mes, en la píldora');
+      igual([fgFl(-1).getAttribute('aria-disabled'), fgFl(1).getAttribute('aria-disabled')], ['true', 'true'], 'con un solo mes, las dos flechas');
+      await conCliente(async () => { igual(fgHuecos().map(e => e.textContent), ['Nov'], 'un solo mes en «Vista cliente»'); });
+      // día de ciclo 15: el mismo nombre corto que la etiqueta del feed
+      await limpiar();
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, cycleDay: 15, slots: [fcSlot('fg-c1', '1.1', 20)], past: [], force: true }); await M.flush();
+      await hasta(() => fgCab() && fgHuecos().length, 3000, 'la cabecera');
+      igual(fgHuecos().map(e => e.textContent), ['15 nov–14 dic', '15 dic–14 ene'], 'con día de ciclo 15');
+      igual(fgPildora(), ['15 nov–14 dic'], 'con día de ciclo 15, en la píldora');
+    } finally { await limpiar(); }
+  });
+
+  prueba('FG2', 'Pulsar un mes o una flecha de la cabecera (feed continuo, pieza 4): fija el mes activo al momento y lleva el feed a su punto, como MESA.open de otro mes; otro mes del mismo tablero, sin cambiar de tablero; las flechas saltan lo apagado; ⌘Z no se reinicia; con una ventana, un menú o un campo abierto no cambia y avisa', async () => {
+    try {
+      await fgSeis();
+      M._test.setNote('r1', 'FG2'); await M.flush(); const h0 = M._test.hist().undo;
+      const feed = q('.feed'), cmes = () => (q('.side > .cal .cmes') || { textContent: '' }).textContent;
+      // un mes de otro tablero
+      await fgPulsar(fgHueco('Oct'));
+      igual(fgActivo(), [FG_SO, '2026-10'], 'pulsar octubre');
+      igual(fgPildora(), ['Oct'], 'la píldora con octubre');
+      igual(feed.scrollTop, M._in.feedPunto('2026-10'), 'el feed no fue al punto de octubre');
+      await hasta(() => /Octubre/i.test(cmes()), 3000, 'el calendario en octubre: ' + cmes());
+      igual(M._test.hist().undo, h0, '⌘Z se reinició');
+      igual(W.localStorage.getItem('mesa-last'), FG_SO, 'mesa-last (lo que escribe MESA.open)');
+      // otro mes del mismo tablero: sin activar
+      const S0 = M._in.S;
+      await fgPulsar(fgHueco('Sep'));
+      igual(fgActivo(), [FG_SO, '2026-09'], 'pulsar septiembre (del mismo tablero)');
+      ok(M._in.S === S0, 'cambió de tablero (activar) para un mes del mismo');
+      igual(feed.scrollTop, M._in.feedPunto('2026-09'), 'el feed no fue al punto de septiembre');
+      // las flechas: saltan lo apagado (agosto y diciembre)
+      await fgPulsar(fgFl(-1)); igual(fgActivo(), [`${CLIENTE}-2026-07`, '2026-07'], 'la flecha izquierda desde septiembre salta agosto');
+      await fgPulsar(fgFl(1)); igual(fgActivo(), [FG_SO, '2026-09'], 'la flecha derecha desde julio');
+      await fgPulsar(fgFl(1)); await fgPulsar(fgFl(1)); igual(fgActivo(), [fdN, MES], 'dos veces a la derecha: noviembre');
+      await fgPulsar(fgFl(1)); igual(fgActivo(), [FG_EN, '2027-01'], 'la flecha derecha desde noviembre salta diciembre');
+      igual(feed.scrollTop, M._in.feedPunto('2027-01'), 'el feed no fue al punto de enero');
+      await fgPulsar(fgFl(1)); igual(fgActivo(), [FG_EN, '2027-01'], 'la flecha apagada cambió de mes');
+      await fgPulsar(fgHueco('Feb 27')); igual(fgActivo(), [FG_EN, '2027-01'], '«sin crear» cambió de mes');
+      await fgPulsar(fgFl(-1)); igual(fgActivo(), [fdN, MES], 'la flecha izquierda desde enero salta diciembre');
+      igual(M._test.hist().undo, h0, '⌘Z se reinició con las flechas');
+      // con una ventana, un menú o un campo abierto: no cambia y avisa (el aviso de tocar otro mes)
+      const aviso = () => qa('.toasts .toast').map(t => t.textContent).join(' | ');
+      M._in.openDetail('r1'); await hasta(() => dialogo(), 2000, 'la ventana');
+      fgHueco('Oct').click(); await espera(200);
+      igual(fgActivo(), [fdN, MES], 'cambió de mes con una ventana abierta');
+      ok(/No se cambia de mes ahora: hay una ventana abierta/.test(aviso()), 'sin aviso con la ventana: ' + aviso());
+      M._in.closeDetail(); await espera(60);
+      const m = clicDerecho(celda('r2')); ok(m, 'no se abrió el menú');
+      fgHueco('Oct').click(); await espera(200);
+      igual(fgActivo(), [fdN, MES], 'cambió de mes con un menú abierto');
+      ok(/hay un menú abierto/.test(aviso()), 'sin aviso con el menú: ' + aviso());
+      M._in.menuCerrar(); await espera(30);
+      const inp = D.createElement('input'); inp.type = 'text'; q('.side').append(inp); inp.focus();
+      try { fgHueco('Oct').click(); await espera(200); } finally { inp.remove(); }
+      igual(fgActivo(), [fdN, MES], 'cambió de mes con un campo en edición');
+      ok(/hay un campo en edición/.test(aviso()), 'sin aviso con el campo: ' + aviso());
+      // el mes activo otra vez: el feed vuelve a su punto, sin cambiar nada
+      feed.scrollTop = 0; await fgPulsar(fgHueco('Nov'));
+      igual([...fgActivo(), feed.scrollTop], [fdN, MES, M._in.feedPunto(MES)], 'pulsar el mes activo');
+    } finally { await limpiar(); }
+  });
+
+  prueba('FG3', 'La cabecera es un nodo propio (feed continuo, pieza 4): renderBar, redibujar el feed y cambiar de mes no la recrean ni le quitan el foco a una flecha, y renderBar no la reescribe', async () => {
+    try {
+      await fgSeis();
+      const n = fgCab(), fl = fgFl(-1); fl.focus(); igual(D.activeElement, fl, 'la flecha no coge el foco');
+      const mut = []; const mo = new W.MutationObserver(l => mut.push(...l)); mo.observe(n, { childList: true, subtree: true, characterData: true });
+      for (let i = 0; i < 5; i++) M._in.renderBar();
+      M._in.renderFeed(); await espera(30);
+      mo.disconnect();
+      ok(fgCab() === n, 'renderBar o el feed recrearon la cabecera');
+      igual(mut.length, 0, 'renderBar reescribe la cabecera (nodos cambiados)');
+      ok(D.activeElement === fl && n.isConnected, 'la flecha perdió el foco: ' + (D.activeElement && D.activeElement.outerHTML.slice(0, 80)));
+      await fgPulsar(fl);
+      igual(fgActivo(), [FG_SO, '2026-10'], 'la flecha no cambió de mes');
+      ok(fgCab() === n && D.activeElement === fl, 'cambiar de mes recreó la cabecera o le quitó el foco a la flecha');
+      M._in.render(); await espera(30);
+      ok(fgCab() === n && D.activeElement === fl, 'redibujar entero recreó la cabecera o le quitó el foco');
+    } finally { await limpiar(); }
+  });
+
+  prueba('FG4', 'Dónde va la cabecera (feed continuo, pieza 4): dentro de la barra del mes, centrada sobre la rejilla del feed y nunca más ancha, sin tapar «Feed / Historias», «Revisar» ni «Vista cliente» ni añadir fila; a 720 en su sitio; se recoloca al cambiar el ancho; claro y oscuro; el nombre de la píldora en color invertido por recorte (dos capas)', async () => {
+    try {
+      await fgSeis();
+      const mirar = async (que, centrada) => {
+        const bar = q('.bar'), cab = fgCab(), caja = q('.bar .mescab .mescab-in'), grid = q('.feed .grid');
+        ok(bar.contains(cab), `${que}: la cabecera no está en la barra`);
+        await espera(80);   // se coloca en el fotograma siguiente
+        const c = caja.getBoundingClientRect(), g = grid.getBoundingClientRect(), b = bar.getBoundingClientRect();
+        ok(c.width <= g.width + 0.5, `${que}: más ancha que la rejilla (${c.width} frente a ${g.width})`);
+        ok(c.left >= b.left - 0.5 && c.right <= b.right + 0.5 && c.top >= b.top - 0.5 && c.bottom <= b.bottom + 0.5, `${que}: fuera de la barra`);
+        if (centrada) cerca(fgCentro(c), fgCentro(g), 1, `${que}: no está centrada sobre la rejilla`);
+        for (const s of ['.bar .hvsw', '.bar .rvbtn', '.bar label.sw']) { const e = q(s); if (/cliente/.test(que) && (!e || !seVe(e))) continue; ok(e && seVe(e), `${que}: falta ${s}`); ok(!fgEnFila(caja, e), `${que}: tapa ${s}`); }
+        ok(bar.nextElementSibling && !bar.nextElementSibling.matches('.mescab, .months'), `${que}: una fila nueva`);
+        const sw = q('.bar label.sw').getBoundingClientRect(); cerca(c.top + c.height / 2, sw.top + sw.height / 2, 2, `${que}: no va en la fila de «Vista cliente»`);
+        return c;
+      };
+      const color = (el, p) => W.getComputedStyle(el)[p];
+      const capas = async que => {
+        const p = q('.bar .mescab .mescab-pild'), dentro = [...p.querySelectorAll('.mescab-mes')].find(e => e.textContent === 'Nov'), fuera = fgHueco('Nov');
+        const ink = W.getComputedStyle(D.querySelector('#mesa')).getPropertyValue('--ink').trim(), onInk = W.getComputedStyle(D.querySelector('#mesa')).getPropertyValue('--on-ink').trim();
+        const rgb = h => { const x = D.createElement('span'); x.style.color = h; q('#mesa').append(x); const v = W.getComputedStyle(x).color; x.remove(); return v; };
+        igual([color(p, 'backgroundColor'), color(dentro, 'color')], [rgb(ink), rgb(onInk)], `${que}: la píldora y su nombre (dos capas)`);
+        ok(color(fuera, 'color') !== color(dentro, 'color'), `${que}: el nombre de fuera tiene el color de dentro`);
+        ok(p.contains(dentro) && color(p, 'overflowX') === 'hidden', `${que}: la píldora no recorta su capa`);
+        ok([p, dentro, fuera, q('.bar .mescab .mescab-vent')].every(e => color(e, 'mixBlendMode') === 'normal' && !/blend|difference/.test(color(e, 'filter'))), `${que}: mezcla colores`);
+        cerca(fgCentro(dentro.getBoundingClientRect()), fgCentro(p.getBoundingClientRect()), 1, `${que}: el nombre no está centrado en la píldora`);
+        cerca(fgCentro(fuera.getBoundingClientRect()), fgCentro(p.getBoundingClientRect()), 1, `${que}: las dos capas no coinciden`);
+      };
+      await mirar('1280 claro', true); await capas('1280 claro');
+      await fgOscuro(async () => { await mirar('1280 oscuro', true); await capas('1280 oscuro'); });
+      await conCliente(async () => { await espera(80); await mirar('«Vista cliente»', true); });
+      await fgAncho(1000, async () => { await mirar('1000', true); });
+      await fgAncho(720, async () => {
+        const c = await mirar('720', false), g = q('.feed .grid').getBoundingClientRect(), s = fgCab().getBoundingClientRect();
+        ok(Math.abs(fgCentro(c) - fgCentro(g)) <= 1 || Math.abs(c.left - s.left) <= 1, `720: ni centrada sobre la rejilla ni en el sitio de los chips (${c.left}, ${s.left})`);
+        await fgOscuro(async () => { await mirar('720 oscuro', false); await capas('720 oscuro'); });
+      });
+      await mirar('de vuelta a 1280', true);
+    } finally { await limpiar(); }
+  });
+
+  prueba('FG5', 'Con «Historias» a la vista la cabecera sigue en la barra y elige el mes (feed continuo, pieza 4)', async () => {
+    try {
+      await fgSeis();
+      await hasta(() => M.hs, 6000, 'historias.js');
+      M.hs.ver(true); await hasta(() => M.hs.activo(), 2000, '«Historias»');
+      const n = fgCab(); ok(n && seVe(n), 'la cabecera no se ve con «Historias»');
+      await fgPulsar(fgHueco('Oct'));
+      igual(fgActivo(), [FG_SO, '2026-10'], 'con «Historias» no cambia de mes');
+      ok(M.hs.activo() && fgCab() === n, '«Historias» se cerró o la cabecera se recreó');
+      await fgPulsar(fgFl(1)); igual(fgActivo(), [fdN, MES], 'la flecha con «Historias»');
+      M.hs.ver(false);
+    } finally { await limpiar(); }
+  });
+
+  prueba('FG6', 'Accesibilidad y teclado de la cabecera (feed continuo, pieza 4): grupo con nombre, cada mes un botón con aria-current el activo, flechas con su nombre, solo se enfoca lo que se ve, ← → con el foco dentro cambian de mes y el foco sigue en el mes', async () => {
+    try {
+      await fgSeis();
+      const cab = fgCab();
+      igual([cab.getAttribute('role'), cab.getAttribute('aria-label')], ['group', 'Meses'], 'el grupo');
+      igual([fgFl(-1).tagName, fgFl(-1).getAttribute('aria-label'), fgFl(1).getAttribute('aria-label')], ['BUTTON', 'Mes anterior', 'Mes siguiente'], 'las flechas');
+      ok(fgHuecos().filter(e => !e.classList.contains('sin')).every(e => e.tagName === 'BUTTON' && e.type === 'button'), 'un mes que no es un botón');
+      igual(fgHuecos().filter(e => e.getAttribute('aria-current') === 'true').map(e => e.textContent), ['Nov'], 'aria-current');
+      ok(q('.bar .mescab .mescab-pild').getAttribute('aria-hidden') === 'true', 'la capa de la píldora se lee dos veces');
+      const vis = fgVisibles().map(x => x.t);
+      for (const e of fgHuecos()) {
+        const ve = vis.includes(e.textContent) && !e.classList.contains('sin');
+        if (e.classList.contains('sin')) continue;
+        igual([e.tabIndex, e.getAttribute('aria-hidden')], ve ? [0, null] : [-1, 'true'], `${e.textContent}: se enfoca o se lee fuera de los tres huecos (o al revés)`);
+      }
+      const nov = fgHueco('Nov'); nov.focus();
+      const tecla = async k => { D.activeElement.dispatchEvent(new W.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true })); await espera(30); await hasta(() => !M._in.switching(), 3000, 'el cambio'); await espera(60); };
+      await tecla('ArrowLeft'); igual(fgActivo(), [FG_SO, '2026-10'], '← con el foco en la cabecera');
+      igual(D.activeElement && D.activeElement.textContent, 'Oct', 'el foco no siguió al mes');
+      await tecla('ArrowRight'); await tecla('ArrowRight'); igual(fgActivo(), [FG_EN, '2027-01'], '→ dos veces salta diciembre');
+      // fuera de la cabecera, ← → no cambian de mes
+      D.activeElement.blur(); q('.feed .grid').focus();
+      q('.feed .grid').dispatchEvent(new W.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true })); await espera(150);
+      igual(fgActivo(), [FG_EN, '2027-01'], '← fuera de la cabecera cambió de mes');
+    } finally { await limpiar(); }
+  });
+
+  prueba('FG7', 'La cabecera no escribe (feed continuo, pieza 4; lección 171, contado en los nativos): dibujarla y cambiar de mes desde ella no escriben en IndexedDB y en localStorage solo lo que ya escribía MESA.open (mesa-last*)', async () => {
+    try {
+      await fgSeis();
+      const n = await fcContar(async () => {
+        for (let i = 0; i < 10; i++) M._in.renderBar();
+        await fgPulsar(fgHueco('Oct')); await fgPulsar(fgHueco('Sep')); await fgPulsar(fgFl(1)); await fgPulsar(fgFl(1));
+        await conCliente(async () => { await espera(30); });
+      });
+      igual(fgActivo(), [fdN, MES], 'el recorrido no acabó en noviembre');
+      igual(n.idb, 0, 'escribió en IndexedDB: ' + n.que.join(', '));
+      ok(n.que.every(x => /^setItem mesa-last(Client|ByClient)?$/.test(x)), 'escribió en localStorage algo más que mesa-last*: ' + n.que.join(', '));
+    } finally { await limpiar(); }
+  });
+
+  // ---------- feed continuo, pieza 3c: una Publicada no se mueve ni se sobrescribe, tampoco dentro de su mes (D-324) ----------
+  const fiAvisos = () => qa('.toasts .toast').map(t => t.textContent).join(' | ');
+  async function fiTres() {   // noviembre: r1 Publicada con su foto, r2 con foto, r3 sin foto
+    await tablero([pub(1), pub(2), pub(3)]);
+    await porAprobar(['r1'], 'fi'); M.setEstado('r1', 'publicado');
+    await poner('r2', [await foto('fi-r2.jpg')]); await M.flush();
+    igual(M._in.estadoDe(slot('r1')), 'publicado', 'r1 no está Publicada');
+    M._in.clearToasts();
+    return { r1: slot('r1').photos[0], r2: slot('r2').photos[0] };
+  }
+  prueba('FI1', 'Dentro de su mes una Publicada no se mueve ni se sobrescribe (feed continuo, pieza 3c; D-324): intercambiar con ella (origen o destino, arrastre o swap) no cambia nada, no se resalta y avisa «Ya está publicada: no se mueve.»; dos que no lo están se siguen intercambiando', async () => {
+    try {
+      const f = await fiTres();
+      M._test.swap('r1', 'r2'); igual([slot('r1').photos, slot('r2').photos], [[f.r1], [f.r2]], 'swap con una Publicada de origen la cambió');
+      M._test.swap('r2', 'r1'); igual([slot('r1').photos, slot('r2').photos], [[f.r1], [f.r2]], 'swap con una Publicada de destino la cambió');
+      ok(/Ya está publicada: no se mueve\./.test(fiAvisos()), 'sin el aviso (swap): ' + fiAvisos());
+      M._in.clearToasts();
+      let lit = await ffArrastrar(celda('r2'), celda('r1'));
+      ok(!lit, 'se resaltó una Publicada de destino');
+      lit = await ffArrastrar(celda('r1'), celda('r2'));
+      ok(!lit, 'se resaltó el destino de una Publicada que se arrastra');
+      igual([slot('r1').photos, slot('r2').photos], [[f.r1], [f.r2]], 'el arrastre cambió una Publicada');
+      ok(/Ya está publicada: no se mueve\./.test(fiAvisos()), 'sin el aviso (arrastre): ' + fiAvisos());
+      // dos que no son Publicadas: como siempre
+      lit = await ffArrastrar(celda('r2'), celda('r3'));
+      ok(lit, 'no se resaltó un destino normal');
+      igual([slot('r2').photos, slot('r3').photos], [[], [f.r2]], 'dos sin publicar no se intercambiaron');
+    } finally { await limpiar(); }
+  });
+  prueba('FI2', 'Una foto de la bandeja no entra en una Publicada (feed continuo, pieza 3c; D-324): soltada sobre ella no se resalta, no cambia su foto y avisa «Ya está publicada: no se cambia su foto.»; tampoco en una de otro mes; en una que no lo está, entra como siempre', async () => {
+    try {
+      const f = await fiTres();
+      const [g] = await M.addFiles([await foto('fi-bandeja.jpg')]);
+      const item = () => q(`.side > .tray .titem[data-file="${g}"]`);
+      await hasta(item, 3000, 'la foto en la bandeja');
+      let lit = await ffArrastrar(item(), celda('r1'));
+      ok(!lit, 'se resaltó una Publicada al soltar una foto de la bandeja');
+      await espera(150);
+      igual(slot('r1').photos, [f.r1], 'la foto de la bandeja entró en la Publicada');
+      ok(/Ya está publicada: no se cambia su foto\./.test(fiAvisos()), 'sin el aviso (bandeja): ' + fiAvisos());
+      lit = await ffArrastrar(item(), celda('r3'));
+      ok(lit, 'no se resaltó una casilla normal');
+      await hasta(() => slot('r3').photos.length === 1, 3000, 'la foto en r3');
+      // otro mes: una Publicada de octubre, con noviembre abierto
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: FD_OCT, slots: [fcSlot('fi-o1', '4.1', 20, FD_OCT)], past: [], force: true });
+      await porAprobar(['fi-o1'], 'fio'); M.setEstado('fi-o1', 'publicado'); await M.flush();
+      const o1 = slot('fi-o1').photos[0];
+      await M.open(fdN); await M.flush(); await feTodo([MES, FD_OCT]);
+      const [h] = await M.addFiles([await foto('fi-bandeja2.jpg')]); await hasta(() => q(`.side > .tray .titem[data-file="${h}"]`), 3000, 'la segunda foto en la bandeja');
+      M._in.clearToasts();
+      lit = await ffArrastrar(q(`.side > .tray .titem[data-file="${h}"]`), celda('fi-o1'));
+      ok(!lit, 'se resaltó una Publicada de otro mes');
+      await hasta(() => !M._in.switching(), 3000, 'el cambio de mes'); await espera(200);
+      igual(((await M._in.idbGet('boards', fdO)).slots.find(s => s.id === 'fi-o1') || {}).photos, [o1], 'la foto entró en la Publicada de octubre');
+      ok(/Ya está publicada: no se cambia su foto\./.test(fiAvisos()), 'sin el aviso (otro mes): ' + fiAvisos());
+    } finally { await limpiar(); }
+  });
+
+  // ---------- FJ: el movimiento del feed (feed continuo, pieza 5; D-325) ----------
+  // La tira de la cabecera sigue al feed, el mes activo cambia al asentarse, el imán y el salto. Kevin desliza = una rueda (marca el
+  // gesto) y el scrollTop por código (la batería no puede mover la rueda de verdad: eso va por CDP, fuera de la batería).
+  const fjFeed = () => q('.feed');
+  const fjCuadro = () => new Promise(r => W.requestAnimationFrame(() => W.requestAnimationFrame(r)));
+  const fjX = () => { const t = q('.bar .mescab .mescab-vent > .mescab-tira'), m = t && /translateX\((-?[\d.e+-]+)px\)/.exec(t.style.transform || ''); return m ? +m[1] : NaN; };
+  const fjJ = m => fgHuecos().map(e => e.dataset.mes).indexOf(m);
+  const fjXde = v => (1 - v) * M._in.cabecera.ancho();
+  const fjP = m => M._in.feedPunto(m);
+  const fjGesto = () => fjFeed().dispatchEvent(new W.WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 1 }));
+  async function fjA(y) { fjGesto(); fjFeed().scrollTop = y; await fjCuadro(); }   // Kevin desliza hasta y
+  const fjMov = () => (M._in.mov && M._in.mov.estado()) || {};   // (sin motor, la pieza 4: {})
+  async function fjQuieto(ms = 650) { await espera(ms); await hasta(() => !M._in.switching() && !fjMov().anim && !fjMov().glide, 3000, 'el feed quieto'); await fjCuadro(); }
+  const FJ_MESES = ['2027-01', MES, '2026-10', '2026-09', '2026-07', '2026-06'];
+  const FJ_SO = `${CLIENTE}-2026-09`, FJ_EN = `${CLIENTE}-2027-01`, FJ_JN = `${CLIENTE}-2026-06`, FJ_JL = `${CLIENTE}-2026-07`;
+  const fjPuntos = () => Object.fromEntries(FJ_MESES.map(m => [m, fjP(m)]));
+  // junio, julio, (agosto sin tablero), septiembre–octubre en un tablero, noviembre (abierto) y enero de 2027; n[mes] publicaciones (6)
+  async function fjSeis(n = {}) {
+    await limpiar();
+    const k = m => (n[m] != null ? n[m] : 6);
+    const varias = (p, m) => Array.from({ length: k(m) }, (_, i) => fcSlot(`${p}${i + 1}`, `${p}.${i + 1}`, 2 + i * 2, m));
+    const t = async (month, slots, months = 1) => { await M.init({ client: CLIENTE, clientName: NOMBRE, month, months, cycleDay: 1, slots, past: [], force: true }); await M.flush(); };
+    await t('2026-06', varias('fj-jn', '2026-06')); await t('2026-07', varias('fj-jl', '2026-07'));
+    await t('2026-09', [...varias('fj-s', '2026-09'), ...varias('fj-o', '2026-10')], 2);
+    await t('2027-01', varias('fj-e', '2027-01')); await t(MES, varias('fj-n', MES));
+    await hasta(() => fgCab() && fgHuecos().length, 3000, 'la cabecera de meses');
+    await M._in.feedCargar(); await feTodo(FJ_MESES);
+    await fjCuadro(); await espera(80);
+    if (M._in.mov) ok(fjMov().puntos && fjMov().puntos.length === 6, 'el motor no midió los puntos: ' + json(fjMov().puntos));
+  }
+
+  prueba('FJ1', 'La tira sigue al feed (feed continuo, pieza 5; D-325): en el punto de cada mes su nombre centrado en la píldora; a medio camino entre dos puntos, a medio camino; pasa por «sin crear» sin pararse; antes del punto del mes más nuevo, clavada; con el feed corto, quieta; al deslizar solo cambia el transform de las dos capas, sin lecturas de diseño', async () => {
+    try {
+      await fjSeis({ '2027-01': 12 });
+      const feed = fjFeed(), max = feed.scrollHeight - feed.clientHeight, P = fjPuntos();
+      ok(max > 600 && P['2027-01'] > 40, 'el feed no se desliza o enero empieza arriba: la prueba no vale ' + json(P));
+      for (const m of [...FJ_MESES].reverse()) { await fjA(P[m]); cerca(fjX(), fjXde(fjJ(m)), 1, `la tira en el punto de ${m}`); }
+      for (const [a, b] of [['2026-10', '2026-09'], [MES, '2026-10'], ['2027-01', MES]]) {
+        await fjA((P[a] + P[b]) / 2); cerca(fjX(), fjXde((fjJ(a) + fjJ(b)) / 2), 1, `a medio camino entre ${a} y ${b}`);
+      }
+      // septiembre → julio pasa por agosto («sin crear») sin pararse: lineal en todo el tramo
+      for (const f of [.25, .5, .75]) { await fjA(P['2026-09'] + (P['2026-07'] - P['2026-09']) * f); cerca(fjX(), fjXde(fjJ('2026-09') - 2 * f), 1, `de septiembre a julio, al ${f * 100} %`); }
+      for (const y of [0, P['2027-01'] / 2]) { await fjA(y); cerca(fjX(), fjXde(fjJ('2027-01')), 1, `antes del punto de enero (${y}): clavada`); }
+      await fjA(max); cerca(fjX(), fjXde(fjJ('2026-06')), 1, 'al final, junio');
+      // al deslizar de punta a punta: solo el transform de las dos capas y ninguna lectura de diseño
+      await fjQuieto();
+      const n = fgCab(), mut = [], mo = new W.MutationObserver(l => mut.push(...l));
+      let lect = 0; const gbr = W.Element.prototype.getBoundingClientRect, gcs = W.getComputedStyle;
+      mo.observe(n, { subtree: true, childList: true, attributes: true, characterData: true });
+      W.Element.prototype.getBoundingClientRect = function () { lect++; return gbr.call(this); };
+      W.getComputedStyle = function (...a) { lect++; return gcs.apply(W, a); };
+      const x0 = fjX(); let pasos = 0;
+      try { for (let y = 0; y <= max; y += 41) { fjGesto(); feed.scrollTop = y; await new Promise(r => W.requestAnimationFrame(r)); pasos++; } await fjCuadro(); }
+      finally { W.Element.prototype.getBoundingClientRect = gbr; W.getComputedStyle = gcs; mo.disconnect(); }
+      ok(pasos > 15 && fjX() !== x0, 'la tira no se movió al deslizar');
+      const otras = mut.filter(r => !(r.type === 'attributes' && r.attributeName === 'style' && r.target.classList.contains('mescab-tira')));
+      igual(otras.map(r => r.type + ':' + (r.attributeName || '') + ':' + r.target.className), [], 'al deslizar cambió algo más que el transform de la tira');
+      igual(lect, 0, 'lecturas de diseño (getBoundingClientRect / getComputedStyle) al deslizar');
+      // el feed más corto que su ventana: la tira no se mueve
+      await limpiar(); await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, cycleDay: 1, slots: [pub(1), pub(2)], past: [], force: true }); await M.flush();
+      await hasta(() => fgCab() && fgHuecos().length, 3000, 'la cabecera'); await fjCuadro();
+      const xc = fjX(); cerca(xc, fjXde(fjJ(MES)), .5, 'con el feed corto, noviembre en la píldora');
+      await fjA(80); await fjQuieto(); igual(fjFeed().scrollTop, 0, 'el feed corto se movió'); cerca(fjX(), xc, .5, 'con el feed corto la tira se movió');
+    } finally { await limpiar(); }
+  });
+
+  prueba('FJ2', 'El mes activo cambia una vez, al asentarse (feed continuo, pieza 5; D-325): mientras Kevin desliza no cambia; al parar, al mes de la píldora (del mismo tablero, sin activar); con una ventana, un menú, un campo, el editor o un arrastre no cambia, no avisa y la tira vuelve al mes activo; recorrer de punta a punta no escribe nada ni pide nada a la red', async () => {
+    try {
+      await fjSeis(); const feed = fjFeed(), P = fjPuntos();
+      const avisos = () => qa('.toasts .toast').length;
+      // noviembre → octubre, poco a poco: no cambia mientras desliza; al parar, una vez
+      const vistos = [];
+      const mira = W.setInterval(() => { const a = fgActivo().join(); if (vistos[vistos.length - 1] !== a) vistos.push(a); }, 5);
+      try {
+        for (let i = 1; i <= 10; i++) await fjA(P[MES] + (P['2026-10'] - P[MES]) * i / 10);
+        igual(vistos, [[`${CLIENTE}-${MES}`, MES].join()], 'el mes activo cambió mientras deslizaba');
+        await fjQuieto();
+      } finally { W.clearInterval(mira); }
+      igual(vistos, [[`${CLIENTE}-${MES}`, MES].join(), [FJ_SO, '2026-10'].join()], 'el mes activo al asentarse (una vez)');
+      igual(M._in.mesActivo.quien(), 'deslizar', 'quién lo fijó');
+      cerca(fjX(), fjXde(fjJ('2026-10')), 1, 'la tira con octubre');
+      // otro mes del mismo tablero: sin activar
+      const S0 = M._in.S; await fjA(P['2026-09']); await fjQuieto();
+      igual(fgActivo(), [FJ_SO, '2026-09'], 'septiembre'); ok(M._in.S === S0, 'cambió de tablero para un mes del mismo');
+      // de punta a punta, asentándose en cada mes: 0 escrituras, 0 peticiones
+      let red = 0; const f0 = W.fetch; W.fetch = (...a) => { red++; return f0.apply(W, a); };
+      let c;
+      try {
+        c = await fcContar(async () => {
+          for (const m of ['2026-07', '2026-06', '2026-10', MES, '2027-01']) {
+            const y0 = feed.scrollTop; for (let i = 1; i <= 6; i++) await fjA(y0 + (P[m] - y0) * i / 6);
+            await fjQuieto(); igual(M._in.mesActivo.lee(), m, 'al asentarse en ' + m);
+          }
+        });
+      } finally { W.fetch = f0; }
+      igual([c.idb, c.ls, red], [0, 0, 0], 'deslizar escribió o pidió algo: ' + json(c.que));
+      igual(fgActivo(), [FJ_EN, '2027-01'], 'al final, enero');
+      // con algo abierto: no cambia, sin aviso, y la tira vuelve a enero
+      const sinCambio = async (que, abrir, cerrar, ya = false) => {
+        const a0 = avisos();
+        if (!ya) await abrir();
+        await fjA(P[MES] - 2); if (ya) await abrir();
+        await fjQuieto(800);
+        try {
+          igual(fgActivo(), [FJ_EN, '2027-01'], `cambió de mes con ${que}`);
+          igual(avisos(), a0, `avisó con ${que}`);
+          cerca(fjX(), fjXde(fjJ('2027-01')), 1, `con ${que} la tira no volvió a enero`);
+        } finally { await cerrar(); }
+        await fjA(P['2027-01']); await fjQuieto();
+      };
+      await sinCambio('una ventana', async () => { M._in.openDetail('fj-e1'); await hasta(() => dialogo(), 2000, 'la ventana'); }, async () => { M._in.closeDetail(); await espera(60); });
+      await sinCambio('un menú', async () => { ok(clicDerecho(celda('fj-e2')), 'no se abrió el menú'); }, async () => { M._in.menuCerrar(); await espera(30); }, true);
+      let inp;
+      await sinCambio('un campo en edición', async () => { inp = D.createElement('input'); inp.type = 'text'; q('.side').append(inp); inp.focus(); }, async () => { inp.remove(); });
+      await sinCambio('el editor', async () => { await abrirEditor('fj-e1'); }, async () => { M.libre.cerrar(); await espera(60); });
+      // un arrastre: con el ratón apretado no se asienta; no cambia mientras dura
+      const c0 = celda('fj-e3'), r0 = c0.getBoundingClientRect();
+      puntero('pointerdown', c0, r0.left + 10, r0.top + 10); puntero('pointermove', c0, r0.left + 40, r0.top + 40); puntero('pointermove', c0, r0.left + 60, r0.top + 70);
+      try { await fjA(P[MES] - 2); await espera(600); igual(fgActivo(), [FJ_EN, '2027-01'], 'cambió de mes con un arrastre'); }
+      finally { puntero('pointerup', W, r0.left + 60, r0.top + 70); W.dispatchEvent(new W.PointerEvent('pointerup', { pointerType: 'mouse', bubbles: true })); await fjQuieto(); }
+    } finally { await limpiar(); }
+  });
+
+  prueba('FJ3', 'El imán suave (feed continuo, pieza 5; D-325): al parar a menos de .35 de fila del punto de un mes, el feed se asienta en él con la curva y la duración del salto; a más, no; no actúa con la rueda o el ratón apretado, con un campo en edición, con un menú abierto ni con «reducir movimiento»; un gesto nuevo a mitad lo para sin salto; un mes fijado con un clic no cambia', async () => {
+    try {
+      await fjSeis(); const feed = fjFeed(), P = fjPuntos(), c1 = celda('fj-n1'), fila = fjMov().filaH || (c1.offsetHeight + (parseFloat(W.getComputedStyle(c1.parentElement.parentElement).rowGap) || 0));
+      ok(fila > 80, 'sin alto de fila: ' + fila);
+      if (M._in.mov) igual(M._in.mov.umbral, .35, 'el umbral');
+      // cerca: se asienta en octubre, con la duración del salto
+      const mu = []; let sigue = true; const rec = () => { mu.push([W.performance.now(), feed.scrollTop]); if (sigue) W.requestAnimationFrame(rec); };
+      const y0 = Math.round(P['2026-10'] - .25 * fila); await fjA(y0); W.requestAnimationFrame(rec);
+      await fjQuieto(900); sigue = false;
+      igual(feed.scrollTop, P['2026-10'], 'el imán no lo asentó en octubre');
+      igual(fgActivo(), [FJ_SO, '2026-10'], 'el mes al asentarse');
+      const mov = mu.filter((x, i) => i && x[1] !== mu[i - 1][1]);
+      ok(mov.length >= 4, 'el imán no se animó: ' + json(mu.map(x => x[1])));
+      const t0 = mu[mu.findIndex(x => x[1] !== y0) - 1][0], t1 = mu.find(x => x[1] === P['2026-10'])[0];
+      ok(t1 - t0 > 220 && t1 - t0 < 480, 'la duración del imán: ' + Math.round(t1 - t0) + ' ms');
+      ok(mov.every((x, i) => !i || x[1] >= mov[i - 1][1]), 'el imán no va en un sentido: ' + json(mov.map(x => x[1])));
+      // lejos (media fila): no
+      const y1 = Math.round(P['2026-10'] - .5 * fila); await fjA(y1); await fjQuieto(); igual(feed.scrollTop, y1, 'el imán actuó a media fila');
+      // con la rueda en marcha: no hasta que para
+      const y2 = Math.round(P['2026-09'] - .2 * fila); await fjA(y2);
+      for (let i = 0; i < 8; i++) { fjGesto(); await espera(60); igual(feed.scrollTop, y2, 'el imán actuó con la rueda en marcha'); }
+      await fjQuieto(); igual(feed.scrollTop, P['2026-09'], 'al parar la rueda, el imán');
+      // con el ratón apretado: no hasta soltarlo
+      const y3 = Math.round(P['2026-07'] - .2 * fila);
+      feed.dispatchEvent(new W.PointerEvent('pointerdown', { pointerType: 'mouse', bubbles: true, button: 0, buttons: 1 }));
+      await fjA(y3); await espera(600); igual(feed.scrollTop, y3, 'el imán actuó con el ratón apretado');
+      W.dispatchEvent(new W.PointerEvent('pointerup', { pointerType: 'mouse', bubbles: true })); await fjQuieto(); igual(feed.scrollTop, P['2026-07'], 'al soltar, el imán');
+      // un campo en edición, un menú, «reducir movimiento»: no
+      const inp = D.createElement('input'); inp.type = 'text'; q('.side').append(inp); inp.focus();
+      try { const y = Math.round(P['2026-07'] - .2 * fila); await fjA(y); await fjQuieto(); igual(feed.scrollTop, y, 'el imán actuó con un campo en edición'); } finally { inp.remove(); }
+      { const y = Math.round(P['2026-07'] - .25 * fila); await fjA(y); ok(clicDerecho(celda('fj-jl2')), 'no se abrió el menú'); await fjQuieto(); igual(feed.scrollTop, y, 'el imán actuó con un menú abierto'); M._in.menuCerrar(); await espera(30); }
+      M._in.mov.reducir(true);
+      try { const y = Math.round(P['2026-09'] + .2 * fila); await fjA(y); await fjQuieto(); igual(feed.scrollTop, y, 'el imán actuó con «reducir movimiento»'); } finally { M._in.mov.reducir(null); }
+      // un gesto a mitad del imán lo para donde está, sin salto
+      const y4 = Math.round(P[MES] + .3 * fila); await fjA(y4);
+      await hasta(() => fjMov().anim, 1500, 'el imán en marcha'); await espera(60);
+      const yMed = feed.scrollTop; ok(yMed !== y4 && yMed !== P[MES], 'el imán no estaba a mitad: ' + yMed);
+      fjGesto(); await fjCuadro(); const yPar = feed.scrollTop;
+      ok(!fjMov().anim, 'el gesto no paró el imán'); ok(Math.abs(yPar - yMed) < .3 * fila, `al pararlo saltó: ${yMed} → ${yPar}`);
+      await espera(500); igual(feed.scrollTop, yPar, 'tras pararlo se siguió moviendo');
+      // un mes fijado con un clic no cambia aunque el imán pase cerca de otro
+      await fgPulsar(fgHueco('Jul')); await fjQuieto(800);
+      igual([...fgActivo(), M._in.mesActivo.quien()], [FJ_JL, '2026-07', 'cabecera'], 'julio pulsado');
+      await espera(500); igual(fgActivo(), [FJ_JL, '2026-07'], 'el mes pulsado cambió solo');
+    } finally { M._in.mov && M._in.mov.reducir(null); await limpiar(); }
+  });
+
+  prueba('FJ4', 'El salto (feed continuo, pieza 5; D-325): pulsar un mes o una flecha fija el mes activo al momento y lleva el feed a su punto en --d-m (0,32 s) con --ease-m, igual de lejos que de cerca, sin rebote; un clic tras otro gana el último; un gesto a mitad lo para; con «reducir movimiento», al instante; MESA.open, MESA.init y abrir el cliente, al instante', async () => {
+    try {
+      await fjSeis(); const feed = fjFeed(), P = fjPuntos();
+      const salto = async (el, mes, key) => {
+        const y0 = feed.scrollTop, mu = []; let sigue = true;
+        const rec = () => { mu.push([W.performance.now(), feed.scrollTop]); if (sigue) W.requestAnimationFrame(rec); };
+        W.requestAnimationFrame(rec); await fjCuadro();
+        el.click(); await hasta(() => !M._in.switching() && M._in.mesActivo.lee() === mes, 3000, 'el cambio de mes');
+        const ya = [...fgActivo(), feed.scrollTop];
+        await fjQuieto(700); sigue = false;
+        igual(ya.slice(0, 2), [key, mes], 'el mes activo al momento'); ok(ya[2] !== P[mes], 'el feed llegó antes de animarse (al instante)');
+        igual(feed.scrollTop, P[mes], 'el feed no llegó al punto de ' + mes);
+        const i0 = mu.findIndex(x => x[1] !== y0), i1 = mu.findIndex(x => Math.abs(x[1] - P[mes]) < .5);
+        ok(i0 > 0 && i1 >= i0, 'no se animó: ' + json(mu.map(x => x[1])));
+        const tA = mu[Math.max(0, i0 - 2)][0], tB = mu[i0][0], dur = mu[i1][0] - mu[i0 - 1][0], E = M._in.mov.ease, d = P[mes] - y0;   // el salto empieza entre dos muestras quietas y la primera que se mueve (un fotograma de margen: su reloj es el del fotograma)
+        for (let i = i0; i <= i1; i++) {
+          const e = (mu[i][1] - y0) / d, lo = E(Math.max(0, (mu[i][0] - tB) / 320)), hi = E(Math.min(1, (mu[i][0] - tA) / 320));
+          ok(e >= lo - .03 && e <= hi + .03, `fuera de la curva en ${Math.round(mu[i][0] - tA)} ms: ${e.toFixed(3)} no está en [${lo.toFixed(3)}, ${hi.toFixed(3)}]`);
+          ok(e <= 1.0001 && (i === i0 || e >= (mu[i - 1][1] - y0) / d - 1e-6), 'rebote o vuelta atrás: ' + json(mu.map(x => x[1])));
+        }
+        return dur;
+      };
+      const lejos = await salto(fgHueco('Jun'), '2026-06', FJ_JN);
+      igual(M._in.mov.tokens().dur, 320, 'la duración del salto (--d-m)'); igual(M._in.mov.tokens().curva, [.32, .72, 0, 1], 'la curva (--ease-m)');
+      const cerca1 = await salto(fgHueco('Jul'), '2026-07', FJ_JL);
+      ok(lejos > 250 && lejos < 460 && cerca1 > 250 && cerca1 < 460, `duraciones: lejos ${Math.round(lejos)} ms, cerca ${Math.round(cerca1)} ms`);
+      ok(Math.abs(lejos - cerca1) < 70, `la duración depende de la distancia: lejos ${Math.round(lejos)} ms, cerca ${Math.round(cerca1)} ms`);
+      await salto(fgFl(1), '2026-09', FJ_SO);   // la flecha salta agosto
+      // un clic tras otro: gana el último
+      fgHueco('Ene 27').click(); await espera(20); fgHueco('Oct').click();
+      await hasta(() => !M._in.switching(), 3000, 'el cambio de mes'); await fjQuieto(800);
+      igual([...fgActivo(), feed.scrollTop], [FJ_SO, '2026-10', P['2026-10']], 'dos clics seguidos');
+      // un gesto a mitad lo para donde está; el mes pulsado se queda
+      fgHueco('Jun').click(); await hasta(() => fjMov().anim, 3000, 'el salto en marcha'); await espera(90);
+      fjGesto(); await fjCuadro(); const yPar = feed.scrollTop;
+      ok(!fjMov().anim && yPar !== P['2026-06'] && yPar !== P['2026-10'], 'el gesto no paró el salto: ' + yPar);
+      await espera(500); igual([...fgActivo(), feed.scrollTop], [FJ_JN, '2026-06', yPar], 'tras pararlo');
+      // «reducir movimiento»: al instante
+      M._in.mov.reducir(true);
+      try { fgHueco('Nov').click(); await hasta(() => !M._in.switching() && M._in.mesActivo.lee() === MES, 3000, 'noviembre'); igual(feed.scrollTop, P[MES], 'con «reducir movimiento» no fue al instante'); }
+      finally { M._in.mov.reducir(null); }
+      // MESA.open, MESA.init y abrir el cliente: al instante
+      await M.open(FJ_EN); igual(feed.scrollTop, P['2027-01'], 'MESA.open no fue al instante');
+      await M.open(FJ_JL); igual(feed.scrollTop, P['2026-07'], 'MESA.open (julio) no fue al instante');
+      await M.openClient(CLIENTE); igual(feed.scrollTop, fjP(M._in.mesActivo.lee()), 'abrir el cliente no fue al instante');
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: '2026-06', cycleDay: 1, slots: Array.from({ length: 6 }, (_, i) => fcSlot(`fj-jn${i + 1}`, `fj-jn.${i + 1}`, 2 + i * 2, '2026-06')), past: [], force: true });
+      igual(M._in.mesActivo.lee(), '2026-06', 'MESA.init'); igual(q('.feed').scrollTop, fjP('2026-06'), 'MESA.init no fue al instante');
+    } finally { M._in.mov && M._in.mov.reducir(null); await limpiar(); }
+  });
+
+  prueba('FJ5', 'Casos de borde del movimiento (feed continuo, pieza 5; D-325): dos meses con el mismo punto (arriba el más nuevo y abajo el más antiguo al deslizar; al pulsar, el pulsado); «sin crear» nunca se queda en la píldora; todo cabe sin deslizar (el pulsado y, al abrir, el de hoy); un mes de una sola casilla', async () => {
+    try {
+      await fjSeis({ '2027-01': 1, '2026-06': 1 }); const feed = fjFeed(), P = fjPuntos(), max = feed.scrollHeight - feed.clientHeight;
+      igual([P['2027-01'], P[MES], P['2026-07'], P['2026-06']], [0, 0, max, max], 'los empates de arriba y de abajo (la prueba no vale)');
+      await fjA(200); await fjA(0); cerca(fjX(), fjXde(fjJ('2027-01')), 1, 'arriba, al deslizar: el más nuevo'); await fjQuieto(); igual(fgActivo(), [FJ_EN, '2027-01'], 'arriba, al asentarse');
+      await fjA(max - 200); await fjA(max); cerca(fjX(), fjXde(fjJ('2026-06')), 1, 'abajo, al deslizar: el más antiguo'); await fjQuieto(); igual(fgActivo(), [FJ_JN, '2026-06'], 'abajo, al asentarse');
+      await fgPulsar(fgHueco('Jul')); await fjQuieto(700); igual([...fgActivo(), feed.scrollTop], [FJ_JL, '2026-07', max], 'abajo, pulsar julio'); cerca(fjX(), fjXde(fjJ('2026-07')), 1, 'abajo, la tira con julio');
+      await fgPulsar(fgHueco('Nov')); await fjQuieto(700); igual([...fgActivo(), feed.scrollTop], [`${CLIENTE}-${MES}`, MES, 0], 'arriba, pulsar noviembre'); cerca(fjX(), fjXde(fjJ(MES)), 1, 'arriba, la tira con noviembre');
+      await espera(400); igual(fgActivo(), [`${CLIENTE}-${MES}`, MES], 'el pulsado cambió solo');
+      // «sin crear» (agosto) a medio camino entre septiembre y julio: al asentarse, la píldora con el mes activo, nunca agosto
+      await fjA((P['2026-09'] + P['2026-07']) / 2); cerca(fjX(), fjXde(fjJ('2026-08')), 1, 'a medio camino, agosto en el centro'); await fjQuieto(900);
+      const jAg = fgActivo().join(); ok([[FJ_SO, '2026-09'].join(), [FJ_JL, '2026-07'].join()].includes(jAg), 'el mes activo junto a agosto: ' + jAg);
+      igual(fgPildora(), [M._in.mesActivo.lee() === '2026-09' ? 'Sep' : 'Jul'], '«sin crear» se quedó en la píldora');
+      // un mes de una sola casilla (enero): su punto y su nombre
+      await fgPulsar(fgHueco('Ene 27')); await fjQuieto(700); igual(fgPildora(), ['Ene 27'], 'enero, de una casilla');
+      // todo cabe sin deslizar
+      await limpiar();
+      for (const m of ['2026-10', MES]) { await M.init({ client: CLIENTE, clientName: NOMBRE, month: m, cycleDay: 1, slots: [fcSlot('fj-c' + m.slice(5), '1.1', 10, m)], past: [], force: true }); await M.flush(); }
+      await M.openClient(CLIENTE); await M._in.feedCargar(); await fjCuadro(); await espera(60);
+      igual([M._in.mesActivo.lee(), fgPildora()], ['2026-10', ['Oct']], 'todo cabe: al abrir, el de hoy');
+      await fgPulsar(fgHueco('Nov')); await fjQuieto(700);
+      igual([M._in.mesActivo.lee(), fgPildora(), q('.feed').scrollTop], [MES, ['Nov'], 0], 'todo cabe: el pulsado');
+    } finally { await limpiar(); }
+  });
+
+  prueba('FJ6', 'Lo que sigue al mes que se ve (feed continuo, pieza 5; D-325): al asentarse, el calendario, la barra de pasos, el tablero de MESA.board() y «Revisar» son los del mes activo; el ⌘Z que lleva a otro mes mueve el feed y la tira a su punto', async () => {
+    try {
+      await fjSeis(); const feed = fjFeed(), P = fjPuntos();
+      const cmes = () => (q('.side > .cal .cmes') || { textContent: '' }).textContent;
+      await fjA(P['2026-07'] - 3); await fjQuieto();
+      igual(fgActivo(), [FJ_JL, '2026-07'], 'julio al asentarse');
+      await hasta(() => /Julio/i.test(cmes()), 3000, 'el calendario en julio: ' + cmes());
+      igual(M.board().key, FJ_JL, 'MESA.board()');
+      ok(q('.side > .cal .cleg .cpaso'), 'sin barra de pasos'); 
+      const rv = await M.revisar(); ok(rv && !rv.error, 'Revisar: ' + json(rv && rv.error));
+      // ⌘Z de un paso de octubre desde noviembre: el feed y la tira van a octubre
+      await M.open(`${CLIENTE}-2026-09`, { mes: '2026-10' }); 
+      if (M._in.mesActivo.lee() !== '2026-10') await M._in.mesActivo.pon('2026-10', 'prueba');
+      M._test.setNote('fj-o2', 'FJ6'); await M.flush();
+      await M.open(`${CLIENTE}-${MES}`); await fjQuieto(300); igual(feed.scrollTop, P[MES], 'en noviembre');
+      await fdZ(true); await fjQuieto(300);
+      igual([M._in.S.key, slot('fj-o2').memo || ''], [FJ_SO, ''], '⌘Z deshizo en octubre');
+      igual(feed.scrollTop, fjP(M._in.mesActivo.lee()), 'el ⌘Z no llevó el feed a su mes');
+      cerca(fjX(), fjXde(fjJ(M._in.mesActivo.lee())), 1, 'el ⌘Z no llevó la tira a su mes');
+    } finally { await limpiar(); }
+  });
+
+  prueba('FJ7', 'El eco no engaña (feed continuo, pieza 5; D-325): tras un salto y tras un imán, nada sigue moviéndose ni cambia el mes activo (nuestro desplazamiento no es un gesto de Kevin); tras redibujar en reposo sobre el punto de un mes, y al poner y quitar «Vista cliente», el feed sigue en su punto', async () => {
+    try {
+      await fjSeis(); const feed = fjFeed(), P = fjPuntos(), fila = fjMov().filaH;
+      const estable = async que => { const y = feed.scrollTop, a = fgActivo().join(); for (let i = 0; i < 6; i++) { await espera(120); igual([feed.scrollTop, fgActivo().join()], [y, a], que); } ok(!fjMov().gesto && !fjMov().anim, que + ': el motor sigue con un gesto'); };
+      await fgPulsar(fgHueco('Sep')); await fjQuieto(700); await estable('tras el salto');
+      igual(M._in.mesActivo.quien(), 'cabecera', 'quién fijó septiembre');
+      await fjA(Math.round(P['2026-10'] - .2 * fila)); await fjQuieto(900); igual(feed.scrollTop, P['2026-10'], 'el imán'); await estable('tras el imán');
+      // redibujar en reposo
+      M._in.renderFeed(); M._in.renderBar(); M._in.renderBar(); M._test.setNote('fj-o1', 'FJ7'); await M.flush(); await fjQuieto(300);
+      igual(feed.scrollTop, fjP('2026-10'), 'tras redibujar, el feed salió del punto de octubre');
+      cerca(fjX(), fjXde(fjJ('2026-10')), 1, 'tras redibujar, la tira');
+      await conCliente(async () => { await fjQuieto(300); igual(feed.scrollTop, fjP('2026-10'), 'en «Vista cliente», fuera del punto de octubre'); cerca(fjX(), fjXde(fjJ('2026-10')), 1, 'en «Vista cliente», la tira'); });
+      await fjQuieto(300); igual(feed.scrollTop, fjP('2026-10'), 'al quitar «Vista cliente», fuera del punto de octubre');
+      await estable('tras «Vista cliente»');
+    } finally { await limpiar(); }
+  });
+  // ---------- feed continuo, pieza 6: la «Vista cliente» con el feed seguido ----------
+  // Los datos de fjSeis: junio, julio, (agosto sin tablero), septiembre–octubre en un tablero, noviembre (abierto) y enero de 2027.
+  const fkVis = e => !!e && e.getClientRects().length > 0 && W.getComputedStyle(e).visibility !== 'hidden';
+  const fkCmes = () => (q('.side > .cal .cmes') || { textContent: '' }).textContent;
+  const fkNombre = e => e.textContent + (e.classList.contains('sin') ? '·' : '');
+
+  prueba('FK1', 'Qué ve el cliente (feed continuo, pieza 6; D-318, D-323, D-327): el mismo feed seguido y la misma cabecera que en mi Mesa, sin «sin crear» ni los meses sin tablero, sin cifras ni avisos internos (título sin «con foto», sin « · 2 tableros», estados, pasos, candado ni franja) y la etiqueta de cada mes a la vista; el mes activo es el de la Mesa al entrar y al salir', async () => {
+    try {
+      await fjSeis();
+      igual(fgHuecos().map(fkNombre), ['Jun', 'Jul', 'Ago·', 'Sep', 'Oct', 'Nov', 'Dic·', 'Ene 27', 'Feb 27·'], 'mi cabecera');
+      await fgPulsar(fgHueco('Oct')); await fjQuieto(700);
+      const a = fgActivo(), y = fjFeed().scrollTop;
+      await vistaCliente(true); await fjQuieto(300);
+      igual(fgActivo(), a, 'al entrar, el mes activo no es el de la Mesa');
+      igual(fjFeed().scrollTop, fjP('2026-10'), 'al entrar, el feed fuera del punto de octubre');
+      igual(feMeses(), FJ_MESES, 'los meses del feed del cliente');
+      igual(fgHuecos().map(fkNombre), ['Jun', 'Jul', 'Sep', 'Oct', 'Nov', 'Ene 27'], 'la cabecera del cliente: solo los meses con tablero, sin «sin crear»');
+      ok(fgHuecos().every(e => e.tagName === 'BUTTON' && e.title && !/con foto|sin crear|Claude|tablero/i.test(e.title)), 'un título de la cabecera dice algo interno: ' + json(fgHuecos().map(e => e.title)));
+      igual(fgPildora(), ['Oct'], 'la píldora');
+      // lo que se lee en el feed: solo los nombres de los meses (la etiqueta de su casilla más nueva, a la vista)
+      igual(fjFeed().innerText.split('\n').map(x => x.trim()).filter(Boolean), ['Ene 27', 'Nov', 'Oct', 'Sep', 'Jul', 'Jun'], 'lo que se lee en el feed');
+      for (const m of FJ_MESES) { const c = q(`.feed .grid > .fmes[data-mes="${m}"] .cell`); ok(fkVis(c && c.querySelector('.mpill')), `la etiqueta de ${m} no se ve en su casilla más nueva`); }
+      ok(!qa('.feed .cell.past, .feed .pmonth, .feed .bd, .feed .mdos, .feed .mks, .feed .mk, .feed .vdate, .feed .lab, .feed .hx').some(fkVis), 'en el feed se ve un candado, la franja, un aviso, una marca de estado o una ×');
+      ok(!qa('.bar .rvbtn, .bar [data-web], .side > .cal .cleg, .side > .cal .csync, .side > .cal .cvenc, .side > .cal .ctot, .side > .cal .dmany').some(fkVis), 'se ve «Revisar», «Web del cliente», la barra de pasos u otro aviso interno');
+      ok(!qa('.bar [title], .bar [aria-label], .feed [title]').some(e => fkVis(e) && /con foto|sin crear|tableros|Vencida|bloquead/i.test((e.title || '') + ' ' + (e.getAttribute('aria-label') || ''))), 'un título visible dice algo interno');
+      // las flechas no se paran en lo que no hay: de septiembre, ‹ va a julio
+      await fgPulsar(fgHueco('Sep')); await fjQuieto(700);
+      await fgPulsar(q('.bar .mescab .mescab-fl[data-d="-1"]')); await fjQuieto(700);
+      igual(fgActivo(), [FJ_JL, '2026-07'], '‹ desde septiembre');
+      await vistaCliente(false); await fjQuieto(300);
+      igual(fgActivo(), [FJ_JL, '2026-07'], 'al salir, el mes activo no es el de la vista');
+      igual(fgHuecos().length, 9, 'al salir, mi cabecera');
+      igual(fjFeed().scrollTop, fjP('2026-07'), 'al salir, el feed fuera del punto de julio');
+    } finally { await vistaCliente(false); await limpiar(); }
+  });
+
+  prueba('FK2', 'En la «Vista cliente» solo se mira (feed continuo, pieza 6; D-095, D-327): ni arrastrar (dentro del mes ni a otro), ni menú del clic derecho o ⇧F10, ni doble clic que abra el editor, ni «+ Hueco», «Fijar» ni ×; tocar una publicación de otro mes abre «Ver como el cliente» de esa publicación; nada se escribe', async () => {
+    try {
+      await fjSeis();
+      await vistaCliente(true); await fjQuieto(300);
+      const tabs0 = json((await M.boards()).map(b => [b.key, b.slots]));
+      const c = await fcContar(async () => {
+        await ffArrastrar(celda('fj-n1'), celda('fj-n2'));
+        await ffArrastrar(celda('fj-n3'), celda('fj-o1'));
+        for (const el of [celda('fj-n1'), q('.feed .grid')]) {
+          const r = el.getBoundingClientRect(); el.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: r.x + 5, clientY: r.y + 5, view: W }));
+          await espera(30); ok(!q('.cpmenu'), 'el clic derecho abrió un menú: ' + ((q('.cpmenu') || {}).textContent || ''));
+        }
+        q('.feed .grid').dispatchEvent(new W.KeyboardEvent('keydown', { key: 'F10', shiftKey: true, bubbles: true, cancelable: true })); await espera(30);
+        ok(!q('.cpmenu'), '⇧F10 abrió un menú');
+        celda('fj-n1').dispatchEvent(new W.MouseEvent('dblclick', { bubbles: true, cancelable: true, view: W })); await espera(60);
+        ok(!M.libre.abierto(), 'el doble clic abrió el editor');
+        M._in.closeDetail(); await espera(30);
+        celda('fj-o2').scrollIntoView({ block: 'center' }); await espera(30);
+        celda('fj-o2').click();
+        const d = await hasta(() => dialogo(), 3000, '«Ver como el cliente»');
+        ok(/aquí solo se mira/.test(d.innerText) && /Foto fj-o\.2|fj-o\.2/.test(d.innerText), 'no es «Ver como el cliente» de esa publicación: ' + d.innerText.slice(0, 120));
+        ok(![...d.querySelectorAll('input, textarea, select, [contenteditable="true"]')].some(fkVis), 'la previsualización tiene un campo');
+        ok(![...d.querySelectorAll('button')].some(b => fkVis(b) && /EDITAR|Editar|Fijar/.test(b.textContent)), 'la previsualización tiene «Editar» o «Fijar»');
+        M._in.closeDetail(); await espera(30);
+        ok(![...D.querySelectorAll('.main button, .main [role="menuitem"]')].some(b => fkVis(b) && /\+ Hueco|^Fijar/.test(b.textContent.trim())), 'se ve «+ Hueco» o «Fijar»');
+      });
+      igual([c.idb, c.ls], [0, 0], 'mirar escribió: ' + json(c.que));
+      igual(json((await M.boards()).map(b => [b.key, b.slots])), tabs0, 'cambió algún tablero');
+    } finally { M._in.closeDetail(); await vistaCliente(false); await limpiar(); }
+  });
+
+  prueba('FK3', 'Lo que cuelga del mes en la «Vista cliente» sigue al mes activo (feed continuo, pieza 6; D-230, D-240, D-327): el calendario y cada parte de M._in.vc reciben el mes y el tablero del mes activo al deslizar, al pulsar un mes, con las flechas y con MESA.open; «Tus pagos», que no cuelga del mes, no se vuelve a dibujar; recorrer el feed de punta a punta no escribe ni pide nada', async () => {
+    const V = M._in.vc, log = [];
+    try {
+      await fjSeis({ '2027-01': 12 });   // enero con su punto por debajo del de noviembre: cada mes, el suyo
+      V.poner('pestana', { id: 'fk3p', titulo: 'Por qué este calendario', orden: 10, html: c => { log.push([c.mes, c.S && c.S.key, c.cliente]); return `<p>Por qué ${c.mes}</p>`; } });
+      V.poner('lado', { id: 'fk3l', orden: 10, html: () => '<h2>Tus pagos</h2><p>Sin nada pendiente</p>' });
+      await vistaCliente(true); await fjQuieto(300);
+      const ult = () => log[log.length - 1], parte = () => q('.vc-lado [data-vc="fk3l"]');
+      ok(parte(), 'sin la parte de la columna'); const nodo = parte().firstChild;
+      igual(ult(), [MES, `${CLIENTE}-${MES}`, CLIENTE], 'al entrar');
+      const P = fjPuntos();
+      await fjA(P['2026-07'] - 3); await fjQuieto();
+      igual(fgActivo(), [FJ_JL, '2026-07'], 'deslizar a julio');
+      igual(ult(), ['2026-07', FJ_JL, CLIENTE], 'al deslizar, la parte');
+      ok(/Julio 2026/.test(fkCmes()), 'al deslizar, el calendario: ' + fkCmes());
+      await fgPulsar(fgHueco('Oct')); await fjQuieto();
+      igual(ult(), ['2026-10', FJ_SO, CLIENTE], 'al pulsar octubre'); ok(/Octubre 2026/.test(fkCmes()), 'el calendario en octubre: ' + fkCmes());
+      await fgPulsar(q('.bar .mescab .mescab-fl[data-d="-1"]')); await fjQuieto();
+      igual(ult(), ['2026-09', FJ_SO, CLIENTE], 'con la flecha (septiembre, el mismo tablero)'); ok(/Septiembre 2026/.test(fkCmes()), 'el calendario en septiembre: ' + fkCmes());
+      await M.open(FJ_EN); await fjQuieto();
+      igual(ult(), ['2027-01', FJ_EN, CLIENTE], 'con MESA.open'); ok(/Enero 2027/.test(fkCmes()), 'el calendario en enero: ' + fkCmes());
+      q('.side > .cal .vcp-tab[data-t="fk3p"]').click(); await espera(40);
+      ok(/Por qué 2027-01/.test((q('.side > .cal .vcp-panel') || {}).textContent || ''), 'la pestaña no enseña su mes');
+      await fgPulsar(fgHueco('Nov')); await fjQuieto();
+      ok(/Por qué 2026-11/.test((q('.side > .cal .vcp-panel') || {}).textContent || ''), 'la pestaña abierta no siguió al mes');
+      ok(parte().firstChild === nodo, '«Tus pagos» se volvió a dibujar al cambiar de mes');
+      // de punta a punta, asentándose en cada mes: nada se escribe ni se pide
+      let red = 0; const f0 = W.fetch; W.fetch = (...x) => { red++; return f0.apply(W, x); };
+      let c;
+      try { c = await fcContar(async () => { for (const m of [...FJ_MESES].reverse()) { await fjA(fjP(m) - 2); await fjQuieto(); igual(M._in.mesActivo.lee(), m, 'al asentarse'); } }); }
+      finally { W.fetch = f0; }
+      igual([c.idb, c.ls, red], [0, 0, 0], 'recorrer el feed escribió o pidió algo: ' + json(c.que));
+    } finally { V.quitar('pestana', 'fk3p'); V.quitar('lado', 'fk3l'); await vistaCliente(false); await limpiar(); }
+  });
+
+  prueba('FK4', 'Los anchos de la «Vista cliente» (feed continuo, pieza 6; D-293, D-325): a todo lo ancho, el feed min(440 px, 32vw) con sus partes a la derecha; a 700 con partes, el feed en su caja de 620 px que se desliza dentro, y el salto, el imán y la tira miden con esa caja sin mover la página; a 700 sin partes, el feed ocupa lo que queda y también va; poner y quitar la vista a mitad de un gesto no cambia el mes activo', async () => {
+    const V = M._in.vc;
+    try {
+      await fjSeis();
+      // a mitad de un gesto (0,2 de fila del punto de julio, sin parar): poner o quitar la vista cambia el dibujo, no el mes activo, y el feed vuelve a su punto
+      for (const [que, pon] of [['quitar la vista', false], ['poner la vista', true]]) {
+        await vistaCliente(!pon); await fgPulsar(fgHueco('Jul')); await fjQuieto(700);
+        await fjA(fjP('2026-07') - Math.round(.2 * fjMov().filaH)); await vistaCliente(pon); await fjQuieto(900);
+        igual(fgActivo(), [FJ_JL, '2026-07'], `${que} a mitad de un gesto`);
+        igual(fjFeed().scrollTop, fjP('2026-07'), `${que}: el feed fuera del punto de julio`); cerca(fjX(), fjXde(fjJ('2026-07')), 1, `${que}: la tira`);
+      }
+      await vistaCliente(false);
+      V.poner('lado', { id: 'fk4l', orden: 10, html: () => '<h2>Tus pagos</h2>' });
+      await vistaCliente(true); await fjQuieto(300);
+      const f = fjFeed().getBoundingClientRect(), l = q('.main > .vc-lado').getBoundingClientRect();
+      cerca(f.width, Math.min(440, W.innerWidth * 0.32), 1, 'el feed a todo lo ancho'); ok(f.right <= l.left, 'las partes no van a la derecha del feed');
+      const ir = async (nom, m, que) => {
+        await fgPulsar(fgHueco(nom)); await fjQuieto(700);
+        const feed = fjFeed(); igual(feed.scrollTop, fjP(m), `${que}: el feed fuera del punto de ${m}`);
+        const c = q(`.feed .grid > .fmes[data-mes="${m}"] .cell:last-child`).getBoundingClientRect(), fb = feed.getBoundingClientRect(), pb = parseFloat(W.getComputedStyle(feed).paddingBottom) || 0;
+        ok(fjP(m) === feed.scrollHeight - feed.clientHeight || fjP(m) === 0 || Math.abs(c.bottom - (fb.top + feed.clientHeight - pb)) <= 2, `${que}: la primera de ${m} no está en la fila de abajo de la caja: ${c.bottom} frente a ${fb.top + feed.clientHeight - pb}`);
+        cerca(fjX(), fjXde(fjJ(m)), 1, `${que}: la tira en ${m}`);
+      };
+      await fgAncho(700, async () => {
+        await fjQuieto(300); const feed = fjFeed(), main = q('.main');
+        cerca(feed.getBoundingClientRect().height, 620, 1, 'a 700 con partes, la caja del feed');
+        ok(feed.scrollHeight > feed.clientHeight + 200 && W.getComputedStyle(main).overflowY === 'auto', 'a 700 con partes, el feed no se desliza dentro o la página no se desliza');
+        main.scrollTop = 0; await fjCuadro();
+        for (const [nom, m] of [['Jul', '2026-07'], ['Nov', MES], ['Sep', '2026-09']]) await ir(nom, m, 'a 700 con partes');
+        igual(main.scrollTop, 0, 'el salto movió la página');
+        const fila = fjMov().filaH; ok(fila > 50 && fila < 300, 'la fila medida no es la de la caja: ' + fila);
+        await fjA(Math.round(fjP('2026-10') - .2 * fila)); await fjQuieto(900);
+        igual(feed.scrollTop, fjP('2026-10'), 'a 700 con partes, el imán'); igual(fgActivo(), [FJ_SO, '2026-10'], 'a 700 con partes, el mes al asentarse');
+        V.quitar('lado', 'fk4l'); await espera(60); M._in.render(); await fjQuieto(400);
+        const h = fjFeed().getBoundingClientRect().height;
+        ok(Math.abs(h - 620) > 2 && fjFeed().scrollHeight > fjFeed().clientHeight + 200, 'a 700 sin partes, el feed no ocupa lo que queda: ' + h);
+        for (const [nom, m] of [['Jul', '2026-07'], ['Nov', MES]]) await ir(nom, m, 'a 700 sin partes');
+      });
+    } finally { V.quitar('lado', 'fk4l'); await vistaCliente(false); await limpiar(); }
+  });
+
+  prueba('FK5', '«Web del cliente» y el feed seguido (feed continuo, pieza 6; D-241, D-327): deslizar de un mes a otro no pide ni envía nada hasta asentarse, y asentarse no envía; «Enviar» tras deslizar envía el tablero del mes activo', async () => {
+    try {
+      await fjSeis();
+      await conWeb(async sv => {
+        wbSesion();
+        ok((await M.web.enviar()).ok, 'no se envió noviembre');
+        await espera(3400); const n1 = sv.pedidos.length;
+        const P = fjPuntos();
+        for (let i = 1; i <= 8; i++) await fjA(Math.round(P[MES] + (P['2026-07'] - 3 - P[MES]) * i / 8));
+        igual(sv.pedidos.slice(n1).map(p => p.met + ' ' + p.ruta.split('?')[0]), [], 'deslizar pidió algo antes de asentarse');
+        await fjQuieto(); igual(fgActivo(), [FJ_JL, '2026-07'], 'asentado en julio');
+        await espera(3400);
+        ok(!sv.pedidos.slice(n1).some(p => p.met !== 'GET' && /publicaciones|storage/.test(p.ruta)), 'asentarse envió algo: ' + json(sv.pedidos.slice(n1).map(p => p.met + ' ' + p.ruta.split('?')[0])));
+        const r = await M.web.enviar(); ok(r.ok, 'no se envió julio: ' + json(r));
+        igual([...new Set(sv.db.publicaciones.map(p => p.mes))].sort(), ['2026-07', MES], 'los meses enviados');
+        igual(sv.db.publicaciones.filter(p => p.mes === '2026-07').length, 6, 'las de julio');
+      });
+    } finally { await limpiar(); }
+  });
+
+  prueba('FK6', 'El orden que «Web del cliente» envía (feed continuo, pieza 6; D-321, D-327): las fijadas solo valen en el tablero más nuevo del cliente; las de un tablero anterior van por su fecha, y quitarles la fijación no cambia ni su orden ni su versión (ninguna aprobación se pierde); un cliente de un tablero sin fijadas, como siempre', async () => {
+    try {
+      // un tablero sin fijadas: por fecha, la más nueva primero
+      await tablero([pub(1), pub(2), pub(3)]);
+      await conWeb(async sv => {
+        wbSesion(); ok((await M.web.enviar()).ok, 'no se envió');
+        igual(sv.db.publicaciones.slice().sort((a, b) => a.orden - b.orden).map(p => p.fecha.slice(0, 10)), [`${MES}-05`, `${MES}-04`, `${MES}-03`], 'un tablero sin fijadas');
+      });
+      // octubre (anterior) con una fijada vieja; noviembre (el más nuevo) con la suya
+      await limpiar();
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: FD_OCT, slots: [fcSlot('fd-o1', '4.1', 20, FD_OCT), fcSlot('fd-o2', '4.2', 22, FD_OCT)], past: [], force: true });
+      M._in.S.pins = ['fd-o1']; M._in.save(); await M.flush();
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1), pub(2)], past: [], force: true });
+      M._in.S.pins = ['r1']; M._in.save(); await M.flush();
+      await feTodo([MES, FD_OCT]);
+      await conWeb(async sv => {
+        wbSesion();
+        const orden = mes => sv.db.publicaciones.filter(p => p.mes === mes).sort((a, b) => a.orden - b.orden).map(p => [p.fecha.slice(0, 10), p.orden]);
+        ok((await M.web.enviar()).ok, 'no se envió noviembre');
+        igual(orden(MES), [[`${MES}-03`, 0], [`${MES}-04`, 1]], 'noviembre, el más nuevo: su fijada primero');
+        await fdAct(fdO);
+        ok((await M.web.enviar()).ok, 'no se envió octubre');
+        igual(orden(FD_OCT), [[`${FD_OCT}-22`, 0], [`${FD_OCT}-20`, 1]], 'octubre, anterior: su fijada vieja va por su fecha');
+        const v0 = sv.db.publicaciones.filter(p => p.mes === FD_OCT).map(p => [p.pid, p.version, p.orden]).sort();
+        delete M._in.S.pins; M._in.save(); await M.flush();
+        ok((await M.web.enviar()).ok, 'no se reenvió octubre');
+        igual(sv.db.publicaciones.filter(p => p.mes === FD_OCT).map(p => [p.pid, p.version, p.orden]).sort(), v0, 'quitar la fijada vieja cambió el orden o la versión');
+      });
+    } finally { await limpiar(); }
+  });
+  // ---------- feed continuo, pieza 8: arreglos tras las revisiones en frío ----------
+  const FM_O = `${CLIENTE}-${FD_OCT}`, FM_N = `${CLIENTE}-${MES}`;
+  const fmFotos = async k => { await M._test.fueraListo(); await M.flush(); await espera(60); const b = (await M._in.idbGet('boards', k)) || { slots: [] }; return Object.fromEntries(b.slots.map(s => [s.id, s.photos.join(',')]).sort()); };
+  const fmMem = () => Object.fromEntries(M._in.S.slots.map(s => [s.id, s.photos.join(',')]).sort());
+  async function fmDos() {   // octubre–noviembre en un tablero y noviembre en otro; fm-1 (26 nov) en los dos (D-008); abierto octubre
+    await limpiar();
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: FD_OCT, months: 2, cycleDay: 1, slots: [fcSlot('fm-0', '4.1', 10, FD_OCT), fcSlot('fm-1', '5.4', 26, MES)], past: [], force: true });
+    const [A] = await poner('fm-0', [await foto('fm-a.jpg')]); await M.flush();
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, cycleDay: 1, slots: [fcSlot('fm-1', '5.4', 26, MES), fcSlot('fm-2', '5.5', 28, MES)], past: [], force: true });
+    const [B] = await poner('fm-1', [await foto('fm-b.jpg')]); await M.flush(); await espera(300);
+    igual([(await fmFotos(FM_O))['fm-1'], (await fmFotos(FM_N))['fm-1']], [B, B], 'la enlazada, igual en los dos tableros al empezar');
+    await fdAct(FM_O); await M._in.mesActivo.pon(FD_OCT, 'prueba'); await M._in.tablerosMem.leer(FM_N);
+    igual(M._in.feedDueno(MES), FM_N, 'noviembre lo enseña su propio tablero');
+    return { A, B };
+  }
+
+  prueba('FM1', 'Una publicación enlazada en dos tableros que cubren el mismo mes (feed continuo, pieza 8; D-008, D-320, D-328): moverla desde otro mes la cambia en las dos copias, sin foto repetida, también tras ⌘Z, ⇧⌘Z y volver a leer: el tablero abierto en memoria y lo guardado de los dos tableros, iguales', async () => {
+    try {
+      const { A, B } = await fmDos();
+      const r = await M._test.swap('fm-0', 'fm-1', FM_N); ok(r !== false, 'no se intercambió');
+      await M._test.fueraListo(); await espera(400);
+      const bien = async (que, o, n1) => {
+        igual(fmMem(), { 'fm-0': o, 'fm-1': n1 }, `${que}: el tablero abierto en memoria`);
+        igual(await fmFotos(FM_O), { 'fm-0': o, 'fm-1': n1 }, `${que}: octubre–noviembre guardado (sin foto repetida)`);
+        igual((await fmFotos(FM_N))['fm-1'], n1, `${que}: la enlazada en noviembre`);
+      };
+      await bien('tras mover', B, A);
+      await fdZ(true); await M._test.fueraListo(); await espera(400);
+      if (M._in.S.key !== FM_O) await fdAct(FM_O);
+      await bien('tras ⌘Z', A, B);
+      await fdZ(false); await M._test.fueraListo(); await espera(400);
+      if (M._in.S.key !== FM_O) await fdAct(FM_O);
+      await bien('tras ⇧⌘Z', B, A);
+      await M.open(FM_N); await M.flush(); await M.open(FM_O); await M.flush(); await espera(200);   // volver a leer de lo guardado
+      await bien('tras volver a leer', B, A);
+    } finally { await limpiar(); }
+  });
+  prueba('FM2', 'Una skill trabajando en un mes (feed continuo, pieza 8; D-329): tras sus llamadas (plan), deslizar y parar en otro tablero o tocar una publicación de otro mes no cambia el mes abierto, y markUploaded guarda en el suyo; pulsar un mes de la cabecera sí lo cambia y la concesión sigue (D-334); una llamada con una publicación de otro mes da error y no toca nada; MESA.open la cierra; render, renderBar, el calendario y su cuenta de cambios no la abren', async () => {
+    const FN = `${CLIENTE}-${MES}`, SK = M._in.skill || { ver: () => null, cerrar() {} };   // (sin el arreglo no existe: lo que se mira es lo que pasa)
+    try {
+      await fjSeis(); const P = fjPuntos();
+      await M.open(FN); await fjQuieto(300);
+      igual(SK.ver(), null, 'MESA.open abrió una concesión');
+      M._in.render(); M._in.renderBar(); if (M.calendario) M.calendario.render(); (M._in.notionCambios || M.notionChanges)(); await espera(40);
+      igual(SK.ver(), null, 'lo que la Mesa llama por dentro abrió una concesión');
+      ok(Array.isArray(M.plan()), 'plan()');
+      // deslizar hasta julio y parar: sigue noviembre, la tira vuelve
+      await fjA(P['2026-07'] - 3); await fjQuieto(900);
+      igual(fgActivo(), [FN, MES], 'deslizar con una skill trabajando cambió el mes abierto');
+      cerca(fjX(), fjXde(fjJ(MES)), 1, 'la tira no volvió a noviembre');
+      const r = M.markUploaded([{ slotId: 'fj-n1', fileIds: [], note: 'Contexto FM2' }]);
+      ok(Array.isArray(r) && r.some(x => x.slotId === 'fj-n1'), 'markUploaded no devolvió el plan de noviembre: ' + json(r && r.error));
+      await M.flush(); igual(((await ffSlot(FN, 'fj-n1')) || {}).uploaded && (await ffSlot(FN, 'fj-n1')).uploaded.note, 'Contexto FM2', 'markUploaded no guardó en noviembre');
+      igual(SK.ver() && SK.ver().key, FN, 'la concesión no está en noviembre');
+      // tocar una publicación de otro mes: no cambia (y lo dice)
+      celda('fj-o1').scrollIntoView({ block: 'center' }); await espera(30); celda('fj-o1').click(); await espera(300); M._in.closeDetail();
+      igual(fgActivo(), [FN, MES], 'tocar otro mes con una skill trabajando cambió el mes abierto');
+      // la cabecera es un gesto claro: cambia el mes; la concesión sigue en noviembre (D-334)
+      await fgPulsar(fgHueco('Oct')); await fjQuieto(700);
+      igual(fgActivo(), [FJ_SO, '2026-10'], 'pulsar octubre');
+      igual(SK.ver() && SK.ver().key, FN, 'pulsar un mes cerró o movió la concesión');
+      // una llamada con una publicación de otro mes: error, nada cambia
+      const n0 = json(await ffSlot(FN, 'fj-n1'));
+      for (const [que, x] of [['setEstado', () => M.setEstado(['fj-n1'], 'programado')], ['markUploaded', () => M.markUploaded([{ slotId: 'fj-n1', fileIds: [], note: 'otro' }])], ['markSynced', () => M.markSynced(['fj-n1'])]]) {
+        const e = x(); ok(e && !Array.isArray(e) && /^el mes abierto cambió/.test(e.error || '') && e.error.includes(FN), `${que} con una publicación de noviembre no dio el error: ` + json(e));
+      }
+      await M.flush(); igual(json(await ffSlot(FN, 'fj-n1')), n0, 'una llamada con error cambió noviembre');
+      igual(fgActivo(), [FJ_SO, '2026-10'], 'una llamada con error cambió el mes abierto');
+      // MESA.open de la skill la cierra y su siguiente llamada la abre en su tablero
+      await M.open(FN); igual(SK.ver(), null, 'MESA.open no la cerró'); ok(Array.isArray(M.notionChanges()), 'notionChanges tras abrir');
+      igual(SK.ver().key, FN, 'notionChanges no la abrió en noviembre');
+    } finally { SK.cerrar(); await limpiar(); }
+  });
+  prueba('FM3', 'Una Publicada no se vacía arrastrándola a la bandeja (feed continuo, pieza 8; D-324, D-330): la bandeja no se resalta, soltarla no le quita sus fotos y avisa «Ya está publicada: no se mueve.»; una que no lo está se vacía como siempre', async () => {
+    try {
+      const f = await fiTres();
+      const bandeja = () => q('.side > .tray');
+      let lit = await ffArrastrar(celda('r1'), bandeja());
+      ok(!lit, 'la bandeja se resaltó para una Publicada');
+      igual(slot('r1').photos, [f.r1], 'arrastrar la Publicada a la bandeja le quitó la foto');
+      ok(/Ya está publicada: no se mueve\./.test(fiAvisos()), 'sin el aviso: ' + fiAvisos());
+      await M.flush(); igual(((await M._in.idbGet('boards', M._in.S.key)).slots.find(s => s.id === 'r1') || {}).photos, [f.r1], 'lo guardado de la Publicada');
+      M._in.clearToasts();
+      lit = await ffArrastrar(celda('r2'), bandeja());
+      ok(lit, 'la bandeja no se resaltó para una sin publicar');
+      igual(slot('r2').photos, [], 'una sin publicar no se vació');
+      ok(M.board().tray.includes(f.r2), 'su foto no volvió a la bandeja');
+    } finally { M._in.clearToasts(); await limpiar(); }
+  });
+  prueba('FM5', 'Con el foco en un mes de la cabecera (Tab, ← →) la cabecera no se desarma (feed continuo, pieza 8; lección 180/A49-30; D-323, D-331): la ventana conserva su ancho y su caja, la píldora su sitio y su nombre se lee, a 1280 y a 700, en claro y en oscuro y en la «Vista cliente»; ningún elemento de la cabecera lleva la clase «fmes» (la envoltura de cada mes del feed)', async () => {
+    try {
+      await fjSeis();
+      const vent = () => q('.bar .mescab .mescab-vent'), pild = () => q('.bar .mescab .mescab-pild');
+      const caja = e => { const r = e.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.width), Math.round(r.height)]; };
+      const mirar = async que => {
+        await fjQuieto(300);
+        const v0 = caja(vent()), p0 = caja(pild());
+        for (const [i, ir] of [['Nov', null], ['Nov', 'ArrowLeft'], ['Oct', 'ArrowRight']].entries()) {
+          const h = fgHueco(ir[0]); h.focus({ focusVisible: true });
+          if (ir[1]) h.dispatchEvent(new W.KeyboardEvent('keydown', { key: ir[1], bubbles: true, cancelable: true }));
+          await fjQuieto(500);
+          ok(!qa('.bar .mescab, .bar .mescab *').some(e => e.classList.contains('fmes')), `${que} (${i}): un elemento de la cabecera lleva «fmes»`);
+          ok(W.getComputedStyle(vent()).display !== 'contents', `${que} (${i}): la ventana sin caja (display: contents)`);
+          const v = caja(vent()), p = caja(pild());
+          ok(Math.abs(v[1] - v0[1]) <= 1 && Math.abs(v[2] - v0[2]) <= 1 && Math.abs(p[1] - p0[1]) <= 1 && Math.abs(p[2] - p0[2]) <= 1, `${que} (${i}): la ventana o la píldora cambiaron de tamaño: ${json([v0, v, p0, p])}`);
+          ok(Math.abs((p[0] - v[0]) - (p0[0] - v0[0])) <= 1, `${que} (${i}): la píldora se movió dentro de la ventana`);
+          ok(fgPildora().length === 1, `${que} (${i}): la píldora no enseña un nombre: ${json(fgPildora())}`);
+        }
+        D.activeElement && D.activeElement.blur && D.activeElement.blur(); await fjQuieto(200);
+      };
+      await mirar('1280 claro');
+      await fgOscuro(() => mirar('1280 oscuro'));
+      await fgAncho(700, () => mirar('700 claro'));
+      await vistaCliente(true); await mirar('«Vista cliente»'); await vistaCliente(false);
+    } finally { await vistaCliente(false); await limpiar(); }
+  });
+  prueba('FM6', 'El aro de foco sobre la píldora (feed continuo, pieza 8; lección 65; D-331): en claro y en oscuro, el aro tiene ≥ 3:1 frente a lo que tiene al lado (la banda del color del texto de la píldora) y esa banda ≥ 3:1 frente a la píldora', async () => {
+    const rgb = c => (/rgba?\(([^)]+)\)/.exec(c) || [0, '0,0,0'])[1].split(',').slice(0, 3).map(Number);
+    const lum = c => { const [r, g, b] = rgb(c).map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+    const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    try {
+      await fjSeis();
+      const mirar = que => {
+        const v = q('.bar .mescab .mescab-vent'), p = q('.bar .mescab .mescab-pild'); v.classList.add('fpild');
+        try {
+          const cs = W.getComputedStyle(p), fondo = cs.backgroundColor, aro = cs.outlineColor, banda = /rgba?\([^)]+\)/.exec(cs.boxShadow || '') ? /rgba?\([^)]+\)/.exec(cs.boxShadow)[0] : null;
+          const junto = banda || fondo;
+          ok(ratio(aro, junto) >= 3, `${que}: el aro ${aro} frente a ${junto} da ${ratio(aro, junto).toFixed(2)}:1`);
+          if (banda) ok(ratio(banda, fondo) >= 3, `${que}: la banda ${banda} frente a la píldora ${fondo} da ${ratio(banda, fondo).toFixed(2)}:1`);
+        } finally { v.classList.remove('fpild'); }
+      };
+      mirar('claro'); await fgOscuro(async () => mirar('oscuro'));
+    } finally { await limpiar(); }
+  });
+  prueba('FM4', 'Una foto de la bandeja soltada en un hueco con un mes anterior abierto (feed continuo, pieza 8; D-049, D-321, D-332): como en una casilla de otro mes, activa el tablero más nuevo (el de los huecos) y la pone de portada del hueco; si no puede cambiar de mes, no hace nada y dice por qué', async () => {
+    try {
+      await fdDos();
+      M._in.S.fillers = 1; M._in.save(); await M.flush();
+      const [g] = await M.addFiles([await foto('fm4-portada.jpg')]); await M.flush();
+      await fdAct(fdO); await espera(80);
+      const item = () => q(`.side > .tray .titem[data-file="${g}"]`), hueco = () => q(`.feed .grid > .fmes[data-tablero="${fdN}"] .cell.filler[data-filler="0"]`);
+      await hasta(() => item() && hueco(), 3000, 'la foto en la bandeja y el hueco de noviembre');
+      // con una skill trabajando en octubre: no cambia de mes y lo dice
+      if (M._in.skill) {
+        M.plan(); M._in.clearToasts();
+        await ffArrastrar(item(), hueco()); await espera(300);
+        igual(M._in.S.key, fdO, 'con una skill trabajando, el hueco cambió el mes abierto');
+        ok(/Una skill está trabajando en este mes.*cabecera/.test(qa('.toasts .toast').map(t => t.textContent).join(' | ')), 'no dijo por qué ni cómo cambiar de mes');   // el aviso de D-336
+        M._in.skill.cerrar();
+      }
+      await ffArrastrar(item(), hueco()); await hasta(() => M._in.S.key === fdN && (M._in.S.previews || [])[0] === g, 3000, 'el hueco de noviembre con la foto').catch(() => null);
+      igual([M._in.S.key, (M._in.S.previews || [])[0]], [fdN, g], 'el hueco no tomó la foto ni activó noviembre');
+      await M.flush(); igual(((await M._in.idbGet('boards', fdN)) || {}).previews, [g], 'lo guardado de noviembre');
+      ok(!M.board().tray.includes(g), 'la foto sigue en la bandeja');
+    } finally { if (M._in.skill) M._in.skill.cerrar(); M._in.clearToasts(); await limpiar(); }
+  });
+  prueba('FM7', 'Pulsar un mes de la cabecera mientras una skill trabaja (feed continuo, pieza 9; D-334): el mes cambia, pero cualquier llamada de la skill (plan, render, notionChanges, markSynced con y sin ids, setEstado, markUploaded) da el error «el mes abierto cambió» con su mes y no toca nada; MESA.open la cierra y la siguiente llamada la abre en su mes', async () => {
+    const FN = `${CLIENTE}-${MES}`, SK = M._in.skill || { ver: () => null, cerrar() {} };
+    try {
+      await fjSeis(); await M.open(FN); await fjQuieto(300);
+      ok(Array.isArray(M.plan()), 'plan()');
+      await fgPulsar(fgHueco('Oct')); await fjQuieto(700);
+      igual(fgActivo(), [FJ_SO, '2026-10'], 'el clic de Kevin no cambió el mes');
+      const s0 = json(M._in.S);
+      for (const [que, x] of [['plan', () => M.plan()], ['notionChanges', () => M.notionChanges()], ['markSynced()', () => M.markSynced()], ['markSynced([…])', () => M.markSynced(['fj-o1'])], ['setEstado', () => M.setEstado(['fj-o1'], 'programado')], ['markUploaded', () => M.markUploaded([{ slotId: 'fj-o1', fileIds: [], note: 'FM7' }])]]) {
+        const e = x(); ok(e && !Array.isArray(e) && /^el mes abierto cambió/.test(e.error || '') && e.error.includes(FN), `${que} tras el clic no dio el error con noviembre: ` + json(e).slice(0, 200));
+      }
+      const er = await M.render(); ok(er && /^el mes abierto cambió/.test(er.error || ''), 'render tras el clic no dio el error');
+      igual(json(M._in.S), s0, 'una llamada con error cambió octubre');
+      await M.open(FN); ok(Array.isArray(M.notionChanges()), 'notionChanges tras abrir'); igual(SK.ver() && SK.ver().key, FN, 'la concesión, en noviembre otra vez');
+    } finally { SK.cerrar(); await limpiar(); }
+  });
+  prueba('FM8', 'markSynced con ids nunca guarda y da error a la vez (feed continuo, pieza 9; D-335): con la concesión en otro tablero, da el error sin haber marcado nada; con el tablero de la skill abierto, marca y devuelve lo de siempre (las llamadas de la Mesa por dentro no pasan por la envoltura de la skill)', async () => {
+    const FN = `${CLIENTE}-${MES}`, SK = M._in.skill || { ver: () => null, cerrar() {} };
+    try {
+      await fjSeis(); await M.open(FN); await fjQuieto(300);
+      ok(Array.isArray(M.plan()), 'plan()');
+      const rp = await M._in.mesActivo.pon('2026-10', 'prueba'); ok(rp && rp.ok, 'pon de octubre: ' + json(rp));   // como un ⌘Z que lleva a otro mes: no cierra la concesión
+      igual(M._in.S.key, FJ_SO, 'octubre abierto');
+      const n0 = M._in.S.notionAt || null, d0 = json(slot('fj-o1'));
+      const e = M.markSynced(['fj-o1']);
+      const guardo = (M._in.S.notionAt || null) !== n0 || json(slot('fj-o1')) !== d0, error = !!(e && !Array.isArray(e) && e.error);
+      ok(!(guardo && error), 'markSynced marcó octubre y además dijo que no tocó nada: ' + json(e).slice(0, 160));
+      ok(error && !guardo, 'con la concesión en noviembre, markSynced de octubre no dio el error sin tocar nada');
+      await M.open(FJ_SO); await fjQuieto(300); ok(Array.isArray(M.plan()), 'plan() de octubre');
+      const n1 = M._in.S.notionAt || null, r = M.markSynced(['fj-o1']);
+      ok(Array.isArray(r) && (M._in.S.notionAt || null) !== n1, 'con su tablero abierto, markSynced no marcó o no devolvió la lista: ' + json(r).slice(0, 160));
+      const u = M.markUploaded([{ slotId: 'fj-o1', fileIds: [], note: 'FM8' }]); ok(Array.isArray(u), 'markUploaded no devolvió el plan: ' + json(u).slice(0, 160));
+      igual(SK.ver() && SK.ver().key, FJ_SO, 'la concesión no sigue en octubre');
+    } finally { SK.cerrar(); await limpiar(); }
+  });
+  prueba('FM9', 'Con una skill trabajando, deslizar y parar en otro tablero o tocar una de sus publicaciones lo dice (feed continuo, pieza 9; D-336): un solo aviso, el mismo, que dice cómo cambiar de mes (en la cabecera); el mes abierto y la tira no cambian', async () => {
+    const FN = `${CLIENTE}-${MES}`, SK = M._in.skill || { ver: () => null, cerrar() {} };
+    const avisos = () => qa('.toasts .toast').filter(t => /skill/i.test(t.textContent));
+    try {
+      await fjSeis(); const P = fjPuntos(); await M.open(FN); await fjQuieto(300);
+      ok(Array.isArray(M.plan()), 'plan()'); M._in.clearToasts();
+      await fjA(P['2026-07'] - 3); await fjQuieto(900);
+      igual(fgActivo(), [FN, MES], 'deslizar cambió el mes abierto');
+      cerca(fjX(), fjXde(fjJ(MES)), 1, 'la tira no volvió a noviembre');
+      igual(avisos().length, 1, 'al asentarse, no salió un aviso');
+      ok(/cabecera/.test(avisos()[0].textContent), 'el aviso no dice cómo cambiar de mes: ' + avisos()[0].textContent);
+      await fjA(P['2026-09'] - 3); await fjQuieto(900);
+      igual(avisos().length, 1, 'otra parada repitió el aviso');
+      celda('fj-o1').scrollIntoView({ block: 'center' }); await espera(30); celda('fj-o1').click(); await espera(300); M._in.closeDetail();
+      igual(fgActivo(), [FN, MES], 'tocar otro mes cambió el mes abierto');
+      igual(avisos().length, 1, 'al tocar, el aviso no es el mismo (o salieron dos)');
+      ok(/cabecera/.test(avisos()[0].textContent), 'al tocar, el aviso no dice cómo cambiar de mes');
+    } finally { SK.cerrar(); M._in.clearToasts(); await limpiar(); }
+  });
+  prueba('FM10', 'Abrir un cliente o un mes espera a lo que se está escribiendo de otros meses (feed continuo, pieza 9; D-337): con una escritura de otro mes sin acabar, MESA.openClient, MESA.open y MESA.init esperan a que acabe, como ya hacía cambiar de mes (activar)', async () => {
+    try {
+      await fdDos();
+      ok(M._test.fueraTapon, 'no hay MESA._test.fueraTapon');
+      for (const [que, abrir] of [['openClient', () => M.openClient(CLIENTE)], ['open', () => M.open(fdO)], ['init', () => M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1), pub(2)], past: [], force: true })]]) {
+        let soltar; const tapon = new Promise(r => { soltar = r; }); M._test.fueraTapon(tapon);
+        let fin = false; const p = Promise.resolve(abrir()).then(() => { fin = true; });
+        await espera(250); ok(!fin, `${que} no esperó a la escritura de otro mes`);
+        soltar(); await p; ok(fin, `${que} no acabó`);
+      }
+    } finally { await limpiar(); }
+  });
+  // ---------- feed continuo, pieza 10: lo que Kevin decidió tras la revisión ----------
+  const fnPild = () => { const p = q('.bar .mescab .mescab-pild').getBoundingClientRect(), a = M._in.mesActivo.lee(), e = q(`.bar .mescab .mescab-pild .mescab-mes[data-mes="${a}"], .bar .mescab .mescab-pild [data-mes="${a}"]`) || [...q('.bar .mescab .mescab-pild').querySelectorAll('.mescab-mes')][fjJ(a)];
+    const r = e.getBoundingClientRect(); return { centro: (r.left + r.right) / 2 - (p.left + p.right) / 2, entero: r.left >= p.left - 0.5 && r.right <= p.right + 0.5, nombre: e.textContent }; };
+  async function fnCentrada(que, y) {
+    const t0 = performance.now(); let c;
+    for (;;) { await fjCuadro(); c = fnPild(); if (Math.abs(c.centro) <= 1 && c.entero) break; if (performance.now() - t0 > 150 + 450 + 80) break; }
+    ok(Math.abs(c.centro) <= 1 && c.entero, `${que}: «${c.nombre}» no quedó entero y centrado en la píldora (desvío ${c.centro.toFixed(1)} px)`);
+    await fjQuieto(300); igual(fjFeed().scrollTop, y, `${que}: el feed se movió`);
+  }
+  prueba('FN1', 'Al parar lejos del punto de un mes, la tira se centra sola en el mes activo (feed continuo, pieza 10; D-338): en tres sitios entre dos puntos el nombre queda entero y centrado en la píldora y el feed no se mueve; al volver a deslizar la tira sigue al feed sin saltos; con «reducir movimiento», al instante; en la «Vista cliente», igual; con un menú abierto, la tira vuelve al mes abierto', async () => {
+    try {
+      await fjSeis(); const P = fjPuntos(), fila = fjMov().filaH, W0 = M._in.cabecera.ancho();
+      ok(P['2026-09'] - P['2026-10'] > 1.4 * fila, 'los puntos de octubre y septiembre están demasiado cerca: la prueba no vale');
+      for (const [que, y, m] of [['cerca de octubre', P['2026-10'] + .5 * fila, '2026-10'], ['a mitad', (P['2026-10'] + P['2026-09']) / 2, null], ['casi en septiembre', P['2026-09'] - .5 * fila, '2026-09']]) {
+        const yy = Math.round(y); await fjA(yy); await fnCentrada(que, yy);
+        if (m) igual(M._in.mesActivo.lee(), m, `${que}: el mes activo no es el que se ve (la tira centrada antes no puede decidirlo)`);
+      }
+      // una fila más: la tira vuelve a seguir al feed, sin saltos
+      const y0 = fjFeed().scrollTop, xs = [fjX()];
+      for (let i = 1; i <= 10; i++) { await fjA(Math.round(y0 + fila * i / 10)); xs.push(fjX()); }
+      const salto = Math.max(...xs.slice(1).map((x, i) => Math.abs(x - xs[i])));
+      ok(salto <= .25 * W0, `al volver a deslizar la tira saltó ${salto.toFixed(1)} px de golpe (hueco ${W0} px): ${xs.map(Math.round).join(' ')}`);
+      await fjQuieto(900);
+      // «reducir movimiento»: al instante
+      M._in.mov.reducir(true);
+      try { const y = Math.round((P['2026-10'] + P[MES]) / 2); await fjA(y); await espera(150 + 60); await fjCuadro(); const c = fnPild(); ok(Math.abs(c.centro) <= 1 && c.entero, `con «reducir movimiento» no se centró al momento (${c.centro.toFixed(1)} px)`); await fjQuieto(300); }
+      finally { M._in.mov.reducir(null); }
+      // en la «Vista cliente»
+      await vistaCliente(true); await fjQuieto(300);
+      { const y = Math.round((P['2026-10'] + P['2026-09']) / 2 + 7); await fjA(y); await fnCentrada('en la «Vista cliente»', y); }
+      await vistaCliente(false); await fjQuieto(300);
+      // con un menú abierto antes de asentarse: no cambia de mes y la tira vuelve al mes abierto
+      const a0 = fgActivo(); await fjA(Math.round((P['2026-07'] + P['2026-09']) / 2));
+      const g = q('.feed .grid'), r = g.getBoundingClientRect(); g.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: r.x + 5, clientY: r.y + 5, view: W }));
+      await fjQuieto(900); igual(fgActivo(), a0, 'con un menú abierto cambió el mes');
+      const c = fnPild(); ok(Math.abs(c.centro) <= 1 && c.entero, 'con un menú abierto la tira no volvió al mes abierto');
+    } finally { M.libre && M.libre.abierto && M.libre.abierto() && M.libre.cerrar(); M._in.closeDetail(); D.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await vistaCliente(false); await limpiar(); }
+  });
+  // r1: carrusel Publicado con dos fotos; r2: carrusel sin publicar con dos fotos
+  async function fnPub() {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Carrusel'), pub(3)]);
+    await porAprobar(['r1'], 'fn'); await poner('r1', [await foto('fn-r1b.jpg')]); M.setEstado('r1', 'publicado');
+    await poner('r2', [await foto('fn-r2a.jpg'), await foto('fn-r2b.jpg')]); await M.flush();
+    igual([M._in.estadoDe(slot('r1')), slot('r1').photos.length, slot('r2').photos.length], ['publicado', 2, 2], 'la preparación');
+    if (M._in.skill) M._in.skill.cerrar();
+    M._in.clearToasts();
+  }
+  const fnAviso = () => qa('.toasts .toast').map(t => t.textContent).join(' | ');
+  prueba('FN2', 'Una Publicada no cambia de foto por ningún camino (feed continuo, pieza 10; D-324, D-330, D-339): archivo soltado del ordenador, «Sustituir/Añadir», quitar una foto, reordenar, poner otra de portada, «Cambiar portada», un tipo de una sola foto y «Editar» no la tocan y avisan cómo salir; en su ventana esos controles salen apagados con su motivo; lo demás de la ventana sigue igual; la que no está publicada cambia por esos caminos como siempre, con ⌘Z', async () => {
+    try {
+      await fnPub();
+      const f0 = slot('r1').photos.slice(), igualR1 = que => { igual(slot('r1').photos, f0, `${que}: cambió la foto de la Publicada`); ok(/Ya está publicada: no se cambia su foto\. Para cambiarla, ponla antes en otro estado\./.test(fnAviso()), `${que}: sin el aviso que dice cómo salir: ` + fnAviso()); M._in.clearToasts(); };
+      // la API y los caminos de dentro
+      igual(json(await M.addFiles([await foto('fn-nuevo.jpg')], 'r1')), '[]', 'un archivo soltado en la Publicada entró'); igualR1('archivo soltado');
+      igual(json(await M.addFiles([await foto('fn-nuevo2.jpg')], null, { aviso: 'r1' })), '[]', '«Sustituir/Añadir» de un archivo entró'); igualR1('Sustituir/Añadir');
+      M._test.unassign('r1', 1); igualR1('quitar una foto');
+      M._test.unassign('r1', null, true); igualR1('vaciarla');
+      M._test.move('r1', 0, 1); igualR1('mover una foto');
+      M._test.movePhoto('r1', 1, 0); igualR1('reordenar');
+      M._test.setCover('r1', 1); igualR1('otra de portada');
+      M._test.place('r1', (await M.addFiles([await foto('fn-band.jpg')]))[0]); igualR1('poner una foto');
+      M._test.setType('r1', 'Reel'); await espera(30); igual(slot('r1').photos, f0, 'un tipo de una sola foto le quitó fotos'); M._in.clearToasts();
+      // su ventana: los controles de la foto, apagados con su motivo; ver sigue
+      M._in.openDetail('r1', 0); await espera(60);
+      const d = dialogo(); ok(d, 'no se abrió su ventana');
+      for (const sel of ['[data-act="pickcover"]', '[data-act="unpick"]', '[data-act="editar"]']) {
+        const b = d.querySelector(sel); ok(b, `falta ${sel}`);
+        ok(b.getAttribute('aria-disabled') === 'true' && /publicada/i.test(b.title), `${sel} no está apagado con su motivo: ` + b.outerHTML.slice(0, 200));
+      }
+      ok(d.querySelector('.stage img.big') && d.querySelector('.stage img.big').getAttribute('src'), 'no se ve su imagen');
+      d.querySelector('[data-act="pickcover"]').click(); await espera(60);
+      ok(!dialogo().querySelector('.cpick'), '«Cambiar portada» abrió la bandeja'); igualR1('Cambiar portada');
+      dialogo().querySelector('[data-act="unpick"]').click(); await espera(60); igualR1('«Quitar» de la ventana');
+      dialogo().querySelector('[data-act="editar"]').click(); await espera(300);
+      ok(!M.libre.abierto(), '«Editar» abrió el editor de una Publicada'); igualR1('Editar');
+      ok(!/Arrastra las miniaturas/.test(dialogo().textContent), 'invita a arrastrar las miniaturas de una Publicada');
+      ok(dialogo().querySelector('textarea.note') && !dialogo().querySelector('textarea.note').disabled, 'el contexto de una Publicada dejó de editarse');
+      M._in.closeDetail();
+      // MESA.init (Notion cambia su tipo a Foto): no le quita fotos
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [{ ...pub(1, 'Foto'), name: 'Foto 1.1' }, pub(2, 'Carrusel'), pub(3)], past: [], force: true });
+      igual(slot('r1').photos, f0, 'MESA.init le quitó fotos a la Publicada');
+      // la que no está publicada, como siempre (y ⌘Z)
+      const g0 = slot('r2').photos.slice();
+      M._test.setCover('r2', 1); igual(slot('r2').photos, [g0[1], g0[0]], 'otra de portada en una sin publicar');
+      M._test.unassign('r2', 1); igual(slot('r2').photos, [g0[1]], 'quitar una foto de una sin publicar');
+      await espera(2100); M._test.undo(); await espera(60); igual(slot('r2').photos, [g0[1], g0[0]], '⌘Z');
+      M._test.redo(); await espera(60); igual(slot('r2').photos, [g0[1]], '⇧⌘Z');
+      ok(!/Ya está publicada/.test(fnAviso()), 'una sin publicar avisó como Publicada');
+    } finally { M._in.closeDetail(); M._in.clearToasts(); await limpiar(); }
+  });
+  prueba('FN3', 'Un desplazamiento con inercia de más de 2,5 s (feed continuo, pieza 10; D-340): sigue contando como de Kevin mientras dura, no se asienta a mitad y, al parar cerca del punto de un mes, el imán actúa', async () => {
+    try {
+      await fjSeis(); const P = fjPuntos(), fila = fjMov().filaH, feed = fjFeed();
+      const y0 = P[MES], y1 = Math.round(P['2026-09'] - .2 * fila), pasos = 36;
+      // un solo golpe de rueda (o de dedo) y después la inercia, sin más gestos; sin «scrollend» por medio (Safari no siempre lo
+      // tiene, y con una inercia de verdad llega solo al final): aquí cada scrollTop por código lo lanzaría y lo taparía todo
+      const tapa = e => { if (e.target === feed) e.stopImmediatePropagation(); };
+      W.addEventListener('scrollend', tapa, true);
+      const meses = new Set();
+      try { fjGesto(); for (let i = 1; i <= pasos; i++) { feed.scrollTop = Math.round(y0 + (y1 - y0) * i / pasos); await espera(100); meses.add(M._in.mesActivo.lee()); } }
+      finally { W.removeEventListener('scrollend', tapa, true); }
+      igual([...meses], [MES], 'el mes activo cambió mientras seguía la inercia (se asentó a mitad)');
+      await fjQuieto(1000);
+      igual([feed.scrollTop, M._in.mesActivo.lee()], [P['2026-09'], '2026-09'], 'al parar, el imán no actuó o no se asentó en septiembre');
+    } finally { await limpiar(); }
+  });
+
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;
   $('resumen').textContent = `${T.length} pruebas listas.`;

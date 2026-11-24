@@ -1821,6 +1821,8 @@
     return m ? feedDueno(m) : null;
   }
   const esNuevo = () => !S || !MB.some(b => b.key === S.key) || tableroNuevo() === S.key;   // without its months listed (the iPhone, a skill before drawing), as before
+  // the pinned posts that count for a board's order: its own only if it is the client's newest board; an older board's go by their date (pieza 6, D-327: what «Web del cliente» sends)
+  const fijadasFeed = (B = S) => (!B || !S || B.client !== S.client || !MB.some(b => b.key === B.key) || tableroNuevo() === B.key ? pinsOf(B) : []);
   function setPin(slotId, on) {
     const s = S && S.slots.find(x => x.id === slotId); if (!s) return false;
     if (on && !isPinned(s) && !esNuevo()) { toast(NUEVO_TXT, { key: 'solo-nuevo' }); return false; }
@@ -10029,6 +10031,7 @@ ${TK_FUENTES}
     // (without writing), ver(key) gives one already read or null, soltar() lets them all go
     mesActivo: { lee: () => mesActivo, quien: () => mesQuien, pon: (m, quien) => mesPoner(m, quien) },
     cabecera: { nodo: () => CAB, ir: m => cabIr(m), mover: x => cabMover(x), ancho: () => CABW, colocar: () => cabColocar() },
+    fijadasFeed,
     mov: { estado: () => (MOVM ? { ...MOVM.estado(), x: CABX, w: CABW, meses: CABL.map(e => e.m) } : null), medir: () => movMedir(), tokens: () => { const t = movTokens(); return { dur: t.dur, curva: t.curva }; }, umbral: MOV.UMBRAL, pausa: MOV.PAUSA, ease: x => movTokens().ease(x), reducir: b => { movRed = b == null ? null : !!b; } },   // the feed's movement (pieza 5, D-325)   // the months' header (feed continuo, pieza 4, D-323)   // the active month (feed continuo, pieza 3a)
     feedSlot: id => { if (!S) return null; const s0 = S.slots.find(x => x.id === id); if (s0) return { s: s0, B: S }; for (const b of MB) { const B = feedTablero(b.key), s1 = B && B !== S && B.slots.find(x => x.id === id); if (s1) return { s: s1, B }; } return null; },   // a post of the client's feed and its board (pieza 3a)
     feedPunto, feedIr: (m, o) => feedIr(m, o), feedDueno, feedHTMLEntero, feedHTMLGuardado, feedCargar: () => feedCargarResto() || Promise.resolve(),   // a month's point in the feed and going there (pieza 3a; pieza 5 animates it)

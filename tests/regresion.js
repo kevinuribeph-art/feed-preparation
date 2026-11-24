@@ -24577,6 +24577,37 @@
     } finally { await limpiar(); }
   });
 
+  prueba('FK6', 'El orden que «Web del cliente» envía (feed continuo, pieza 6; D-321, D-327): las fijadas solo valen en el tablero más nuevo del cliente; las de un tablero anterior van por su fecha, y quitarles la fijación no cambia ni su orden ni su versión (ninguna aprobación se pierde); un cliente de un tablero sin fijadas, como siempre', async () => {
+    try {
+      // un tablero sin fijadas: por fecha, la más nueva primero
+      await tablero([pub(1), pub(2), pub(3)]);
+      await conWeb(async sv => {
+        wbSesion(); ok((await M.web.enviar()).ok, 'no se envió');
+        igual(sv.db.publicaciones.slice().sort((a, b) => a.orden - b.orden).map(p => p.fecha.slice(0, 10)), [`${MES}-05`, `${MES}-04`, `${MES}-03`], 'un tablero sin fijadas');
+      });
+      // octubre (anterior) con una fijada vieja; noviembre (el más nuevo) con la suya
+      await limpiar();
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: FD_OCT, slots: [fcSlot('fd-o1', '4.1', 20, FD_OCT), fcSlot('fd-o2', '4.2', 22, FD_OCT)], past: [], force: true });
+      M._in.S.pins = ['fd-o1']; M._in.save(); await M.flush();
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1), pub(2)], past: [], force: true });
+      M._in.S.pins = ['r1']; M._in.save(); await M.flush();
+      await feTodo([MES, FD_OCT]);
+      await conWeb(async sv => {
+        wbSesion();
+        const orden = mes => sv.db.publicaciones.filter(p => p.mes === mes).sort((a, b) => a.orden - b.orden).map(p => [p.fecha.slice(0, 10), p.orden]);
+        ok((await M.web.enviar()).ok, 'no se envió noviembre');
+        igual(orden(MES), [[`${MES}-03`, 0], [`${MES}-04`, 1]], 'noviembre, el más nuevo: su fijada primero');
+        await fdAct(fdO);
+        ok((await M.web.enviar()).ok, 'no se envió octubre');
+        igual(orden(FD_OCT), [[`${FD_OCT}-22`, 0], [`${FD_OCT}-20`, 1]], 'octubre, anterior: su fijada vieja va por su fecha');
+        const v0 = sv.db.publicaciones.filter(p => p.mes === FD_OCT).map(p => [p.pid, p.version, p.orden]).sort();
+        delete M._in.S.pins; M._in.save(); await M.flush();
+        ok((await M.web.enviar()).ok, 'no se reenvió octubre');
+        igual(sv.db.publicaciones.filter(p => p.mes === FD_OCT).map(p => [p.pid, p.version, p.orden]).sort(), v0, 'quitar la fijada vieja cambió el orden o la versión');
+      });
+    } finally { await limpiar(); }
+  });
+
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;
   $('resumen').textContent = `${T.length} pruebas listas.`;

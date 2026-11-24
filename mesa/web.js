@@ -52,9 +52,10 @@
         fecha, sin_hora: sinHora, caption: caption.slice(0, 2200), estado: vivo ? (ESTADO[X.estadoDe(s)] || 'preparando') : 'preparando', visible: vivo },
     };
   }
-  // El orden del feed: las fijadas primero, después las vivas por fecha (como la cuadrícula, D-152).
+  // El orden del feed: las fijadas primero, después las vivas por fecha (como la cuadrícula, D-152). Las fijadas solo valen en el
+  // tablero más nuevo del cliente; las de un tablero anterior van por su fecha, como en el feed seguido (D-321, D-327).
   function ordenFeed(B) {
-    const X = I(), pins = (B.pins || []).filter(id => B.slots.some(x => x.id === id && X.vivo(x)));
+    const X = I(), pins = X.fijadasFeed ? X.fijadasFeed(B) : (B.pins || []).filter(id => B.slots.some(x => x.id === id && X.vivo(x)));
     return [...pins.map(id => B.slots.find(x => x.id === id)), ...B.slots.filter(x => !pins.includes(x.id) && X.vivo(x))];
   }
   async function filas(B) {

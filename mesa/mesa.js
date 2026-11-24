@@ -2858,7 +2858,7 @@ ${TK_FUENTES}
 #mesa .mescab .mescab-fl:hover:not([aria-disabled="true"]){background:var(--bg-2);color:var(--ink)}#mesa .mescab .mescab-fl[aria-disabled="true"]{color:var(--faint);cursor:default}
 #mesa .mescab-vent{position:relative;flex:none;width:calc(var(--mescab-w,64px) * 3);height:30px;overflow:hidden;border:1px solid var(--line);border-radius:var(--r-pill)}
 #mesa .mescab-tira{position:absolute;left:0;top:0;height:100%;display:flex}
-#mesa .mescab-tira{will-change:transform}#mesa .mescab-vent::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,var(--bg) 0,transparent 12%,transparent 88%,var(--bg) 100%)}#mesa .mescab-vent.fmes::after{display:none}   /* pieza 5: the strip moves; a name cut by the window's edge fades into the bar (the ones at rest, fully seen; the pill is in the clear middle) */
+#mesa .mescab-tira{will-change:transform}#mesa .mescab-vent::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,var(--bg) 0,transparent 12%,transparent 88%,var(--bg) 100%)}#mesa .mescab-vent.mescab-foco::after{display:none}   /* pieza 5: the strip moves; a name cut by the window's edge fades into the bar (the ones at rest, fully seen; the pill is in the clear middle) */
 #mesa .mescab .mescab-mes{flex:none;display:block;width:var(--mescab-w,auto);height:100%;padding:0 10px;box-sizing:border-box;line-height:30px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12.5px;font-weight:600;color:var(--ink-2)}
 #mesa .mescab button.mescab-mes{transition:color var(--d1) ease-out}#mesa .mescab button.mescab-mes:hover{color:var(--acc-ink)}#mesa .mescab .mescab-mes.sin{color:var(--faint);font-weight:400;cursor:default}
 #mesa .mescab button.mescab-mes:focus-visible{outline:2px solid var(--focus);outline-offset:-3px;border-radius:var(--r-pill)}
@@ -3592,7 +3592,7 @@ ${TK_FUENTES}
     const si = !!(a && CAB.contains(a) && a.getAttribute('aria-current') === 'true' && a.matches(':focus-visible'));
     if (v.classList.contains('fpild') !== si) v.classList.toggle('fpild', si);
     const fm = !!(a && v.contains(a) && a.classList.contains('mescab-mes') && a.matches(':focus-visible'));   // a month with the ring: no edge fade over it (pieza 5)
-    if (v.classList.contains('fmes') !== fm) v.classList.toggle('fmes', fm);
+    if (v.classList.contains('mescab-foco') !== fm) v.classList.toggle('mescab-foco', fm);   // not «fmes»: that is each month's wrapper in the feed (display: contents; pieza 8, D-331)
   }
   // the month next to the active one (or to where it is going) in direction d, skipping «sin crear»; null: none
   function cabVecino(d) {

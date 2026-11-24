@@ -24702,6 +24702,33 @@
       ok(M.board().tray.includes(f.r2), 'su foto no volvió a la bandeja');
     } finally { M._in.clearToasts(); await limpiar(); }
   });
+  prueba('FM5', 'Con el foco en un mes de la cabecera (Tab, ← →) la cabecera no se desarma (feed continuo, pieza 8; lección 180/A49-30; D-323, D-331): la ventana conserva su ancho y su caja, la píldora su sitio y su nombre se lee, a 1280 y a 700, en claro y en oscuro y en la «Vista cliente»; ningún elemento de la cabecera lleva la clase «fmes» (la envoltura de cada mes del feed)', async () => {
+    try {
+      await fjSeis();
+      const vent = () => q('.bar .mescab .mescab-vent'), pild = () => q('.bar .mescab .mescab-pild');
+      const caja = e => { const r = e.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.width), Math.round(r.height)]; };
+      const mirar = async que => {
+        await fjQuieto(300);
+        const v0 = caja(vent()), p0 = caja(pild());
+        for (const [i, ir] of [['Nov', null], ['Nov', 'ArrowLeft'], ['Oct', 'ArrowRight']].entries()) {
+          const h = fgHueco(ir[0]); h.focus({ focusVisible: true });
+          if (ir[1]) h.dispatchEvent(new W.KeyboardEvent('keydown', { key: ir[1], bubbles: true, cancelable: true }));
+          await fjQuieto(500);
+          ok(!qa('.bar .mescab, .bar .mescab *').some(e => e.classList.contains('fmes')), `${que} (${i}): un elemento de la cabecera lleva «fmes»`);
+          ok(W.getComputedStyle(vent()).display !== 'contents', `${que} (${i}): la ventana sin caja (display: contents)`);
+          const v = caja(vent()), p = caja(pild());
+          ok(Math.abs(v[1] - v0[1]) <= 1 && Math.abs(v[2] - v0[2]) <= 1 && Math.abs(p[1] - p0[1]) <= 1 && Math.abs(p[2] - p0[2]) <= 1, `${que} (${i}): la ventana o la píldora cambiaron de tamaño: ${json([v0, v, p0, p])}`);
+          ok(Math.abs((p[0] - v[0]) - (p0[0] - v0[0])) <= 1, `${que} (${i}): la píldora se movió dentro de la ventana`);
+          ok(fgPildora().length === 1, `${que} (${i}): la píldora no enseña un nombre: ${json(fgPildora())}`);
+        }
+        D.activeElement && D.activeElement.blur && D.activeElement.blur(); await fjQuieto(200);
+      };
+      await mirar('1280 claro');
+      await fgOscuro(() => mirar('1280 oscuro'));
+      await fgAncho(700, () => mirar('700 claro'));
+      await vistaCliente(true); await mirar('«Vista cliente»'); await vistaCliente(false);
+    } finally { await vistaCliente(false); await limpiar(); }
+  });
 
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;

@@ -197,7 +197,7 @@
           ancla = { j: b.j, st: b.st }; desv = null; pedir(); o.asentado(b.j); return;
         }
       }
-      o.asentado(v(s));
+      o.asentado(base(s));                // el mes de donde está el feed, no el desvío que deja la tira al centrarse en reposo (D-338 de la Mesa; D-P14)
     }
     function alScroll() {
       sC = sc.scrollTop;

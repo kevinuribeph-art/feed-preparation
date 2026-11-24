@@ -205,7 +205,7 @@
     }
     // no weekly count (Σ) anywhere; the month's total, always in my view, under the grid (D-229), and never in the vista cliente (D-228)
     if (!client && !cont) body += `<div class="ctot" title="${total} publicaci${total === 1 ? 'ón' : 'ones'} en ${X.MONTHS[mo - 1]}">Total de ${X.MONTHS[mo - 1]} <b>${total}</b></div>`;
-    const i = sp.list.indexOf(m), pend = M.notionChanges ? M.notionChanges().length : 0, fo = folded();
+    const i = sp.list.indexOf(m), pend = X.notionCambios ? X.notionCambios().length : M.notionChanges ? M.notionChanges().length : 0, fo = folded();
     // «Notion a fecha de» is no longer a text of its own: it goes in the title of the line that already speaks of Notion (D-160)
     const nat = `Notion a fecha de: ${S.notionAt ? esc(X.fmtDate(S.notionAt)) : '—'}`;
     const sync = cont || (X.sinNotion && X.sinNotion()) ? '' : pend ? `<span class="csync c" title="Fecha, hora, tipo o nombre cambiados aquí: se pasan a Notion al subir · ${nat}"><i class="dchg"></i>${pend} cambio${pend === 1 ? '' : 's'} sin subir</span>` : `<span class="csync" title="${nat} · la mesa no lee Notion en directo: es la última vez que este mes se cargó desde Notion o se confirmó una subida">Igual que Notion</span>`;
@@ -393,7 +393,7 @@
     if (!delMes(X, S, m).some(X.vivo)) { X.toast('Este mes no tiene publicaciones.'); return; }
     const van = mueven(X, delMes(X, S, m), to);
     if (van.length && X.locked) { X.toast('La mesa está abierta en otra pestaña: aquí no se cambian las publicaciones.'); return; }
-    const r = van.length ? M.setEstado(van.map(s => s.id), to) : null, hechas = Array.isArray(r) ? r.filter(x => !x.error) : [];
+    const r = van.length ? (I().estadoPoner || M.setEstado)(van.map(s => s.id), to) : null, hechas = Array.isArray(r) ? r.filter(x => !x.error) : [];
     const ok = van.filter(s => hechas.some(x => x.slotId === s.id)), dice = ok.length ? lleva(to, ok.length) : '';
     const fallos = Array.isArray(r) ? r.filter(x => x.error) : [];   // one it couldn't change says why, in the window
     const ahora = idx(X.pasoDe(S, m)), tarde = ahora >= j ? [] : frenan(X, delMes(X, S, m), j);
@@ -463,13 +463,13 @@
     if (X.locked) { X.toast('La mesa está abierta en otra pestaña: aquí no se cambia nada.'); return; }
     const nom = `«${X.shortLabel(v.name, v.type)}»`;
     if (a === 'v-pub') {
-      const r = v.aqui ? M.setEstado(v.id, 'publicado') : X.fueraEstado(v.key, v.id, { v: 'publicado' });
+      const r = v.aqui ? (I().estadoPoner || M.setEstado)(v.id, 'publicado') : X.fueraEstado(v.key, v.id, { v: 'publicado' });
       if ((Array.isArray(r) && r[0] && r[0].error) || (typeof r === 'string' && r)) { X.toast('No se pudo: ' + (Array.isArray(r) ? r[0].error : r) + '.'); return; }
       X.toast(`${nom} pasa a Publicado. ⌘Z lo deshace.`, { key: 'venc-accion', ms: 6000 });
     } else if (a === 'v-rep' || a === 'v-can') { vabre = { k: vk(v), que: a === 'v-rep' ? 'rep' : 'can' }; vencPintar(); return; }
     else if (a === 'v-can-ok') {
       const mot = String((li.querySelector('input[data-v="motivo"]') || {}).value || '').trim();
-      const r = v.aqui ? M.setEstado(v.id, 'cancelado', mot ? { motivo: mot } : {}) : X.fueraEstado(v.key, v.id, mot ? { v: 'cancelado', motivo: mot } : { v: 'cancelado' });
+      const r = v.aqui ? (I().estadoPoner || M.setEstado)(v.id, 'cancelado', mot ? { motivo: mot } : {}) : X.fueraEstado(v.key, v.id, mot ? { v: 'cancelado', motivo: mot } : { v: 'cancelado' });
       if ((Array.isArray(r) && r[0] && r[0].error) || (typeof r === 'string' && r)) { X.toast('No se pudo: ' + (Array.isArray(r) ? r[0].error : r) + '.'); return; }
       vabre = null;
       X.toast(`${nom} se cancela${mot ? ': ' + mot : ''}. ⌘Z lo deshace.`, { key: 'venc-accion', ms: 6000 });

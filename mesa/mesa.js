@@ -3627,9 +3627,10 @@ ${TK_FUENTES}
     if (m === mesActivo) { feedMovido = false; feedIr(m); return true; }   // the quick jump (pieza 5)
     if (busyGuard()) return false;
     const no = activarNo(); if (no) { toast(`No se cambia de mes ahora: ${no}.`); return false; }
+    SKILL = null;                        // Kevin asked for a month: a skill's concession ends (pieza 8, D-329)
     if (mesesTab(S).includes(m)) { mesFijar(m, 'cabecera'); mesSigue(); feedMovido = false; feedIr(m); return true; }
     const k = feedDueno(m); if (!k) return false;
-    const r = await activar(k, { mes: m, quien: 'cabecera' });
+    const r = await activar(k, { mes: m, quien: 'cabecera', claro: true });
     if (!r || !r.ok) { if (r && r.error && !/^ya se está/.test(r.error)) toast(`No se cambia de mes ahora: ${r.error}.`); return false; }
     trasActivar(k, { animar: true }); return true;
   }
@@ -7708,8 +7709,9 @@ ${TK_FUENTES}
   // nothing, with a drag, a field being edited, a window, a menu, the editor or the designer, or a job going on.
   let activando = 0;
   const pendiente = () => !!(saveTimer || noteTimer || motTimer);
-  function activarNo() {
+  function activarNo(o = {}) {         // o.key: the board it would go to; o.claro: Kevin asked for it clearly (a month or an arrow of the header, MESA.open, ⌘Z)
     if (!S || locked) return 'no hay un mes abierto aquí';
+    if (o.key && o.key !== S.key && !o.claro && skillViva() && SKILL.key === S.key) return 'una skill está trabajando en este mes';   // pieza 8 (D-329)
     if (MOVIL) return 'en el iPhone se mira un tablero cada vez';
     if (importEscribe || importing || uploadsBusy() || xferRun) return 'hay un trabajo en marcha';
     if (M.web && M.web.estado && M.web.estado().enviando) return '«Web del cliente» está enviando';
@@ -7725,7 +7727,7 @@ ${TK_FUENTES}
   }
   async function activar(key, o = {}) {   // o.paso: for a step of ⌘Z (D-317): a window, a menu or a field don't stop it
     if (S && S.key === key) { if (o.mes && mesesTab(S).includes(o.mes) && o.mes !== mesActivo) { mesFijar(o.mes, o.quien || 'activar'); mesSigue(); } return { ok: true, key }; }
-    const no = () => { const w = activarNo(); return o.paso && /ventana|menú|campo/.test(w || '') ? null : w; };
+    const no = () => { const w = activarNo({ key, claro: !!(o.claro || o.paso) }); return o.paso && /ventana|menú|campo/.test(w || '') ? null : w; };
     let why = no(); if (why) return { error: why };
     if (activando) return { error: 'ya se está cambiando de mes' };
     const c = S.client || boardClient(S);
@@ -7794,7 +7796,7 @@ ${TK_FUENTES}
     if (!S || !/^\d{4}-\d{2}$/.test(String(m || ''))) return { error: 'no es un mes' };
     if (mesesTab(S).includes(m)) { mesFijar(m, quien); mesSigue(); return { ok: true, mes: mesActivo, key: S.key }; }
     const k = feedDueno(m); if (!k) return { error: 'ese mes no tiene tablero' };
-    const r = await activar(k, { mes: m, quien }); return r && r.ok ? { ...r, mes: mesActivo } : r;
+    const r = await activar(k, { mes: m, quien, claro: true }); return r && r.ok ? { ...r, mes: mesActivo } : r;
   }
   // after activar of another board from MESA.open or the months' header: a reload comes back to it (as M.init), the last used owns a
   // month two boards hold (D-318) and the feed goes to the active month's point
@@ -7952,7 +7954,7 @@ ${TK_FUENTES}
     if (!MIRA && S && S.key !== key && !locked && shellReady() && MB.some(b => b.key === key) && boardClient(S) === curClient) {
       await claim();
       if (!locked && S && S.key !== key) {
-        const r = await activar(key, { mes: o.mes, quien: o.quien || 'open' });
+        const r = await activar(key, { mes: o.mes, quien: o.quien || 'open', claro: true });
         if (r && r.ok) { trasActivar(key); return M.status(); }
       }
     }
@@ -8167,7 +8169,7 @@ ${TK_FUENTES}
         else if (publicaSola(s, ahora())) why = 'publicada';   // its moment came: it is Publicada for the Mac (D-120), it doesn't move
         else { const r = setDate(op.slot, iso); if (r !== true) why = r; }
       }
-      else if (op.campo === 'estado') { const v = op.valor ? op.valor.v ?? null : null, r = M.setEstado(op.slot, v, op.valor && op.valor.motivo != null && v === 'cancelado' ? { motivo: op.valor.motivo } : {})[0]; if (r && r.error) why = r.error; }
+      else if (op.campo === 'estado') { const v = op.valor ? op.valor.v ?? null : null, r = (estadoRaw || M.setEstado)(op.slot, v, op.valor && op.valor.motivo != null && v === 'cancelado' ? { motivo: op.valor.motivo } : {})[0]; if (r && r.error) why = r.error; }
       else if (op.campo === 'capElegir') {
         const c = capOf(s), k = op.valor; if (!c) why = 'sin captions';
         else if (k == null) { if (c.pick != null) unsetCapPick(op.slot, c.pick); }
@@ -8339,6 +8341,37 @@ ${TK_FUENTES}
   function perPlan(s) {
     const L = perLista(s), col = (s.colaboradores || []).slice(), mal = col.filter(u => !L.get(u));
     return { etiquetas: (s.etiquetas || []).slice(), colaboradores: col, ...(mal.length ? { colaboradoresNoValidos: mal } : {}) };
+  }
+  // ---------- a skill working on a month (pieza 8, D-329) ----------
+  // The calls only a skill makes (startUpload, startZernio, markUploaded, setEstado, markSynced, notionChanges, plan, render) note the
+  // open board and the time. For 10 minutes since the last one, what changes the open board without Kevin asking clearly (settling a
+  // scroll, touching a post of another month) doesn't (activarNo); a month or an arrow of the header, MESA.open / init / openClient
+  // end it (the skill's next call starts it again on its board). And a call with a post that isn't in the open board but in another
+  // of the client's, or markSynced / notionChanges without ids with the concession on another board, gives an error and touches nothing.
+  const SKILL_MS = 10 * 60 * 1000;
+  let SKILL = null, estadoRaw = null, cambiosRaw = null;   // {key, t}; the calls as the Mesa makes them inside (never a concession)
+  const skillViva = () => !!(SKILL && S && !MOVIL && Date.now() - SKILL.t < SKILL_MS);
+  function skillToca() { if (S && !locked && !MOVIL) SKILL = { key: S.key, t: Date.now() }; }
+  const nomTablero = k => { const b = MB.find(x => x.key === k); return b ? rangeLabel(b.month, b.span, false, cdOf(b.cycleDay)) : k; };
+  const cambioMsg = (k, id) => ({ error: `el mes abierto cambió: ${id ? `«${id}» es de` : 'la skill trabajaba en'} ${nomTablero(k)} (${k}) y está abierto ${nomTablero(S.key)} (${S.key}); vuelve a abrirlo con MESA.open('${k}') y repite` });
+  function skillAntes(k, a) {            // null, or the error that stops the call
+    if (!S || locked || MOVIL) return null;
+    let ids = null;
+    if (k === 'setEstado') ids = [].concat(a[0] ?? []);
+    else if (k === 'markUploaded') ids = [].concat(a[0] || []).map(x => x && x.slotId);
+    else if (k === 'markSynced') ids = a[0] == null ? null : [].concat(a[0]);
+    else if (k === 'startUpload' || k === 'startZernio') ids = [].concat(a[0] || []).map(x => x && x.slotId);
+    if (ids) {
+      for (const id of ids) {
+        if (!id || S.slots.some(x => x.id === id)) continue;
+        const f = M._in && M._in.feedSlot ? M._in.feedSlot(id) : null, c = !f && root && root.querySelector(`.feed .grid > .fmes[data-tablero] .cell[data-slot="${cssq(id)}"]`);   // its copy let go: the feed still draws its month
+        const k = f && f.B ? f.B.key : c ? c.parentElement.dataset.tablero : null;
+        if (k && k !== S.key) return cambioMsg(k, id);
+      }
+      return null;
+    }
+    if ((k === 'markSynced' || k === 'notionChanges') && skillViva() && SKILL.key !== S.key) return cambioMsg(SKILL.key);
+    return null;
   }
   // a client of «Solo contenido» has no feed (D-289): nothing to upload nor schedule, and no states: an empty list, never an error
   M.plan = () => S && !esContenido(S.client) ? S.slots.filter(s => vivo(s) && (s.photos.length || noteOf(s) || s.uploaded)).map(s => {   // a cancelled post is never uploaded
@@ -9828,7 +9861,12 @@ ${TK_FUENTES}
   };
   // a board switch in progress (the designer refuses to open meanwhile: its board is about to go away)
   let switching = 0;
+  estadoRaw = M.setEstado; cambiosRaw = M.notionChanges;
+  for (const k of ['plan', 'render', 'startUpload', 'startZernio', 'markUploaded', 'markSynced', 'setEstado', 'notionChanges']) { const f = M[k]; M[k] = (...a) => {   // a skill's calls (D-329): the same names and answers
+    const e = skillAntes(k, a); if (e) return k === 'render' ? Promise.resolve(e) : e;
+    const r = f(...a); skillToca(); return r; }; }
   for (const k of ['openClient', 'open', 'init']) { const f = M[k]; M[k] = async (...a) => {
+    SKILL = null;                        // a month opened: a skill's concession ends (its next call starts it on its board, D-329)
     if (importEscribe) { const m = 'Espera: se está importando la mesa.'; toast(m); return k === 'init' ? Promise.reject(new Error(m)) : { error: m }; }   // what is in memory would overwrite what the import writes (D-249)
     switching++; try { return await f(...a); } finally { switching--; } }; }
   // internal bridge for the designer (diseno.js): the open board and the mesa's own helpers (getters for what changes)
@@ -10056,6 +10094,8 @@ ${TK_FUENTES}
     mesActivo: { lee: () => mesActivo, quien: () => mesQuien, pon: (m, quien) => mesPoner(m, quien) },
     cabecera: { nodo: () => CAB, ir: m => cabIr(m), mover: x => cabMover(x), ancho: () => CABW, colocar: () => cabColocar() },
     fijadasFeed,
+    estadoPoner: (...a) => (estadoRaw || M.setEstado)(...a), notionCambios: () => (cambiosRaw || M.notionChanges)(),   // setEstado and notionChanges as the Mesa calls them: never a skill's concession (pieza 8, D-329)
+    skill: { ver: () => (SKILL ? { ...SKILL, viva: skillViva() } : null), cerrar: () => { SKILL = null; } },
     mov: { estado: () => (MOVM ? { ...MOVM.estado(), x: CABX, w: CABW, meses: CABL.map(e => e.m) } : null), medir: () => movMedir(), tokens: () => { const t = movTokens(); return { dur: t.dur, curva: t.curva }; }, umbral: MOV.UMBRAL, pausa: MOV.PAUSA, ease: x => movTokens().ease(x), reducir: b => { movRed = b == null ? null : !!b; } },   // the feed's movement (pieza 5, D-325)   // the months' header (feed continuo, pieza 4, D-323)   // the active month (feed continuo, pieza 3a)
     feedSlot: id => { if (!S) return null; const s0 = S.slots.find(x => x.id === id); if (s0) return { s: s0, B: S }; for (const b of MB) { const B = feedTablero(b.key), s1 = B && B !== S && B.slots.find(x => x.id === id); if (s1) return { s: s1, B }; } return null; },   // a post of the client's feed and its board (pieza 3a)
     feedPunto, feedIr: (m, o) => feedIr(m, o), feedDueno, feedHTMLEntero, feedHTMLGuardado, feedCargar: () => feedCargarResto() || Promise.resolve(),   // a month's point in the feed and going there (pieza 3a; pieza 5 animates it)

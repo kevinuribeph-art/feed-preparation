@@ -24644,6 +24644,48 @@
       await bien('tras volver a leer', B, A);
     } finally { await limpiar(); }
   });
+  prueba('FM2', 'Una skill trabajando en un mes (feed continuo, pieza 8; D-329): tras sus llamadas (plan), deslizar y parar en otro tablero o tocar una publicación de otro mes no cambia el mes abierto, y markUploaded guarda en el suyo; pulsar un mes de la cabecera sí lo cambia y cierra la concesión; una llamada con una publicación de otro mes da error y no toca nada; markSynced y notionChanges sin ids, también, con la concesión en otro tablero; lo que la Mesa llama por dentro no la abre', async () => {
+    const FN = `${CLIENTE}-${MES}`, SK = M._in.skill || { ver: () => null, cerrar() {} };   // (sin el arreglo no existe: lo que se mira es lo que pasa)
+    try {
+      await fjSeis(); const P = fjPuntos();
+      await M.open(FN); await fjQuieto(300);
+      igual(SK.ver(), null, 'MESA.open abrió una concesión');
+      M._in.render(); M._in.renderBar(); if (M.calendario) M.calendario.render(); (M._in.notionCambios || M.notionChanges)(); await espera(40);
+      igual(SK.ver(), null, 'lo que la Mesa llama por dentro abrió una concesión');
+      ok(Array.isArray(M.plan()), 'plan()');
+      // deslizar hasta julio y parar: sigue noviembre, la tira vuelve
+      await fjA(P['2026-07'] - 3); await fjQuieto(900);
+      igual(fgActivo(), [FN, MES], 'deslizar con una skill trabajando cambió el mes abierto');
+      cerca(fjX(), fjXde(fjJ(MES)), 1, 'la tira no volvió a noviembre');
+      const r = M.markUploaded([{ slotId: 'fj-n1', fileIds: [], note: 'Contexto FM2' }]);
+      ok(Array.isArray(r) && r.some(x => x.slotId === 'fj-n1'), 'markUploaded no devolvió el plan de noviembre: ' + json(r && r.error));
+      await M.flush(); igual(((await ffSlot(FN, 'fj-n1')) || {}).uploaded && (await ffSlot(FN, 'fj-n1')).uploaded.note, 'Contexto FM2', 'markUploaded no guardó en noviembre');
+      igual(SK.ver() && SK.ver().key, FN, 'la concesión no está en noviembre');
+      // tocar una publicación de otro mes: no cambia (y lo dice)
+      celda('fj-o1').scrollIntoView({ block: 'center' }); await espera(30); celda('fj-o1').click(); await espera(300); M._in.closeDetail();
+      igual(fgActivo(), [FN, MES], 'tocar otro mes con una skill trabajando cambió el mes abierto');
+      // la cabecera es un gesto claro: cambia y cierra la concesión
+      await fgPulsar(fgHueco('Oct')); await fjQuieto(700);
+      igual(fgActivo(), [FJ_SO, '2026-10'], 'pulsar octubre');
+      igual(SK.ver(), null, 'pulsar un mes no cerró la concesión');
+      // una llamada con una publicación de otro mes: error, nada cambia
+      const n0 = json(await ffSlot(FN, 'fj-n1'));
+      for (const [que, x] of [['setEstado', () => M.setEstado(['fj-n1'], 'programado')], ['markUploaded', () => M.markUploaded([{ slotId: 'fj-n1', fileIds: [], note: 'otro' }])], ['markSynced', () => M.markSynced(['fj-n1'])]]) {
+        const e = x(); ok(e && !Array.isArray(e) && /^el mes abierto cambió/.test(e.error || '') && e.error.includes(FN), `${que} con una publicación de noviembre no dio el error: ` + json(e));
+      }
+      await M.flush(); igual(json(await ffSlot(FN, 'fj-n1')), n0, 'una llamada con error cambió noviembre');
+      igual(fgActivo(), [FJ_SO, '2026-10'], 'una llamada con error cambió el mes abierto');
+      // sin ids, con la concesión en otro tablero (⌘Z, mesActivo.pon: claros, no la cierran)
+      ok(Array.isArray(M.plan()), 'plan() de octubre'); igual(SK.ver().key, FJ_SO, 'la concesión en octubre');
+      const rp = await M._in.mesActivo.pon(MES, 'prueba'); ok(rp && rp.ok, 'pon de noviembre: ' + json(rp));
+      for (const [que, x] of [['notionChanges', () => M.notionChanges()], ['markSynced', () => M.markSynced()]]) {
+        const e = x(); ok(e && !Array.isArray(e) && /^el mes abierto cambió/.test(e.error || '') && e.error.includes(FJ_SO), `${que} sin ids no dio el error: ` + json(e));
+      }
+      // MESA.open de la skill la cierra y su siguiente llamada la abre en su tablero
+      await M.open(FN); igual(SK.ver(), null, 'MESA.open no la cerró'); ok(Array.isArray(M.notionChanges()), 'notionChanges tras abrir');
+      igual(SK.ver().key, FN, 'notionChanges no la abrió en noviembre');
+    } finally { SK.cerrar(); await limpiar(); }
+  });
 
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;

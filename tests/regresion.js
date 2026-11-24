@@ -24131,6 +24131,290 @@
     } finally { await limpiar(); }
   });
 
+  // ---------- FJ: el movimiento del feed (feed continuo, pieza 5; D-325) ----------
+  // La tira de la cabecera sigue al feed, el mes activo cambia al asentarse, el imán y el salto. Kevin desliza = una rueda (marca el
+  // gesto) y el scrollTop por código (la batería no puede mover la rueda de verdad: eso va por CDP, fuera de la batería).
+  const fjFeed = () => q('.feed');
+  const fjCuadro = () => new Promise(r => W.requestAnimationFrame(() => W.requestAnimationFrame(r)));
+  const fjX = () => { const t = q('.bar .mescab .mescab-vent > .mescab-tira'), m = t && /translateX\((-?[\d.e+-]+)px\)/.exec(t.style.transform || ''); return m ? +m[1] : NaN; };
+  const fjJ = m => fgHuecos().map(e => e.dataset.mes).indexOf(m);
+  const fjXde = v => (1 - v) * M._in.cabecera.ancho();
+  const fjP = m => M._in.feedPunto(m);
+  const fjGesto = () => fjFeed().dispatchEvent(new W.WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 1 }));
+  async function fjA(y) { fjGesto(); fjFeed().scrollTop = y; await fjCuadro(); }   // Kevin desliza hasta y
+  const fjMov = () => (M._in.mov && M._in.mov.estado()) || {};   // (sin motor, la pieza 4: {})
+  async function fjQuieto(ms = 650) { await espera(ms); await hasta(() => !M._in.switching() && !fjMov().anim && !fjMov().glide, 3000, 'el feed quieto'); await fjCuadro(); }
+  const FJ_MESES = ['2027-01', MES, '2026-10', '2026-09', '2026-07', '2026-06'];
+  const FJ_SO = `${CLIENTE}-2026-09`, FJ_EN = `${CLIENTE}-2027-01`, FJ_JN = `${CLIENTE}-2026-06`, FJ_JL = `${CLIENTE}-2026-07`;
+  const fjPuntos = () => Object.fromEntries(FJ_MESES.map(m => [m, fjP(m)]));
+  // junio, julio, (agosto sin tablero), septiembre–octubre en un tablero, noviembre (abierto) y enero de 2027; n[mes] publicaciones (6)
+  async function fjSeis(n = {}) {
+    await limpiar();
+    const k = m => (n[m] != null ? n[m] : 6);
+    const varias = (p, m) => Array.from({ length: k(m) }, (_, i) => fcSlot(`${p}${i + 1}`, `${p}.${i + 1}`, 2 + i * 2, m));
+    const t = async (month, slots, months = 1) => { await M.init({ client: CLIENTE, clientName: NOMBRE, month, months, cycleDay: 1, slots, past: [], force: true }); await M.flush(); };
+    await t('2026-06', varias('fj-jn', '2026-06')); await t('2026-07', varias('fj-jl', '2026-07'));
+    await t('2026-09', [...varias('fj-s', '2026-09'), ...varias('fj-o', '2026-10')], 2);
+    await t('2027-01', varias('fj-e', '2027-01')); await t(MES, varias('fj-n', MES));
+    await hasta(() => fgCab() && fgHuecos().length, 3000, 'la cabecera de meses');
+    await M._in.feedCargar(); await feTodo(FJ_MESES);
+    await fjCuadro(); await espera(80);
+    if (M._in.mov) ok(fjMov().puntos && fjMov().puntos.length === 6, 'el motor no midió los puntos: ' + json(fjMov().puntos));
+  }
+
+  prueba('FJ1', 'La tira sigue al feed (feed continuo, pieza 5; D-325): en el punto de cada mes su nombre centrado en la píldora; a medio camino entre dos puntos, a medio camino; pasa por «sin crear» sin pararse; antes del punto del mes más nuevo, clavada; con el feed corto, quieta; al deslizar solo cambia el transform de las dos capas, sin lecturas de diseño', async () => {
+    try {
+      await fjSeis({ '2027-01': 12 });
+      const feed = fjFeed(), max = feed.scrollHeight - feed.clientHeight, P = fjPuntos();
+      ok(max > 600 && P['2027-01'] > 40, 'el feed no se desliza o enero empieza arriba: la prueba no vale ' + json(P));
+      for (const m of [...FJ_MESES].reverse()) { await fjA(P[m]); cerca(fjX(), fjXde(fjJ(m)), 1, `la tira en el punto de ${m}`); }
+      for (const [a, b] of [['2026-10', '2026-09'], [MES, '2026-10'], ['2027-01', MES]]) {
+        await fjA((P[a] + P[b]) / 2); cerca(fjX(), fjXde((fjJ(a) + fjJ(b)) / 2), 1, `a medio camino entre ${a} y ${b}`);
+      }
+      // septiembre → julio pasa por agosto («sin crear») sin pararse: lineal en todo el tramo
+      for (const f of [.25, .5, .75]) { await fjA(P['2026-09'] + (P['2026-07'] - P['2026-09']) * f); cerca(fjX(), fjXde(fjJ('2026-09') - 2 * f), 1, `de septiembre a julio, al ${f * 100} %`); }
+      for (const y of [0, P['2027-01'] / 2]) { await fjA(y); cerca(fjX(), fjXde(fjJ('2027-01')), 1, `antes del punto de enero (${y}): clavada`); }
+      await fjA(max); cerca(fjX(), fjXde(fjJ('2026-06')), 1, 'al final, junio');
+      // al deslizar de punta a punta: solo el transform de las dos capas y ninguna lectura de diseño
+      await fjQuieto();
+      const n = fgCab(), mut = [], mo = new W.MutationObserver(l => mut.push(...l));
+      let lect = 0; const gbr = W.Element.prototype.getBoundingClientRect, gcs = W.getComputedStyle;
+      mo.observe(n, { subtree: true, childList: true, attributes: true, characterData: true });
+      W.Element.prototype.getBoundingClientRect = function () { lect++; return gbr.call(this); };
+      W.getComputedStyle = function (...a) { lect++; return gcs.apply(W, a); };
+      const x0 = fjX(); let pasos = 0;
+      try { for (let y = 0; y <= max; y += 41) { fjGesto(); feed.scrollTop = y; await new Promise(r => W.requestAnimationFrame(r)); pasos++; } await fjCuadro(); }
+      finally { W.Element.prototype.getBoundingClientRect = gbr; W.getComputedStyle = gcs; mo.disconnect(); }
+      ok(pasos > 15 && fjX() !== x0, 'la tira no se movió al deslizar');
+      const otras = mut.filter(r => !(r.type === 'attributes' && r.attributeName === 'style' && r.target.classList.contains('mescab-tira')));
+      igual(otras.map(r => r.type + ':' + (r.attributeName || '') + ':' + r.target.className), [], 'al deslizar cambió algo más que el transform de la tira');
+      igual(lect, 0, 'lecturas de diseño (getBoundingClientRect / getComputedStyle) al deslizar');
+      // el feed más corto que su ventana: la tira no se mueve
+      await limpiar(); await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, cycleDay: 1, slots: [pub(1), pub(2)], past: [], force: true }); await M.flush();
+      await hasta(() => fgCab() && fgHuecos().length, 3000, 'la cabecera'); await fjCuadro();
+      const xc = fjX(); cerca(xc, fjXde(fjJ(MES)), .5, 'con el feed corto, noviembre en la píldora');
+      await fjA(80); await fjQuieto(); igual(fjFeed().scrollTop, 0, 'el feed corto se movió'); cerca(fjX(), xc, .5, 'con el feed corto la tira se movió');
+    } finally { await limpiar(); }
+  });
+
+  prueba('FJ2', 'El mes activo cambia una vez, al asentarse (feed continuo, pieza 5; D-325): mientras Kevin desliza no cambia; al parar, al mes de la píldora (del mismo tablero, sin activar); con una ventana, un menú, un campo, el editor o un arrastre no cambia, no avisa y la tira vuelve al mes activo; recorrer de punta a punta no escribe nada ni pide nada a la red', async () => {
+    try {
+      await fjSeis(); const feed = fjFeed(), P = fjPuntos();
+      const avisos = () => qa('.toasts .toast').length;
+      // noviembre → octubre, poco a poco: no cambia mientras desliza; al parar, una vez
+      const vistos = [];
+      const mira = W.setInterval(() => { const a = fgActivo().join(); if (vistos[vistos.length - 1] !== a) vistos.push(a); }, 5);
+      try {
+        for (let i = 1; i <= 10; i++) await fjA(P[MES] + (P['2026-10'] - P[MES]) * i / 10);
+        igual(vistos, [[`${CLIENTE}-${MES}`, MES].join()], 'el mes activo cambió mientras deslizaba');
+        await fjQuieto();
+      } finally { W.clearInterval(mira); }
+      igual(vistos, [[`${CLIENTE}-${MES}`, MES].join(), [FJ_SO, '2026-10'].join()], 'el mes activo al asentarse (una vez)');
+      igual(M._in.mesActivo.quien(), 'deslizar', 'quién lo fijó');
+      cerca(fjX(), fjXde(fjJ('2026-10')), 1, 'la tira con octubre');
+      // otro mes del mismo tablero: sin activar
+      const S0 = M._in.S; await fjA(P['2026-09']); await fjQuieto();
+      igual(fgActivo(), [FJ_SO, '2026-09'], 'septiembre'); ok(M._in.S === S0, 'cambió de tablero para un mes del mismo');
+      // de punta a punta, asentándose en cada mes: 0 escrituras, 0 peticiones
+      let red = 0; const f0 = W.fetch; W.fetch = (...a) => { red++; return f0.apply(W, a); };
+      let c;
+      try {
+        c = await fcContar(async () => {
+          for (const m of ['2026-07', '2026-06', '2026-10', MES, '2027-01']) {
+            const y0 = feed.scrollTop; for (let i = 1; i <= 6; i++) await fjA(y0 + (P[m] - y0) * i / 6);
+            await fjQuieto(); igual(M._in.mesActivo.lee(), m, 'al asentarse en ' + m);
+          }
+        });
+      } finally { W.fetch = f0; }
+      igual([c.idb, c.ls, red], [0, 0, 0], 'deslizar escribió o pidió algo: ' + json(c.que));
+      igual(fgActivo(), [FJ_EN, '2027-01'], 'al final, enero');
+      // con algo abierto: no cambia, sin aviso, y la tira vuelve a enero
+      const sinCambio = async (que, abrir, cerrar, ya = false) => {
+        const a0 = avisos();
+        if (!ya) await abrir();
+        await fjA(P[MES] - 2); if (ya) await abrir();
+        await fjQuieto(800);
+        try {
+          igual(fgActivo(), [FJ_EN, '2027-01'], `cambió de mes con ${que}`);
+          igual(avisos(), a0, `avisó con ${que}`);
+          cerca(fjX(), fjXde(fjJ('2027-01')), 1, `con ${que} la tira no volvió a enero`);
+        } finally { await cerrar(); }
+        await fjA(P['2027-01']); await fjQuieto();
+      };
+      await sinCambio('una ventana', async () => { M._in.openDetail('fj-e1'); await hasta(() => dialogo(), 2000, 'la ventana'); }, async () => { M._in.closeDetail(); await espera(60); });
+      await sinCambio('un menú', async () => { ok(clicDerecho(celda('fj-e2')), 'no se abrió el menú'); }, async () => { M._in.menuCerrar(); await espera(30); }, true);
+      let inp;
+      await sinCambio('un campo en edición', async () => { inp = D.createElement('input'); inp.type = 'text'; q('.side').append(inp); inp.focus(); }, async () => { inp.remove(); });
+      await sinCambio('el editor', async () => { await abrirEditor('fj-e1'); }, async () => { M.libre.cerrar(); await espera(60); });
+      // un arrastre: con el ratón apretado no se asienta; no cambia mientras dura
+      const c0 = celda('fj-e3'), r0 = c0.getBoundingClientRect();
+      puntero('pointerdown', c0, r0.left + 10, r0.top + 10); puntero('pointermove', c0, r0.left + 40, r0.top + 40); puntero('pointermove', c0, r0.left + 60, r0.top + 70);
+      try { await fjA(P[MES] - 2); await espera(600); igual(fgActivo(), [FJ_EN, '2027-01'], 'cambió de mes con un arrastre'); }
+      finally { puntero('pointerup', W, r0.left + 60, r0.top + 70); W.dispatchEvent(new W.PointerEvent('pointerup', { pointerType: 'mouse', bubbles: true })); await fjQuieto(); }
+    } finally { await limpiar(); }
+  });
+
+  prueba('FJ3', 'El imán suave (feed continuo, pieza 5; D-325): al parar a menos de .35 de fila del punto de un mes, el feed se asienta en él con la curva y la duración del salto; a más, no; no actúa con la rueda o el ratón apretado, con un campo en edición, con un menú abierto ni con «reducir movimiento»; un gesto nuevo a mitad lo para sin salto; un mes fijado con un clic no cambia', async () => {
+    try {
+      await fjSeis(); const feed = fjFeed(), P = fjPuntos(), c1 = celda('fj-n1'), fila = fjMov().filaH || (c1.offsetHeight + (parseFloat(W.getComputedStyle(c1.parentElement.parentElement).rowGap) || 0));
+      ok(fila > 80, 'sin alto de fila: ' + fila);
+      if (M._in.mov) igual(M._in.mov.umbral, .35, 'el umbral');
+      // cerca: se asienta en octubre, con la duración del salto
+      const mu = []; let sigue = true; const rec = () => { mu.push([W.performance.now(), feed.scrollTop]); if (sigue) W.requestAnimationFrame(rec); };
+      const y0 = Math.round(P['2026-10'] - .25 * fila); await fjA(y0); W.requestAnimationFrame(rec);
+      await fjQuieto(900); sigue = false;
+      igual(feed.scrollTop, P['2026-10'], 'el imán no lo asentó en octubre');
+      igual(fgActivo(), [FJ_SO, '2026-10'], 'el mes al asentarse');
+      const mov = mu.filter((x, i) => i && x[1] !== mu[i - 1][1]);
+      ok(mov.length >= 4, 'el imán no se animó: ' + json(mu.map(x => x[1])));
+      const t0 = mu[mu.findIndex(x => x[1] !== y0) - 1][0], t1 = mu.find(x => x[1] === P['2026-10'])[0];
+      ok(t1 - t0 > 220 && t1 - t0 < 480, 'la duración del imán: ' + Math.round(t1 - t0) + ' ms');
+      ok(mov.every((x, i) => !i || x[1] >= mov[i - 1][1]), 'el imán no va en un sentido: ' + json(mov.map(x => x[1])));
+      // lejos (media fila): no
+      const y1 = Math.round(P['2026-10'] - .5 * fila); await fjA(y1); await fjQuieto(); igual(feed.scrollTop, y1, 'el imán actuó a media fila');
+      // con la rueda en marcha: no hasta que para
+      const y2 = Math.round(P['2026-09'] - .2 * fila); await fjA(y2);
+      for (let i = 0; i < 8; i++) { fjGesto(); await espera(60); igual(feed.scrollTop, y2, 'el imán actuó con la rueda en marcha'); }
+      await fjQuieto(); igual(feed.scrollTop, P['2026-09'], 'al parar la rueda, el imán');
+      // con el ratón apretado: no hasta soltarlo
+      const y3 = Math.round(P['2026-07'] - .2 * fila);
+      feed.dispatchEvent(new W.PointerEvent('pointerdown', { pointerType: 'mouse', bubbles: true, button: 0, buttons: 1 }));
+      await fjA(y3); await espera(600); igual(feed.scrollTop, y3, 'el imán actuó con el ratón apretado');
+      W.dispatchEvent(new W.PointerEvent('pointerup', { pointerType: 'mouse', bubbles: true })); await fjQuieto(); igual(feed.scrollTop, P['2026-07'], 'al soltar, el imán');
+      // un campo en edición, un menú, «reducir movimiento»: no
+      const inp = D.createElement('input'); inp.type = 'text'; q('.side').append(inp); inp.focus();
+      try { const y = Math.round(P['2026-07'] - .2 * fila); await fjA(y); await fjQuieto(); igual(feed.scrollTop, y, 'el imán actuó con un campo en edición'); } finally { inp.remove(); }
+      { const y = Math.round(P['2026-07'] - .25 * fila); await fjA(y); ok(clicDerecho(celda('fj-jl2')), 'no se abrió el menú'); await fjQuieto(); igual(feed.scrollTop, y, 'el imán actuó con un menú abierto'); M._in.menuCerrar(); await espera(30); }
+      M._in.mov.reducir(true);
+      try { const y = Math.round(P['2026-09'] + .2 * fila); await fjA(y); await fjQuieto(); igual(feed.scrollTop, y, 'el imán actuó con «reducir movimiento»'); } finally { M._in.mov.reducir(null); }
+      // un gesto a mitad del imán lo para donde está, sin salto
+      const y4 = Math.round(P[MES] + .3 * fila); await fjA(y4);
+      await hasta(() => fjMov().anim, 1500, 'el imán en marcha'); await espera(60);
+      const yMed = feed.scrollTop; ok(yMed !== y4 && yMed !== P[MES], 'el imán no estaba a mitad: ' + yMed);
+      fjGesto(); await fjCuadro(); const yPar = feed.scrollTop;
+      ok(!fjMov().anim, 'el gesto no paró el imán'); ok(Math.abs(yPar - yMed) < .3 * fila, `al pararlo saltó: ${yMed} → ${yPar}`);
+      await espera(500); igual(feed.scrollTop, yPar, 'tras pararlo se siguió moviendo');
+      // un mes fijado con un clic no cambia aunque el imán pase cerca de otro
+      await fgPulsar(fgHueco('Jul')); await fjQuieto(800);
+      igual([...fgActivo(), M._in.mesActivo.quien()], [FJ_JL, '2026-07', 'cabecera'], 'julio pulsado');
+      await espera(500); igual(fgActivo(), [FJ_JL, '2026-07'], 'el mes pulsado cambió solo');
+    } finally { M._in.mov && M._in.mov.reducir(null); await limpiar(); }
+  });
+
+  prueba('FJ4', 'El salto (feed continuo, pieza 5; D-325): pulsar un mes o una flecha fija el mes activo al momento y lleva el feed a su punto en --d-m (0,32 s) con --ease-m, igual de lejos que de cerca, sin rebote; un clic tras otro gana el último; un gesto a mitad lo para; con «reducir movimiento», al instante; MESA.open, MESA.init y abrir el cliente, al instante', async () => {
+    try {
+      await fjSeis(); const feed = fjFeed(), P = fjPuntos();
+      const salto = async (el, mes, key) => {
+        const y0 = feed.scrollTop, mu = []; let sigue = true;
+        const rec = () => { mu.push([W.performance.now(), feed.scrollTop]); if (sigue) W.requestAnimationFrame(rec); };
+        W.requestAnimationFrame(rec); await fjCuadro();
+        el.click(); await hasta(() => !M._in.switching() && M._in.mesActivo.lee() === mes, 3000, 'el cambio de mes');
+        const ya = [...fgActivo(), feed.scrollTop];
+        await fjQuieto(700); sigue = false;
+        igual(ya.slice(0, 2), [key, mes], 'el mes activo al momento'); ok(ya[2] !== P[mes], 'el feed llegó antes de animarse (al instante)');
+        igual(feed.scrollTop, P[mes], 'el feed no llegó al punto de ' + mes);
+        const i0 = mu.findIndex(x => x[1] !== y0), i1 = mu.findIndex(x => Math.abs(x[1] - P[mes]) < .5);
+        ok(i0 > 0 && i1 >= i0, 'no se animó: ' + json(mu.map(x => x[1])));
+        const tA = mu[Math.max(0, i0 - 2)][0], tB = mu[i0][0], dur = mu[i1][0] - mu[i0 - 1][0], E = M._in.mov.ease, d = P[mes] - y0;   // el salto empieza entre dos muestras quietas y la primera que se mueve (un fotograma de margen: su reloj es el del fotograma)
+        for (let i = i0; i <= i1; i++) {
+          const e = (mu[i][1] - y0) / d, lo = E(Math.max(0, (mu[i][0] - tB) / 320)), hi = E(Math.min(1, (mu[i][0] - tA) / 320));
+          ok(e >= lo - .03 && e <= hi + .03, `fuera de la curva en ${Math.round(mu[i][0] - tA)} ms: ${e.toFixed(3)} no está en [${lo.toFixed(3)}, ${hi.toFixed(3)}]`);
+          ok(e <= 1.0001 && (i === i0 || e >= (mu[i - 1][1] - y0) / d - 1e-6), 'rebote o vuelta atrás: ' + json(mu.map(x => x[1])));
+        }
+        return dur;
+      };
+      const lejos = await salto(fgHueco('Jun'), '2026-06', FJ_JN);
+      igual(M._in.mov.tokens().dur, 320, 'la duración del salto (--d-m)'); igual(M._in.mov.tokens().curva, [.32, .72, 0, 1], 'la curva (--ease-m)');
+      const cerca1 = await salto(fgHueco('Jul'), '2026-07', FJ_JL);
+      ok(lejos > 250 && lejos < 460 && cerca1 > 250 && cerca1 < 460, `duraciones: lejos ${Math.round(lejos)} ms, cerca ${Math.round(cerca1)} ms`);
+      ok(Math.abs(lejos - cerca1) < 70, `la duración depende de la distancia: lejos ${Math.round(lejos)} ms, cerca ${Math.round(cerca1)} ms`);
+      await salto(fgFl(1), '2026-09', FJ_SO);   // la flecha salta agosto
+      // un clic tras otro: gana el último
+      fgHueco('Ene 27').click(); await espera(20); fgHueco('Oct').click();
+      await hasta(() => !M._in.switching(), 3000, 'el cambio de mes'); await fjQuieto(800);
+      igual([...fgActivo(), feed.scrollTop], [FJ_SO, '2026-10', P['2026-10']], 'dos clics seguidos');
+      // un gesto a mitad lo para donde está; el mes pulsado se queda
+      fgHueco('Jun').click(); await hasta(() => fjMov().anim, 3000, 'el salto en marcha'); await espera(90);
+      fjGesto(); await fjCuadro(); const yPar = feed.scrollTop;
+      ok(!fjMov().anim && yPar !== P['2026-06'] && yPar !== P['2026-10'], 'el gesto no paró el salto: ' + yPar);
+      await espera(500); igual([...fgActivo(), feed.scrollTop], [FJ_JN, '2026-06', yPar], 'tras pararlo');
+      // «reducir movimiento»: al instante
+      M._in.mov.reducir(true);
+      try { fgHueco('Nov').click(); await hasta(() => !M._in.switching() && M._in.mesActivo.lee() === MES, 3000, 'noviembre'); igual(feed.scrollTop, P[MES], 'con «reducir movimiento» no fue al instante'); }
+      finally { M._in.mov.reducir(null); }
+      // MESA.open, MESA.init y abrir el cliente: al instante
+      await M.open(FJ_EN); igual(feed.scrollTop, P['2027-01'], 'MESA.open no fue al instante');
+      await M.open(FJ_JL); igual(feed.scrollTop, P['2026-07'], 'MESA.open (julio) no fue al instante');
+      await M.openClient(CLIENTE); igual(feed.scrollTop, fjP(M._in.mesActivo.lee()), 'abrir el cliente no fue al instante');
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: '2026-06', cycleDay: 1, slots: Array.from({ length: 6 }, (_, i) => fcSlot(`fj-jn${i + 1}`, `fj-jn.${i + 1}`, 2 + i * 2, '2026-06')), past: [], force: true });
+      igual(M._in.mesActivo.lee(), '2026-06', 'MESA.init'); igual(q('.feed').scrollTop, fjP('2026-06'), 'MESA.init no fue al instante');
+    } finally { M._in.mov && M._in.mov.reducir(null); await limpiar(); }
+  });
+
+  prueba('FJ5', 'Casos de borde del movimiento (feed continuo, pieza 5; D-325): dos meses con el mismo punto (arriba el más nuevo y abajo el más antiguo al deslizar; al pulsar, el pulsado); «sin crear» nunca se queda en la píldora; todo cabe sin deslizar (el pulsado y, al abrir, el de hoy); un mes de una sola casilla', async () => {
+    try {
+      await fjSeis({ '2027-01': 1, '2026-06': 1 }); const feed = fjFeed(), P = fjPuntos(), max = feed.scrollHeight - feed.clientHeight;
+      igual([P['2027-01'], P[MES], P['2026-07'], P['2026-06']], [0, 0, max, max], 'los empates de arriba y de abajo (la prueba no vale)');
+      await fjA(200); await fjA(0); cerca(fjX(), fjXde(fjJ('2027-01')), 1, 'arriba, al deslizar: el más nuevo'); await fjQuieto(); igual(fgActivo(), [FJ_EN, '2027-01'], 'arriba, al asentarse');
+      await fjA(max - 200); await fjA(max); cerca(fjX(), fjXde(fjJ('2026-06')), 1, 'abajo, al deslizar: el más antiguo'); await fjQuieto(); igual(fgActivo(), [FJ_JN, '2026-06'], 'abajo, al asentarse');
+      await fgPulsar(fgHueco('Jul')); await fjQuieto(700); igual([...fgActivo(), feed.scrollTop], [FJ_JL, '2026-07', max], 'abajo, pulsar julio'); cerca(fjX(), fjXde(fjJ('2026-07')), 1, 'abajo, la tira con julio');
+      await fgPulsar(fgHueco('Nov')); await fjQuieto(700); igual([...fgActivo(), feed.scrollTop], [`${CLIENTE}-${MES}`, MES, 0], 'arriba, pulsar noviembre'); cerca(fjX(), fjXde(fjJ(MES)), 1, 'arriba, la tira con noviembre');
+      await espera(400); igual(fgActivo(), [`${CLIENTE}-${MES}`, MES], 'el pulsado cambió solo');
+      // «sin crear» (agosto) a medio camino entre septiembre y julio: al asentarse, la píldora con el mes activo, nunca agosto
+      await fjA((P['2026-09'] + P['2026-07']) / 2); cerca(fjX(), fjXde(fjJ('2026-08')), 1, 'a medio camino, agosto en el centro'); await fjQuieto(900);
+      const jAg = fgActivo().join(); ok([[FJ_SO, '2026-09'].join(), [FJ_JL, '2026-07'].join()].includes(jAg), 'el mes activo junto a agosto: ' + jAg);
+      igual(fgPildora(), [M._in.mesActivo.lee() === '2026-09' ? 'Sep' : 'Jul'], '«sin crear» se quedó en la píldora');
+      // un mes de una sola casilla (enero): su punto y su nombre
+      await fgPulsar(fgHueco('Ene 27')); await fjQuieto(700); igual(fgPildora(), ['Ene 27'], 'enero, de una casilla');
+      // todo cabe sin deslizar
+      await limpiar();
+      for (const m of ['2026-10', MES]) { await M.init({ client: CLIENTE, clientName: NOMBRE, month: m, cycleDay: 1, slots: [fcSlot('fj-c' + m.slice(5), '1.1', 10, m)], past: [], force: true }); await M.flush(); }
+      await M.openClient(CLIENTE); await M._in.feedCargar(); await fjCuadro(); await espera(60);
+      igual([M._in.mesActivo.lee(), fgPildora()], ['2026-10', ['Oct']], 'todo cabe: al abrir, el de hoy');
+      await fgPulsar(fgHueco('Nov')); await fjQuieto(700);
+      igual([M._in.mesActivo.lee(), fgPildora(), q('.feed').scrollTop], [MES, ['Nov'], 0], 'todo cabe: el pulsado');
+    } finally { await limpiar(); }
+  });
+
+  prueba('FJ6', 'Lo que sigue al mes que se ve (feed continuo, pieza 5; D-325): al asentarse, el calendario, la barra de pasos, el tablero de MESA.board() y «Revisar» son los del mes activo; el ⌘Z que lleva a otro mes mueve el feed y la tira a su punto', async () => {
+    try {
+      await fjSeis(); const feed = fjFeed(), P = fjPuntos();
+      const cmes = () => (q('.side > .cal .cmes') || { textContent: '' }).textContent;
+      await fjA(P['2026-07'] - 3); await fjQuieto();
+      igual(fgActivo(), [FJ_JL, '2026-07'], 'julio al asentarse');
+      await hasta(() => /Julio/i.test(cmes()), 3000, 'el calendario en julio: ' + cmes());
+      igual(M.board().key, FJ_JL, 'MESA.board()');
+      ok(q('.side > .cal .cleg .cpaso'), 'sin barra de pasos'); 
+      const rv = await M.revisar(); ok(rv && !rv.error, 'Revisar: ' + json(rv && rv.error));
+      // ⌘Z de un paso de octubre desde noviembre: el feed y la tira van a octubre
+      await M.open(`${CLIENTE}-2026-09`, { mes: '2026-10' }); 
+      if (M._in.mesActivo.lee() !== '2026-10') await M._in.mesActivo.pon('2026-10', 'prueba');
+      M._test.setNote('fj-o2', 'FJ6'); await M.flush();
+      await M.open(`${CLIENTE}-${MES}`); await fjQuieto(300); igual(feed.scrollTop, P[MES], 'en noviembre');
+      await fdZ(true); await fjQuieto(300);
+      igual([M._in.S.key, slot('fj-o2').memo || ''], [FJ_SO, ''], '⌘Z deshizo en octubre');
+      igual(feed.scrollTop, fjP(M._in.mesActivo.lee()), 'el ⌘Z no llevó el feed a su mes');
+      cerca(fjX(), fjXde(fjJ(M._in.mesActivo.lee())), 1, 'el ⌘Z no llevó la tira a su mes');
+    } finally { await limpiar(); }
+  });
+
+  prueba('FJ7', 'El eco no engaña (feed continuo, pieza 5; D-325): tras un salto y tras un imán, nada sigue moviéndose ni cambia el mes activo (nuestro desplazamiento no es un gesto de Kevin); tras redibujar en reposo sobre el punto de un mes, y al poner y quitar «Vista cliente», el feed sigue en su punto', async () => {
+    try {
+      await fjSeis(); const feed = fjFeed(), P = fjPuntos(), fila = fjMov().filaH;
+      const estable = async que => { const y = feed.scrollTop, a = fgActivo().join(); for (let i = 0; i < 6; i++) { await espera(120); igual([feed.scrollTop, fgActivo().join()], [y, a], que); } ok(!fjMov().gesto && !fjMov().anim, que + ': el motor sigue con un gesto'); };
+      await fgPulsar(fgHueco('Sep')); await fjQuieto(700); await estable('tras el salto');
+      igual(M._in.mesActivo.quien(), 'cabecera', 'quién fijó septiembre');
+      await fjA(Math.round(P['2026-10'] - .2 * fila)); await fjQuieto(900); igual(feed.scrollTop, P['2026-10'], 'el imán'); await estable('tras el imán');
+      // redibujar en reposo
+      M._in.renderFeed(); M._in.renderBar(); M._in.renderBar(); M._test.setNote('fj-o1', 'FJ7'); await M.flush(); await fjQuieto(300);
+      igual(feed.scrollTop, fjP('2026-10'), 'tras redibujar, el feed salió del punto de octubre');
+      cerca(fjX(), fjXde(fjJ('2026-10')), 1, 'tras redibujar, la tira');
+      await conCliente(async () => { await fjQuieto(300); igual(feed.scrollTop, fjP('2026-10'), 'en «Vista cliente», fuera del punto de octubre'); cerca(fjX(), fjXde(fjJ('2026-10')), 1, 'en «Vista cliente», la tira'); });
+      await fjQuieto(300); igual(feed.scrollTop, fjP('2026-10'), 'al quitar «Vista cliente», fuera del punto de octubre');
+      await estable('tras «Vista cliente»');
+    } finally { await limpiar(); }
+  });
+
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;
   $('resumen').textContent = `${T.length} pruebas listas.`;

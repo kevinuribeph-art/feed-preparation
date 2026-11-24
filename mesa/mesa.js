@@ -2530,6 +2530,7 @@
             if (r.error === 'no existe') { from.pop(); return histPaso(back, n + 1); }   // its month was deleted: that step goes
             toast(`No se pudo ${back ? 'deshacer' : 'rehacer'}: ${r.error}.`, { ms: 5000 }); return;
           }
+          feedMovido = false; feedIr(mesActivo, { instantaneo: true });   // the feed (and the strip) to the month of the step (D-317; pieza 5)
         }
         for (const k of faltan) if (!MEM.tab.has(k)) await memLeer(k);
         return histPaso(back, n + 1);
@@ -2835,6 +2836,7 @@ ${TK_FUENTES}
 #mesa .mescab .mescab-fl:hover:not([aria-disabled="true"]){background:var(--bg-2);color:var(--ink)}#mesa .mescab .mescab-fl[aria-disabled="true"]{color:var(--faint);cursor:default}
 #mesa .mescab-vent{position:relative;flex:none;width:calc(var(--mescab-w,64px) * 3);height:30px;overflow:hidden;border:1px solid var(--line);border-radius:var(--r-pill)}
 #mesa .mescab-tira{position:absolute;left:0;top:0;height:100%;display:flex}
+#mesa .mescab-tira{will-change:transform}#mesa .mescab-vent::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,var(--bg) 0,transparent 12%,transparent 88%,var(--bg) 100%)}#mesa .mescab-vent.fmes::after{display:none}   /* pieza 5: the strip moves; a name cut by the window's edge fades into the bar (the ones at rest, fully seen; the pill is in the clear middle) */
 #mesa .mescab .mescab-mes{flex:none;display:block;width:var(--mescab-w,auto);height:100%;padding:0 10px;box-sizing:border-box;line-height:30px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12.5px;font-weight:600;color:var(--ink-2)}
 #mesa .mescab button.mescab-mes{transition:color var(--d1) ease-out}#mesa .mescab button.mescab-mes:hover{color:var(--acc-ink)}#mesa .mescab .mescab-mes.sin{color:var(--faint);font-weight:400;cursor:default}
 #mesa .mescab button.mescab-mes:focus-visible{outline:2px solid var(--focus);outline-offset:-3px;border-radius:var(--r-pill)}
@@ -3490,6 +3492,7 @@ ${TK_FUENTES}
     const [t1, t2] = cabTiras();
     if (sig !== CABSIG) {               // only when the months change (a new board, the vista cliente): never on renderBar
       CABSIG = sig;
+      if (MOVM) { const antes = CABL.map(e => e.m); MOVM.reindex(j => L.findIndex(e => e.m === antes[j])); cabPedir(); }   // the engine's huecos, by month (pieza 5)
       t1.innerHTML = L.map(e => e.sin ? `<span class="mescab-mes sin" data-mes="${e.m}" aria-disabled="true">${esc(lab(e))}</span>` : `<button type="button" class="mescab-mes" data-mes="${e.m}">${esc(lab(e))}</button>`).join('');
       t2.innerHTML = L.map(e => `<span class="mescab-mes${e.sin ? ' sin' : ''}">${esc(lab(e))}</span>`).join('');
       cabMedir();
@@ -3506,7 +3509,8 @@ ${TK_FUENTES}
     });
     const hay = d => { for (let j = i + d; j >= 0 && j < L.length; j += d) if (!L[j].sin) return true; return false; };
     n.querySelectorAll('.mescab-fl').forEach(f => { if (hay(+f.dataset.d)) f.removeAttribute('aria-disabled'); else if (f.getAttribute('aria-disabled') !== 'true') f.setAttribute('aria-disabled', 'true'); });
-    if (CABW) cabMover((1 - i) * CABW);
+    if (CABW) { if (MOVM) MOVM.repintar(); else cabMover((1 - i) * CABW); }   // the strip where the feed is (pieza 5), not where renderBar is
+    movActivo(i);
     cabFoco();
   }
   // one number moves the two strips (pieza 5 animates only this, from a passive listener and requestAnimationFrame)
@@ -3545,6 +3549,7 @@ ${TK_FUENTES}
     }                                    // without the feed («Historias»): where it was
     const tx = CABPX ? `translateX(${CABPX}px)` : '';
     if (inn.style.transform !== tx) inn.style.transform = tx;
+    movMedir();                          // the months' points again (pieza 5): the size or the content changed
   }
   function cabTitulos() {               // the titles, out of renderBar (it runs many times): in the next frame, only those that changed
     const cli = root.classList.contains('client'), H = cabHuecos();
@@ -3564,6 +3569,8 @@ ${TK_FUENTES}
     const a = document.activeElement, v = CAB.querySelector('.mescab-vent');
     const si = !!(a && CAB.contains(a) && a.getAttribute('aria-current') === 'true' && a.matches(':focus-visible'));
     if (v.classList.contains('fpild') !== si) v.classList.toggle('fpild', si);
+    const fm = !!(a && v.contains(a) && a.classList.contains('mescab-mes') && a.matches(':focus-visible'));   // a month with the ring: no edge fade over it (pieza 5)
+    if (v.classList.contains('fmes') !== fm) v.classList.toggle('fmes', fm);
   }
   // the month next to the active one (or to where it is going) in direction d, skipping «sin crear»; null: none
   function cabVecino(d) {
@@ -3596,14 +3603,228 @@ ${TK_FUENTES}
   // the same board, only mesFijar. If it can't change now (a window, a menu, a field, the editor, a job), it doesn't and says why
   async function cabIr1(m) {
     if (!S || locked) return false;
-    if (m === mesActivo) { feedMovido = false; feedIr(m, { instantaneo: true }); return true; }
+    if (m === mesActivo) { feedMovido = false; feedIr(m); return true; }   // the quick jump (pieza 5)
     if (busyGuard()) return false;
     const no = activarNo(); if (no) { toast(`No se cambia de mes ahora: ${no}.`); return false; }
-    if (mesesTab(S).includes(m)) { mesFijar(m, 'cabecera'); mesSigue(); feedMovido = false; feedIr(m, { instantaneo: true }); return true; }
+    if (mesesTab(S).includes(m)) { mesFijar(m, 'cabecera'); mesSigue(); feedMovido = false; feedIr(m); return true; }
     const k = feedDueno(m); if (!k) return false;
     const r = await activar(k, { mes: m, quien: 'cabecera' });
     if (!r || !r.ok) { if (r && r.error && !/^ya se está/.test(r.error)) toast(`No se cambia de mes ahora: ${r.error}.`); return false; }
-    trasActivar(k); return true;
+    trasActivar(k, { animar: true }); return true;
+  }
+
+  // ---------- the feed's movement (feed continuo, pieza 5; D-325) ----------
+  // THE ENGINE, self-contained and written to be ported (the portal adapts it): one scroller and numbers, nothing of the Mesa (no S,
+  // no activar, no header). The strip's place is a number v in huecos of the strip (hueco j centred in the pill: v = j; the mount
+  // turns it into x = (1 − v)·W). What it is told and when:
+  //  · medir(pts, filaH, max, s): pts = [{j, st}], the scrollTop of each month's point (its oldest post in the bottom row; only the
+  //    months with a board: «sin crear» has none and the strip goes past it), measured by the mount when the size or the content
+  //    change, never while scrolling; filaH = one row of the grid; max = scrollHeight − clientHeight. At rest on a month's point
+  //    (ancla) and the layout changed: the feed stays on that month's point.
+  //  · v(s): linear between the two points around s; a tie of points (the top and the bottom clamps): at the top the newest, at the
+  //    bottom the oldest; on the ancla, exactly its month (the one pressed wins a tie); plus desv, an offset that takes the strip back
+  //    to the active month when the feed didn't go there (it fades as Kevin scrolls one row away). Only transform, from a passive
+  //    listener and requestAnimationFrame: no layout read per frame (scrollTop only).
+  //  · Kevin's scroll or not: we write scrollTop only through escribir (ultimaEsc: the scroll it causes is our echo); a scroll is
+  //    Kevin's only with a live intention (wheel, touch, the mouse pressed on the scroller —its scrollbar too— or a scrolling key,
+  //    2.5 s); the rest (our echo, the browser clamping or anchoring) only moves the strip.
+  //  · asentar: MOV.PAUSA ms without scroll, wheel nor key and nothing pressed after Kevin's scroll (scrollend only re-arms it) → the
+  //    magnet: the nearest point within MOV.UMBRAL of a row, an animated scroll there (never with reduce-motion nor o.imanNo()) →
+  //    o.asentado(v), once.
+  //  · ir(dest, j, {instantaneo}): the jump, a fixed duration whatever the distance (o.dur, o.ease); any gesture of Kevin stops it
+  //    where it is; instant with reduce-motion or instantaneo. volver(j): the strip alone back to j (same duration and curve).
+  const MOV = { PAUSA: 150, INTENCION: 2500, UMBRAL: .35, ECO: 1.5, TECLAS: /^(Arrow(Up|Down)|Page(Up|Down)|Home|End| )$/ };
+  function movBez(x1, y1, x2, y2) {     // a CSS cubic-bezier as a function of time (0..1)
+    const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx, cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+    const X = t => ((ax * t + bx) * t + cx) * t, Y = t => ((ay * t + by) * t + cy) * t, dX = t => (3 * ax * t + 2 * bx) * t + cx;
+    return x => { if (x <= 0) return 0; if (x >= 1) return 1; let t = x; for (let i = 0; i < 8; i++) { const e = X(t) - x; if (Math.abs(e) < 1e-5) break; const d = dX(t); if (Math.abs(d) < 1e-6) break; t -= e / d; } return Y(Math.min(1, Math.max(0, t))); };
+  }
+  function movMotor(sc, o) {
+    // o: { pintar(v), jFijo() (the strip with no point nor ancla: the active month's hueco), reducir(), imanNo(), asentado(v),
+    //      dur (ms), ease (0..1 → 0..1) }
+    const ahoraMs = () => performance.now();
+    let pts = [], filaH = 0, max = 0, sC = sc.scrollTop, ancla = null, desv = null, anim = null, raf = 0, glide = null, rafG = 0, rafP = 0;
+    let ultimaEsc = -9, tInt = -1e9, huboScroll = false, tocando = 0, tAs = 0, vu = null, vivo = true;
+    const viva = () => ahoraMs() - tInt < MOV.INTENCION;
+    function interp(s) {
+      if (!pts.length || max <= 0) return ancla ? ancla.j : o.jFijo();
+      if (s <= pts[0].st) return pts[0].j;                       // the top (a tie: the newest)
+      if (s >= pts[pts.length - 1].st) return pts[pts.length - 1].j;   // the bottom (a tie: the oldest)
+      for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1]; if (s <= b.st) { const d = b.st - a.st; return d < 1 ? b.j : a.j + (b.j - a.j) * (s - a.st) / d; } }
+      return pts[pts.length - 1].j;
+    }
+    const base = s => (ancla && Math.abs(s - ancla.st) < 1 ? ancla.j : interp(s));
+    function desvDe(s) {
+      if (!desv) return 0; if (desv.fijo) return desv.d;
+      const k = filaH > 0 ? 1 - Math.abs(s - desv.sR) / filaH : 0; return k > 0 ? desv.d * k : 0;
+    }
+    const v = (s = sC) => base(s) + desvDe(s);
+    function pintar() { rafP = 0; if (!vivo) return; const x = v(); if (x !== vu && Number.isFinite(x)) { vu = x; o.pintar(x); } }
+    function pedir() { if (!rafP) rafP = requestAnimationFrame(pintar); }
+    function escribir(y) { ultimaEsc = y; sc.scrollTop = y; sC = max > 0 ? Math.max(0, Math.min(max, y)) : sC; }
+    function paraGlide() { if (!glide) return; cancelAnimationFrame(rafG); glide = null; if (desv) { desv.fijo = false; desv.sR = sC; } }
+    function cancelar() {               // stops an animated scroll where it is (the strip doesn't jump: its offset stays and fades)
+      if (!anim) return; cancelAnimationFrame(raf); anim = null;
+      if (desv) { desv.fijo = false; desv.sR = sC; }
+    }
+    function mover(dest, j, inst, fin) {   // the jump and the magnet: to dest; at the end, at rest on month j's point
+      cancelar(); paraGlide(); clearTimeout(tAs); tAs = 0; huboScroll = false; tInt = -1e9;
+      const s0 = sC, d = dest - s0, v0 = v(s0);
+      const acabar = () => { anim = null; ancla = { j, st: dest }; desv = null; vu = null; pintar(); if (fin) fin(); };
+      if (inst || o.reducir()) { if (Math.abs(sc.scrollTop - dest) >= .5) escribir(dest); else sC = dest; acabar(); return; }
+      if (Math.abs(d) < .5) { ancla = { j, st: dest }; desv = { d: v0 - j, sR: sC }; volver(j); if (fin) fin(); return; }
+      ancla = null;
+      const d0 = v0 - interp(s0), d1 = j - interp(dest), t0 = ahoraMs(), tok = anim = { s0, d, dest };
+      desv = { fijo: true, d: d0 };
+      const paso = t => {
+        if (anim !== tok) return;
+        const k = Math.min(1, Math.max(0, (t - t0) / o.dur)), e = o.ease(k);
+        escribir(tok.s0 + tok.d * e); desv.d = d0 * (1 - e) + d1 * e; pintar();
+        if (k < 1) raf = requestAnimationFrame(paso); else { ancla = null; acabar(); }
+      };
+      raf = requestAnimationFrame(paso);
+    }
+    function volver(j, inst) {          // the strip alone to hueco j, without moving the feed
+      paraGlide(); const s = sC, a = v(s) - base(s), b = j - base(s);
+      if (Math.abs(b - a) < 1e-3) return;
+      if (inst || o.reducir()) { desv = { d: b, sR: s }; vu = null; pintar(); return; }
+      desv = { d: a, sR: s, fijo: true };
+      const t0 = ahoraMs(), tok = glide = {};
+      const paso = t => {
+        if (glide !== tok) return;
+        const k = Math.min(1, Math.max(0, (t - t0) / o.dur)), e = o.ease(k); desv.d = a + (b - a) * e; pintar();
+        if (k < 1) rafG = requestAnimationFrame(paso); else { glide = null; desv.fijo = false; desv.sR = sC; }
+      };
+      rafG = requestAnimationFrame(paso);
+    }
+    function armar() { clearTimeout(tAs); tAs = setTimeout(asentar, MOV.PAUSA); }
+    function asentar() {                // Kevin's scroll has stopped: the magnet, then the month once
+      tAs = 0; if (!vivo || anim || tocando || !huboScroll) return;
+      huboScroll = false; tInt = -1e9;
+      const s = sC;
+      if (filaH > 0 && max > 0 && pts.length && !o.reducir() && !o.imanNo()) {
+        const vs = v(s); let b = null, bd = Infinity;
+        for (const p of pts) { const dd = Math.abs(p.st - s); if (dd < bd - .01 || (Math.abs(dd - bd) <= .01 && Math.abs(p.j - vs) < Math.abs(b.j - vs))) { b = p; bd = dd; } }
+        if (b && bd <= MOV.UMBRAL * filaH) {
+          if (bd > .5) { mover(b.st, b.j, false, () => o.asentado(b.j)); return; }
+          ancla = { j: b.j, st: b.st }; desv = null; pedir(); o.asentado(b.j); return;
+        }
+      }
+      o.asentado(v(s));
+    }
+    function alScroll() {
+      sC = sc.scrollTop;
+      if (anim) { pedir(); return; }     // our animation's frames (a gesture of Kevin stops it before its scroll)
+      if (Math.abs(sC - ultimaEsc) >= MOV.ECO && viva()) {   // Kevin's
+        huboScroll = true; ultimaEsc = -9;
+        if (ancla && Math.abs(sC - ancla.st) >= 1) ancla = null;
+        if (desv && !desv.fijo && filaH > 0 && Math.abs(sC - desv.sR) >= filaH) desv = null;
+        armar();
+      }
+      pedir();
+    }
+    function intento() { if (anim) cancelar(); paraGlide(); tInt = ahoraMs(); }
+    const suelta = () => { tocando = Math.max(0, tocando - 1); armar(); };
+    const on = [
+      ['scroll', alScroll],
+      ['scrollend', () => { if (huboScroll) armar(); }],
+      ['wheel', () => { intento(); armar(); }],
+      ['touchstart', () => { tocando++; intento(); }],
+      ['touchend', suelta], ['touchcancel', suelta],
+      ['pointerdown', e => {
+        if (e.pointerType !== 'mouse' && e.pointerType !== 'pen') return;
+        tocando++; intento();
+        const fin = () => { suelta(); removeEventListener('pointerup', fin, true); removeEventListener('pointercancel', fin, true); };
+        addEventListener('pointerup', fin, true); addEventListener('pointercancel', fin, true);
+      }],
+      ['keydown', e => { if (MOV.TECLAS.test(e.key)) intento(); }],
+    ];
+    on.forEach(([t, f]) => sc.addEventListener(t, f, { passive: true }));
+    return {
+      sc,
+      medir(p, fh, mx, s) {
+        const quieto = !anim && ancla && Math.abs(sC - ancla.st) < 1 ? ancla.j : null;   // at rest on a month's point (before the change)
+        pts = p.slice().sort((a, b) => a.st - b.st || b.j - a.j); filaH = fh; max = mx; if (s != null) sC = s;
+        if (quieto != null) {
+          const q = pts.find(x => x.j === quieto);
+          if (q) { if (Math.abs(q.st - sC) > .5) escribir(q.st); ancla = { j: quieto, st: q.st }; }
+        }
+        vu = null; pintar();
+      },
+      ir: (dest, j, op = {}) => mover(dest, j, !!op.instantaneo),
+      volver: j => volver(j),
+      v: () => v(),
+      repintar() { vu = null; pintar(); },
+      corregir(y, d) {                    // the feed's own correction (renderFeed keeps what is in sight): ours, and an animation follows it
+        if (anim) { anim.s0 += d; anim.dest += d; } else escribir(y);
+        if (ancla) ancla = { j: ancla.j, st: ancla.st + d };
+      },
+      reindex(f) { if (ancla) { const j = f(ancla.j); ancla = j >= 0 ? { j, st: ancla.st } : null; } pts = []; },
+      quieto: () => !anim && !glide && !huboScroll && !tocando && !tAs,
+      estado: () => ({ v: v(), st: sC, ancla: ancla && { ...ancla }, anim: !!anim, glide: !!glide, desv: desv && { ...desv }, gesto: huboScroll, tocando, puntos: pts.map(x => ({ ...x })), filaH, max }),
+      destruir() { vivo = false; cancelar(); paraGlide(); clearTimeout(tAs); cancelAnimationFrame(rafP); on.forEach(([t, f]) => sc.removeEventListener(t, f, { passive: true })); },
+    };
+  }
+  // THE MOUNT: what joins the engine to the Mesa (the header, feedPunto, activar)
+  let MOVM = null, movDecid = 0, movTk = null, movRed = null;   // movRed: «reducir movimiento» forced by the battery (null: the system's)
+  const MOVRM = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
+  function movTokens() {                // --d-m and --ease-m of the Mesa (read once)
+    if (movTk) return movTk;
+    const cs = getComputedStyle(root), dm = /([\d.]+)\s*(m?s)/.exec(cs.getPropertyValue('--d-m') || ''), em = /cubic-bezier\(([^)]+)\)/.exec(cs.getPropertyValue('--ease-m') || '');
+    const dur = dm ? +dm[1] * (dm[2] === 's' ? 1000 : 1) : 320, n = em ? em[1].split(',').map(Number) : [.32, .72, 0, 1];
+    movTk = { dur: dur > 0 ? dur : 320, ease: movBez(...(n.length === 4 && n.every(Number.isFinite) ? n : [.32, .72, 0, 1])), curva: n };
+    return movTk;
+  }
+  const cabJ = m => CABL.findIndex(e => e.m === m);
+  function cabCercano(v) {              // the hueco with a board nearest to v (a tie: the newer)
+    let b = -1; CABL.forEach((e, j) => { if (!e.sin && (b < 0 || Math.abs(j - v) < Math.abs(b - v) || (Math.abs(j - v) === Math.abs(b - v) && j > b))) b = j; });
+    return b;
+  }
+  function movMontar(feed) {
+    if (MOVM) { MOVM.destruir(); MOVM = null; }
+    if (!feed || MOVIL) return;
+    const tk = movTokens();
+    MOVM = movMotor(feed, {
+      pintar: v => { if (CABW) cabMover((1 - v) * CABW); },
+      jFijo: () => Math.max(0, cabJ(mesActivo)),
+      reducir: () => (movRed != null ? movRed : !!MOVRM.matches),
+      imanNo: () => !!(drag || (pd && pd.on) || /arrastre|campo|menú|editor|ventana/.test(activarNo() || '')),
+      asentado: v => { movAsentado(v).catch(e => console.warn('feed:', e)); },
+      dur: tk.dur, ease: tk.ease,
+    });
+  }
+  // the points of the months of the header (a layout read: when the size or the content change, in the frame after)
+  function movMedir() {
+    const feed = root && root.querySelector('.feed'), grid = feed && feed.querySelector('.grid');
+    if (!MOVM || !grid || MOVM.sc !== feed || !CABL.length) return;
+    const s = feed.scrollTop, ch = feed.clientHeight, max = feed.scrollHeight - ch, fr = feed.getBoundingClientRect();
+    const pb = parseFloat(getComputedStyle(feed).paddingBottom) || 0, pts = [];
+    CABL.forEach((e, j) => {
+      if (e.sin) return;
+      const w = grid.querySelector(`:scope > .fmes[data-mes="${cssq(e.m)}"]`), cs = w && w.querySelectorAll('.cell[data-slot], .cell.past'), c = cs && cs[cs.length - 1];
+      if (!c) return;
+      pts.push({ j, st: max <= 0 ? s : Math.max(0, Math.min(max, Math.round(s + (c.getBoundingClientRect().bottom - fr.top) - ch + pb))) });
+    });
+    const c0 = grid.querySelector('.cell'), fh = c0 ? c0.offsetHeight + (parseFloat(getComputedStyle(grid).rowGap) || 0) : 0;
+    MOVM.medir(pts, fh, Math.max(0, max), s);
+  }
+  // the strip at rest shows the active month (the one in the pill): if it isn't the nearest to where the strip is (a post of another
+  // month touched, activar said no), the strip goes back to it smoothly, without moving the feed
+  function movActivo(i) {               // (also «sin crear» never stays in the pill: the strip rests on the active month's hueco)
+    if (!MOVM || movDecid || !MOVM.quieto() || i < 0) return;
+    if (Math.round(MOVM.v()) !== i) MOVM.volver(i);
+  }
+  // Kevin's scroll has settled at v: the active month changes once, to the month in the pill; nothing is written (no mesa-last*), no
+  // notice if it can't (a window, a menu, a field, a drag, the editor, a job): the strip goes back to the active month
+  async function movAsentado(v) {
+    const j = cabCercano(v); if (j < 0 || !S) return;
+    const m = CABL[j].m, fin = () => movActivo(cabJ(mesActivo));   // at rest, the strip on the active month's hueco
+    if (m === mesActivo || activarNo()) { fin(); return; }
+    if (mesesTab(S).includes(m)) { mesFijar(m, 'deslizar'); mesSigue(); fin(); return; }
+    const k = feedDueno(m); if (!k) { fin(); return; }
+    movDecid++;
+    try { await activar(k, { mes: m, quien: 'deslizar' }); } finally { movDecid--; }
+    fin();
   }
 
   let mainMode = null;   // 'board:<client>' (by client, not by month: activar never makes .main again, pieza 2) | 'empty-client' | 'no-clients'
@@ -4110,7 +4331,7 @@ ${TK_FUENTES}
       try { await conTableros(async () => { for (const k of falta()) { if (curClient !== c || !S) return; await memLeer(k); } })(); }
       catch (e) { console.warn('feed:', e); }
       finally { sinPedirMini--; cargaResto = null; }
-      if (curClient === c && S && shellReady()) { renderFeed(); if (!feedMovido) feedIr(mesActivo, { instantaneo: true }); }
+      if (curClient === c && S && shellReady()) { renderFeed(); if (!feedMovido && !(MOVM && MOVM.estado().anim)) feedIr(mesActivo, { instantaneo: true }); }
     })();
     return cargaResto;
   }
@@ -4156,13 +4377,14 @@ ${TK_FUENTES}
       w._ya = !!(r && r.esS);
     }
     ya.forEach((w, m) => { if (!quedan.has(m)) { w.remove(); FMEM.delete(m); } });
-    if (ancla && ancla.el.isConnected) { const d = ancla.el.getBoundingClientRect().top - ancla.top; if (d) feed.scrollTop += d; }
+    if (ancla && ancla.el.isConnected) { const d = ancla.el.getBoundingClientRect().top - ancla.top; if (d) { if (MOVM && MOVM.sc === feed) MOVM.corregir(feed.scrollTop + d, d); else feed.scrollTop += d; } }
     if (hov.id) hov.t = Date.now();          // a redrawn post-it opens again after its 0.5 s
     pdRefresh();
     fitGrid();
     calRender();
     hsRender();
     dlRender();
+    cabPedir();                          // the months' points, in the next frame (pieza 5)
     if (MB.some(b => b.key !== S.key && !MEM.tab.has(b.key))) feedCargarResto();
   }
   // «Abrir todas las notas» / «Cerrar todas las notas» live in the feed's right click (D-282; before, an icon of the bar, D-152)
@@ -4185,6 +4407,7 @@ ${TK_FUENTES}
     const feed = root.querySelector('.feed'); if (!feed || typeof ResizeObserver !== 'function') return;
     M._ro = new ResizeObserver(() => fitGrid());
     M._ro.observe(feed);
+    movMontar(feed);                     // the movement (pieza 5)
     ['wheel', 'pointerdown', 'keydown', 'touchstart'].forEach(t => feed.addEventListener(t, () => { feedMovido = true; }, { passive: true }));   // Kevin moved it (pieza 3a)
   }
   // What a tray shows (D-041), the mesa's and the free editor's alike: the client's tray, a photo once, each with its mark
@@ -7549,12 +7772,12 @@ ${TK_FUENTES}
   }
   // after activar of another board from MESA.open or the months' header: a reload comes back to it (as M.init), the last used owns a
   // month two boards hold (D-318) and the feed goes to the active month's point
-  function trasActivar(key) {
+  function trasActivar(key, o = {}) {
     lsSet('mesa-last', key); lsSet('mesa-lastClient', curClient);
     let lastBy = {}; try { lastBy = JSON.parse(lsGet('mesa-lastByClient') || '{}'); } catch (e) { /* */ }
     lastBy[curClient] = key; lsSet('mesa-lastByClient', JSON.stringify(lastBy));
     renderFeed();
-    feedMovido = false; feedIr(mesActivo, { instantaneo: true });
+    feedMovido = false; feedIr(mesActivo, { instantaneo: !o.animar });   // from the header, the quick jump (pieza 5); MESA.open, at once
   }
   function mesSigue() { if (!shellReady()) return; calRender(); cabRender(); }   // what follows the active month (the calendar, pieza 3a; the months' header, pieza 4)
   // the board that owns month m among the client's (S and the copies): the last used (mesa-lastByClient, as D-121), else the one saved
@@ -7579,10 +7802,13 @@ ${TK_FUENTES}
     const y = feed.scrollTop + (cr.bottom - fr.top) - feed.clientHeight + pb;
     return Math.max(0, Math.min(max, Math.round(y)));
   }
-  // takes the feed to month m's point (pieza 3a: at once; the animation, the magnet and the quick jump are pieza 5's)
+  // takes the feed to month m's point: o.instantaneo at once (MESA.open, MESA.init, opening a client, ⌘Z); else the quick jump of the
+  // header (pieza 5)
   function feedIr(m, o = {}) {
     const feed = root && root.querySelector('.feed'), y = feedPunto(m); if (!feed || y == null) return false;
-    if (feed.scrollTop !== y) feed.scrollTop = y;
+    const j = cabJ(m);
+    if (MOVM && MOVM.sc === feed && j >= 0) MOVM.ir(y, j, { instantaneo: !!o.instantaneo });   // pieza 5: animated unless instantaneo (or reduce-motion)
+    else if (feed.scrollTop !== y) feed.scrollTop = y;
     return true;
   }   // ⌘Z: the client's one history goes on; its present for this month, as it is now (D-317)
   async function memLeerCliente(client) {   // every board of a client: {key: its copy}
@@ -9802,7 +10028,8 @@ ${TK_FUENTES}
     // the client's boards in memory (feed continuo, pieza 1; nothing uses them yet): leer(key) and leerCliente(client) read the copies
     // (without writing), ver(key) gives one already read or null, soltar() lets them all go
     mesActivo: { lee: () => mesActivo, quien: () => mesQuien, pon: (m, quien) => mesPoner(m, quien) },
-    cabecera: { nodo: () => CAB, ir: m => cabIr(m), mover: x => cabMover(x), ancho: () => CABW, colocar: () => cabColocar() },   // the months' header (feed continuo, pieza 4, D-323)   // the active month (feed continuo, pieza 3a)
+    cabecera: { nodo: () => CAB, ir: m => cabIr(m), mover: x => cabMover(x), ancho: () => CABW, colocar: () => cabColocar() },
+    mov: { estado: () => (MOVM ? { ...MOVM.estado(), x: CABX, w: CABW, meses: CABL.map(e => e.m) } : null), medir: () => movMedir(), tokens: () => { const t = movTokens(); return { dur: t.dur, curva: t.curva }; }, umbral: MOV.UMBRAL, pausa: MOV.PAUSA, ease: x => movTokens().ease(x), reducir: b => { movRed = b == null ? null : !!b; } },   // the feed's movement (pieza 5, D-325)   // the months' header (feed continuo, pieza 4, D-323)   // the active month (feed continuo, pieza 3a)
     feedSlot: id => { if (!S) return null; const s0 = S.slots.find(x => x.id === id); if (s0) return { s: s0, B: S }; for (const b of MB) { const B = feedTablero(b.key), s1 = B && B !== S && B.slots.find(x => x.id === id); if (s1) return { s: s1, B }; } return null; },   // a post of the client's feed and its board (pieza 3a)
     feedPunto, feedIr: (m, o) => feedIr(m, o), feedDueno, feedHTMLEntero, feedHTMLGuardado, feedCargar: () => feedCargarResto() || Promise.resolve(),   // a month's point in the feed and going there (pieza 3a; pieza 5 animates it)
     activar,   // another month of the open client becomes the open board, without opening it again (feed continuo, pieza 2)

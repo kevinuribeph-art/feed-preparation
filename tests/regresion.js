@@ -24686,6 +24686,22 @@
       igual(SK.ver().key, FN, 'notionChanges no la abrió en noviembre');
     } finally { SK.cerrar(); await limpiar(); }
   });
+  prueba('FM3', 'Una Publicada no se vacía arrastrándola a la bandeja (feed continuo, pieza 8; D-324, D-330): la bandeja no se resalta, soltarla no le quita sus fotos y avisa «Ya está publicada: no se mueve.»; una que no lo está se vacía como siempre', async () => {
+    try {
+      const f = await fiTres();
+      const bandeja = () => q('.side > .tray');
+      let lit = await ffArrastrar(celda('r1'), bandeja());
+      ok(!lit, 'la bandeja se resaltó para una Publicada');
+      igual(slot('r1').photos, [f.r1], 'arrastrar la Publicada a la bandeja le quitó la foto');
+      ok(/Ya está publicada: no se mueve\./.test(fiAvisos()), 'sin el aviso: ' + fiAvisos());
+      await M.flush(); igual(((await M._in.idbGet('boards', M._in.S.key)).slots.find(s => s.id === 'r1') || {}).photos, [f.r1], 'lo guardado de la Publicada');
+      M._in.clearToasts();
+      lit = await ffArrastrar(celda('r2'), bandeja());
+      ok(lit, 'la bandeja no se resaltó para una sin publicar');
+      igual(slot('r2').photos, [], 'una sin publicar no se vació');
+      ok(M.board().tray.includes(f.r2), 'su foto no volvió a la bandeja');
+    } finally { M._in.clearToasts(); await limpiar(); }
+  });
 
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;

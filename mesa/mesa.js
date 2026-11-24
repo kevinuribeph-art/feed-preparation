@@ -1765,6 +1765,7 @@
   }
   const moverAviso = no => no === 'publicada' ? toast('Ya está publicada: no se mueve.', { key: 'mover-publicada' })
     : toast('Una publicación diseñada o editada no pasa a otro mes: cámbiale la portada con «Cambiar portada».', { key: 'mover-disenada', ms: 7000 });
+  const slotPublicada = id => { const s = S && S.slots.find(x => x.id === id); return !!s && estadoDe(s) === 'publicado'; };
   // while dragging: a Publicada (the one carried or the one under it), of another month or of its own (pieza 3c), is not a target (no highlight)
   function moverPublicada(a, b, kb) {
     const A = S && S.slots.find(x => x.id === a), T = feedTablero(kb), X = T && T.slots.find(x => x.id === b);
@@ -5748,6 +5749,7 @@ ${TK_FUENTES}
     const hueco = d.from === 'tray' && t.closest('.cell.filler'); if (hueco) return { el: hueco, hueco };
     const hcard = d.from === 'tray' && t.closest('.hv-card[data-h]'); if (hcard) return { el: hcard, hcard };
     if (cell) return cell.dataset.slot ? { el: cell, cell } : { el: cell, pc: cell };
+    if (tray && d.from === 'slot' && slotPublicada(d.slotId)) return { el: null, tray };   // a Publicada's cell to the tray: not lit; dropped, its notice (pieza 8, D-330)
     if (tray) return { el: tray, tray };
     return null;
   }
@@ -5765,7 +5767,7 @@ ${TK_FUENTES}
       else if (d.from === 'slot') swap(d.slotId, cell.dataset.slot, tableroDeCelda(cell));   // a cell of another month: its board (pieza 3b)
       else toast('Una publicación del mes anterior no pasa directamente al mes nuevo: arrástrala antes a la bandeja.');
     }
-    else if (tray && d.from === 'slot') unassign(d.slotId, null, true);
+    else if (tray && d.from === 'slot') { if (slotPublicada(d.slotId)) moverAviso('publicada'); else unassign(d.slotId, null, true); }
     else if (tray && d.from === 'prev') withPrev(() => prevToTray(d.prevId), 'edit');
   }
   function dragSource(t) {

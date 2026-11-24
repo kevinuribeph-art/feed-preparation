@@ -3443,7 +3443,7 @@ ${TK_FUENTES}
   // active month's hueco. «Sin crear» (no board: the next to the newest, and the gaps) is a dimmed element, never a button, never in
   // the pill (the arrows skip it) and never in the vista cliente; what isn't in the 3 huecos isn't focused nor read.
   let CAB = null, CABSIG = '', CABWN = 0, CABW = 0, CABX = null, CABPX = 0, cabRaf = 0, cabRO = null, cabMira = [];
-  let cabCola = null, cabObj = null, cabVa = null;
+  let cabCola = null, cabObj = null, cabVa = null, CABL = [];
   const cabTiras = () => [CAB.querySelector('.mescab-vent > .mescab-tira'), CAB.querySelector('.mescab-tira2')];
   const cabHuecos = () => [...CAB.querySelectorAll('.mescab-vent > .mescab-tira > .mescab-mes')];
   function cabNodo() {
@@ -3494,8 +3494,8 @@ ${TK_FUENTES}
     }
     const H = cabHuecos();
     let i = L.findIndex(e => e.m === mesActivo); if (i < 0) i = Math.max(0, L.findIndex(e => !e.sin));
+    CABL = L;
     H.forEach((h, j) => {
-      const t = cabTitulo(L[j], cli); if (h.title !== t) h.title = t;
       if (L[j].sin) return;
       const ve = Math.abs(j - i) <= 1, on = j === i;
       if (h.tabIndex !== (ve ? 0 : -1)) h.tabIndex = ve ? 0 : -1;
@@ -3526,6 +3526,7 @@ ${TK_FUENTES}
   function cabPedir() { if (!cabRaf) cabRaf = requestAnimationFrame(() => { cabRaf = 0; try { cabColocar(); } catch (e) { /* the bar goes on without it */ } }); }
   function cabColocar() {
     const n = CAB; if (!n || !n.isConnected || n.hidden || !root) return;
+    cabTitulos();
     const feed = root.querySelector('.feed'), grid = feed && feed.querySelector('.grid');
     cabVigilar([n, feed, grid]);
     if (!CABWN) { cabMedir(); if (!CABWN) return; cabRender(); }
@@ -3542,6 +3543,10 @@ ${TK_FUENTES}
     }                                    // without the feed («Historias»): where it was
     const tx = CABPX ? `translateX(${CABPX}px)` : '';
     if (inn.style.transform !== tx) inn.style.transform = tx;
+  }
+  function cabTitulos() {               // the titles, out of renderBar (it runs many times): in the next frame, only those that changed
+    const cli = root.classList.contains('client'), H = cabHuecos();
+    H.forEach((h, j) => { const e = CABL[j]; if (!e || e.m !== h.dataset.mes) return; const t = cabTitulo(e, cli); if (h.title !== t) h.title = t; });
   }
   function cabVigilar(els) {            // placed again when the bar, the feed or the grid change size
     els = els.filter(Boolean);

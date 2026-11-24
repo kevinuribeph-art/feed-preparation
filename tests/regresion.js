@@ -23843,6 +23843,7 @@
     await t('2027-01', [{ ...pub(1, 'Foto', 12, '2027-01') }]);
     await t(MES, [pub(1), pub(2)]);
     await hasta(() => fgCab() && fgHuecos().length, 3000, 'la cabecera de meses');
+    await hasta(() => fgHuecos().every(e => e.title), 2000, 'los títulos de la cabecera (van en el fotograma siguiente)');
   }
   async function fgPulsar(el) { ok(el, 'no está lo que hay que pulsar'); el.click(); await espera(30); if (M._test.histListo) await M._test.histListo(); await hasta(() => !M._in.switching(), 3000, 'el cambio de mes'); await espera(60); }
   const fgActivo = () => [M._in.S.key, M._in.mesActivo.lee()];

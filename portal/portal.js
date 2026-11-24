@@ -35,7 +35,8 @@
     const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('class', 'i' + (cls ? ' ' + cls : '')); s.setAttribute('aria-hidden', 'true');
     const u = document.createElementNS('http://www.w3.org/2000/svg', 'use'); u.setAttribute('href', '#i-' + n); s.append(u); return s;
   }
-  const partes = (t, o) => Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: TZ, ...o }).formatToParts(t).map(p => [p.type, p.value]));
+  const FMT = new Map();   // un formateador por forma (crearlo cuesta: el feed seguido pinta todos los meses)
+  const partes = (t, o) => { const k = JSON.stringify(o); let f = FMT.get(k); if (!f) FMT.set(k, f = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, ...o })); return Object.fromEntries(f.formatToParts(t).map(p => [p.type, p.value])); };
   const hoy = () => { const p = partes(new Date(), { year: 'numeric', month: '2-digit', day: '2-digit' }); return `${p.year}-${p.month}-${p.day}`; };
   const diaDe = iso => { const p = partes(new Date(iso), { year: 'numeric', month: '2-digit', day: '2-digit' }); return `${p.year}-${p.month}-${p.day}`; };
   const horaDe = iso => { const p = partes(new Date(iso), { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }); return `${p.hour}:${p.minute}`; };

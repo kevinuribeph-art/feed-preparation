@@ -5,6 +5,7 @@
 (function (g) {
   'use strict';
   const el = (t, c) => { const e = document.createElement(t); if (c) e.className = c; return e; };
+  const attr = (e, k, v) => { if (e.getAttribute(k) !== v) { if (v == null) e.removeAttribute(k); else e.setAttribute(k, v); } };   // solo si cambia: el repaso no toca la cabecera
 
   // [‹] [ el mes anterior | el mes que se ve, en una píldora fija | el siguiente ] [›]. Una tira con todos los meses del cliente,
   // cada uno en un hueco del mismo ancho (--fm-w, W); la ventana enseña 3; la píldora (fija sobre el hueco del centro) lleva una
@@ -42,10 +43,9 @@
       huecos().forEach((h, j) => {
         const ve = Math.abs(j - i) <= 1;
         if (h.tabIndex !== (ve ? 0 : -1)) h.tabIndex = ve ? 0 : -1;
-        if (ve) h.removeAttribute('aria-hidden'); else h.setAttribute('aria-hidden', 'true');
-        if (j === i) h.setAttribute('aria-current', 'true'); else h.removeAttribute('aria-current');
+        attr(h, 'aria-hidden', ve ? null : 'true'); attr(h, 'aria-current', j === i ? 'true' : null);
       });
-      [bI, bD].forEach(b => { if (vecino(+b.dataset.d)) b.removeAttribute('aria-disabled'); else b.setAttribute('aria-disabled', 'true'); });
+      [bI, bD].forEach(b => attr(b, 'aria-disabled', vecino(+b.dataset.d) ? null : 'true'));
       foco();
     }
     function mover(v) {                  // el hueco v (con decimales) centrado en la píldora: solo transform, nada que mida
@@ -67,9 +67,9 @@
       if (inn.style.transform !== tx) inn.style.transform = tx;
     }
     function foco() {                    // el aro del mes activo, en la píldora; un mes con aro: sin la degradación de los bordes
-      const a = document.activeElement, en = !!(a && vent.contains(a) && a.classList.contains('fm-mes') && a.matches(':focus-visible'));
-      vent.classList.toggle('fpild', en && a.getAttribute('aria-current') === 'true');
-      vent.classList.toggle('fmes', en);
+      const a = document.activeElement, en = !!(a && vent.contains(a) && a.classList.contains('fm-mes') && a.matches(':focus-visible')), fp = en && a.getAttribute('aria-current') === 'true';
+      if (vent.classList.contains('fpild') !== fp) vent.classList.toggle('fpild', fp);
+      if (vent.classList.contains('fmes') !== en) vent.classList.toggle('fmes', en);
     }
     nodo.addEventListener('click', e => {
       const b = e.target.closest && e.target.closest('button'); if (!b || !nodo.contains(b)) return;
@@ -152,12 +152,14 @@
       if (!anim) return; cancelAnimationFrame(raf); anim = null;
       if (desv) { desv.fijo = false; desv.sR = sC; }
     }
-    function mover(dest, j, inst, fin) {  // el salto y el imán: hasta dest; al acabar, en reposo sobre el punto del mes j
+    // (lo que añade el portal: libre = el destino no es el punto del mes —«Revisarla» lleva el feed a una casilla—: en reposo la
+    // tira sigue en el mes j, pero medir() no lo devuelve a su punto)
+    function mover(dest, j, inst, fin, libre) {  // el salto y el imán: hasta dest; al acabar, en reposo sobre el punto del mes j
       cancelar(); paraGlide(); clearTimeout(tAs); tAs = 0; huboScroll = false; tInt = -1e9;
       const s0 = sC, d = dest - s0, v0 = v(s0);
-      const acabar = () => { anim = null; ancla = { j, st: dest }; desv = null; vu = null; pintar(); if (fin) fin(); };
+      const acabar = () => { anim = null; ancla = { j, st: dest, libre }; desv = null; vu = null; pintar(); if (fin) fin(); };
       if (inst || o.reducir()) { if (Math.abs(sc.scrollTop - dest) >= .5) escribir(dest); else sC = dest; acabar(); return; }
-      if (Math.abs(d) < .5) { ancla = { j, st: dest }; desv = { d: v0 - j, sR: sC }; volver(j); if (fin) fin(); return; }
+      if (Math.abs(d) < .5) { ancla = { j, st: dest, libre }; desv = { d: v0 - j, sR: sC }; volver(j); if (fin) fin(); return; }
       ancla = null;
       const d0 = v0 - interp(s0), d1 = j - interp(dest), t0 = ahoraMs(), tok = anim = { s0, d, dest };
       desv = { fijo: true, d: d0 };
@@ -228,7 +230,7 @@
     return {
       sc,
       medir(p, fh, mx, s) {
-        const quieto = !anim && ancla && Math.abs(sC - ancla.st) < 1 ? ancla.j : null;   // en reposo sobre el punto de un mes (antes del cambio)
+        const quieto = !anim && ancla && !ancla.libre && Math.abs(sC - ancla.st) < 1 ? ancla.j : null;   // en reposo sobre el punto de un mes (antes del cambio)
         pts = p.slice().sort((a, b) => a.st - b.st || b.j - a.j); filaH = fh; max = mx; if (s != null) sC = s;
         if (quieto != null) {
           const q = pts.find(x => x.j === quieto);
@@ -236,15 +238,15 @@
         }
         vu = null; pintar();
       },
-      ir: (dest, j, op = {}) => mover(dest, j, !!op.instantaneo),
+      ir: (dest, j, op = {}) => mover(dest, j, !!op.instantaneo, null, !!op.libre),
       volver: (j, inst) => volver(j, inst),
       v: () => v(),
       repintar() { vu = null; pintar(); },
       corregir(y, d) {                   // la corrección propia del feed: nuestra, y una animación la sigue
         if (anim) { anim.s0 += d; anim.dest += d; } else escribir(y);
-        if (ancla) ancla = { j: ancla.j, st: ancla.st + d };
+        if (ancla) ancla = { j: ancla.j, st: ancla.st + d, libre: ancla.libre };
       },
-      reindex(f) { if (ancla) { const j = f(ancla.j); ancla = j >= 0 ? { j, st: ancla.st } : null; } pts = []; },
+      reindex(f) { if (ancla) { const j = f(ancla.j); ancla = j >= 0 ? { j, st: ancla.st, libre: ancla.libre } : null; } pts = []; },
       quieto: () => !anim && !glide && !huboScroll && !tocando && !tAs,
       estado: () => ({ v: v(), st: sC, ancla: ancla && { ...ancla }, anim: !!anim, glide: !!glide, desv: desv && { ...desv }, gesto: huboScroll, tocando, puntos: pts.map(x => ({ ...x })), filaH, max }),
       destruir() { vivo = false; cancelar(); paraGlide(); clearTimeout(tAs); cancelAnimationFrame(rafP); on.forEach(([t, f]) => sc.removeEventListener(t, f, { passive: true })); fin(); },

@@ -69,7 +69,7 @@
   let S = null;
   try { S = window.Supa.crear({ url: CFG.url, publica: CFG.publica, clave: 'portal-sesion' }); } catch (e) { S = null; }
   const POR = 'Solo mirar: con esta cuenta no se aprueba, no se piden cambios ni se comenta.';   // D-266
-  const st = { observa: new Set(), todoMira: false, clientes: [], cli: null, d: null, mes: null, tab: 'cal', verAnt: null, urls: new Map(), cargando: false, error: '', abierta: null, gen: 0, carga: 0, sucio: false, codigoEn: 0, ys: new Map(), colsDe: '' };
+  const st = { observa: new Set(), todoMira: false, clientes: [], cli: null, d: null, mes: null, tab: 'cal', verAnt: null, urls: new Map(), cargando: false, error: '', abierta: null, gen: 0, carga: 0, sucio: false, codigoEn: 0, ys: new Map(), colsDe: '', mesDe: new Map() };
 
   async function cargarClientes() {
     // `observa` (D-266): una cuenta que solo mira; un servidor que aún no la tiene contesta 400 y se lee como siempre
@@ -212,17 +212,23 @@
     const cli = st.clientes.find(c => c.id === st.cli), cont = !!(cli && cli.servicio === 'contenido');
     const pv = app.querySelector(':scope > .pv');
     if (!pv || st.pvDe !== st.cli + '|' + cont) return pintarTodo();
+    // con la página como el que desliza, lo de encima del feed (el aviso, la barra) puede cambiar de alto: el feed se queda donde se
+    // ve (el navegador lo hace solo donde sabe; Safari no) y el motor lo sabe (su ancla se mueve con él)
+    const F0 = !cont && st.feed && st.feed.mov && st.feed.movModo === 'win' ? st.feed : null, y0 = scrollY, g0 = F0 ? F0.grid.getBoundingClientRect().top + y0 : 0;
     const top = pintarTop(cli, cont), tira = pintarTira();
     if (top.sig !== st.sigTop) { pv.querySelector(':scope > .pv-top').replaceWith(top.nodo); st.sigTop = top.sig; }
     if (tira.sig !== st.sigTira) { app.querySelector(':scope > .pv-obs')?.remove(); if (tira.nodo) app.prepend(tira.nodo); st.sigTira = tira.sig; }
     const av = pintarAviso(), avV = pv.querySelector(':scope > .aviso');
     if (av.sig !== st.sigAviso) { if (avV) avV.remove(); if (av.nodo) pv.querySelector(':scope > .pv-top').after(av.nodo); st.sigAviso = av.sig; }
+    if (F0 && F0 === st.feed) { const d = F0.grid.getBoundingClientRect().top + scrollY - g0; if (Math.abs(d) >= 1) F0.mov.corregir(Math.max(0, y0 + d), d); }
     const cols = pv.querySelector(':scope > .cols'), k = st.cli + '|' + st.mes;
     if (st.colsDe !== k) st.ys = new Map(); else scrollCols();   // otro mes: el calendario y la columna derecha, arriba
     if (cont) { const e = seguro(pintarEntregas), v = cols.querySelector(':scope > .entw'); if (e && v) v.replaceWith(e); }
-    else { seguro(feedNodo); seguro(cabPoner); const c = seguro(pintarCentro), v = cols.querySelector(':scope > .cent'); if (c && v) v.replaceWith(c); }
+    else { seguro(feedNodo); seguro(cabPoner); const c = seguro(pintarCentro), v = cols.querySelector(':scope > .cent'); if (c && v && c.outerHTML !== v.outerHTML) v.replaceWith(c); }
+    // la columna derecha: solo la tarjeta que cambió (la misma se queda, con lo que tocaste en ella)
     const lado = pintarLado(cli), lv = cols.querySelector(':scope > .lado');
-    if (lv && lado) lv.replaceWith(lado); else if (lv) lv.remove(); else if (lado) cols.append(lado);
+    if (lv && lado) { const N = [...lado.children], V = [...lv.children]; if (N.length !== V.length || N.some((n, i) => n.dataset.p !== V[i].dataset.p)) lv.replaceWith(lado); else N.forEach((n, i) => { if (n.outerHTML !== V[i].outerHTML) V[i].replaceWith(n); }); }
+    else if (lv) lv.remove(); else if (lado) cols.append(lado);
     cols.classList.toggle('con-lado', !!lado);
     lleno(); scrollCols(true); st.colsDe = k;
     pintarMinis();
@@ -245,7 +251,7 @@
     return { sig: String(pend.length), nodo: pend.length ? h('section', { class: 'aviso', 'aria-label': 'Por aprobar' }, h('span', { class: 'dot', 'aria-hidden': 'true' }),
       h('div', { class: 't' }, h('b', { text: pend.length === 1 ? 'Una publicación espera tu visto bueno' : `${pend.length} publicaciones esperan tu visto bueno` }),
         h('span', { text: 'Ábrelas una a una: puedes aprobar o pedir cambios.' })),
-      h('button', { type: 'button', class: 'btn p', text: pend.length === 1 ? 'Revisarla' : 'Revisarlas', onclick: () => { const p = pendientes()[0]; if (p) abrir(p.pid); } })) : null };
+      h('button', { type: 'button', class: 'btn p', text: pend.length === 1 ? 'Revisarla' : 'Revisarlas', onclick: () => { const p = pendientes()[0]; if (p) abrir(p.pid, true); } })) : null };
   }
   function pintarTira() {
     const sig = st.todoMira ? st.cli + '|' + st.clientes.map(c => c.id + c.nombre).join(',') : '';
@@ -309,9 +315,10 @@
 
   async function irA(id) {
     if (id === st.cli) return;
+    if (st.cli && st.mes) st.mesDe.set(st.cli, st.mes);   // al volver a este cliente, su feed en el mes en que lo dejaste
     st.cli = id; lsSet('portal-cliente', id); const n = ++st.carga; cerrar(true); limpiarFeed();
     const d = await cargarDatos(id).catch(e => { if (n === st.carga) pintarError(msgError(e)); return null; });
-    if (d && n === st.carga) { st.d = d; st.mes = mesInicial(); pintar(); }
+    if (d && n === st.carga) { st.d = d; const m = st.mesDe.get(id); st.mes = m && mesesDisponibles().includes(m) ? m : mesInicial(); pintar(); }
   }
   const soloMira = () => st.observa.has(st.cli);   // D-266
   function seguro(f) { try { return f(); } catch (e) { if (window.console) console.error(e); return null; } }
@@ -440,6 +447,19 @@
     ms.forEach((m, j) => { if (F.envs.has(m.key) && (b < 0 || Math.abs(j - v) < Math.abs(b - v) || (Math.abs(j - v) === Math.abs(b - v) && j > b))) b = j; });
     if (b >= 0 && ms[b].key !== st.mes && !mesNo()) { st.mes = ms[b].key; pintarMes(); F.cab.marcar(st.mes); }
     movActivo();
+  }
+  function feedA(p, llevar) {
+    const F = st.feed; if (!F || !F.mov) return;
+    const ms = mesesDisponibles();
+    if (p.mes !== st.mes && ms.includes(p.mes)) { st.mes = p.mes; pintarMes(); F.cab.marcar(p.mes); }
+    const c = F.grid.querySelector(`.cel[data-pid="${CSS.escape(p.pid)}"]`), j = F.cab.indice(p.mes);
+    if (!llevar || !c) { movActivo(); return; }
+    const r = c.getBoundingClientRect(), el = F.movModo === 'el';
+    const arriba = el ? F.sc.getBoundingClientRect().top : F.host.getBoundingClientRect().bottom, abajo = el ? F.sc.getBoundingClientRect().bottom : (F.host.querySelector('.fm-svh').offsetHeight || innerHeight) - 8;
+    const s = F.mov.sc.scrollTop, max = el ? F.sc.scrollHeight - F.sc.clientHeight : document.documentElement.scrollHeight - innerHeight;
+    const d = r.top < arriba ? r.top - arriba : r.bottom > abajo ? r.bottom - abajo : 0;
+    if (Math.abs(d) < 1) { movActivo(); return; }
+    F.mov.ir(Math.max(0, Math.min(max, Math.round(s + d))), j, { libre: true });
   }
   // pulsar un mes o una flecha: el mes activo al momento; el feed, con el salto, a su punto (un mes sin casillas: el feed no se mueve)
   function irMes(key) {
@@ -636,8 +656,11 @@
 
   // ---------- una publicación ----------
   const borrador = pid => lsGet('portal-borrador-' + pid) || '';
-  function abrir(pid) {
+  // abrir una publicación. Tocar una casilla de otro mes lo hace activo, sin mover el feed (como en la Mesa); «Revisarla» y
+  // «Siguiente por aprobar» (llevar) lo hacen activo y llevan el feed, con el salto, hasta que su casilla se vea entera
+  function abrir(pid, llevar) {
     const p = st.d.pubs.find(x => x.pid === pid && x.visible); if (!p) return;
+    seguro(() => feedA(p, llevar));
     cerrar(true);
     st.abierta = { pid, slide: 1, origen: document.activeElement, version: null, tog: null };
     const velo = h('div', { class: 'velo', onclick: () => cerrar() });
@@ -734,7 +757,7 @@
     return a;
   }
   function accionesDe(p, ultima) {
-    const sig = siguientePendiente(p.pid), sigBtn = sig ? h('button', { type: 'button', class: 'lnk sig', onclick: () => abrir(sig.pid) }, 'Siguiente por aprobar', ico('right')) : null;
+    const sig = siguientePendiente(p.pid), sigBtn = sig ? h('button', { type: 'button', class: 'lnk sig', onclick: () => abrir(sig.pid, true) }, 'Siguiente por aprobar', ico('right')) : null;
     if (p.estado === 'por_aprobar') return h('div', { class: 'acc' },
       h('button', { type: 'button', class: 'btn s', onclick: () => pedirCambios(p) }, ico('pen'), 'Pedir cambios'),
       h('button', { type: 'button', class: 'btn p', onclick: e => decidir(p, 'aprobada', null, null, e.currentTarget) }, ico('check'), 'Aprobar'));

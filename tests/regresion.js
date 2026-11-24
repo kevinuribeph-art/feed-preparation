@@ -351,7 +351,7 @@
     ok(!celda('r5'), 'una cancelada sale en la cuadrícula');
     const fila = celda('r1').querySelector('.lab .mks');
     ok(fila && fila.nextSibling && fila.nextSibling.nodeType === 3 && /nov/.test(fila.nextSibling.textContent), 'las marcas no van junto a la fecha');
-    ok(celda('r6').querySelector('.ph span') && !celda('r6').querySelector('.badges'), 'la casilla sin foto lleva algo arriba a la izquierda');
+    ok(celda('r6').querySelector('.ph span') && qa('.cell[data-slot="r6"] .badges > *').every(x => x.classList.contains('mpill')), 'la casilla sin foto lleva algo arriba a la izquierda');   // pieza 3a (D-318): solo la etiqueta del mes, en la más nueva
     ok(!qa('.cell .badges .dot, .cell .badges .mk, .cell .dot, .cell .st, .cell .dchg').length, 'quedan indicadores de antes en las casillas');
     const ancho = sel => q(sel).getBoundingClientRect().width;
     ok(ancho('.cell[data-slot="r2"] .e-publicado') <= ancho('.cell[data-slot="r1"] .e-programado') + 0.5, 'el doble tick ocupa más que el ✓');
@@ -2320,7 +2320,7 @@
     await M.flush();
     await M.open(claveNov);
     await hasta(() => vista(false).includes('m25.jpg'), 6000, '«Sin usar» en noviembre');
-    ok(portada(0), 'noviembre perdió su portada');
+    ok(M.board().previews[0] === a, 'noviembre perdió su portada');   // cambiada en la pieza 3a (D-318): con diciembre encima, los huecos de arriba son los de diciembre; el de noviembre sigue guardado
     // se borra diciembre con noviembre abierto: usada otra vez
     await M.purge(claveDic);
     await hasta(() => !vista(false).includes('m25.jpg'), 6000, 'que vuelva a contar como usada');
@@ -2334,7 +2334,7 @@
     igual(vista(false), [], 'ya en una publicación sigue en «Sin usar»');
     await M.flush();
     await M.open(claveNov);
-    ok(portada(0) && M.board().previews[0] === a, 'el hueco de noviembre perdió la foto');
+    ok(M.board().previews[0] === a, 'el hueco de noviembre perdió la foto');   // pieza 3a: no se dibuja (diciembre está encima), sigue guardado
     await hasta(() => vista(true).includes('m25.jpg ✓'), 6000, 'con ✓ en noviembre, por la publicación de diciembre');
     // se borra el mes del hueco, abierto otro mes o abierto él: la foto, que no va en otro sitio, queda en la bandeja del cliente
     for (const abierto of [DIC, MES]) {
@@ -10837,26 +10837,18 @@
       ok(ro.width <= fr0.width + 0.5 && ro.left >= fr0.left - 0.5, `la pestaña en uso no se ve desde su principio: ${Math.round(ro.left)}–${Math.round(ro.right)} en ${Math.round(fr0.left)}–${Math.round(fr0.right)}`);
     } finally { fr.style.width = w0; I.trayAbrir(null); }
   });
-  prueba('S1', 'Sin fila encima del feed: ni el mes ni «Debajo: …» ni el botón de bloqueo; la etiqueta del mes anterior es su único candado, con icono de línea y la cuenta en su título (D-152)', async () => {
+  // cambiada a propósito en la pieza 3a del feed continuo (D-318): sin franja ni candado; lo de Notion del mes anterior se ve en su
+  // mes, solo para mirar, con la etiqueta del mes en su casilla más nueva
+  prueba('S1', 'Sin fila encima del feed: ni el mes ni «Debajo: …» ni el botón de bloqueo (D-152); y sin candado ni franja (D-318): el mes anterior de Notion sale en su mes, con su etiqueta y solo para mirar', async () => {
     const oct = (n, dia) => ({ id: `s1-p${n}`, name: `Foto 0.${n}`, type: 'Foto', date: `2026-10-${String(dia).padStart(2, '0')}T12:00:00.000+02:00` });
     await limpiar();
     const r = await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1), pub(2)], past: [oct(1, 5), oct(2, 9)], force: true });
     ok(r && r.key === `${CLIENTE}-${MES}`, 'no se abrió el tablero de prueba: ' + json(r));
-    await hasta(() => q('.feed .grid .cell.past'), 4000, 'el mes anterior en el feed');
+    await hasta(() => q('.feed .grid .cell.notion'), 4000, 'el mes anterior en el feed');
     ok(!q('.feed .legend') && q('.feed').firstElementChild === q('.feed .grid'), 'sigue la fila encima del feed');
     ok(!q('.lockbtn') && !/Debajo:|a preparar|de tu mesa/.test(q('.feed').textContent), 'quedan textos o el botón de la fila');
-    const et = () => qa('.cell.past .pmonth');
-    igual(et().length, 1, 'etiquetas en el mes anterior');
-    const p = et()[0];
-    ok(p.tagName === 'BUTTON' && p.querySelector('svg') && !/[🔒🔓]/u.test(p.textContent), 'la etiqueta no es un botón con icono de línea: ' + p.outerHTML.slice(0, 120));
-    ok(/^Octubre 2026 · 2 publicadas · Bloqueado: /.test(p.title), 'el título de la etiqueta: ' + p.title);
-    ok(qa('.cell.past').every(c => c.classList.contains('locked')), 'el mes anterior no empieza bloqueado');
-    p.click(); await espera(30);
-    await pulsar('[data-act="unlock-always"]');
-    ok(qa('.cell.past').every(c => !c.classList.contains('locked')), 'no se desbloqueó desde la etiqueta');
-    ok(/ · Desbloqueado: pulsa para bloquearlo$/.test(et()[0].title), 'el título desbloqueado: ' + et()[0].title);
-    et()[0].click(); await espera(30);
-    ok(qa('.cell.past').every(c => c.classList.contains('locked')) && / · Bloqueado: /.test(et()[0].title), 'no se volvió a bloquear desde la etiqueta');
+    ok(!q('.feed .pmonth') && !q('.feed .cell.past[data-prev]') && !q('.feed .cell.locked'), 'queda el candado o la franja');
+    igual(qa('.feed .fmes[data-mes="2026-10"] .cell').map(c => [c.dataset.notion, (c.querySelector('.mpill') || { textContent: '' }).textContent]), [['s1-p2', 'Oct'], ['s1-p1', '']], 'octubre de Notion, con su etiqueta');
   });
 
   prueba('S2', '«Abrir todas las notas» va en el clic derecho del feed (D-282, antes un icono de la barra, D-152): apagada sin ninguna Nota, «Cerrar todas las notas» mientras están abiertas y nunca en «Vista cliente»', async () => {
@@ -11026,7 +11018,7 @@
     M.carpetasUI.accion('cp-nueva'); await hasta(() => q('.detail [data-form="cp-nueva"]'), 2000, 'Nueva carpeta'); sinBoton('Nueva carpeta'); M._in.closeDetail();
     const c = M.crearCarpeta('LZ11'); M.pedirBorrarCarpeta(c.id);
     await hasta(() => q('.detail [data-act="carpeta-borrar"]'), 2000, 'Borrar la carpeta'); sinBoton('Borrar la carpeta'); focoEnX('Borrar la carpeta'); M._in.closeDetail();
-    (await hasta(() => q('.cell.past .pmonth'), 3000, 'la etiqueta del mes anterior')).click();
+    M._in.withPrev(() => {}, 'none');   // the feed has no lock since D-318: the calendar's previous month still asks
     await hasta(() => q('.detail [data-act="unlock-always"]'), 2000, 'el bloqueo'); sinBoton('el bloqueo'); focoEnX('el bloqueo'); M._in.closeDetail();
     const [f] = await poner('r1', [await foto('lz11.jpg')]);
     M._test.addToSlot('r2', [f]);
@@ -20604,7 +20596,7 @@
     igual(g.tabIndex, 0, 'el grid no es una parada de Tab'); igual(g.getAttribute('role'), 'group', 'el grid no dice qué es');
     g.focus(); tecla('F10', { shift: true, en: g }); await espera(30);
     ok(a43Menu(), '⇧F10 no abre el menú');
-    const r1 = q('.feed .grid > .cell').getBoundingClientRect(), mr = a43Menu().getBoundingClientRect();
+    const r1 = q('.feed .grid .cell').getBoundingClientRect(), mr = a43Menu().getBoundingClientRect();
     ok(mr.left >= r1.left - 1 && mr.left <= r1.right && mr.top >= r1.top - 1 && mr.top <= r1.bottom, 'el menú no sale sobre la primera casilla');
     ok(a43Menu().contains(D.activeElement), 'el foco no entra en el menú');
     tecla('ArrowDown', { en: D.activeElement }); ok(a43Menu().contains(D.activeElement), '↓ saca el foco del menú');
@@ -23268,6 +23260,112 @@
       const k2 = M._in.S.key; igual(A.lee(), '2026-12', 'un tablero de dos meses, al abrirlo');
       const r2 = await A.pon('2027-01'); ok(r2 && r2.ok, 'pon() de enero: ' + json(r2));
       igual([A.lee(), M._in.S.key], ['2027-01', k2], 'su segundo mes, sin cambiar de tablero');
+    } finally { await limpiar(); }
+  });
+
+  const feMeses = () => qa('.feed .grid > .fmes').map(w => w.dataset.mes);
+  async function feTodo(meses, que = 'los meses del feed') { await hasta(() => json(feMeses()) === json(meses), 6000, `${que}: ${json(meses)} (hay ${json(feMeses())})`); await espera(30); }
+  const feIds = m => qa(`.feed .grid > .fmes[data-mes="${m}"] .cell`).map(c => c.dataset.slot || c.dataset.notion || c.dataset.filler || '?');
+  // el html de una casilla sin lo que pone la carga de fotos (src), para comparar con cellHTML
+  const feNorm = h => { const t = D.createElement('template'); t.innerHTML = h; t.content.querySelectorAll('img').forEach(i => i.removeAttribute('src')); return t.innerHTML; };
+
+  prueba('FE1', 'El feed seguido (pieza 3a): cada mes una vez, de su tablero, en una sola cuadrícula sin fila nueva, del más nuevo al más antiguo, sin candado, franja ni recuadro; las casillas de cada mes, las mismas (cellHTML) que con su tablero abierto', async () => {
+    try {
+      await fdDos();   // octubre (fd-o1, fd-o2) y noviembre (r1, r2); abierto noviembre
+      await M.open(fdO); await poner('fd-o2', [await foto('fe1.jpg', 1500, 1200)]); M._test.crop && M._test.crop('fd-o2', { cx: 0.3, cy: 0.5, z: 1.4 }); await M.flush();
+      await M.open(fdN); await M.flush();
+      await feTodo([MES, FD_OCT]);
+      igual(feIds(MES), ['r2', 'r1'], 'noviembre, de lo nuevo a lo antiguo');
+      igual(feIds(FD_OCT), ['fd-o2', 'fd-o1'], 'octubre, de su tablero');
+      igual(qa('.feed .grid > .fmes').map(w => w.dataset.tablero), [fdN, fdO], 'el tablero de cada mes');
+      igual(qa('.feed .grid > .fmes').map(w => getComputedStyle(w).display), ['contents', 'contents'], 'la envoltura no rompe las filas');
+      const ids = qa('.feed .grid .cell[data-slot]').map(c => c.dataset.slot); igual(ids.length, new Set(ids).size, 'una publicación dos veces');
+      ok(!q('.feed .pmonth, .feed [data-act="prevlock"], .feed .cell.past[data-prev], .feed .bd'), 'queda el candado, la franja o el mes anterior apagado');
+      const a = celda('r1').getBoundingClientRect(), b = celda('fd-o2').getBoundingClientRect();
+      cerca(b.top, a.top, 1, 'octubre empieza en una fila nueva (su primera casilla, junto a la última de noviembre)');
+      ok(b.left > a.left, 'octubre sigue en la misma fila');
+      // las casillas de octubre: las de su tablero abierto
+      const oct = qa(`.feed .grid > .fmes[data-mes="${FD_OCT}"] .cell`).map(c => feNorm(c.outerHTML));
+      await M.open(fdO); await M.flush();
+      const B = M._in.S, pill = { 'fd-o2': 'Oct' };
+      igual(oct, B.slots.filter(s => M._in.vivo(s)).map(s => feNorm(M._in.cellHTML(s, pill[s.id] || '', B, true))), 'las casillas de octubre, frente a su tablero abierto');
+    } finally { await limpiar(); }
+  });
+
+  prueba('FE2', 'Qué mes sale y de dónde (pieza 3a): un tablero de dos meses reparte sus publicaciones; día de ciclo 15 (límites y nombre); dos tableros con el mismo mes (manda el último usado y su etiqueta lo dice solo a Kevin); un mes sin tablero entre dos, de Notion, se ve y solo se mira', async () => {
+    try {
+      await limpiar();
+      // septiembre de un mes con lo de Notion de agosto; noviembre-diciembre de dos meses con octubre de Notion debajo
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: '2026-09', slots: [fcSlot('fe-s1', '9.1', 10, '2026-09')], past: [{ id: 'fe-ag', name: 'Agosto 1', type: 'Foto', date: '2026-08-20T12:00:00.000+02:00' }], force: true }); await M.flush();
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, months: 2, slots: [pub(1), pub(2, 'Foto', 20, '2026-12')], past: [{ id: 'fe-oc', name: 'Octubre 1', type: 'Foto', date: '2026-10-20T12:00:00.000+02:00' }], force: true }); await M.flush();
+      await feTodo(['2026-12', MES, FD_OCT, '2026-09', '2026-08']);
+      igual([feIds('2026-12'), feIds(MES)], [['r2-2026-12'], ['r1']], 'el tablero de dos meses, repartido');
+      igual(qa('.feed .grid > .fmes').map(w => w.dataset.tablero).slice(0, 2), [`${CLIENTE}-${MES}`, `${CLIENTE}-${MES}`], 'los dos meses, de su tablero');
+      igual([feIds(FD_OCT), feIds('2026-08')], [['fe-oc'], ['fe-ag']], 'los meses de Notion');
+      for (const m of [FD_OCT, '2026-08']) {
+        const c = q(`.feed .grid > .fmes[data-mes="${m}"] .cell`);
+        ok(c.classList.contains('notion') && !c.dataset.slot && !c.dataset.prev && /solo para mirar/.test(c.title), `${m}: no es solo para mirar`);
+        c.click(); await espera(60); ok(!dialogo(), `${m}: abrió una ventana`);
+      }
+      // día de ciclo 15
+      await limpiar();
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, cycleDay: 15, months: 2, slots: [fcSlot('fe-c1', '1', 16, MES), fcSlot('fe-c2', '2', 14, '2026-12'), fcSlot('fe-c3', '3', 16, '2026-12')], past: [], force: true }); await M.flush();
+      await feTodo(['2026-12', MES]);
+      igual([feIds('2026-12'), feIds(MES)], [['fe-c3'], ['fe-c2', 'fe-c1']], 'ciclo 15: el 14 de diciembre es del ciclo de noviembre');
+      const et = qa('.feed .mpill').map(x => x.textContent);
+      ok(et.length === 2 && et.every(t => /\d/.test(t)) && et[0] !== et[1], 'ciclo 15: el nombre del ciclo: ' + json(et));
+      // dos tableros con noviembre: octubre-noviembre y noviembre; el último usado manda
+      await limpiar();
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: FD_OCT, months: 2, cycleDay: 1, slots: [fcSlot('fd-o1', '4.1', 20, FD_OCT), fcSlot('fe-d1', '5.1', 9, MES)], past: [], force: true }); await M.flush();
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1), pub(2)], past: [], force: true }); await M.flush();
+      await feTodo([MES, FD_OCT]);
+      igual([feIds(MES), q(`.feed .grid > .fmes[data-mes="${MES}"]`).dataset.tablero], [['r2', 'r1'], fdN], 'noviembre, del último usado');
+      const md = q(`.feed .grid > .fmes[data-mes="${MES}"] .mdos`);
+      ok(md && /1 publicación/.test(md.title) && getComputedStyle(md).display !== 'none', 'la etiqueta no avisa de los dos tableros');
+      await vistaCliente(true); await espera(60);
+      igual(getComputedStyle(q(`.feed .grid > .fmes[data-mes="${MES}"] .mdos`)).display, 'none', 'el cliente ve el aviso');
+      await vistaCliente(false);
+      await M.open(fdO); await M.flush(); await feTodo([MES, FD_OCT]);
+      igual(feIds(MES), ['fe-d1'], 'noviembre, del último usado (ahora el de dos meses)');
+    } finally { await vistaCliente(false); await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, cycleDay: 1, slots: [], past: [], force: true }); await limpiar(); }
+  });
+
+  prueba('FE3', 'La etiqueta del mes (pieza 3a): solo en su casilla más nueva, nombre corto, con el año solo si no es el de hoy; en la «Vista cliente», igual', async () => {
+    try {
+      await fdDos([pub(3)]);
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: '2027-01', slots: [pub(1, 'Foto', 5, '2027-01'), pub(2, 'Foto', 7, '2027-01')], past: [], force: true }); await M.flush();
+      await feTodo(['2027-01', MES, FD_OCT]);
+      const et = m => qa(`.feed .grid > .fmes[data-mes="${m}"] .cell`).map(c => (c.querySelector('.mpill') || { textContent: '' }).textContent);
+      igual([et('2027-01'), et(MES), et(FD_OCT)], [['Ene 27', ''], ['Nov', '', ''], ['Oct', '']], 'las etiquetas');
+      await vistaCliente(true); await espera(60);
+      igual(getComputedStyle(q('.feed .mpill')).display !== 'none', true, 'el cliente no ve la etiqueta');
+      igual(et(MES), ['Nov', '', ''], 'en la «Vista cliente»');
+    } finally { await vistaCliente(false); await limpiar(); }
+  });
+
+  prueba('FE4', 'Un cambio redibuja solo su mes (pieza 3a): los nodos de los demás meses son los mismos, scrollTop y foco iguales; redibujado entero a mano da el mismo html (lección 20)', async () => {
+    try {
+      await fdDos([pub(3), pub(4), pub(5), pub(6), pub(7)], [fcSlot('fd-o3', '4.3', 24, FD_OCT), fcSlot('fd-o4', '4.4', 25, FD_OCT)]);
+      await feTodo([MES, FD_OCT]);
+      const feed = q('.feed'), oct = qa(`.feed .grid > .fmes[data-mes="${FD_OCT}"] .cell`), nov = qa(`.feed .grid > .fmes[data-mes="${MES}"] .cell`);
+      feed.scrollTop = 40; const st = feed.scrollTop; q('.feed .grid').focus(); const foco = D.activeElement;
+      await poner('r3', [await foto('fe4.jpg')]); await espera(30);
+      ok(oct.every((c, i) => c === qa(`.feed .grid > .fmes[data-mes="${FD_OCT}"] .cell`)[i]), 'se volvieron a hacer las casillas de octubre');
+      ok(celda('r3').querySelector('img'), 'la foto no salió en noviembre');
+      igual([feed.scrollTop, D.activeElement === foco], [st, true], 'scrollTop y foco');
+      igual(M._in.feedHTMLGuardado(), M._in.feedHTMLEntero(), 'el feed redibujado entero a mano');
+    } finally { await limpiar(); }
+  });
+
+  prueba('FE10', 'Lo ocultado en la franja vuelve a verse (pieza 3a, respuesta 7.4) y sus datos siguen guardados sin tocarse', async () => {
+    try {
+      await fdDos();
+      const B = M._in.S, p = (B.prev || []).find(x => x.id === 'fd-o1'); ok(p, 'octubre no está en el mes anterior de noviembre');
+      p.hidden = true; M._in.save(); await M.flush();
+      M._in.render(); await feTodo([MES, FD_OCT]);
+      igual(feIds(FD_OCT), ['fd-o2', 'fd-o1'], 'lo ocultado no se ve');
+      const g = (await M._in.idbGet('boards', fdN)).prev.find(x => x.id === 'fd-o1');
+      igual(g.hidden, true, 'lo ocultado se borró de lo guardado');
     } finally { await limpiar(); }
   });
 

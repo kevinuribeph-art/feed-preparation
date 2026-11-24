@@ -1126,7 +1126,7 @@
   }
   async function refreshMonths() {
     const all = (await idbAll('boards')) || [];
-    MB = all.filter(b => b.client === curClient).map(b => ({ key: b.key, month: b.month, span: b.span || 1, cycleDay: cdOf(b.cycleDay), filled: (b.slots || []).filter(s => vivo(s) && (s.photos || []).length).length, n: (b.slots || []).filter(vivo).length }))
+    MB = all.filter(b => b.client === curClient).map(b => ({ key: b.key, month: b.month, span: b.span || 1, cycleDay: cdOf(b.cycleDay), filled: (b.slots || []).filter(s => vivo(s) && (s.photos || []).length).length, n: (b.slots || []).filter(vivo).length, savedAt: b.savedAt || null }))
       .sort((a, b) => String(b.month).localeCompare(String(a.month)));
   }
 
@@ -1236,8 +1236,9 @@
     Object.defineProperty(o, 'thumbUrl', { enumerable: true, configurable: true, get() { let u = URLS_MINI.get(o); if (!u) { u = URL.createObjectURL(thumb); URLS_MINI.set(o, u); } return u; }, set(v) { URLS_MINI.set(o, v); } });
     return o;
   }
+  let sinPedirMini = 0;                 // the feed's other boards read in the background: their thumbnails asked when seen (pieza 3a)
   async function loadThumbs(ids) {
-    if (NUBE.pedirMini) for (const id of new Set(ids)) if (URL_HUECO.has(id)) NUBE.pedirMini(id);   // still a placeholder: asked again (lot 4)
+    if (NUBE.pedirMini && !sinPedirMini) for (const id of new Set(ids)) if (URL_HUECO.has(id)) NUBE.pedirMini(id);   // still a placeholder: asked again (lot 4)
     const faltan = [...new Set(ids)].filter(id => !M.files[id]), missing = [];
     for (let i = 0; i < faltan.length; i += 200) {
       const trozo = faltan.slice(i, i + 200), recs = {};
@@ -1246,7 +1247,7 @@
         if (M.files[id]) continue;
         const rec = recs[id];
         if (rec && rec.thumb && !esRefNube(rec.thumb)) { M.files[id] = metaArchivo(rec, rec.thumb); M.thumbBlobs[id] = rec.thumb; }   // its thumbnail is here (its photo may still be up: lot 4)
-        else if (rec && pendienteRec(rec)) { M.files[id] = metaHueco(rec, id); M.thumbBlobs[id] = hueco(); if (NUBE.pedirMini) NUBE.pedirMini(id); }   // came down without its photo yet (D-256); its thumbnail comes now (lot 4)
+        else if (rec && pendienteRec(rec)) { M.files[id] = metaHueco(rec, id); M.thumbBlobs[id] = hueco(); if (NUBE.pedirMini && !sinPedirMini) NUBE.pedirMini(id); }   // came down without its photo yet (D-256); its thumbnail comes now (lot 4)
         else if (NUBE.activa && !fijo(id)) { M.files[id] = metaHueco(null, id); M.thumbBlobs[id] = hueco(); }   // with the cloud, never «missing»: it may not have arrived
         else missing.push(id);
       }
@@ -2813,6 +2814,8 @@ ${TK_FUENTES}
 #mesa.client .pit{display:none}
 #mesa .st{font-size:10.5px;font-weight:600;border-radius:var(--r-pill);padding:1px 7px;color:var(--on-acc);white-space:nowrap}
 #mesa .st.ok{background:var(--ok)}#mesa .st.chg{background:var(--chg)}
+#mesa .fmes{display:contents}
+#mesa .mdos{pointer-events:auto;font-weight:400}
 #mesa .mpill{font-size:9.5px;font-weight:600;background:var(--photo-chip-2);color:var(--on-photo);border-radius:var(--r-pill);padding:1px 7px;line-height:17px}
 #mesa .dchg{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--chg);box-shadow:0 0 0 1.5px var(--on-photo);margin:0 5px 1px 1px;vertical-align:middle}
 #mesa .dchg.nm{background:none;box-shadow:inset 0 0 0 1.5px var(--chg),0 0 0 1.5px var(--on-photo)}
@@ -3169,7 +3172,7 @@ ${TK_FUENTES}
 #mesa .toast button:hover{text-decoration-thickness:2px}#mesa .toast button:focus-visible{outline-color:var(--on-acc)}   /* D-303: the notices in the brand's terracotta, white on --acc 5.12:1 in both themes; its focus white (--focus on --acc, 1.19:1) */
 #mesa .lock{position:absolute;inset:0;z-index:20;background:var(--veil-bg);display:flex;align-items:center;justify-content:center;padding:16px}
 /* vista cliente */
-#mesa.client .lab,#mesa.client .badges,#mesa.client .cnt,#mesa.client .pdate,#mesa.client .pmonth,#mesa.client .ptag2,#mesa.client .cell.past.phidden,#mesa.client .ph>*,#mesa.client .tray{display:none}
+#mesa.client .mdos,#mesa.client .lab,#mesa.client .cnt,#mesa.client .pdate,#mesa.client .pmonth,#mesa.client .ptag2,#mesa.client .cell.past.phidden,#mesa.client .ph>*,#mesa.client .tray{display:none}
 #mesa.client .cell.empty::before{display:none}#mesa.client .rvbtn{display:none}
 #mesa.client .cell.filler .hx{display:none}
 #mesa.client .cell.empty{background:var(--cell-ph)}
@@ -3667,7 +3670,9 @@ ${TK_FUENTES}
     return st === 'ok' ? '<span class="st ok" title="Subida a Notion tal como está">✓ en Notion</span>' : st === 'chg' ? '<span class="st chg" title="Cambiada después de subirla a Notion (foto, encuadre, contexto o caption): pide a Claude que la vuelva a subir">cambiada</span>' : '';
   }
   // the cell's top left keeps only the month pill of a range board: its marks go in one row by its date (marcasHTML, D-081)
-  const badgesHTML = (s, pill) => pill ? `<div class="badges"><span class="mpill">${esc(pill)}</span></div>` : '';
+  // pill: its month's name; {t, aviso}: and another board of that month has posts this one hasn't (only Kevin sees it, pieza 3a)
+  const badgesHTML = (s, pill) => !pill ? '' : typeof pill === 'string' ? `<div class="badges"><span class="mpill">${esc(pill)}</span></div>`
+    : `<div class="badges"><span class="mpill">${esc(pill.t)}<span class="mdos" title="Otro tablero de este mes tiene ${pill.aviso} publicaci${pill.aviso === 1 ? 'ón' : 'ones'} que no sale${pill.aviso === 1 ? '' : 'n'} aquí: sale este (el último usado)"> · 2 tableros</span></span></div>`;
   const POSTIT = '<svg viewBox="0 0 17 17" aria-hidden="true"><path d="M1.5 1.5h14v14H7.4C4 15.5 1.5 13 1.5 9.6z" class="postit-a"/><path d="M1.5 1.5h14v2.6h-14z" class="postit-b"/><path d="M1.5 9.6c0 3.3 2.6 5.9 5.9 5.9-1.2-1.6-1.6-3.5-1.2-5.4-1.6.4-3.3.3-4.7-.5z" class="postit-c"/></svg>';
   // the Nota's post-it; while it is edited in its cell (double click once open), a text field in its place
   let memoEdit = null;
@@ -3675,7 +3680,7 @@ ${TK_FUENTES}
     if (memoEdit === s.id) return `<span class="pit edit" data-memo="${esc(s.id)}" title="">${POSTIT}<textarea class="pitin" data-slot="${esc(s.id)}" rows="1" aria-label="Nota (solo para ti, no se sube)">${esc(s.memo || '')}</textarea></span>`;
     const m = memoOf(s); return m ? `<span class="pit" data-memo="${esc(s.id)}" title="" aria-label="Nota: ${esc(m)} (doble clic para editarla; arrástrala a otra publicación para moverla)">${POSTIT}<span class="pt">${esc(m)}</span></span>` : '';
   };
-  function cellHTML(s, pill, B = S) {   // B: the post's board, the open one if not given (feed continuo, pieza 1)
+  function cellHTML(s, pill, B = S, perezosa) {   // B: the post's board, the open one if not given (feed continuo, pieza 1); perezosa: its photo as data-mini, put by the feed (pieza 3a)
     const lab = shortLabel(s.name, s.type), fd = esc(fmtDate(s.date)), when = marcasHTML(s, B) + (vencida(s, undefined, B) ? `<span class="vdate" title="Vencida: su fecha ya pasó">${fd}</span>` : fd);   // a vencida's date in a red pill (D-120)
     const icon = typeIcon(s.type, s.photos.length), pin = isPinned(s, B);
     if (!s.photos.length) {
@@ -3685,10 +3690,10 @@ ${TK_FUENTES}
     const imgStyle = f.w ? rectStyle(f, gridRect(s.photos[0], s, B)) : '';
     const n = s.photos.length;
     const cnt = isCarousel(s.type) && (n > 1 || s.type === 'Carrusel') ? `<span class="cnt" title="${n} foto${n === 1 ? '' : 's'}">${n}<span class="cw"> foto${n === 1 ? '' : 's'}</span></span>` : '';
-    return `<div class="cell full" data-slot="${esc(s.id)}" title="${esc(s.name)}"><img class="crop" src="${f.thumbUrl || ''}" style="${imgStyle}" alt="">${pin ? `<span class="ico" title="Fijada">${IC.pin}</span>` : icon ? `<span class="ico">${icon}</span>` : ''}${badgesHTML(s, pill)}${M.web && M.web.marca ? M.web.marca(s) : ''}${cnt}<div class="lab">${postit(s)}<b>${esc(lab)}</b>${when}</div></div>`;
+    return `<div class="cell full" data-slot="${esc(s.id)}" title="${esc(s.name)}"><img class="crop" ${perezosa ? `data-mini="${esc(s.photos[0])}" decoding="async"` : `src="${f.thumbUrl || ''}"`} style="${imgStyle}" alt="">${pin ? `<span class="ico" title="Fijada">${IC.pin}</span>` : icon ? `<span class="ico">${icon}</span>` : ''}${badgesHTML(s, pill)}${M.web && M.web.marca ? M.web.marca(s) : ''}${cnt}<div class="lab">${postit(s)}<b>${esc(lab)}</b>${when}</div></div>`;
   }
-  function fillerHTML(k) {
-    const f = previewAt(k) && M.files[previewAt(k)], x = f ? 'Quitar la portada' : 'Quitar el hueco';
+  function fillerHTML(k, B = S) {
+    const f = previewAt(k, B) && M.files[previewAt(k, B)], x = f ? 'Quitar la portada' : 'Quitar el hueco';
     return `<div class="cell filler${f ? ' tapa' : ''}" data-filler="${k}" title="${f ? `Preview de la primera publicación del mes siguiente: ${esc(f.name)}. No es una publicación.` : 'Hueco: solo para cuadrar el feed (no es una publicación). Suelta una foto de la bandeja para previsualizar el mes siguiente.'}">${f ? `<img class="hfoto" src="${f.thumbUrl}" alt=""><span class="htag">Preview · próximo mes</span>` : ''}<button class="hx" data-act="delfiller" data-k="${k}" title="${x}" aria-label="${x}">×</button></div>`;
   }
   function pastHTML(p, i, N, cuenta) {
@@ -3711,37 +3716,166 @@ ${TK_FUENTES}
     const why = p.thumb && M.pastPending[p.thumb] ? 'cargando…' : p.own ? 'sin foto' : p.item.src === 'mesa' ? 'sin foto en la mesa' : sinNotion() ? 'sin imagen' : 'sin imagen en Notion';
     return `<div class="${cls} nophoto" ${attrs}>${line}${pill}${tags}<div class="ph"><b>${esc(shortLabel(p.name, p.type))}</b><span>${esc(fmtDate(p.date, true))} · ${why}</span></div></div>`;
   }
-  function renderFeed() {
-    if (!S || !shellReady()) return;
-    const grid = root.querySelector('.feed .grid'); if (!grid) return;
-    const N = S.slots.filter(vivo).length, lk = prevLocked(), past = pastList(!lk), shown = past.filter(p => !p.hidden).length, nh = (S.prev || []).filter(p => p.hidden).length;
-    const seen = new Set();   // range board: a month pill on the newest cell of each month
-    const pill = s => { const m = cycleOf(s.date, curCd()); if (S.span < 2 || !m || seen.has(m)) return ''; seen.add(m); return curCd() === 1 ? cap(MONTHS[+m.slice(5) - 1].slice(0, 3)) : cycName(m, curCd()); };
-    if (memoEdit && !S.slots.some(s => s.id === memoEdit)) memoEdit = null;
-    const pinned = new Set(pinsOf());               // pinned first (no month pill: they are out of the date order)
-    const F = fillersOf(), cells = feedOrder().map(s => cellHTML(s, pinned.has(s.id) ? '' : pill(s)));
-    cells.splice(pinned.size, 0, ...Array.from({ length: F }, (_, k) => fillerHTML(k)));   // the fillers right after the pinned posts; the rest moves down
-    const cuenta = `${rangeLabel(prevMonth(S.month), 1, false, curCd())} · ${shown} publicada${shown === 1 ? '' : 's'}${nh ? ` · ${nh} oculta${nh === 1 ? '' : 's'}` : ''}`;   // what the row over the feed said, now the label's title (D-152)
-    const html = cells.join('') + past.map((p, j) => pastHTML(p, N + F + j, N + F, cuenta)).join('');
-    // a Nota being edited in its cell: that cell stays in the page untouched (a rebuilt field would lose an accent being
-    // typed and its own undo); the others are rebuilt around it, and it is redrawn once the editing ends
-    const live = memoEdit && grid.querySelector(`.pit.edit[data-memo="${cssq(memoEdit)}"]`), keep = live && live.closest('.cell');
+  // ---------- the feed (feed continuo, pieza 3a) ----------
+  // One grid with every month of the client, the newest first, each from its own board (S or its copy in memory, MEM): a month
+  // doesn't start a new row (its wrapper, .fmes, is display: contents). Without the previous month's strip, its lock nor any frame
+  // (D-318, replaces D-152 there). What was hidden or changed in the strip (S.prev) is not applied any more (its data stay); Notion's
+  // posts (B.past) show only for the month before a board that no board holds, and only to look. A change draws again only its
+  // month's wrapper (all of its board if it has 2–3): the other months keep their nodes. Drawing writes nothing.
+  const FMEM = new Map();               // month -> {key, B, esS, cm, firma, hasta, html, n}: the html each month was last drawn with
+  const feedTablero = k => (S && S.key === k ? S : (MEM.tab.get(k) || {}).tablero || null);
+  const anioHoy = () => madParts(ahora()).day.slice(0, 4);
+  // the month's label on its newest post: «Nov», with the year only when it isn't this one («Ene 27»); another cycle day, its cycName
+  function feedEtiqueta(m, cd) { return cdOf(cd) !== 1 ? cycName(m, cd) : cap(MONTHS[+m.slice(5) - 1].slice(0, 3)) + (m.slice(0, 4) === anioHoy() ? '' : ' ' + m.slice(2, 4)); }
+  // the months to draw: [{m, key, B, src: 'tab' | 'notion', nuevo, aviso, firma}], newest first; B null: its board not read yet
+  function feedMeses() {
+    const own = new Map();
+    for (const b of MB) for (const m of monthsOf(b.month, b.span)) if (!own.has(m)) own.set(m, feedDueno(m));
+    const ms = [...own.keys()].sort().reverse(), out = [], newest = ms.length ? own.get(ms[0]) : null;
+    ms.forEach((m, i) => {
+      const key = own.get(m), B = feedTablero(key);
+      let aviso = 0;                    // another board of this month with posts of it that this one hasn't: only Kevin is told
+      if (B) for (const b of MB) {
+        if (b.key === key || !monthsOf(b.month, b.span).includes(m)) continue;
+        const O = feedTablero(b.key); if (!O) continue;
+        aviso += O.slots.filter(s => vivo(s) && mesDe(s, O) === m && !B.slots.some(x => x.id === s.id)).length;
+      }
+      const nuevo = i === 0 && !!B;     // the newest month: its board's pinned posts and fillers on top (D-002, D-049)
+      const sinPins = !nuevo && key === newest;   // the newest board's pinned posts go on top only, once
+      out.push({ m, key, B, src: 'tab', nuevo, sinPins, aviso, firma: `${nuevo ? 1 : 0}|${sinPins ? 1 : 0}|${aviso}` });
+    });
+    // Notion: the month before a board, when no board holds it (only to look)
+    for (const b of MB) {
+      const B = feedTablero(b.key); if (!B || !B.month) continue;
+      const pm = prevMonth(B.month), pp = pastPosts(B); if (!pp.length || own.has(pm) || out.some(e => e.m === pm)) continue;
+      out.push({ m: pm, key: b.key, B, src: 'notion', nuevo: false, aviso: 0, firma: 'n' });
+    }
+    return out.sort((a, b) => (a.m < b.m ? 1 : a.m > b.m ? -1 : 0));
+  }
+  function notionHTML(p, pill) {         // a Notion post: only to look (no window, no dragging); its thumbnail when it comes into sight
+    const icon = typeIcon(p.type, 0), url = M.pastThumbs[p.id];
+    const ph = url ? `<img data-pmini="${esc(p.id)}" decoding="async" alt="">` : `<div class="ph"><b>${esc(shortLabel(p.name, p.type))}</b><span>${esc(fmtDate(p.date, true))} · ${M.pastPending[p.id] ? 'cargando…' : 'sin imagen en Notion'}</span></div>`;
+    return `<div class="cell past notion${url ? '' : ' nophoto'}" data-notion="${esc(p.id)}" title="${esc(p.name)} · de Notion: solo para mirar">${ph}${badgesHTML(null, pill)}${icon ? `<span class="ico">${icon}</span>` : ''}<span class="pdate">${esc(fmtDate(p.date, true))}</span></div>`;
+  }
+  // one month's html: its posts (cellHTML with its own board), the label on its newest one; -> {html, n, hasta}
+  function mesHTML(e, now) {
+    const B = e.B, cd = cdOf(B.cycleDay);
+    let hasta = 0; const futuro = iso => { const t = ts(iso); if (t > now && (!hasta || t < hasta)) hasta = t; };
+    if (e.src === 'notion') {
+      const L = pastPosts(B).slice().sort((a, b) => ts(b.date) - ts(a.date)), et = feedEtiqueta(e.m, cd);
+      return { html: L.map((p, i) => notionHTML(p, i ? '' : et)).join(''), n: L.length, hasta: 0 };
+    }
+    const pin = e.nuevo || e.sinPins ? new Set(pinsOf(B)) : new Set();
+    const L = (e.nuevo ? feedOrder(B) : B.slots.filter(vivo)).filter(s => e.nuevo && pin.has(s.id) ? true : !pin.has(s.id) && mesDe(s, B) === e.m);
+    let puesta = false;
+    const cells = L.map(s => {
+      futuro(s.date); if (s.estado && s.estado.fecha) futuro(s.estado.fecha);
+      const p = (e.nuevo && pin.has(s.id)) || puesta ? '' : (puesta = true, e.aviso ? { t: feedEtiqueta(e.m, cd), aviso: e.aviso } : feedEtiqueta(e.m, cd));
+      return cellHTML(s, p, B, true);
+    });
+    if (e.nuevo) { const F = fillersOf(B); cells.splice(pin.size, 0, ...Array.from({ length: F }, (_, k) => fillerHTML(k, B))); }
+    return { html: cells.join(''), n: cells.length, hasta };
+  }
+  // the html of the whole feed drawn again from nothing (for the battery: a drawing by comparison, lesson 20)
+  function feedHTMLEntero() { const now = ahora(); return feedMeses().filter(e => e.B).map(e => `<${e.m}>` + mesHTML(e, now).html).join(''); }
+  function feedHTMLGuardado() { return feedMeses().filter(e => e.B && FMEM.has(e.m)).map(e => `<${e.m}>` + FMEM.get(e.m).html).join(''); }
+  // its photos: the open board's (and any already made) at once; the others when they come into sight (blob: has no lazy loading)
+  function feedFotos(w, ya) {
+    const feed = w.closest('.feed');
+    w.querySelectorAll('img[data-mini], img[data-pmini]').forEach(im => {
+      const pid = im.dataset.pmini, f = !pid && M.files[im.dataset.mini];
+      if (pid ? false : f && (ya || URLS_MINI.has(f))) { im.src = f.thumbUrl || ''; return; }
+      if (!feed) return;
+      if (!feed._io) feed._io = new IntersectionObserver(es => es.forEach(x => {
+        if (!x.isIntersecting) return;
+        const t = x.target; feed._io.unobserve(t);
+        if (t.dataset.pmini) { const u = M.pastThumbs[t.dataset.pmini]; if (u) t.src = u; return; }
+        const id = t.dataset.mini, g = M.files[id]; if (!g) return;
+        if (NUBE.pedirMini && URL_HUECO.has(id)) NUBE.pedirMini(id);   // with the cloud, asked only for what is seen
+        t.src = g.thumbUrl || '';
+      }), { root: feed, rootMargin: '600px 0px' });
+      feed._io.observe(im);
+    });
+  }
+  function ponerMes(w, html, esS) {     // a Nota being edited in its cell keeps that cell (its accent and its own undo)
+    const live = esS && memoEdit && w.querySelector(`.pit.edit[data-memo="${cssq(memoEdit)}"]`), keep = live && live.closest('.cell');
     if (keep) {
       const tpl = document.createElement('div'); tpl.innerHTML = html;
       const nodes = [...tpl.children], k = nodes.findIndex(n => n.dataset.slot === memoEdit);
-      [...grid.children].forEach(n => { if (n !== keep) n.remove(); });
-      nodes.forEach((n, i) => { if (i < k) grid.insertBefore(n, keep); else if (i > k) grid.appendChild(n); });
+      [...w.children].forEach(n => { if (n !== keep) n.remove(); });
+      nodes.forEach((n, i) => { if (i < k) w.insertBefore(n, keep); else if (i > k) w.appendChild(n); });
       memoStale = true;
+      feedFotos(w, esS); return true;
     } else {
-      grid.innerHTML = html;
-      const pin = memoEdit && grid.querySelector(`.pitin[data-slot="${cssq(memoEdit)}"]`); if (pin) fitPit(pin);
+      w.innerHTML = html;
+      const pin = esS && memoEdit && w.querySelector(`.pitin[data-slot="${cssq(memoEdit)}"]`); if (pin) fitPit(pin);
     }
+    feedFotos(w, esS); return false;
+  }
+  let cargaResto = null;                // the client's other boards, read once after the open one is drawn (read only)
+  function feedCargarResto() {
+    if (cargaResto || !S || MOVIL) return cargaResto;
+    const c = curClient, falta = () => MB.filter(b => b.key !== S.key && !MEM.tab.has(b.key)).map(b => b.key);
+    if (!falta().length) return null;
+    cargaResto = (async () => {
+      await new Promise(r => setTimeout(r, 0));   // after the open month is painted
+      sinPedirMini++;
+      try { await conTableros(async () => { for (const k of falta()) { if (curClient !== c || !S) return; await memLeer(k); } })(); }
+      catch (e) { console.warn('feed:', e); }
+      finally { sinPedirMini--; cargaResto = null; }
+      if (curClient === c && S && shellReady()) { renderFeed(); if (!feedMovido) feedIr(mesActivo, { instantaneo: true }); }
+    })();
+    return cargaResto;
+  }
+  let feedMovido = false;               // Kevin moved the feed since it was placed (a board read later doesn't take him back)
+  function renderFeed() {
+    if (!S || !shellReady()) return;
+    const grid = root.querySelector('.feed .grid'); if (!grid) return;
+    if (memoEdit && !S.slots.some(s => s.id === memoEdit)) memoEdit = null;
+    const L = feedMeses(), now = ahora(), cm = root.classList.contains('client');
+    [...grid.children].forEach(n => { if (!n.classList.contains('fmes')) n.remove(); });
+    const ya = new Map([...grid.children].map(n => [n.dataset.mes, n]));
+    let estructura = false; const plan = [];
+    for (const e of L) {                // first what each month draws (nothing in the page changes yet)
+      const w = ya.get(e.m);
+      if (!e.B) { if (w) plan.push({ e, w }); continue; }   // its board not read yet: what showed stays
+      const c = FMEM.get(e.m), esS = e.B === S;
+      const r = c && !esS && c.key === e.key && c.B === e.B && c.esS === esS && c.cm === cm && c.firma === e.firma && !(c.hasta && now >= c.hasta) ? c
+        : { key: e.key, B: e.B, esS, cm, firma: e.firma, src: e.src, ...mesHTML(e, now) };
+      FMEM.set(e.m, r);
+      if (!w || w._n !== r.n) estructura = true;
+      plan.push({ e, w, r });
+    }
+    const quedan = new Set(plan.map(x => x.e.m));
+    ya.forEach((w, m) => { if (!quedan.has(m)) estructura = true; });
+    // a month added or one that changed its number of cells: what is in sight stays in sight (lesson 297)
+    const feed = grid.closest('.feed');
+    let ancla = null;
+    if (estructura && feed && feed.scrollTop > 0) {
+      const ft = feed.getBoundingClientRect().top;
+      for (const c of grid.querySelectorAll('.cell')) { const t = c.getBoundingClientRect(); if (t.bottom > ft) { ancla = { el: c, top: t.top }; break; } }
+    }
+    let prev = null;
+    for (const { e, w: w0, r } of plan) {
+      let w = w0;
+      if (!w) { w = document.createElement('div'); w.className = 'fmes'; w.dataset.mes = e.m; }
+      if (w.dataset.tablero !== e.key) w.dataset.tablero = e.key;
+      if (e.src === 'notion') w.dataset.notion = '1'; else delete w.dataset.notion;
+      if (r && w._h !== r.html) { const kept = ponerMes(w, r.html, r.esS); w._h = kept ? null : r.html; w._n = r.n; }   // kept: drawn again whole once the Nota's editing ends
+      else if (r && r.esS && !w._ya) feedFotos(w, true);
+      w._ya = !!(r && r.esS);
+      const ref = prev ? prev.nextSibling : grid.firstChild; if (w !== ref) grid.insertBefore(w, ref);
+      prev = w;
+    }
+    ya.forEach((w, m) => { if (!quedan.has(m)) { w.remove(); FMEM.delete(m); } });
+    if (ancla && ancla.el.isConnected) { const d = ancla.el.getBoundingClientRect().top - ancla.top; if (d) feed.scrollTop += d; }
     if (hov.id) hov.t = Date.now();          // a redrawn post-it opens again after its 0.5 s
     pdRefresh();
     fitGrid();
     calRender();
     hsRender();
     dlRender();
+    if (MB.some(b => b.key !== S.key && !MEM.tab.has(b.key))) feedCargarResto();
   }
   // «Abrir todas las notas» / «Cerrar todas las notas» live in the feed's right click (D-282; before, an icon of the bar, D-152)
   function alternarNotas() { memosOpen = !memosOpen; root.classList.toggle('memos', memosOpen); renderFeed(); }
@@ -3763,6 +3897,7 @@ ${TK_FUENTES}
     const feed = root.querySelector('.feed'); if (!feed || typeof ResizeObserver !== 'function') return;
     M._ro = new ResizeObserver(() => fitGrid());
     M._ro.observe(feed);
+    ['wheel', 'pointerdown', 'keydown', 'touchstart'].forEach(t => feed.addEventListener(t, () => { feedMovido = true; }, { passive: true }));   // Kevin moved it (pieza 3a)
   }
   // What a tray shows (D-041), the mesa's and the free editor's alike: the client's tray, a photo once, each with its mark
   // (D-122): c = 'p0' | 'p1' | 'p2' (a cover, dark to light blue) | 'r' (orange) | '' and u = it has one (it counts as
@@ -7189,6 +7324,7 @@ ${TK_FUENTES}
     // plan() right after init still knows if a design is out of date
     if (M.diseno && M.diseno.prepararKits && S.slots.some(s => s.design)) { render(); await M.diseno.prepararKits(S); }
     render();
+    feedMovido = false; feedIr(mesActivo, { instantaneo: true });   // placed on its month (D-121; pieza 3a)
     usoS = null; usosOtros();         // the photos in use (D-022): this board on the first warning, the client's other boards now
     vencArrancar(); vencSig = ''; vencFuera = []; vencDe = null; vencRevisar(true).catch(e => console.warn('vencidas:', e));   // the Programadas that are due, and the vencidas (D-120)
     if (missing.length) toast(`${missing.length} foto(s) guardadas ya no estaban disponibles y se han quitado.`);
@@ -8738,7 +8874,7 @@ ${TK_FUENTES}
     const feed = e.target.closest('.main > .feed'); if (!feed) return;
     if (e.type === 'keydown') {
       if (!(e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) || !e.target.matches('.feed > .grid')) return;
-      const c = feed.querySelector('.grid > .cell'), r = (c || e.target).getBoundingClientRect();
+      const c = feed.querySelector('.grid .cell'), r = (c || e.target).getBoundingClientRect();
       if (menuFeed(r.left + 12, r.top + 12, c && c.dataset.filler != null ? +c.dataset.filler : null, e.target)) { e.preventDefault(); e.stopPropagation(); }
       return;
     }
@@ -9280,7 +9416,7 @@ ${TK_FUENTES}
     // the client's boards in memory (feed continuo, pieza 1; nothing uses them yet): leer(key) and leerCliente(client) read the copies
     // (without writing), ver(key) gives one already read or null, soltar() lets them all go
     mesActivo: { lee: () => mesActivo, quien: () => mesQuien, pon: (m, quien) => mesPoner(m, quien) },   // the active month (feed continuo, pieza 3a)
-    feedPunto, feedIr: (m, o) => feedIr(m, o), feedDueno,   // a month's point in the feed and going there (pieza 3a; pieza 5 animates it)
+    feedPunto, feedIr: (m, o) => feedIr(m, o), feedDueno, feedHTMLEntero, feedHTMLGuardado, feedCargar: () => feedCargarResto() || Promise.resolve(),   // a month's point in the feed and going there (pieza 3a; pieza 5 animates it)
     activar,   // another month of the open client becomes the open board, without opening it again (feed continuo, pieza 2)
     tablerosMem: { leer: conTableros(memLeer), leerCliente: conTableros(memLeerCliente), ver: k => (MEM.tab.get(k) || {}).tablero || null, soltar: memSoltar, claves: () => [...MEM.tab.keys()] }
   };

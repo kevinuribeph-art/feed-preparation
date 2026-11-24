@@ -3732,7 +3732,7 @@ ${TK_FUENTES}
           ancla = { j: b.j, st: b.st }; desv = null; pedir(); o.asentado(b.j); return;
         }
       }
-      o.asentado(v(s));
+      o.asentado(base(s));                // the month of where the feed is (pieza 10, D-338): not the strip's offset left by centring it at rest
     }
     function alScroll() {
       sC = sc.scrollTop;
@@ -3837,7 +3837,7 @@ ${TK_FUENTES}
   // month touched, activar said no), the strip goes back to it smoothly, without moving the feed
   function movActivo(i) {               // (also «sin crear» never stays in the pill: the strip rests on the active month's hueco)
     if (!MOVM || movDecid || !MOVM.quieto() || i < 0) return;
-    if (Math.round(MOVM.v()) !== i) MOVM.volver(i);
+    if (Math.abs(MOVM.v() - i) > 0.002) MOVM.volver(i);   // at rest the active month whole and centred in the pill, also between two points (pieza 10, D-338); the feed doesn't move
   }
   // Kevin's scroll has settled at v: the active month changes once, to the month in the pill; nothing is written (no mesa-last*), no
   // notice if it can't (a window, a menu, a field, a drag, the editor, a job): the strip goes back to the active month

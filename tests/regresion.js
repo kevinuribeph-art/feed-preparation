@@ -24830,6 +24830,44 @@
       }
     } finally { await limpiar(); }
   });
+  // ---------- feed continuo, pieza 10: lo que Kevin decidió tras la revisión ----------
+  const fnPild = () => { const p = q('.bar .mescab .mescab-pild').getBoundingClientRect(), a = M._in.mesActivo.lee(), e = q(`.bar .mescab .mescab-pild .mescab-mes[data-mes="${a}"], .bar .mescab .mescab-pild [data-mes="${a}"]`) || [...q('.bar .mescab .mescab-pild').querySelectorAll('.mescab-mes')][fjJ(a)];
+    const r = e.getBoundingClientRect(); return { centro: (r.left + r.right) / 2 - (p.left + p.right) / 2, entero: r.left >= p.left - 0.5 && r.right <= p.right + 0.5, nombre: e.textContent }; };
+  async function fnCentrada(que, y) {
+    const t0 = performance.now(); let c;
+    for (;;) { await fjCuadro(); c = fnPild(); if (Math.abs(c.centro) <= 1 && c.entero) break; if (performance.now() - t0 > 150 + 450 + 80) break; }
+    ok(Math.abs(c.centro) <= 1 && c.entero, `${que}: «${c.nombre}» no quedó entero y centrado en la píldora (desvío ${c.centro.toFixed(1)} px)`);
+    await fjQuieto(300); igual(fjFeed().scrollTop, y, `${que}: el feed se movió`);
+  }
+  prueba('FN1', 'Al parar lejos del punto de un mes, la tira se centra sola en el mes activo (feed continuo, pieza 10; D-338): en tres sitios entre dos puntos el nombre queda entero y centrado en la píldora y el feed no se mueve; al volver a deslizar la tira sigue al feed sin saltos; con «reducir movimiento», al instante; en la «Vista cliente», igual; con un menú abierto, la tira vuelve al mes abierto', async () => {
+    try {
+      await fjSeis(); const P = fjPuntos(), fila = fjMov().filaH, W0 = M._in.cabecera.ancho();
+      ok(P['2026-09'] - P['2026-10'] > 1.4 * fila, 'los puntos de octubre y septiembre están demasiado cerca: la prueba no vale');
+      for (const [que, y, m] of [['cerca de octubre', P['2026-10'] + .5 * fila, '2026-10'], ['a mitad', (P['2026-10'] + P['2026-09']) / 2, null], ['casi en septiembre', P['2026-09'] - .5 * fila, '2026-09']]) {
+        const yy = Math.round(y); await fjA(yy); await fnCentrada(que, yy);
+        if (m) igual(M._in.mesActivo.lee(), m, `${que}: el mes activo no es el que se ve (la tira centrada antes no puede decidirlo)`);
+      }
+      // una fila más: la tira vuelve a seguir al feed, sin saltos
+      const y0 = fjFeed().scrollTop, xs = [fjX()];
+      for (let i = 1; i <= 10; i++) { await fjA(Math.round(y0 + fila * i / 10)); xs.push(fjX()); }
+      const salto = Math.max(...xs.slice(1).map((x, i) => Math.abs(x - xs[i])));
+      ok(salto <= .25 * W0, `al volver a deslizar la tira saltó ${salto.toFixed(1)} px de golpe (hueco ${W0} px): ${xs.map(Math.round).join(' ')}`);
+      await fjQuieto(900);
+      // «reducir movimiento»: al instante
+      M._in.mov.reducir(true);
+      try { const y = Math.round((P['2026-10'] + P[MES]) / 2); await fjA(y); await espera(150 + 60); await fjCuadro(); const c = fnPild(); ok(Math.abs(c.centro) <= 1 && c.entero, `con «reducir movimiento» no se centró al momento (${c.centro.toFixed(1)} px)`); await fjQuieto(300); }
+      finally { M._in.mov.reducir(null); }
+      // en la «Vista cliente»
+      await vistaCliente(true); await fjQuieto(300);
+      { const y = Math.round((P['2026-10'] + P['2026-09']) / 2 + 7); await fjA(y); await fnCentrada('en la «Vista cliente»', y); }
+      await vistaCliente(false); await fjQuieto(300);
+      // con un menú abierto antes de asentarse: no cambia de mes y la tira vuelve al mes abierto
+      const a0 = fgActivo(); await fjA(Math.round((P['2026-07'] + P['2026-09']) / 2));
+      const g = q('.feed .grid'), r = g.getBoundingClientRect(); g.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: r.x + 5, clientY: r.y + 5, view: W }));
+      await fjQuieto(900); igual(fgActivo(), a0, 'con un menú abierto cambió el mes');
+      const c = fnPild(); ok(Math.abs(c.centro) <= 1 && c.entero, 'con un menú abierto la tira no volvió al mes abierto');
+    } finally { M.libre && M.libre.abierto && M.libre.abierto() && M.libre.cerrar(); M._in.closeDetail(); D.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await vistaCliente(false); await limpiar(); }
+  });
 
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;

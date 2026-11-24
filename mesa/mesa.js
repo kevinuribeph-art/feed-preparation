@@ -2864,7 +2864,7 @@ ${TK_FUENTES}
 #mesa .mescab button.mescab-mes:focus-visible{outline:2px solid var(--focus);outline-offset:-3px;border-radius:var(--r-pill)}
 #mesa .mescab-pild{position:absolute;left:var(--mescab-w,64px);top:-1px;bottom:-1px;width:var(--mescab-w,64px);border-radius:var(--r-pill);background:var(--ink);overflow:hidden;pointer-events:none}
 #mesa .mescab-pild>.mescab-tira{top:1px;height:calc(100% - 2px)}#mesa .mescab .mescab-tira2>.mescab-mes{color:var(--on-ink)}
-#mesa .mescab-vent.fpild>.mescab-pild{outline:2px solid var(--focus);outline-offset:-2px}
+#mesa .mescab-vent.fpild>.mescab-pild{outline:2px solid var(--focus);outline-offset:-4px;box-shadow:inset 0 0 0 2px var(--on-ink)}   /* two tones (pieza 8, D-331): the ring on a band of the pill's text colour, ≥ 3:1 in light and dark */
 #mesa .stats{display:flex;gap:4px 14px;font-size:12.5px;color:var(--mute);flex-wrap:wrap}#mesa .stats b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}#mesa .stats .c{color:var(--chg)}#mesa .stats>button{border:0;background:none;padding:0;margin:0;font:inherit;text-align:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}#mesa .stats>button:hover{text-decoration:underline;text-underline-offset:3px}#mesa .stats>button:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:2px}
 #mesa .sw{display:flex;align-items:center;gap:8px;min-height:32px;font-size:12.5px;cursor:pointer;user-select:none;white-space:nowrap;color:var(--ink-2)}
 #mesa .sw input{appearance:none;-webkit-appearance:none;width:32px;height:19px;border-radius:var(--r-pill);background:var(--line-strong);position:relative;cursor:pointer;margin:0;transition:background var(--d2) var(--ease)}

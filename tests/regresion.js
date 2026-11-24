@@ -24729,6 +24729,24 @@
       await vistaCliente(true); await mirar('«Vista cliente»'); await vistaCliente(false);
     } finally { await vistaCliente(false); await limpiar(); }
   });
+  prueba('FM6', 'El aro de foco sobre la píldora (feed continuo, pieza 8; lección 65; D-331): en claro y en oscuro, el aro tiene ≥ 3:1 frente a lo que tiene al lado (la banda del color del texto de la píldora) y esa banda ≥ 3:1 frente a la píldora', async () => {
+    const rgb = c => (/rgba?\(([^)]+)\)/.exec(c) || [0, '0,0,0'])[1].split(',').slice(0, 3).map(Number);
+    const lum = c => { const [r, g, b] = rgb(c).map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+    const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    try {
+      await fjSeis();
+      const mirar = que => {
+        const v = q('.bar .mescab .mescab-vent'), p = q('.bar .mescab .mescab-pild'); v.classList.add('fpild');
+        try {
+          const cs = W.getComputedStyle(p), fondo = cs.backgroundColor, aro = cs.outlineColor, banda = /rgba?\([^)]+\)/.exec(cs.boxShadow || '') ? /rgba?\([^)]+\)/.exec(cs.boxShadow)[0] : null;
+          const junto = banda || fondo;
+          ok(ratio(aro, junto) >= 3, `${que}: el aro ${aro} frente a ${junto} da ${ratio(aro, junto).toFixed(2)}:1`);
+          if (banda) ok(ratio(banda, fondo) >= 3, `${que}: la banda ${banda} frente a la píldora ${fondo} da ${ratio(banda, fondo).toFixed(2)}:1`);
+        } finally { v.classList.remove('fpild'); }
+      };
+      mirar('claro'); await fgOscuro(async () => mirar('oscuro'));
+    } finally { await limpiar(); }
+  });
 
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;

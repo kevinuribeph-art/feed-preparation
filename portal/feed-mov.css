@@ -26,7 +26,7 @@
 .fm-pild{position:absolute;left:var(--fm-w,64px);top:-1px;bottom:-1px;width:var(--fm-w,64px);border-radius:var(--r-pill);background:var(--ink);overflow:hidden;pointer-events:none}
 .fm-pild>.fm-tira{top:1px;height:calc(100% - 2px)}
 .fm-cab .fm-tira2>.fm-mes{color:var(--on-ink)}
-.fm-vent.fpild>.fm-pild{outline:2px solid var(--focus);outline-offset:-2px}
+.fm-vent.fpild>.fm-pild{outline:2px solid var(--acc);outline-offset:-2px}   /* el aro de la píldora en --acc: ≥ 3:1 contra la píldora en claro (negra) y en oscuro (clara); --focus en oscuro daba 2,46:1 (D-P8) */
 /* como la barra de la Mesa a 720 */
 @media (max-width:720px){.fm-cab .fm-fl{height:30px}.fm-vent{height:28px}.fm-cab .fm-mes{line-height:28px;font-size:12px}}
 /* con el dedo: dianas de 44 × 44 (las del portal); la ventana mide 44 y su raya va por dentro (una sombra en vez del borde), así los

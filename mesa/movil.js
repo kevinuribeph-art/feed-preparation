@@ -6,7 +6,7 @@
 // Mesa cogida un momento (lote 4, más abajo).
 (function () {
   'use strict';
-  const VERSION = '1.7';   // 1.7: la página de un cliente de solo contenido en #cli/<cliente>; una ruta vieja de su mes lleva a ella (D-312). 1.6: las marcas del Mac en Hoy y en Tareas, leídas del núcleo (D-300); el aviso en terracota, el error con su triángulo rojo en un disco blanco (D-303). 1.5: «Acuerdos» en Hoy, el aviso de renegociar (D-288); un cliente de solo contenido cuenta y lista sus entregas, y una pasada sale en Hoy (D-290). 1.4: «Cancelar · Guardar» tapa las marcas dibujadas al deslizar la hoja (D-286, probado en el iPhone). 1.3: la hoja sigue al teclado (resize y scroll del visualViewport), el campo del ordenador en notas, «Detalles» y textos de una sesión (D-286) y las marcas de estado del Mac (D-287). 1.2: las listas se leen como en el Mac: viñeta y número en terracota y el separador «⸻» como una línea (D-283). 1.1: los ajustes tras probarla en el iPhone (D-271), editar tareas (D-272) y la sesión entera (D-275)
+  const VERSION = '1.8';   // 1.8: la marca de cambios del Mac desde el último envío a la web, junto al estado de cada publicación y bajo su título (D-355; D-287 la dejó para este encargo). 1.7: la página de un cliente de solo contenido en #cli/<cliente>; una ruta vieja de su mes lleva a ella (D-312). 1.6: las marcas del Mac en Hoy y en Tareas, leídas del núcleo (D-300); el aviso en terracota, el error con su triángulo rojo en un disco blanco (D-303). 1.5: «Acuerdos» en Hoy, el aviso de renegociar (D-288); un cliente de solo contenido cuenta y lista sus entregas, y una pasada sale en Hoy (D-290). 1.4: «Cancelar · Guardar» tapa las marcas dibujadas al deslizar la hoja (D-286, probado en el iPhone). 1.3: la hoja sigue al teclado (resize y scroll del visualViewport), el campo del ordenador en notas, «Detalles» y textos de una sesión (D-286) y las marcas de estado del Mac (D-287). 1.2: las listas se leen como en el Mac: viñeta y número en terracota y el separador «⸻» como una línea (D-283). 1.1: los ajustes tras probarla en el iPhone (D-271), editar tareas (D-272) y la sesión entera (D-275)
   const M = window.MESA, D = document, W = window;
   const fallo = t => { (W.MESA_CARGA = W.MESA_CARGA || {}).movil = 'fallo'; const p = D.getElementById('arranque'); if (p) p.textContent = t; };
   if (!M || !M._in || !M._in.movil || !M._in.movil.activo) { fallo('No se pudo cargar la Mesa. Cierra la app y vuelve a abrirla.'); return; }
@@ -230,6 +230,9 @@
 #movil .pub-h{padding:14px var(--pad) 0}
 #movil .pub-h h1{margin:0;font-size:26px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
 #movil .pub-h .sub{display:flex;align-items:center;gap:8px;margin-top:8px;color:var(--mute);font-size:15px}
+#movil .mkweb{display:inline-block;width:10px;height:10px;margin-left:6px;vertical-align:-1px;flex:none}#movil .mkweb svg,#movil svg.mkweb{display:block;width:10px;height:10px}
+#movil .mkweb circle:nth-child(1),#movil svg.mkweb circle:nth-child(1){fill:#FFCF1F}#movil .mkweb circle:nth-child(2),#movil svg.mkweb circle:nth-child(2){fill:#1F5FD6}#movil .mkweb circle:nth-child(3),#movil svg.mkweb circle:nth-child(3){fill:#E3262B}
+#movil .pub-web{margin:8px 0 0;font-size:15px;line-height:1.4;color:var(--mute)}#movil .pub-web b{font-weight:600;color:var(--ink)}#movil .pub-web svg.mkweb{display:inline-block;margin:0 4px 0 0}
 #movil .grupo{margin:18px var(--pad) 0;border-radius:16px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2);overflow:hidden}
 #movil .campo{position:relative;display:flex;align-items:center;gap:12px;width:100%;min-height:54px;padding:0 12px 0 14px;text-align:left}
 #movil .campo+.campo::before{content:'';position:absolute;left:14px;right:0;top:0;height:1px;background:var(--sep)}
@@ -879,6 +882,9 @@
   const ty = t => `<span class="ty ${TY[t.k] || (t.reel ? 'reel' : 'foto')}">${esc(t.txt)}</span>`;
   const marcaEst = k => X().estIco(k, ' aria-hidden="true"');   // la del Mac, del núcleo (D-287): también para lo que arma el iPhone (lo que tocaría, un cambio que se guarda)
   const est = e => `<span class="es ${esc(e.k)}">${marcaEst(e.k)}${esc(e.txt)}</span>`;
+  // la marca de cambios del Mac desde el último envío a la web (D-355), junto al estado; su texto, para el lector
+  const MK_WEB = '<svg viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="5"/><circle cx="5" cy="5" r="3.4"/><circle cx="5" cy="5" r="1.45"/></svg>';
+  const mkWeb = p => p.web && p.web.cambios.length ? `<i class="mkweb" role="img" aria-label="${esc('Cambió desde que la enviaste: ' + X().listaY(p.web.cambios))}">${MK_WEB}</i>` : '';
   // el monograma: su capa de color se llena de abajo arriba mientras el iPhone baja algo o guarda (D-271, punto 10); en las pantallas
   // con «‹ atrás», uno pequeño a la derecha de la barra que solo sale entonces (variante B)
   const mono = mini => `<span class="mono-w${mini ? ' mini' : ''}" data-mono${mini ? ' hidden' : ''}><img class="mono" src="portal/marca/monograma.svg" alt="${mini ? '' : 'Uribe Visuals'}" width="30" height="30"><img class="mono mono-ll" src="portal/marca/monograma.svg" alt="" aria-hidden="true" width="30" height="30"></span>`;
@@ -1119,7 +1125,7 @@
     const e = p.tocaria ? { k: 'publicado', txt: 'Publicado' } : p.estado;
     const extra = n ? ` · <span class="acc">${esc(plural(n, 'comentario', 'comentarios'))}</span>` : '';
     const tp = X().tipoPost({ type: p.tipo.k, photos: p.fotos }), ico = p.tipo.txt === 'Foto' ? '' : tp.ico;
-    return fila({ a: `data-ir="pub/${esc(v.key)}/${esc(p.id)}"`, izq: `<span class="ft">${foto(p.portada, 60, p.recortes[0])}${ico ? `<span class="tyi">${ico}</span>` : ''}</span>`, t1: `${esc(p.nombre)} ${ty(p.tipo)}`, t2: `${p.vencida && !n ? '<span class="roja">vencida</span> · ' : ''}${est(e)}${extra}`, hr: p.fecha.hora || (p.fecha.sinHora ? 'Sin hora' : ''), hrRoja: p.vencida });
+    return fila({ a: `data-ir="pub/${esc(v.key)}/${esc(p.id)}"`, izq: `<span class="ft">${foto(p.portada, 60, p.recortes[0])}${ico ? `<span class="tyi">${ico}</span>` : ''}</span>`, t1: `${esc(p.nombre)} ${ty(p.tipo)}`, t2: `${p.vencida && !n ? '<span class="roja">vencida</span> · ' : ''}${est(e)}${mkWeb(p)}${extra}`, hr: p.fecha.hora || (p.fecha.sinHora ? 'Sin hora' : ''), hrRoja: p.vencida });
   }
   function diaFila(v, d, n) {
     const r = relativo(d), hs = v.historias.filter(h => !h.cancelada && h.fecha.dia === d).length;
@@ -1215,7 +1221,8 @@
     let html = top({ ...volverPub(v, p), t: nombreCli(v.client) }) + `<main class="main sin-tabs" id="contenido">`;
     html += `<div class="car" style="--r:${ratio}" aria-roledescription="carrusel" aria-label="Fotos de ${esc(p.nombre)}">` + (n ? `<div class="tira" data-car>${p.fotos.map((f, i) => `<div class="lam" style="--r:${ratio}" role="group" aria-label="Foto ${i + 1} de ${n}">${foto(f, Math.min(600, W.innerWidth || 440), p.recortes[i])}</div>`).join('')}</div>${n > 1 ? `<span class="cnt num" data-cnt>1 / ${n}</span>` : ''}` : `<div class="lam" style="--r:${ratio};position:relative"><span class="hueco">${ic('nube')}<span>Sin foto todavía</span></span></div>`) + `</div>`;
     if (n > 1) html += `<div class="puntos" aria-hidden="true">${p.fotos.map((_, i) => `<i${i === 0 ? ' class="on"' : ''}></i>`).join('')}</div>`;
-    html += `<div class="pub-h"><h1>${esc(p.nombre)}</h1><div class="sub">${ty(p.tipo)}${est(e)}${p.tocaria ? '<span class="es toca">· se marca en el escritorio</span>' : ''}</div></div>`;
+    const web = p.web && p.web.cambios.length ? `<p class="pub-web">${MK_WEB.replace('<svg', '<svg class="mkweb"')} Cambió desde el envío del ${esc(diaCorto(X().localDay(p.web.enviada)).toLowerCase())}: <b>${esc(X().listaY(p.web.cambios))}</b></p>` : '';
+    html += `<div class="pub-h"><h1>${esc(p.nombre)}</h1><div class="sub">${ty(p.tipo)}${est(e)}${p.tocaria ? '<span class="es toca">· se marca en el escritorio</span>' : ''}</div>${web}</div>`;
     if (p.estado.k === 'cancelado') html += `<div class="aviso gris">${ic('x')}<span>${p.motivo ? 'Cancelada: ' + esc(p.motivo) : 'Cancelada, sin motivo.'}</span></div>`;
     else if (p.vencida) html += `<div class="aviso rojo">${ic('reloj')}<span>Su hora ya pasó sin publicarse.</span></div>`;
     const offline = sinRed() ? ' disabled' : '';

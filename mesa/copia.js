@@ -15,7 +15,7 @@
 (function copiaBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
-  const VERSION = '1.4';   // 1.4: a client's agreements go with it, the packages in the general file (D-305, D-307). 1.3: the deliveries of a «Solo contenido» client go with it (D-290). 1.2: each file of a copy written with its own bytes, never a piece of the .tar; 200 MB a file at most (D-279)
+  const VERSION = '1.5';   // 1.5: el estilo de cada cliente y lo enviado a su web van en su archivo (D-356, D-355). 1.4: a client's agreements go with it, the packages in the general file (D-305, D-307). 1.3: the deliveries of a «Solo contenido» client go with it (D-290). 1.2: each file of a copy written with its own bytes, never a piece of the .tar; 200 MB a file at most (D-279)
   const I = () => M._in, X = () => M._in.xfer;
   if (M.copia && M.copia._off) { try { M.copia._off(); } catch (e) { /* */ } }
   const FORMATO = 'mesa-copia', V = 1;
@@ -169,6 +169,8 @@
     for (const par of R.entregas || []) poner('entregas', par, [par[1] && par[1].cliente]);   // a «Solo contenido» client's deliveries (D-290)
     for (const par of R.acuerdos || []) poner('acuerdos', par, [par[1] && par[1].cliente]);   // a client's agreements (D-305)
     for (const par of R.paquetes || []) poner('paquetes', par, []);   // the packages, in the general file (D-307)
+    for (const par of R.estilos || []) poner('estilos', par, [par[1] && par[1].cliente]);   // each client's style, in its file (D-356)
+    for (const par of R.enviados || []) poner('enviados', par, [par[1] && par[1].cliente]);   // what went to its web (D-355)
     return [...amb.values()].filter(a => a.tipo === 'general' || A.some(n => a.recs[n].length));
   }
 
@@ -464,6 +466,7 @@
         cobros: vals('cobros').filter(r => r && txt(r.id) && txt(r.cliente) && fechaOk(r.at)), meses: vals('meses').filter(r => r && txt(r.cliente) && /^\d{4}-\d{2}$/.test(r.mes || '') && fechaOk(r.at)),
         entregas: (raw.entregas ? vals('entregas') : []).filter(r => r && txt(r.id) && txt(r.cliente) && fechaOk(r.at)),   // D-290
         acuerdos: (raw.acuerdos ? vals('acuerdos') : []).filter(r => X().acuRecValido ? X().acuRecValido(r) : false), paquetes: (raw.paquetes ? vals('paquetes') : []).filter(r => X().paqRecValido ? X().paqRecValido(r) : false),   // D-305, D-307: as «Importar» checks them in a .json
+        estilos: (raw.estilos ? vals('estilos') : []).filter(r => X().estRecValido ? X().estRecValido(r) : false), enviados: (raw.enviados ? vals('enviados') : []).filter(r => X().envRecValido ? X().envRecValido(r) : false),   // D-356, D-355
         cfacturas: vals('cfacturas').map(f => ({ ...f, data: f.blob })),
         files: Object.fromEntries([...raw.files].filter(([k]) => !k.startsWith('past:')).map(([k, v]) => [k, { ...v, data: v && v.blob }])), past: {},
         copia: { raw, info }

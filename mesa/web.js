@@ -5,7 +5,7 @@
 (function webBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
-  const VERSION = '1.9';   // 1.9: what was read of each month of the open client is kept while the active month changes (feed continuo, D-317); an older board's pinned posts go by their date (D-327). 1.8: un cliente de solo contenido se envía por cliente, desde su página: todas sus sesiones y su huella por cliente (D-312). 1.7: el acuerdo de hoy de cuándo a cuándo, si se renueva, su paquete y lo que incluye (D-308). 1.6: el enlace de métricas (D-294); el acuerdo, el tramo de cada factura, la reunión con el ojo abierto y las entregas de un cliente de solo contenido (D-297); M.web.hilo, lo ya leído de una publicación para su ventana en la «Vista cliente» (D-295). 1.5: la cuota solo si paga cada mes y cada factura por su primer mes (D-288); una reunión no se envía (D-291). 1.4: en el iPhone (D-267) no arranca solo; conversacion(B), contestar(B, slot, texto) y leido(pid, hora) para su cara, nunca estadoWeb ni lecturas (R2); «desde el escritorio». 1.3: con la entrada de la Mesa (D-262) no hay código por correo aquí: sin sesión, la Mesa vuelve a su entrada
+  const VERSION = '1.10';   // 1.10: «Web al día» / «Web: N cambios» abre la lista de lo que el cliente verá distinto, con «Enviar»; lo enviado se apunta campo a campo y, lo de antes, se toma del servidor (D-355). 1.9: what was read of each month of the open client is kept while the active month changes (feed continuo, D-317); an older board's pinned posts go by their date (D-327). 1.8: un cliente de solo contenido se envía por cliente, desde su página: todas sus sesiones y su huella por cliente (D-312). 1.7: el acuerdo de hoy de cuándo a cuándo, si se renueva, su paquete y lo que incluye (D-308). 1.6: el enlace de métricas (D-294); el acuerdo, el tramo de cada factura, la reunión con el ojo abierto y las entregas de un cliente de solo contenido (D-297); M.web.hilo, lo ya leído de una publicación para su ventana en la «Vista cliente» (D-295). 1.5: la cuota solo si paga cada mes y cada factura por su primer mes (D-288); una reunión no se envía (D-291). 1.4: en el iPhone (D-267) no arranca solo; conversacion(B), contestar(B, slot, texto) y leido(pid, hora) para su cara, nunca estadoWeb ni lecturas (R2); «desde el escritorio». 1.3: con la entrada de la Mesa (D-262) no hay código por correo aquí: sin sesión, la Mesa vuelve a su entrada
   const I = () => M._in;
   if (M.web && M.web._off) { try { M.web._off(); } catch (e) { /* una versión anterior ya no está */ } }
   const OFF = [];
@@ -48,6 +48,7 @@
     const fotos = [X.publishList(s), X.cropSig(s, B)], contenido = [TIPO[s.type] || 'foto', nombre, fecha, sinHora, caption, ...fotos];
     return {
       s, pid: await pidDe(B.client, s.id), version: await sha(JSON.stringify(contenido)), firmaFotos: await sha(JSON.stringify(fotos)),
+      firma: X.webFirma ? X.webFirma(s, B) : null,   // lo enviado, campo a campo, para la marca de cambios (D-355)
       fila: { cliente_id: B.client, mes: mesNatural(s.date) || B.month, orden: vivo ? orden : 999, tipo: TIPO[s.type] || 'foto', nombre: nombre.slice(0, 80),
         fecha, sin_hora: sinHora, caption: caption.slice(0, 2200), estado: vivo ? (ESTADO[X.estadoDe(s)] || 'preparando') : 'preparando', visible: vivo },
     };
@@ -186,7 +187,7 @@
   async function leerServidor(cli, B) {
     const c = sb(); if (!c || !c.usuario()) return null;
     const ms = B && !B.contenido ? [...new Set([...(I().boardMonths ? I().boardMonths(B) || [] : []), ...B.slots.map(s => mesNatural(s.date)).filter(Boolean)])] : [];   // de solo contenido, todas (D-312)
-    const l = await c.leer(`publicaciones?cliente_id=eq.${encodeURIComponent(cli)}&select=pid,version,estado,orden,visible,mes,nombre,fecha,sin_hora,caption,tipo,imagenes` + (ms.length ? `&mes=in.(${ms.map(m => `"${m}"`).join(',')})` : ''));
+    const l = await c.leer(`publicaciones?cliente_id=eq.${encodeURIComponent(cli)}&select=pid,version,estado,orden,visible,mes,nombre,fecha,sin_hora,caption,tipo,imagenes,enviada` + (ms.length ? `&mes=in.(${ms.map(m => `"${m}"`).join(',')})` : ''));
     return new Map((l || []).map(r => [r.pid, r]));
   }
   const igual = (p, r) => r && r.version === p.version && r.estado === p.fila.estado && r.orden === p.fila.orden && r.visible === p.fila.visible && r.mes === p.fila.mes;
@@ -226,10 +227,27 @@
       const errorAntes = st.error; st.error = '';
       if (firma === st.firma && st.cambios != null) { if (errorAntes) X.renderBar(); return; }
       const sobran = await sobranDe(B, pubs, st.servidor); if (tablero() !== B) return;
+      await aprender(B, pubs, st.servidor); if (tablero() !== B) return;
+      linea();   // «Aún no está en la web», ahora que se sabe, después de apuntar lo enviado antes (D-355)
       st.firma = firma;
       const n = pubs.filter(p => !igual(p, st.servidor.get(p.pid))).length + sobran.length + st.extra;
       if (n !== st.cambios || errorAntes) { st.cambios = n; X.renderBar(); }
     } catch (e) { const m = String(e.message || e); if (m !== st.error) { st.error = m; X.renderBar(); } }
+  }
+  // Lo enviado antes de la 4.54 no está apuntado aquí: se toma del servidor, que es lo que ve el cliente (sus fotos, solo si la
+  // publicación sigue igual: si no, no se sabe y la marca no dice «foto o encuadre») (D-355)
+  function linea() {
+    const X = I(), d = X.root().querySelector('.detail');
+    if (d && !d.hidden && d.dataset.slot && X.pnotHTML && X.slot) { const pn = d.querySelector('.phead .pnot'), s0 = X.slot(d.dataset.slot); if (pn && s0) { const h = X.pnotHTML(s0); if (pn.outerHTML !== h) pn.outerHTML = h; } }
+  }
+  async function aprender(B, pubs, serv) {
+    const X = I(); if (!X.envPoner || !X.envDe || X.locked || MOVIL) return;
+    const L = pubs.filter(p => p.firma && !X.envDe(p.s, B) && serv.get(p.pid)).map(p => {
+      const r = serv.get(p.pid);
+      return { cliente: B.client, slot: p.s.id, caption: String(r.caption || '').slice(0, 2200), nombre: String(r.nombre || '').slice(0, 80), tipo: String(r.tipo || ''), fecha: X.webFecha(r.fecha),
+        sinHora: !!r.sin_hora, fotos: igual(p, r) ? p.firma.fotos : null, estado: String(r.estado || ''), orden: Number.isInteger(r.orden) ? r.orden : 0, visible: !!r.visible, at: X.webFecha(r.enviada) || new Date().toISOString() };
+    });
+    if (L.length) await X.envPoner(L).catch(() => 0);
   }
   let repasoT = 0;
   const pedirRepaso = () => { clearTimeout(repasoT); repasoT = setTimeout(() => { repaso(true).catch(() => { /* lo dice st.error */ }); }, 300); };
@@ -242,8 +260,9 @@
     if (st.enviando) return `<span class="mchip webbtn quieto" aria-live="polite" aria-busy="true"><span><span class="w2">Enviando a la web…</span><span class="w2n">Web…</span>${st.enviando.total ? ` ${st.enviando.hechos}/${st.enviando.total}` : ''}</span></span>`;
     if (st.error) return `<button type="button" class="mchip webbtn mal" data-web="repasar" title="${esc(st.error)}. Pulsa para volver a intentarlo"><span>Web: <span class="w2">no se pudo leer</span><span class="w2n">error</span></span></button>`;
     if (st.cambios == null) return '<span class="mchip webbtn quieto" aria-busy="true"><span>Web: leyendo…</span></span>';
-    if (!st.cambios) return '<button type="button" class="mchip ghost webbtn" data-web="enviar" title="La web del cliente enseña lo mismo que este tablero. Pulsa para comprobarlo y enviar otra vez"><span>Web: al día</span></button>';
-    return `<button type="button" class="mchip webbtn hay" data-web="enviar" title="Envía a la web del cliente lo que ha cambiado en este tablero (${st.cambios} ${st.cambios === 1 ? 'cambio' : 'cambios'})"><span>Web: ${st.cambios}<span class="w1"> ${st.cambios === 1 ? 'cambio' : 'cambios'}</span><span class="w2"> sin enviar</span><span class="w1"> · Enviar</span></span></button>`;
+    // un solo indicador (decisión de Kevin del 21/11/2026, D-355): «Web al día» o «Web: N cambios»; un clic abre la lista, y en ella «Enviar»
+    if (!st.cambios) return '<button type="button" class="mchip ghost webbtn" data-web="lista" title="La web del cliente enseña lo mismo que este tablero. Pulsa para ver el último envío"><span>Web al día</span></button>';
+    return `<button type="button" class="mchip webbtn hay" data-web="lista" title="Lo que el cliente aún no ve. Pulsa para ver la lista y enviarlo"><span>Web: ${st.cambios}<span class="w1"> ${st.cambios === 1 ? 'cambio' : 'cambios'}</span></span></button>`;
   }
 
   // ---------- Enviar ----------
@@ -338,6 +357,8 @@
         await c.borrar(`entregas?cliente_id=eq.${ce}` + (P.entregas.length ? `&id=not.in.(${P.entregas.map(x => `"${x.id}"`).join(',')})` : ''));
       }
       lsS(claveHuella(B), await huellaExtra(P));
+      const ahoraIso = new Date().toISOString();   // lo enviado de cada publicación, campo a campo: la marca y la lista cuentan desde aquí (D-355)
+      if (X.envPoner) await X.envPoner(P.publicaciones.filter(p => p.firma).map(p => ({ cliente: cli, slot: p.s.id, ...p.firma, estado: p.fila.estado, orden: p.fila.orden, visible: p.fila.visible, at: ahoraIso }))).catch(() => 0);
       st.servidor = await leerServidor(cli, B); st.clave = B.key; st.cliente = cli; st.firma = ''; st.cambios = null; st.extra = 0; st.extraT = Date.now(); st.error = '';
       toast(P.contenido ? `Enviado a la web del cliente: ${P.entregas.length} ${P.entregas.length === 1 ? 'entrega' : 'entregas'}` : `Enviado a la web del cliente: ${filasPub.filter(f => f.visible).length} publicaciones`);
       return { ok: true, publicaciones: filasPub.filter(f => f.visible).length, ocultas: sobran.length, imagenes: [...imgs.values()].reduce((n, l) => n + l.length, 0), subidas };
@@ -398,9 +419,50 @@
     e.preventDefault(); e.stopPropagation();
     const a = b.dataset.web;
     if (a === 'entrar') entrar();
-    else if (a === 'enviar') enviar();
+    else if (a === 'enviar') { if (b.closest('.detail[data-dlg="webcambios"]')) I().closeDetail(); enviar(); }
+    else if (a === 'lista') abrirLista();
+    else if (a === 'abrir') { const X = I(), id = b.dataset.slot; X.closeDetail(); if (id && X.slot && X.slot(id)) X.openDetail(id, 0); }
     else if (a === 'salir') M.web.salir();
     else if (a === 'repasar') { st.error = ''; st.servidor = null; st.firma = ''; st.extra = null; st.cambios = null; I().renderBar(); pedirRepaso(); }
+  }
+
+  // ---------- La lista de «Web: N cambios» (D-355) ----------
+  // Lo mismo que cuenta la barra (las publicaciones que no son como en el servidor, las que sobran y lo demás del tablero), cada
+  // una una vez, con lo que el cliente verá distinto. Del servidor, que es lo que ve el cliente; la foto o el encuadre, de lo
+  // apuntado al enviar (o, sin eso, cuando cambió la publicación y nada más). Su nombre abre la publicación. Abajo, «Enviar».
+  const ESTADO_TXT = { preparando: 'en preparación', por_aprobar: 'por aprobar', aprobada: 'aprobada', cambios: 'pidió cambios', programada: 'programada', publicada: 'publicada' };
+  function queCambia(p, r, e) {
+    const X = I(), f = p.fila, l = [];
+    if (!r) return f.visible ? 'Nueva: aún no está en su web' : 'Cancelada: se guarda oculta en su web';
+    if (!f.visible) return 'Cancelada: se oculta en su web';
+    if (!r.visible) l.push('vuelve a verse');
+    if ((r.caption || '') !== f.caption) l.push('caption');
+    const foto = e && e.fotos != null && p.firma ? e.fotos !== p.firma.fotos : null;
+    if (r.nombre !== f.nombre || r.tipo !== f.tipo) l.push('nombre o tipo');
+    if (X.webFecha(r.fecha) !== X.webFecha(f.fecha) || !!r.sin_hora !== !!f.sin_hora) l.push('fecha u hora');
+    if (foto === true || (foto === null && r.version !== p.version && !l.some(x => x !== 'vuelve a verse'))) l.splice(l[0] === 'vuelve a verse' ? 2 : 1, 0, 'foto o encuadre');
+    if (r.estado !== f.estado) l.push('estado: ' + (ESTADO_TXT[f.estado] || f.estado));
+    if (r.orden !== f.orden && r.visible) l.push('orden en el feed');
+    return l.length ? 'Cambió: ' + X.listaY(l) : 'Cambió';
+  }
+  async function abrirLista() {
+    const X = I(), B = tablero(); if (!B) return;
+    const nombre = (X.CL.find(c => c.id === B.client) || {}).name || 'el cliente';
+    const ult = () => { let t = ''; for (const s of B.slots) { const e = X.envDe(s, B); if (e && e.at > t) t = e.at; } return t; };
+    const cab = '<button class="x" data-act="close" aria-label="Cerrar">×</button>';
+    try {
+      const pubs = B.contenido ? [] : await filas(B), serv = st.servidor && st.clave === B.key ? st.servidor : await leerServidor(B.client, B);
+      if (tablero() !== B || !serv) return;
+      const items = pubs.filter(p => !igual(p, serv.get(p.pid))).sort((a, b) => X.ts(a.s.date) - X.ts(b.s.date))
+        .map(p => `<li><button type="button" class="vnom" data-web="abrir" data-slot="${esc(p.s.id)}" title="Abrir la publicación"><b>${esc(p.fila.nombre)}</b></button> <span class="vque">· ${esc(p.s.date ? X.fmtDate(p.s.date) : 'sin fecha')} · ${esc(queCambia(p, serv.get(p.pid), X.envDe(p.s, B)))}</span></li>`);
+      const sob = await sobranDe(B, pubs, serv); if (tablero() !== B) return;
+      sob.forEach(pid => { const r = serv.get(pid); items.push(`<li><b>${esc(r ? r.nombre : 'Una publicación')}</b> <span class="vque">· ya no está en el tablero: se oculta en su web</span></li>`); });
+      if (st.extra) items.push('<li class="webotro"><b>Sesiones, pagos o el porqué del mes</b> <span class="vque">· cambiaron desde el envío</span></li>');
+      const u = ult(), desde = u ? `lo que enviaste el ${esc(X.fmtDate(u))}` : 'lo último que se envió';
+      X.showDialog('webcambios', !items.length
+        ? cab + `<h3>Web al día</h3><p class="cpnota">La web de ${esc(nombre)} enseña lo mismo que este tablero${u ? `. Último envío: ${esc(X.fmtDate(u))}` : ''}.</p><div class="webenv"><button type="button" class="btn2" data-web="enviar">Enviar otra vez</button></div>`
+        : cab + `<h3>${items.length} ${items.length === 1 ? 'cambio' : 'cambios'} sin enviar</h3><p class="cpnota">${esc(nombre)} ve ${desde}. Lo de abajo no lo ve hasta que envíes.</p><ul class="vlist">${items.join('')}</ul><div class="webenv"><button type="button" class="btn" data-web="enviar">Enviar</button></div>`);
+    } catch (e) { toast('No se pudo leer la web del cliente: ' + String(e.message || e), { error: true }); }
   }
 
   // ---------- Lote 4: lo que contestan los clientes (D-244) ----------
@@ -657,6 +719,9 @@
   M.web = {
     version: VERSION, barra, enviar, paquete, listo, marca, detalle, pintarDetalle, leer: leerConversacion, contestado, leerRespuestas, conversacion, contestar, leido, hilo,
     estado: () => { const c = sb(); return { proyecto: !!c, sesion: !!(c && c.usuario()), cambios: st.cambios, enviando: !!st.enviando, error: st.error }; },
+    sabe: B => !!(B && st.servidor && st.clave === B.key),   // ya leyó del servidor lo de este tablero: la ventana puede decir «Aún no está en la web» (D-355)
+    lista: () => abrirLista(),
+    _que: queCambia,   // la batería (NF8)
     entrar: () => entrar(),
     salir: async () => { const c = sb(); if (c) await c.salir(); st.servidor = null; st.cambios = null; st.dueno = null; if (I()) I().renderBar(); },
     repasar: () => { st.servidor = null; st.firma = ''; st.extra = null; return repaso(true); },
@@ -675,6 +740,9 @@
   }).catch(() => { (window.MESA_CARGA = window.MESA_CARGA || {}).web = 'fallo'; });
   const ESTILO = `#mesa .webbtn{white-space:nowrap;border-color:var(--line);color:var(--ink);font-weight:600}
 #mesa.client .webbtn,#mesa.client .webmk,#mesa.client .webdel{display:none}
+#mesa .detail[data-dlg="webcambios"] .vlist{list-style:none;margin:8px 0 0;padding:0;max-height:min(60vh,520px);overflow:auto}#mesa .detail[data-dlg="webcambios"] .vlist li{padding:10px 0;border-top:1px solid var(--line2)}
+#mesa .detail[data-dlg="webcambios"] .vnom{border:0;background:none;padding:0;font:inherit;color:var(--ink);cursor:pointer}#mesa .detail[data-dlg="webcambios"] .vnom:hover b{text-decoration:underline}#mesa .detail[data-dlg="webcambios"] .vque{color:var(--ink-2)}
+#mesa .webenv{display:flex;justify-content:flex-end;margin:16px 0 0}
 #mesa .mchip.webbtn.hay{background:var(--acc-soft);color:var(--acc-ink);border-color:transparent}
 #mesa .mchip.webbtn.hay:hover{background:color-mix(in srgb,var(--acc-soft),var(--acc) 12%);border-color:transparent;color:var(--acc-ink)}
 #mesa .mchip.webbtn.mal,#mesa .mchip.webbtn.mal:hover{color:var(--red)}

@@ -1,4 +1,4 @@
-// Copia — Mesa de trabajo · v1.2 (D-249, D-279)
+// Copia — Mesa de trabajo · v1.6 (D-249, D-279, D-364)
 // «Exportar todo» (menú ⇅): the whole mesa at its original size, in one file per client and one «general» (what is no monthly
 // client's: the locations' catalog, tasks and sessions without one, the sporadic clients and their invoices, the list of
 // material). Each file is a .tar (ustar, nothing compressed, any Mac opens it): first «manifiesto.json» (what the part holds,
@@ -15,7 +15,7 @@
 (function copiaBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
-  const VERSION = '1.5';   // 1.5: el estilo de cada cliente y lo enviado a su web van en su archivo (D-356, D-355). 1.4: a client's agreements go with it, the packages in the general file (D-305, D-307). 1.3: the deliveries of a «Solo contenido» client go with it (D-290). 1.2: each file of a copy written with its own bytes, never a piece of the .tar; 200 MB a file at most (D-279)
+  const VERSION = '1.6';   // 1.6: «Exportar» offers only the full copy; every click on an enabled button answers (the double-click brake is by time and shows); progress with its bar and a visible «Cancelar» that frees memory; the D-037 and D-040 notices inside the dialog; importing can be cancelled while nothing is half done (D-364). 1.5: el estilo de cada cliente y lo enviado a su web van en su archivo (D-356, D-355). 1.4: a client's agreements go with it, the packages in the general file (D-305, D-307). 1.3: the deliveries of a «Solo contenido» client go with it (D-290). 1.2: each file of a copy written with its own bytes, never a piece of the .tar; 200 MB a file at most (D-279)
   const I = () => M._in, X = () => M._in.xfer;
   if (M.copia && M.copia._off) { try { M.copia._off(); } catch (e) { /* */ } }
   const FORMATO = 'mesa-copia', V = 1;

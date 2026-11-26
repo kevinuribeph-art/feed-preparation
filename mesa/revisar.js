@@ -25,7 +25,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.12';   // 1.12: the page of a «Solo contenido» client: «sinFeed» (D-312). 1.11: a client of «Solo contenido» has no feed: nothing to review, «sinFeed» (D-289). 1.10: a photo that is only a working copy here (lot 4 of the traspaso) is measured at its real pixels (D-259). 1.8: nothing to review, a light notice; no «Entendido» nor «<cliente>, <mes>:» (D-155, D-156, D-162)
+  const VERSION = '1.13';   // 1.13: the unused title of the review before «sube» is gone (D-367). 1.12: the page of a «Solo contenido» client: «sinFeed» (D-312). 1.11: a client of «Solo contenido» has no feed: nothing to review, «sinFeed» (D-289). 1.10: a photo that is only a working copy here (lot 4 of the traspaso) is measured at its real pixels (D-259). 1.8: nothing to review, a light notice; no «Entendido» nor «<cliente>, <mes>:» (D-155, D-156, D-162)
   const MIN_PX = 1080, IG_MIN = 4 / 5, IG_MAX = 1.91, TOL = 0.005;
   const ORDEN = { hueco: 0, numeración: 1, resolución: 2, margen: 3, formato: 4 };
   const corto = t => { t = String(t || '').replace(/\s+/g, ' ').trim(); return t.length > 28 ? t.slice(0, 27) + '…' : t; };

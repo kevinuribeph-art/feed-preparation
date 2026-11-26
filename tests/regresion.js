@@ -18404,6 +18404,9 @@
       await espera(800);
       ok(errores <= 2, 'la imagen entró en un bucle: ' + errores + ' errores');
       const c2 = M.fotosRotas(); ok(c2.rotas === 3 && c2.rehechas === 2 && c2.grises === 1 && c2.ultimas.map(x => x.que).join() === 'rehechas,rehechas,grises', 'la cuenta (la muerta, rehecha; la rehecha, muerta: gris): ' + json(c2));
+      ok(/^data:/.test(im.getAttribute('src')) && /^data:/.test(M.files[id].thumbUrl), 'el gris es una dirección que alguien puede soltar, o lo que guarda la Mesa sigue con la muerta');
+      const e0 = errores; M._in.render(); await espera(400); M._in.render(); await espera(400);
+      igual([errores, M.fotosRotas().grises, im.getAttribute('src').slice(0, 5)], [e0, 1, 'data:'], 'al volver a dibujar, la dirección muerta volvió');
       await M._in.idbPut('files', id, r);
     } finally { D.removeEventListener('error', cuenta, true); M.fotosRotas(true); }
   });
@@ -24532,7 +24535,7 @@
       ok(!lit, 'se resaltó una Publicada al soltar una foto de la bandeja');
       await espera(150);
       igual(slot('r1').photos, [f.r1], 'la foto de la bandeja entró en la Publicada');
-      ok(/Ya está publicada: no se cambia su foto\./.test(fiAvisos()), 'sin el aviso (bandeja): ' + fiAvisos());
+      ok(/Ya está publicada: no se cambia su foto, su encuadre ni su formato\./.test(fiAvisos()), 'sin el aviso (bandeja): ' + fiAvisos());
       lit = await ffArrastrar(item(), celda('r3'));
       ok(lit, 'no se resaltó una casilla normal');
       await hasta(() => slot('r3').photos.length === 1, 3000, 'la foto en r3');
@@ -24547,7 +24550,7 @@
       ok(!lit, 'se resaltó una Publicada de otro mes');
       await hasta(() => !M._in.switching(), 3000, 'el cambio de mes'); await espera(200);
       igual(((await M._in.idbGet('boards', fdO)).slots.find(s => s.id === 'fi-o1') || {}).photos, [o1], 'la foto entró en la Publicada de octubre');
-      ok(/Ya está publicada: no se cambia su foto\./.test(fiAvisos()), 'sin el aviso (otro mes): ' + fiAvisos());
+      ok(/Ya está publicada: no se cambia su foto, su encuadre ni su formato\./.test(fiAvisos()), 'sin el aviso (otro mes): ' + fiAvisos());
     } finally { await limpiar(); }
   });
 
@@ -25330,13 +25333,15 @@
       const seg = dialogo().querySelector('.seg'), zr = dialogo().querySelector('.zoomr');
       ok(seg && seg.getAttribute('aria-disabled') === 'true' && /publicada/i.test(seg.title) && [...seg.querySelectorAll('button')].every(b => b.getAttribute('aria-disabled') === 'true'), 'el formato no sale apagado con su motivo');
       ok(zr && zr.disabled && /publicada/i.test(zr.closest('.zoom').title), 'el zoom no sale apagado con su motivo');
-      ok(W.getComputedStyle(seg).opacity === '0.4' && W.getComputedStyle(zr.closest('.zoom')).opacity === '0.4', 'no tienen el aspecto de lo apagado');
+      ok(W.getComputedStyle(seg.querySelector('button:not(.on)')).opacity === '0.4' && W.getComputedStyle(seg.querySelector('button.on')).opacity === '1' && W.getComputedStyle(zr.closest('.zoom')).opacity === '0.4', 'no tienen el aspecto de lo apagado (el formato que tiene, a la vista)');
       seg.querySelector('[data-fmt="h"]').click(); await espera(80); igualC('formato pulsado');
       const z2 = dialogo().querySelector('.zoomr'); z2.disabled = false; z2.value = '2';   // como si su barra siguiera encendida
       z2.dispatchEvent(new W.Event('input', { bubbles: true })); z2.dispatchEvent(new W.Event('change', { bubbles: true })); await espera(60); igualC('zoom');
       const st = dialogo().querySelector('.stage'), r = st.getBoundingClientRect(), pe = (t, x, y) => st.dispatchEvent(new W.PointerEvent(t, { bubbles: true, pointerId: 7, button: 0, clientX: r.left + x, clientY: r.top + y }));
       pe('pointerdown', 60, 60); pe('pointermove', 140, 110); pe('pointerup', 140, 110); await espera(60); igualC('arrastrar la foto');
       pe('pointerdown', 60, 60); pe('pointerup', 60, 60); await espera(60); ok(!/Ya está publicada/.test(fnAviso()), 'un clic sin arrastrar avisa');
+      pe('pointerdown', 60, 60); D.body.dispatchEvent(new W.PointerEvent('pointerup', { bubbles: true, pointerId: 7, clientX: 5, clientY: 5 })); pe('pointermove', 160, 160); await espera(60);   // soltado fuera de la foto
+      ok(!/Ya está publicada/.test(fnAviso()), 'un gesto ya acabado sigue escuchando y avisa al pasar el ratón');
       const b = D.createElement('button'); b.dataset.act = 'center'; dialogo().querySelector('.ptools').appendChild(b); b.click(); await espera(60); igualC('centrar');
       M._test.setType('r1', 'Reel'); await espera(60); igualC('un tipo de otro formato');
       M._test.setType('r1', 'Foto'); await espera(60); igual(slot('r1').type, 'Foto', 'Carrusel → Foto (el mismo formato) no se pudo'); M._test.setType('r1', 'Carrusel'); await espera(60); M._in.clearToasts();
@@ -25345,6 +25350,28 @@
       M._in.closeDetail();
       M.setEstado('r1', 'programado'); await espera(60);
       M._test.setFmt('r1', 'h'); await espera(60); igual(slot('r1').fmt, 'h', 'en otro estado el formato no cambia');
+    } finally { M._in.closeDetail(); M._in.clearToasts(); await limpiar(); }
+  });
+
+  prueba('PB4', 'La ventana de una publicación del mes anterior (D-370): el formato, el zoom y «Devolver la foto a la bandeja» salen apagados con su motivo; pulsarlos no cambia nada ni la marca como editada', async () => {
+    try {
+      await limpiar();
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1)], past: [{ id: 'pb4-p', name: 'Foto 0.1', type: 'Foto', date: '2026-10-05T12:00:00.000+02:00' }], force: true });
+      const [f] = await M.addFiles([await foto('pb4.jpg', 1600, 1200)]);
+      M._test.prevSetFromTray('pb4-p', f); await M.flush();
+      const p0 = () => json(M._test.prev().find(x => x.id === 'pb4-p'));
+      const a0 = p0(), cr0 = json(M.board().crops[f] || null);
+      M._in.openPast('pb4-p'); await hasta(() => dialogo() && dialogo().dataset.prev, 3000, 'su ventana');
+      const seg = dialogo().querySelector('.seg'), zr = dialogo().querySelector('.zoomr'), dv = dialogo().querySelector('[data-act="prevtotray"]');
+      ok(seg && seg.getAttribute('aria-disabled') === 'true' && /encuadre/.test(seg.title), 'el formato no sale apagado con su motivo');
+      ok(zr && zr.disabled, 'el zoom no sale apagado');
+      ok(dv && dv.getAttribute('aria-disabled') === 'true' && /bandeja/.test(dv.title), '«Devolver la foto» no sale apagado con su motivo');
+      M._in.clearToasts();
+      seg.querySelector('button:not(.on)').click(); await espera(80);
+      ok(/no se cambia su encuadre ni su formato/.test(fnAviso()), 'el formato no lo dijo: ' + fnAviso());
+      dialogo().querySelector('[data-act="prevtotray"]').click(); await espera(80);
+      ok(/su foto no vuelve a la bandeja/.test(fnAviso()), '«Devolver la foto» no lo dijo: ' + fnAviso());
+      igual(p0(), a0, 'cambió la publicación del mes anterior'); igual(json(M.board().crops[f] || null), cr0, 'cambió su encuadre');
     } finally { M._in.closeDetail(); M._in.clearToasts(); await limpiar(); }
   });
 

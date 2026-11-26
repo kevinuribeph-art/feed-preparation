@@ -678,7 +678,7 @@
   }
   function setFmt(slotId, fmt) {
     const s = slot(slotId); if (!s || isReel(s.type) || !s.photos.length) return;
-    if (encuadreNo(s)) { refreshDetail(); return; }   // a Publicada's format doesn't change (D-370)
+    if (encuadreNo(s)) return;   // a Publicada's format doesn't change (D-370)
     if (isCarousel(s.type) && s.design) {                // one format: the design's, drawn again in the new one
       if (M.diseno && M.diseno.formato && M.diseno.formato(slotId, fmt)) { changed(); rerender(s); openDetail(slotId, cur.idx); }
       return;
@@ -1298,9 +1298,9 @@
     const antes = URL_HUECO.get(id);
     if (antes && rec.thumb && !esRefNube(rec.thumb)) { M.files[id] = metaArchivo(rec, rec.thumb, id); M.thumbBlobs[id] = rec.thumb; }   // its thumbnail arrived
     else if (!esRefNube(rec.blob) && rec.thumb instanceof Blob && rec.thumb !== M.thumbBlobs[id]) {   // its photo arrived: its record was written again,
-      const u0 = URLS_MINI.get(M.files[id]);   // so what the Mesa keeps of it is read again from it (D-369); each <img> showing it changes in place
+      const o0 = M.files[id], d0 = Object.getOwnPropertyDescriptor(o0, 'thumbUrl'), u0 = d0 ? (d0.get ? URLS_MINI.get(o0) : d0.value) : null;   // so what the Mesa keeps of it is read again from it (D-369); each <img> showing it changes in place
       M.files[id] = metaArchivo(rec, rec.thumb, id); M.thumbBlobs[id] = rec.thumb;
-      if (u0) LLEGAN.set(u0, M.files[id].thumbUrl);
+      if (u0 && /^blob:/.test(u0)) LLEGAN.set(u0, M.files[id].thumbUrl);
     }
     else if (!esRefNube(rec.blob)) { const o = M.files[id]; delete o.pendiente; if (rec.copia && rec.copia.w) o.copia = { w: rec.copia.w, h: rec.copia.h }; else delete o.copia; }   // its photo arrived (the same thumbnail Blob): the same URL
     if (rec.blob && !esRefNube(rec.blob)) { M.blobs[id] = rec.blob; if (M.bigUrls && M.bigUrls[id]) { URL.revokeObjectURL(M.bigUrls[id]); delete M.bigUrls[id]; } }
@@ -1320,6 +1320,8 @@
   // placeholder of always: never a loop. An URL the core didn't make is offered first to its module ('mesa-foto-rota').
   // What happens is counted in this browser, across reloads: MESA.fotosRotas() (true empties it).
   const ROTAS_K = 'mesa-fotos-rotas', REHECHAS = new Map(), PUESTAS = new WeakMap();
+  // the grey it leaves: the placeholder's pixels as data:, which nothing revokes (a module letting go of an <img>'s src can't kill it)
+  const GRIS = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAFCAYAAABirU3bAAAAEklEQVR42mPoaShKQMYMVBAAADl/JVnImamVAAAAAElFTkSuQmCC';
   function rotaApunta(que, de) {   // que: 'rotas' | 'rehechas' | 'grises'
     let t = null; try { t = JSON.parse(localStorage.getItem(ROTAS_K)); } catch (e) { /* */ }
     if (!t || typeof t !== 'object') t = { rotas: 0, rehechas: 0, grises: 0, desde: new Date().toISOString().slice(0, 10), ultimas: [] };
@@ -1356,7 +1358,13 @@
     const s = im.getAttribute('src') || ''; if (!/^blob:/.test(s) || s === HUECO_U) return;
     const de = URL_DE.get(s);
     rotaApunta('rotas', de);
-    const gris = () => { if (im.getAttribute('src') === s) { hueco(); im.setAttribute('src', HUECO_U); } rotaApunta('grises', de); };
+    const gris = () => {   // that URL is dead for good: nothing puts it back (a redraw, its photo's entry), and the grey stays
+      if (!REHECHAS.has(s)) REHECHAS.set(s, Promise.resolve(null));
+      const f = de && (de.k === 'mini' || de.k === 'hueco') && M.files[de.id], d = f && Object.getOwnPropertyDescriptor(f, 'thumbUrl');
+      if (d && (d.get ? URLS_MINI.get(f) : d.value) === s) f.thumbUrl = GRIS;
+      if (im.getAttribute('src') === s) im.setAttribute('src', GRIS);
+      rotaApunta('grises', de);
+    };
     if (PUESTAS.get(im) === s) return gris();   // the one made again failed too
     if (!de) { let suya = false; try { suya = !document.dispatchEvent(new CustomEvent('mesa-foto-rota', { cancelable: true, detail: { img: im, src: s } })); } catch (x) { /* */ } if (!suya) gris(); return; }
     let p = REHECHAS.get(s); if (!p) { p = urlDeNuevo(s).catch(() => null); REHECHAS.set(s, p); }
@@ -1367,7 +1375,8 @@
       rotaApunta('rehechas', de);
     });
   }
-  document.addEventListener('error', fotoRota, true);   // an <img>'s error doesn't bubble: it is caught on its way down
+  if (M._fotoRota) document.removeEventListener('error', M._fotoRota, true);   // a mesa.js loaded again: one net only
+  M._fotoRota = fotoRota; document.addEventListener('error', fotoRota, true);   // an <img>'s error doesn't bubble: it is caught on its way down
   M.fotosRotas = vaciar => {
     if (vaciar === true) { try { localStorage.removeItem(ROTAS_K); } catch (e) { /* */ } }
     let t = null; try { t = JSON.parse(localStorage.getItem(ROTAS_K)); } catch (e) { /* */ }
@@ -1842,7 +1851,8 @@
   // a Publicada's photos don't change by any way (pieza 10, D-339): true (and the notice) when s is one
   // ... nor its frame nor its format (D-370)
   const PUB_AVISO = 'Ya está publicada: no se cambia su foto, su encuadre ni su formato. Para cambiarlos, ponla antes en otro estado.', PUB_TIT = 'Ya está publicada: para cambiar su foto, su encuadre o su formato, ponla antes en otro estado';
-  const PREV_AVISO = 'Ya está publicada: no se cambia su encuadre, su formato ni su foto.', PREV_TIT = 'Ya está publicada: no se cambia';
+  const PREV_AVISO = 'Ya está publicada: no se cambia su encuadre ni su formato.', PREV_TIT = 'Ya está publicada: no se cambia su encuadre ni su formato';
+  const PREV_FOTO = 'Ya está publicada: su foto no vuelve a la bandeja.';
   function publicadaNo(s, B = S) { if (!s || estadoDe(s, B) !== 'publicado') return false; toast(PUB_AVISO, { key: 'mover-publicada' }); return true; }
   // its frame and its format: a Publicada, and a post of the month before (all published, D-370)
   const encFija = s => !!s && (isPrev(s) || estadoDe(s) === 'publicado');
@@ -3361,7 +3371,7 @@ ${TK_FUENTES}
 #mesa .card h3,#mesa .phead h3,#mesa .ecard h3,#mesa .lb-ttl h3{text-wrap-style:balance}#mesa .card p,#mesa .cpnota,#mesa .toast{text-wrap-style:pretty}
 /* every button shrinks a little when pressed, like .btn (D-171) */
 #mesa .mchip:active:not(:disabled),#mesa .ibtn:not(.tema):active:not(:disabled),#mesa .lb-help:active:not(:disabled),#mesa .hv-add:active:not(:disabled),#mesa .dz-more:active:not(:disabled),#mesa .cpvolver:active:not(:disabled),#mesa .lb-trv:active:not(:disabled),#mesa .lb-trb:active:not(:disabled),#mesa .seg button:active:not(:disabled),#mesa button.cpaso:active:not(:disabled),#mesa .x:active:not(:disabled),#mesa .hx:active:not(:disabled),#mesa .cpx:active:not(:disabled){transform:scale(.97)}
-#mesa .pacts button:disabled,#mesa .pacts button[aria-disabled="true"],#mesa .pe-ed[aria-disabled="true"],#mesa .pvacts button[aria-disabled="true"]{opacity:.4;cursor:default}#mesa .seg[aria-disabled="true"],#mesa .zoom[aria-disabled="true"]{opacity:.4}#mesa .seg[aria-disabled="true"] button{cursor:default}#mesa .seg[aria-disabled="true"] button:not(.on):hover{color:var(--mute)}#mesa .zoom input:disabled{cursor:default}#mesa .pacts button[aria-disabled="true"]:hover{border-color:var(--line);background:var(--panel-2)}#mesa .pe-ed[aria-disabled="true"]:hover,#mesa .pe-ed[aria-disabled="true"]:active{background:var(--acc);transform:none}   /* a Publicada's photo controls (D-339) */
+#mesa .pacts button:disabled,#mesa .pacts button[aria-disabled="true"],#mesa .pe-ed[aria-disabled="true"],#mesa .pvacts button[aria-disabled="true"]{opacity:.4;cursor:default}#mesa .seg[aria-disabled="true"] button:not(.on),#mesa .zoom[aria-disabled="true"]{opacity:.4}#mesa .seg[aria-disabled="true"] button{cursor:default}#mesa .seg[aria-disabled="true"] button:not(.on):hover{color:var(--mute)}#mesa .seg[aria-disabled="true"] button:active,#mesa .pvacts button[aria-disabled="true"]:active{transform:none}#mesa .pvacts button[aria-disabled="true"]:hover{border-color:var(--line);background:var(--panel-2)}#mesa .zoom input:disabled{cursor:default}#mesa .pacts button[aria-disabled="true"]:hover{border-color:var(--line);background:var(--panel-2)}#mesa .pe-ed[aria-disabled="true"]:hover,#mesa .pe-ed[aria-disabled="true"]:active{background:var(--acc);transform:none}   /* a Publicada's photo controls (D-339) */
 #mesa .pacts .fname{color:var(--mute);font-size:11.5px;margin-right:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:50%}
 #mesa .pright{grid-area:col;padding:18px 20px;display:flex;flex-direction:column;min-width:0}
 #mesa .avrow{display:flex;align-items:center;gap:10px}
@@ -4416,7 +4426,7 @@ ${TK_FUENTES}
   function fotosAlDia(w) {
     for (const im of w.querySelectorAll('img[data-mini][src], img[data-pmini][src]')) {
       const u = im.dataset.pmini ? M.pastThumbs[im.dataset.pmini] : (M.files[im.dataset.mini] || {}).thumbUrl;
-      if (u && im.getAttribute('src') !== u) im.setAttribute('src', u);
+      if (u && im.getAttribute('src') !== u && !REHECHAS.has(u)) im.setAttribute('src', u);   // never one the safety net knows dead
     }
   }
   function ponerMes(w, html, esS) {     // a Nota being edited in its cell keeps that cell (its accent and its own undo)
@@ -5322,7 +5332,7 @@ ${TK_FUENTES}
     else left = '<div class="pempty">Sin foto.<br>Arrastra una foto de la bandeja sobre su casilla.</div>';
     const acts = `<div class="pvacts">`
       + `<button class="btn2" data-act="prevhide" data-id="${esc(id)}">${it.hidden ? 'Volver a mostrar en el feed' : 'Ocultar del feed (borrada o archivada)'}</button>`
-      + (im && im.f ? `<button class="btn2" data-act="prevtotray" data-id="${esc(id)}" aria-disabled="true" title="${esc(PREV_TIT)}">Devolver la foto a la bandeja</button>` : '')
+      + (im && im.f ? `<button class="btn2" data-act="prevtotray" data-id="${esc(id)}" aria-disabled="true" title="${esc(PREV_FOTO.slice(0, -1))}">Devolver la foto a la bandeja</button>` : '')
       + (it.own || it.hidden ? `<button class="btn2" data-act="prevrestore" data-id="${esc(id)}">Restaurar como estaba</button>` : '')
       + `</div>`;
     d.innerHTML = `<div class="card post" role="dialog" aria-label="${esc(it.name)}"><button class="x" data-act="close" title="Cerrar" aria-label="Cerrar">×</button>
@@ -6285,9 +6295,9 @@ ${TK_FUENTES}
       const s = slot(st.dataset.slot), fid = st.dataset.file, f = M.files[fid]; if (!s || !f) return;
       if (encFija(s)) {                                    // a Publicada's frame doesn't change (D-370): a drag says so, a click alone nothing
         const sx = e.clientX, sy = e.clientY;
-        const fin = () => { st.removeEventListener('pointermove', mv); st.removeEventListener('pointerup', fin); st.removeEventListener('pointercancel', fin); };
+        const fin = () => { W0.removeEventListener('pointermove', mv, true); W0.removeEventListener('pointerup', fin, true); W0.removeEventListener('pointercancel', fin, true); };   // let go anywhere: it ends
         const mv = ev => { if (Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) > 6) { fin(); encuadreNo(s); } };
-        st.addEventListener('pointermove', mv); st.addEventListener('pointerup', fin); st.addEventListener('pointercancel', fin);
+        const W0 = st.ownerDocument.defaultView; W0.addEventListener('pointermove', mv, true); W0.addEventListener('pointerup', fin, true); W0.addEventListener('pointercancel', fin, true);
         return;
       }
       if (f.design) {                                      // a designed slide: its photo is reframed, drawn live with the texts
@@ -6408,7 +6418,7 @@ ${TK_FUENTES}
     else if (act === 'prev') openDetail(cur.slot, cur.idx - 1);
     else if (act === 'next') openDetail(cur.slot, cur.idx + 1);
     else if (act === 'pick') openDetail(cur.slot, +a.dataset.k);
-    else if (act === 'fmt') { flashThirds(); touchPrev(slot(cur.slot)); setFmt(cur.slot, a.dataset.fmt); }
+    else if (act === 'fmt') { if (encuadreNo(slot(cur.slot))) return; flashThirds(); touchPrev(slot(cur.slot)); setFmt(cur.slot, a.dataset.fmt); }   // off: no flash, nothing marked as changed (D-370)
     else if (act === 'center') centrarFoto();
     else if (act === 'client') { if (a.dataset.id !== curClient && !root.classList.contains('client') && !busyGuard()) await M.openClient(a.dataset.id); }   // the vista cliente never reaches another client (D-227)
     else if (act === 'newclient') dlgNewClient();
@@ -6441,7 +6451,7 @@ ${TK_FUENTES}
     }
     else if (act === 'prevlock') { if (S.prevUnlocked || prevOnce) { S.prevUnlocked = false; prevOnce = false; save(); renderFeed(); toast('Mes anterior bloqueado.'); } else withPrev(() => {}, 'none'); }
     else if (act === 'prevhide') { const it = prevItem(a.dataset.id); if (it) { it.hidden = !it.hidden; changed(); openPast(it.id); } }
-    else if (act === 'prevtotray') { if (!encuadreNo(prevItem(a.dataset.id))) { prevToTray(a.dataset.id); openPast(a.dataset.id); } }   // off: all published (D-370)
+    else if (act === 'prevtotray') toast(PREV_FOTO, { key: 'mover-publicada' });   // off: all published (D-370)
     else if (act === 'prevrestore') { prevRestore(a.dataset.id); openPast(a.dataset.id); }
     else if (act === 'recargar') location.reload();
     else if (act === 'takeover') { const k = S && S.key; S = null; PB = null; memSoltar(); histOlvidar(); await claim(); cobLeer(true).then(() => cobAvisar(false)); mesLeer(true).then(() => mesAvisar(false)); entLeer(true).then(() => entAvisar(false)); estLeer().then(() => estAvisar(false)); if (k && (await idbGet('boards', k))) await M.open(k); else await M.boot(); }

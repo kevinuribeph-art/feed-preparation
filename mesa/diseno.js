@@ -149,7 +149,7 @@
   // an applied design drawn again after its photos changed outside the editor; repeated requests are coalesced
   const REAP = {};
   function reaplicar(slotId) {
-    { const S0 = I() && I().S, s0 = S0 && S0.slots.find(x => x.id === slotId); if (publicada(s0)) return Promise.resolve(false); }   // a Publicada's images stay (D-370)
+    { const S0 = I() && I().S, s0 = S0 && S0.slots.find(x => x.id === slotId); if (publicada(s0)) return Promise.resolve({ ok: false }); }   // a Publicada's images stay (D-370)
     if (REAP[slotId]) { REAP[slotId].again = true; return REAP[slotId].p; }
     const job = REAP[slotId] = { again: true };
     job.p = (async () => {

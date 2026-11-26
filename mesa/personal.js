@@ -365,7 +365,7 @@
     }
     if (x.tipo === 'informe') {                 // the last month's «Cómo fue» (D-362): a reminder; Claude loads it, nothing opens
       const mt = MESL[+x.mes.slice(5, 7) - 1];
-      return `<div class="pp-av pp-avinf" title="${esc('Dile a Claude «cómo fue ' + mt + '»: lo carga de todos los clientes a la vez')}">${avs}${cuando(x, R)}<span class="pp-afoto vacia">${ICO.grafica}</span><span class="pp-nm"><b>Falta el «Cómo fue» de ${esc(mt)}</b> <i>${esc(x.clientes.map(nombreC).join(' · '))}</i></span></div>`;
+      return `<div class="pp-av pp-avinf" title="${esc('Dile a Claude «cómo fue ' + mt + '»: lo carga de todos los clientes a la vez')}">${avs}${cuando(x, R)}<span class="pp-afoto vacia">${ICO.grafica}</span><span class="pp-nm"><b>Falta el «Cómo fue» de ${esc(mt)}</b></span><span class="pp-est">${esc(x.clientes.map(nombreC).join(' · '))}</span></div>`;
     }
     if (x.tipo === 'acuerdo') {                 // renegotiate (D-288): the clock where the photo goes; gone past, tinted red as a late invoice
       const t = acuerdoCuando(x);

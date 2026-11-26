@@ -1826,7 +1826,7 @@
     }
     if (!hechos.length) return;
     X.changed();
-    X.toast(`En Notion cambió el tipo de ${hechos.join(', ')}: su diseño se ha convertido y se aplica en su «Editar …».`, { ms: 9000 });
+    X.toast(`Cambió el tipo de ${hechos.join(', ')}: su diseño se ha convertido y se aplica en su «Editar …».`, { ms: 9000 });
   }
   function sync() {
     if (E && (!E.el.isConnected || !curSlot())) cerrar();

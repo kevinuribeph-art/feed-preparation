@@ -121,7 +121,7 @@
   }
 
   // ---------- the list, in the mesa's dialog ----------
-  const TITULO = { revisar: 'Revisión antes de subir o programar', sube: 'Revisión antes de subir a Notion', programa: 'Revisión antes de programar', exportar: 'Mesa exportada' };
+  const TITULO = { revisar: 'Revisión antes de subir o programar', programa: 'Revisión antes de programar', exportar: 'Mesa exportada' };
   const cuenta = res => [res.bloquean ? nDe(res.bloquean, 'punto bloquea', 'puntos bloquean') : '', res.avisos ? nDe(res.avisos, 'aviso', 'avisos') : ''].filter(Boolean).join(' y ');
   function resumen(res) {
     if (!res.puntos.length) return 'Todo en orden: nada que revisar.';

@@ -6236,7 +6236,7 @@
       await disenada('r2', [await foto('d6c.jpg', 1080, 1350)], textos('D6', 'Notion'));
       await M.flush();
       await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [{ ...pub(2, 'Carrusel'), type: 'Reel' }], past: [], force: true });
-      await hasta(() => toastCon(/En Notion cambió el tipo de Carrusel 1\.2: su diseño se ha convertido y se aplica en su «Editar …»/), 4000, 'el aviso del tipo cambiado en Notion');
+      await hasta(() => toastCon(/ambió el tipo de Carrusel 1\.2: su diseño se ha convertido y se aplica en su «Editar …»/), 4000, 'el aviso del tipo cambiado al cargar el mes');
       igual(estadoDz('r2'), 'chg', 'el diseño de Notion no quedó pendiente');
     });
   });
@@ -7775,7 +7775,7 @@
       await hasta(() => slot('r2').design.slides[0].tipo === 'reel', 3000, 'el diseño convertido a reel');
       igual(slot('r2').design.slides.length, 1, 'el reel lleva más de una diapositiva');
       igual(estadoDz('r2'), 'chg', 'el diseño convertido no quedó pendiente');
-      ok(toastCon(/En Notion cambió el tipo de .*su diseño se ha convertido/), 'sin aviso del tipo cambiado: ' + qa('.toasts .toast').map(t => t.textContent).join(' | '));
+      ok(toastCon(/ambió el tipo de .*su diseño se ha convertido/) && !toastCon(/Notion/), 'sin aviso del tipo cambiado: ' + qa('.toasts .toast').map(t => t.textContent).join(' | '));
       const antes = json(slot('r2').design); M.diseno.sync(); await espera(50);
       igual(json(slot('r2').design), antes, 'un segundo sync volvió a convertirlo');
     });
@@ -10799,7 +10799,7 @@
     P.forEach(s => ok(seVe(s), 'no vuelve al quitar la vista: ' + s));
   });
 
-  prueba('LZ2', 'Los diálogos que solo informan se cierran con la ×, Esc o un clic fuera: «Revisar» sin «Entendido» y con el foco en la ×; las listas de vencidas y de cambiadas, vacías, sin «Cerrar» (D-155)', async () => {
+  prueba('LZ2', 'Los diálogos que solo informan se cierran con la ×, Esc o un clic fuera: «Revisar» sin «Entendido» y con el foco en la ×; la lista de vencidas, vacía, sin «Cerrar» (D-155; la de «cambiadas» se quitó con los restos de Notion, D-367)', async () => {
     await tablero([pub(1, 'Carrusel')]);
     await poner('r1', [await foto('lz2-a.jpg'), await foto('lz2-b.jpg')]);
     await conHueco('r1');
@@ -10808,8 +10808,6 @@
     tecla('Escape'); await hasta(() => !dialogo(), 2000, 'cerrar con Esc');
     M.calendario.vencidas(); await hasta(() => ventanaV(), 2000, 'la lista de vencidas');
     ok(/No queda ninguna vencida/.test(dialogo().textContent), 'la lista vacía: ' + dialogo().textContent); sinBoton('la lista de vencidas vacía'); M._in.closeDetail();
-    M.calendario.cambios(); await hasta(() => q('.detail:not([hidden])[data-dlg="cambios"]'), 2000, 'la lista de cambiadas');
-    ok(/No queda ninguna/.test(dialogo().textContent), 'la lista vacía: ' + dialogo().textContent); sinBoton('la lista de cambiadas vacía'); M._in.closeDetail();
   });
 
   prueba('LZ3', 'Fuera los textos de ayuda que no dicen nada nuevo: «Nuevo cliente», «Editar cliente», el menú de copias (antes ⇅, D-263), «Nueva carpeta», «Revisar», «Descargar fotos» y vencidas (D-156)', async () => {
@@ -16232,7 +16230,7 @@
         [[CLIENTE, '2026-11', { porque: IF_PQ, otro: 1 }], /no se esperaba «otro»/],
         [[CLIENTE, '2026-11', { porque: { partes: [] } }], /de 1 a 6/],
         [[CLIENTE, '2026-11', { porque: { partes: Array(7).fill({ t: 'Días', x: 'Algo.' }) } }], /de 1 a 6/],
-        [[CLIENTE, '2026-11', { porque: { partes: [{ t: 'Test de horario', x: 'A las 13:00.' }] } }], /etiqueta de Notion.*«Horario»/],
+        [[CLIENTE, '2026-11', { porque: { partes: [{ t: 'Test de horario', x: 'A las 13:00.' }] } }], /etiqueta de trabajo.*«Horario»/],
         [[CLIENTE, '2026-11', { porque: { partes: [{ t: 'Fechas ancla', x: 'El 27.' }] } }], /«Fechas clave»/],
         [[CLIENTE, '2026-11', { porque: { partes: [{ t: 'Horario', x: 'A las **13:00**.' }] } }], /texto plano/],
         [[CLIENTE, '2026-11', { porque: { partes: [{ t: 'Horario', x: 'A las <b>13:00</b>.' }] } }], /texto plano/],
@@ -19646,6 +19644,19 @@
       const t = d.createElement('div'); t.className = 'toast'; t.textContent = 'Un aviso bastante largo que no cabe en una sola línea en un teléfono y se parte en dos o tres líneas para leerlo entero sin problema'; d.body.append(t); await espera(300);
       fxDentro(V, d, '.toast');
     });
+  });
+
+  prueba('FX15', 'Restos de Notion fuera (D-367): MESA.calendario ya no tiene «cambios» (la ventana de «cambiadas»); ni la carga que quitaría publicaciones ni el porqué mal escrito nombran Notion; las llamadas de Notion siguen diciendo que está apagado (D-361)', async () => {
+    await tablero([pub(1), pub(2)]);
+    await poner('r2', [await foto('fx15.jpg')]);   // con una foto, quitarla se rechaza (D-360)
+    ok(M.calendario && !('cambios' in M.calendario), 'MESA.calendario.cambios sigue');
+    let err = '';
+    try { const r = await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1)], past: [] }); err = (r && r.error) || ''; } catch (e) { err = e.message; }
+    ok(/quitaría una publicación/.test(err) && !/Notion/.test(err), 'el mensaje de la carga que quitaría: ' + json(err));
+    const i = await M.informe.cargar(CLIENTE, '2026-11', { porque: { partes: [{ t: 'Test de horario', x: 'A las 13:00.' }] } });
+    ok(/etiqueta de trabajo.*«Horario»/.test(json(i)) && !/Notion/.test(json(i)), 'el error del porqué: ' + json(i));
+    ok(/Notion está apagado/.test(json(await M.startUpload({}))), 'startUpload ya no dice que está apagado');
+    ok(!/Notion/.test(q('.appbar').textContent + q('.bar').textContent + q('.side > .cal').textContent), 'la pantalla nombra Notion');
   });
 
   prueba('MV31', 'Las versiones de las dos páginas (lote 5, D-269): movil.html pide de lo que comparte con index.html la misma versión, y la de mesa.js es la de la Mesa (M.version), en las dos', async () => {

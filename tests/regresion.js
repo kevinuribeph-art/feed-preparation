@@ -19758,6 +19758,7 @@
       const dlg = await fxPedir(V, d), r = dlg.getBoundingClientRect();
       const env = [...dlg.querySelectorAll('.fila .btn')].pop().getBoundingClientRect(), ta = dlg.querySelector('textarea').getBoundingClientRect();
       igual([Math.round(r.bottom - env.bottom), Math.round(env.top - ta.bottom)], [24, 12], 'de pie, los márgenes de abajo cambiaron');
+      ok(dlg.querySelector('.fila').getBoundingClientRect().top - ta.bottom >= 2.5, 'la fila de botones tapa el aro de foco del campo');
     });
   });
 
@@ -19806,10 +19807,19 @@
       const sub = W.crypto.subtle, dig = sub.digest;
       sub.digest = function (al, x) { return ArrayBuffer.isView(x) ? Promise.reject(new W.DOMException('a propósito', 'OperationError')) : dig.call(sub, al, x); };
       try {
-        await M.copia.exportar();
+        const porCliente = () => { const m = {}; qa('.detail[data-dlg="copia"] .cp-f').forEach(li => { m[li.dataset.a] = (m[li.dataset.a] || 0) + 1; }); return m; };
+        let alPrincipio = 0; const det = q('.detail'), mo = new W.MutationObserver(() => { alPrincipio = Math.max(alPrincipio, ...Object.values(porCliente())); });
+        mo.observe(det, { childList: true, subtree: true });
+        await M.copia.exportar(); mo.disconnect();
+        ok(alPrincipio > 1, 'la prueba no vale: ningún cliente iba a tener varias filas');
         igual(fxEstado(), 'No se ha podido preparar ningún archivo: pulsa «Reintentar».', 'con todo mal');
-        const porCliente = {}; qa('.detail[data-dlg="copia"] .cp-f').forEach(li => { porCliente[li.dataset.a] = (porCliente[li.dataset.a] || 0) + 1; });
-        ok(Object.values(porCliente).length >= 2 && Object.values(porCliente).every(n => n === 1), 'un cliente que falla repite filas: ' + json(porCliente));
+        ok(Object.values(porCliente()).length >= 2 && Object.values(porCliente()).every(n => n === 1), 'un cliente que falla repite filas: ' + json(porCliente()));
+        // al reintentar, su fila sigue siendo una mientras prepara
+        sub.digest = function (al, x) { return ArrayBuffer.isView(x) ? new Promise((r, rej) => setTimeout(() => rej(new W.DOMException('a propósito', 'OperationError')), 500)) : dig.call(sub, al, x); };
+        fxBajar()[0].click(); await espera(150);
+        ok(/Preparando/.test((q('.detail .cp-f .cp-s') || {}).textContent || ''), 'no está reintentando: ' + (q('.detail .cp-f .cp-s') || {}).textContent);
+        ok(Object.values(porCliente()).every(n => n === 1), 'al reintentar salen más filas y las de abajo se mueven: ' + json(porCliente()));
+        await hasta(() => /No se pudo preparar/.test((q('.detail .cp-f .cp-s') || {}).textContent || ''), 8000, 'que vuelva a fallar');
       } finally { sub.digest = dig; }
     } finally { M.revisar = rev; M._in.huecosVacios = huecos; await cpFin(); }
   });
@@ -19848,6 +19858,13 @@
         await espera(600); sinAviso();
         clicCara('#movil [data-a="reconv"]');
         await hasta(() => /No se pudo releer\./.test(avisoCara()), 4000, 'el aviso del reintento');
+        // dos toques seguidos: la primera lectura falla pero ya es vieja; la segunda va bien
+        sinAviso(); let veces = 0;
+        M.web.conversacion = async () => { const n = ++veces; await espera(n === 1 ? 200 : 600); if (n === 1) throw new TypeError('Failed to fetch'); return { porSlot: { r2: fxHilo('pid-fx20', 'un comentario') } }; };
+        const re = W.document.querySelector('#movil [data-a="reconv"]'); re.click(); re.click();
+        await espera(1200);
+        igual(veces, 2, 'las dos lecturas');
+        ok(!/No se pudo releer/.test(avisoCara()) && !W.document.querySelector('#movil [data-a="reconv"]'), 'dice que no se pudo releer cuando la última fue bien: ' + avisoCara());
       } finally { await C.fin(); }
     });
   });
@@ -19857,10 +19874,10 @@
     const rb = await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(2, 'Carrusel')], past: [], force: true });
     ok(rb && rb.key, 'el mes del otro cliente'); const keyB = rb.key; await M.flush();
     await enMovilPagina(async () => {
-      const C = await nubeCara(keyA), enviados = []; let lentoA = false;
+      const C = await nubeCara(keyA), enviados = []; let lentoA = false, lentas = 0;
       const claves = ['mesa-movil-resp:pid-fx-a', 'mesa-movil-resp:pid-fx-b'];
       M.web.leido = () => {};
-      M.web.conversacion = async B => { const deB = B.client === CLIENTE2; if (!deB && lentoA) await espera(1500); return { porSlot: { r2: { ...fxHilo(deB ? 'pid-fx-b' : 'pid-fx-a', deB ? 'hilo del segundo' : 'hilo del primero'), puedeEscribir: true } } }; };
+      M.web.conversacion = async B => { const deB = B.client === CLIENTE2; if (!deB && lentoA) { lentas++; await espera(1500); } return { porSlot: { r2: { ...fxHilo(deB ? 'pid-fx-b' : 'pid-fx-a', deB ? 'hilo del segundo' : 'hilo del primero'), puedeEscribir: true } } }; };
       M.web.contestar = async (B, slot, t) => { await espera(1200); enviados.push([B.client, t]); return { ok: true }; };
       const escribe = t => { const x = W.document.querySelector('#movil [data-resp]'); ok(x, 'sin el campo de contestar'); x.value = t; x.dispatchEvent(new W.Event('input', { bubbles: true })); };
       try {
@@ -19875,6 +19892,7 @@
         // la lectura del primero, lenta, llega cuando ya se ve la publicación del segundo
         lentoA = true; W.location.hash = `#pub/${keyA}/r2`; await espera(250); W.location.hash = `#pub/${keyB}/r2`;
         await espera(2000); M.movil.pintar(); await espera(150);
+        ok(lentas >= 1, 'la prueba no vale: la lectura lenta no llegó a empezar');
         ok(/hilo del segundo/.test(fxTexto()) && !/hilo del primero/.test(fxTexto()), 'tras llegar la lectura vieja, «Del cliente» no es el de esta publicación');
       } finally { claves.forEach(k => W.localStorage.removeItem(k)); await C.fin(); }
     });

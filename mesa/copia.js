@@ -212,6 +212,7 @@
     } finally { soltar(); }
   }
   async function prepararUno(st, a) {
+    a.reintento = a.estado === 'fallo';   // retried, its one row stays until its parts are made: nothing under it moves
     a.estado = 'prep'; a.pct = 0; a.error = null; pintarFila(st, a);
     try { await preparar(st, a, st.cache); if (st.parar) return; a.estado = 'listo'; }
     catch (err) { if (st.parar) return; a.estado = 'fallo'; a.error = errTxt(err); }
@@ -309,7 +310,7 @@
       + `<button type="button" class="btn2${b.freno ? ' cp-freno' : ''}" data-cp="bajar"${b.on ? '' : ' disabled'}${b.freno ? ' aria-disabled="true"' : ''} aria-label="${esc(b.l)}">${b.t}</button></li>`;
   }
   // its rows: its parts once made; before, as many as it will have (previstas)
-  const partesDe = a => a.partes || (a.estado === 'fallo' ? [{ i: 1, n: 1 }] : Array.from({ length: a.previstas || 1 }, (_, i) => ({ i: i + 1, n: a.previstas || 1 })));
+  const partesDe = a => a.partes || (a.estado === 'fallo' || a.reintento ? [{ i: 1, n: 1 }] : Array.from({ length: a.previstas || 1 }, (_, i) => ({ i: i + 1, n: a.previstas || 1 })));
   const filasDe = (a, j) => partesDe(a).map(p => filaHTML(a, p, j)).join('');
   function pie(st) {
     const el = vivo(st) && st.dlg.querySelector('.cp-pie'); if (!el) return;

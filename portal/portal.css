@@ -368,14 +368,14 @@ svg.i *{vector-effect:non-scaling-stroke}
   .acc.quieta{position:static}
   .dlg{top:auto;bottom:var(--kb,0px);left:0;transform:none;width:100%;max-height:calc(100vh - var(--kb,0px) - env(safe-area-inset-top,0px) - 8px);max-height:calc(100dvh - var(--kb,0px) - env(safe-area-inset-top,0px) - 8px);border-radius:var(--r-xl) var(--r-xl) 0 0;padding:20px calc(16px + var(--sa-r)) 0 calc(16px + var(--sa-l));scroll-padding-bottom:calc(88px + env(safe-area-inset-bottom))}
   /* «Cancelar» y «Enviar», pegados abajo: a la vista también con el teclado, aunque el diálogo no quepa entero (D-366) */
-  .dlg .fila{position:sticky;bottom:0;z-index:1;background:var(--panel);margin:-12px calc(-16px - var(--sa-r)) 0 calc(-16px - var(--sa-l));padding:12px calc(16px + var(--sa-r)) calc(24px + env(safe-area-inset-bottom)) calc(16px + var(--sa-l))}
+  .dlg .fila{position:sticky;bottom:0;z-index:1;background:var(--panel);margin:-9px calc(-16px - var(--sa-r)) 0 calc(-16px - var(--sa-l));padding:9px calc(16px + var(--sa-r)) calc(24px + env(safe-area-inset-bottom)) calc(16px + var(--sa-l))}   /* los 3 px de arriba, para el aro del campo */
   .dlg .fila .btn{flex:1}
   .velo.alto{display:block}
   .toast{bottom:calc(88px + var(--kb,0px) + env(safe-area-inset-bottom))}
   body.con-hoja .toast{bottom:auto;top:calc(16px + env(safe-area-inset-top))}
 }
 /* en un teléfono tumbado, el campo y el margen de abajo, más bajos: con el teclado queda sitio para lo que se escribe */
-@media (max-height:599px){.dlg textarea{min-height:72px}.dlg .fila{padding-bottom:calc(12px + env(safe-area-inset-bottom))}.dlg{scroll-padding-bottom:calc(76px + env(safe-area-inset-bottom))}}
+@media (max-height:599px) and (orientation:landscape){.dlg textarea{min-height:72px}.dlg .fila{padding-bottom:calc(12px + env(safe-area-inset-bottom))}.dlg{scroll-padding-bottom:calc(76px + env(safe-area-inset-bottom))}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.car-l{scroll-behavior:auto}}
 
 /* privacidad y aviso legal */

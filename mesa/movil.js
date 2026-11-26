@@ -993,18 +993,19 @@
   let convN = 0;
   async function leerConv(key) {
     const n = ++convN, B = X().S;
-    if (!B || B.key !== key) return;
+    if (!B || B.key !== key) return false;
     let c = null, mal = false;
     try { c = M.web && M.web.conversacion ? await M.web.conversacion(B) : null; }
     catch (e) { mal = true; }
-    if (n !== convN) return;
+    if (n !== convN) return false;   // superseded: the newer read says how it went
     if (!mal) L.conv = c ? { ...c, key } : null;
     else if (L.conv && L.conv.key === key && L.conv.porSlot) L.conv = { ...L.conv, deAntes: true };
     else L.conv = { key, error: 'No se pudo leer lo que dijo el cliente.' };
     if ((RUTA.p === 'pub' || RUTA.p === 'mes') && RUTA.a === key) pintarSiQuieto();
+    return mal;   // true only if this read, the latest one, failed
   }
   const conv = () => (L.conv && L.vista && L.conv.key === L.vista.key ? L.conv : null);   // nunca la de otro tablero
-  async function relerConv() { const key = RUTA.a, B = await aqui(); if (B && B.key === key && RUTA.a === key) await leerConv(key); }
+  async function relerConv() { const key = RUTA.a, B = await aqui(); return !!(B && B.key === key && RUTA.a === key) && leerConv(key); }
 
   // ---------- Hoy (D-180, D-212, D-236) ----------
   const GRUPOS = [['acuerdos', 'Acuerdos'], ['pasado', 'Se ha pasado'], ['hoy', 'Hoy'], ['espera', 'Esperando al cliente'], ['falta', 'Falta programar']];   // «Acuerdos», as the Mac's (D-288)
@@ -1773,7 +1774,7 @@
       case 'vertodo': VER_TODO[b.dataset.k] = true; return pintar();
       case 'reintentar': L.error = {}; L.hoy = L.clientes = L.tareas = null; return pintar();
       // a retry that fails again draws the same screen (nothing moves): the notice says it
-      case 'reconv': if (L.vista) relerConv().then(() => { const c = conv(); if (c && (c.deAntes || c.error)) aviso('No se pudo releer.', { error: true }); }); return;
+      case 'reconv': if (L.vista) relerConv().then(mal => { if (mal) aviso('No se pudo releer.', { error: true }); }); return;
       case 'dia': DIA_CAL = b.dataset.d; return pintar();
       case 'pubs': PUBS.abierta = !PUBS.abierta; return pintar();
       case 'plegar': ABIERTO[b.dataset.k] = !ABIERTO[b.dataset.k]; return pintar();

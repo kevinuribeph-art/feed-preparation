@@ -15608,6 +15608,10 @@
       tecla('z', { meta: true }); await espera(200);
       ok(!slot('r1').memo, '⌘Z no deshizo primero el paso del editor');
       igual((await caRec('ss-ca6')).fecha, '2026-11-18', '⌘Z deshizo antes la sesión que el editor');
+      // an edit in the session's sheet over the board is of this board: ⌘Z from the board, after closing it, undoes it
+      await M.personal.abrirSesion('ss-ca6', { cli: CLIENTE }); await espera(150); const P = M.personal._p; ok(P.CARD && P.CARD.tablero, 'la hoja no se abre encima del tablero');
+      const r0 = await caRec('ss-ca6'); await P.hacer([{ id: 'ss-ca6', despues: { ...r0, txt: 'Sesión CA6 bis' } }]); P.quitarCard(); await espera(120);
+      tecla('z', { meta: true }); await espera(200); igual((await caRec('ss-ca6')).txt, 'Sesión CA6', '⌘Z del tablero no deshizo lo hecho en su hoja');
       // a task done on the personal page is not undone from the board
       const t = await M.personal.tarea({ txt: 'Tarea de la página', fecha: '2026-11-11' }); await M.personal.hecha(t.id);
       tecla('z', { meta: true }); await espera(200);

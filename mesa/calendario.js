@@ -608,7 +608,7 @@
     if (M.web && M.web.tocado) M.web.tocado();   // one the client sees counts as a change not sent to its web
     // a session that no longer shows in the board's calendar (only its days, D-219) says so
     if (m.pp && el && el.classList.contains('fuera')) X.toast(`«${r.txt || 'La tarea'}» pasa al ${X.fmtDate(r.fecha)}: ya no se ve en este mes. ⌘Z la devuelve.`, { ms: 6000 });   // a day of another month in Mes shows nothing
-    if (m.k === 'ses' && X && X.S && X.S === S0) { const sp = span(X), fin = r.fin && r.fin.fecha > r.fecha ? r.fin.fecha : r.fecha; if (fin < sp.lo || r.fecha > sp.hi) X.toast(`«${r.txt || 'La sesión'}» pasa al ${X.fmtDate(r.fecha)}: ya no se ve en este calendario. ⌘Z la devuelve.`, { ms: 6000 }); }
+    if (m.k === 'ses' && X && X.S && S0 && X.S.key === S0.key) { const sp = span(X), fin = r.fin && r.fin.fecha > r.fecha ? r.fin.fecha : r.fecha; if (fin < sp.lo || r.fecha > sp.hi) X.toast(`«${r.txt || 'La sesión'}» pasa al ${X.fmtDate(r.fecha)}: ya no se ve en este calendario. ⌘Z la devuelve.`, { ms: 6000 }); }
   }
   function drop(id, day) {
     const X = I(), s = X && X.S && X.S.slots.find(x => x.id === id); if (!s || X.localDay(s.date) === day) return;

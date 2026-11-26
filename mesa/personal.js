@@ -792,12 +792,12 @@
   }
   function soltarFotos(r) { for (const f of (r && r.fotos) || []) { const u = MINI.get(f.id); if (u && ![...TK.values()].some(k => k !== r && (k.fotos || []).some(g => g.id === f.id))) { URL.revokeObjectURL(u); MINI.delete(f.id); } } }
   function puede() { const X = I(); return !!X && !X.locked; }
-  async function hacer(cambios, junta) {       // cambios: [{id, despues}]; antes are taken here
+  async function hacer(cambios, junta, cli) {   // cli: where it was done (the board's ⌘Z reaches it there, D-373): given, or a sheet's over a board       // cambios: [{id, despues}]; antes are taken here
     if (!puede() || !cambios.length) return false;
     const paso = cambios.map(c => ({ id: c.id, antes: copia(TK.get(c.id) || null), despues: c.despues ? copia(c.despues) : null }));
     const u = H.u[H.u.length - 1];
     if (junta && u && u.junta === junta && Date.now() - u.t < 2000) { paso.forEach(p => { const q = u.find(x => x.id === p.id); if (q) q.despues = p.despues; else u.push(p); }); u.t = Date.now(); u.n = zN(); }
-    else { paso.junta = junta || null; paso.t = Date.now(); paso.n = zN(); H.u.push(paso); if (H.u.length > 60) H.u.shift(); }
+    else { paso.junta = junta || null; paso.t = Date.now(); paso.n = zN(); paso.cli = cli !== undefined ? cli : (CARD && CARD.tablero && CARD.cli) || null; H.u.push(paso); if (H.u.length > 60) H.u.shift(); }
     H.r = [];
     return escribir(paso.map(p => ({ id: p.id, despues: p.despues })));   // false if IndexedDB failed
   }
@@ -821,7 +821,7 @@
     const x = copia(r), de = r.tipo === 'sesion' && desde && enTramo(r, desde) ? desde : r.fecha, f = addD(r.fecha, difD(de, dia));
     if (f === r.fecha) return null;
     moverInicio(x, f); x.at = ahoraISO();
-    const ok = await hacer([{ id, despues: x }]); if (ok) { const u = H.u[H.u.length - 1]; if (u) u.cli = cli || null; } if (ok && st.on) pintar();
+    const ok = await hacer([{ id, despues: x }], undefined, cli || null); if (ok && st.on) pintar();
     return ok ? copia(x) : null;
   }
   async function moverEnt(id, dia, cli) {

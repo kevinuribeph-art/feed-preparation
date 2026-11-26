@@ -33,6 +33,7 @@
     paquete: '<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><path d="m3.3 7 7.703 4.734a2 2 0 0 0 1.994 0L20.7 7"/><path d="m7.5 4.27 9 5.15"/>',
     abajo: '<path d="m6 9 6 6 6-6"/>', arriba: '<path d="m18 15-6-6-6 6"/>', izq: '<path d="m15 18-6-6 6-6"/>', der: '<path d="m9 18 6-6-6-6"/>',
     reloj: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+    grafica: '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
     euro: '<path d="M4 10h12"/><path d="M4 14h9"/><path d="M19 6a7.7 7.7 0 0 0-5.2-2A7.9 7.9 0 0 0 6 12c0 4.4 3.5 8 7.8 8 2 0 3.8-.8 5.2-2"/>',
     ojo: '<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>',
     nubeok: '<path d="m17 15-5.5 5.5L9 18"/><path d="M5 17.743A7 7 0 1 1 15.71 10h1.79a4.5 4.5 0 0 1 1.5 8.742"/>',
@@ -1003,6 +1004,10 @@
     if (x.tipo === 'entrega') {   // una entrega pasada sin entregar (D-290): su mes, para mirarla
       const r = x.r;
       return fila({ cls, a: `data-ir="cli/${esc(r.cliente)}"`, izq: icoFila('paquete', true), t1: esc(r.que || 'Entrega sin título'), t2: `${esc(quien)} · <span class="roja">sin entregar · ${esc(corto(r.fecha))}</span>` });   // su página (D-312)
+    }
+    if (x.tipo === 'informe') {   // el «Cómo fue» del mes pasado (D-362): lo dice el núcleo; lo carga Claude, no se abre nada
+      const mt = (M.personal._p && M.personal._p.MESL ? M.personal._p.MESL : [])[+x.mes.slice(5, 7) - 1] || x.mes;
+      return `<div class="fila"><span>${icoFila('grafica')}</span><span class="tx"><span class="t1">Falta el «Cómo fue» de ${esc(mt)}</span><span class="t2">${esc(x.clientes.map(nombreCli).join(' · '))}</span></span></div>`;
     }
     if (x.tipo === 'acuerdo') {   // renegociar (D-288): lo dice el núcleo (personal.js); se abre en el escritorio, como una factura
       const pas = x.cat === 'pasado', cu = M.personal._p && M.personal._p.acuerdoCuando ? M.personal._p.acuerdoCuando(x) : corto(x.dia);

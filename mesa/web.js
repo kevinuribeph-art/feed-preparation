@@ -759,7 +759,8 @@
     entrar: () => entrar(),
     salir: async () => { const c = sb(); if (c) await c.salir(); st.servidor = null; st.cambios = null; st.dueno = null; if (I()) I().renderBar(); },
     repasar: () => { st.servidor = null; st.firma = ''; st.extra = null; return repaso(true); },
-    _sb: () => sb(), avisos, abierta, _test: { olvidar: () => { st.servidor = null; st.firma = ''; st.extra = null; st.cambios = null; st.lista = null; visto.clear(); } },
+    // tocado: a session or a delivery moved in a calendar, what isn't a post is read again (D-373)
+    _sb: () => sb(), avisos, abierta, tocado: () => { st.extraT = 0; pedirRepaso(); }, _test: { olvidar: () => { st.servidor = null; st.firma = ''; st.extra = null; st.cambios = null; st.lista = null; visto.clear(); } },
     _off: () => { OFF.splice(0).forEach(f => f()); clearInterval(tic); clearInterval(tic2); clearTimeout(repasoT); },
   };
   if (!document.documentElement.hasAttribute('data-movil')) listo().then(() => {   // the iPhone (D-267): no start of its own; it only reads and replies

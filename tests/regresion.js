@@ -15455,6 +15455,137 @@
     } finally { paginaCerrada(); relojVuelve(); await sinTareas(); }
   });
 
+  // ---------- Ajustes de la 4.55, lote 3: arrastrar en los calendarios (D-373) ----------
+  // drags `sel` to the day `dia` (its cell `celda`); o.esc: Esc before letting go; o.fuera: let go over the feed. Gives the class
+  // the day had under the pointer
+  async function caArrastra(sel, celda, o = {}) {
+    const ch = await hasta(() => q(sel), 3000, sel), d = await hasta(() => q(celda), 3000, celda);
+    d.scrollIntoView({ block: 'center' }); await espera(30);
+    const r = ch.getBoundingClientRect(), rd = d.getBoundingClientRect(), x = rd.left + rd.width / 2, y = rd.top + rd.height / 2 + (o.dy || 0);
+    puntero('pointerdown', ch, r.left + 4, r.top + 4); puntero('pointermove', D, (r.left + x) / 2, (r.top + y) / 2); puntero('pointermove', D, x, y);
+    const marca = d.className;
+    if (o.esc) tecla('Escape');
+    if (o.fuera) { const f = q('.feed') || q('.bar'), rf = f.getBoundingClientRect(); puntero('pointermove', D, rf.left + 20, rf.top + 20); puntero('pointerup', D, rf.left + 20, rf.top + 20); }
+    else puntero('pointerup', D, x, y);
+    await espera(150); return marca;
+  }
+  const caRec = id => M._in.idbGet('tareas', id);
+  const caCal = async () => { M._in.render(); await espera(60); if (q('.side > .cal.fold')) { q('.side > .cal [data-cal="fold"]').click(); await espera(80); } };
+
+  prueba('CA1', 'Arrastrar una sesión en el calendario del tablero (D-373): su chip en una línea (nombre a la izquierda, hora a la derecha) y con el aro de una publicación al pasar; se arrastra como una publicación, conserva su hora, una de varios días se mueve entera cogida por cualquier día y puede ir al pasado; ⌘Z la devuelve desde el tablero, en un solo orden con lo del tablero; Esc lo cancela y soltar fuera no deja nada', async () => {
+    relojEn('2026-11-10T10:00:00+01:00');
+    try {
+      await tablero([pub(1, 'Foto', 20), pub(2, 'Foto', 24)]); await sinTareas();
+      await taSes('ss-ca1', { txt: 'Sesión larga de otoño en el estudio', fecha: '2026-11-12', hora: '10:30', fin: { fecha: '2026-11-13', hora: '12:00' }, clientes: [CLIENTE] });
+      W.document.dispatchEvent(new W.CustomEvent('mesa-tareas')); await espera(120); await caCal();
+      const ch = await hasta(() => q('.side > .cal .cday[data-day="2026-11-12"] .chip[data-ses="ss-ca1"]'), 3000, 'el chip de la sesión');
+      const cs = W.getComputedStyle(ch), cn = ch.querySelector('.cn').getBoundingClientRect(), ct = ch.querySelector('.ct').getBoundingClientRect();
+      ok(cs.flexWrap === 'nowrap' && Math.abs(cn.top - ct.top) < 4 && ct.left > cn.left, 'el chip de la sesión no va en una línea');
+      const aro = deRegla(/\.chip\[data-ses\]:hover/, 'box-shadow', ch.parentNode); ok(aro && /2px/.test(aro), 'sin el aro al pasar: ' + aro);
+      // grabbed by its second day, to the 20th: it moves whole, its time kept
+      const marca = await caArrastra('.side > .cal .cday[data-day="2026-11-13"] .chip[data-ses="ss-ca1"]', '.side > .cal .cday[data-day="2026-11-20"]');
+      ok(/\bcover\b/.test(marca), 'el día no se marcó para soltar: ' + marca);
+      let r = await caRec('ss-ca1'); igual([r.fecha, r.hora, r.fin], ['2026-11-19', '10:30', { fecha: '2026-11-20', hora: '12:00' }], 'no se movió entera con su hora');
+      // to the past
+      await caArrastra('.side > .cal .chip[data-ses="ss-ca1"]', '.side > .cal .cday[data-day="2026-11-05"]');
+      r = await caRec('ss-ca1'); igual(r.fecha, '2026-11-05', 'no va al pasado');
+      // a step of the board after it: ⌘Z in its order
+      M._in.setDate('r1', '2026-11-21T12:00:00.000+01:00'); await espera(60);
+      tecla('z', { meta: true }); await espera(150); igual(M._in.localDay(slot('r1').date), '2026-11-20', '⌘Z no deshizo primero lo del tablero');
+      tecla('z', { meta: true }); await espera(200); igual((await caRec('ss-ca1')).fecha, '2026-11-19', '⌘Z del tablero no devuelve la sesión');
+      tecla('z', { meta: true }); await espera(200); igual((await caRec('ss-ca1')).fecha, '2026-11-12', 'el segundo ⌘Z no la devuelve a su sitio');
+      tecla('z', { meta: true, shift: true }); await espera(200); igual((await caRec('ss-ca1')).fecha, '2026-11-19', '⇧⌘Z no la rehace');
+      // Esc cancels; let go outside, nothing
+      await caCal();
+      await caArrastra('.side > .cal .chip[data-ses="ss-ca1"]', '.side > .cal .cday[data-day="2026-11-25"]', { esc: true });
+      igual((await caRec('ss-ca1')).fecha, '2026-11-19', 'Esc no lo canceló');
+      ok(!q('.cghost') && !q('.side > .cal .cday.cover') && !q('#mesa.calmv'), 'Esc dejó el arrastre a medias');
+      await caArrastra('.side > .cal .chip[data-ses="ss-ca1"]', '.side > .cal .cday[data-day="2026-11-25"]', { fuera: true });
+      igual((await caRec('ss-ca1')).fecha, '2026-11-19', 'soltar fuera la movió');
+      ok(!q('.cghost') && !q('.side > .cal .cday.cover'), 'soltar fuera dejó algo a medias');
+    } finally { relojVuelve(); await sinTareas(); }
+  });
+
+  prueba('CA2', 'Arrastrar en la página de un cliente de solo contenido (D-373): una entrega y una sesión se arrastran a otro día, también al pasado, y ⌘Z las devuelve', async () => {
+    await tableroContenido();
+    relojEn('2026-11-10T10:00:00+01:00');
+    try {
+      q('.side > .cal .cmes').dispatchEvent(new W.MouseEvent('dblclick', { bubbles: true })); await espera(80);
+      const e = await M._in.ent.nueva({ cliente: CLIENTE, fecha: '2026-11-12', que: 'Fotos de la sesión' });
+      await taSes('ss-ca2', { txt: 'Reunión de arranque', fecha: '2026-11-16', hora: '12:00', clase: 'reunion', clientes: [CLIENTE] });
+      W.document.dispatchEvent(new W.CustomEvent('mesa-tareas')); W.document.dispatchEvent(new W.CustomEvent('mesa-entregas')); await espera(150);
+      await caArrastra(`.side > .cal .chip[data-ent="${e.id}"]`, '.side > .cal .cday[data-day="2026-11-03"]');
+      igual(M._in.ent.get(e.id).fecha, '2026-11-03', 'la entrega no se movió (al pasado)');
+      await caArrastra('.side > .cal .chip[data-ses="ss-ca2"]', '.side > .cal .cday[data-day="2026-11-18"]');
+      igual([(await caRec('ss-ca2')).fecha, (await caRec('ss-ca2')).hora], ['2026-11-18', '12:00'], 'la reunión no se movió con su hora');
+      tecla('z', { meta: true }); await espera(200); igual((await caRec('ss-ca2')).fecha, '2026-11-16', '⌘Z no devuelve la reunión');
+      tecla('z', { meta: true }); await espera(200); igual(M._in.ent.get(e.id).fecha, '2026-11-12', '⌘Z no devuelve la entrega');
+    } finally { relojVuelve(); await sinTareas(); }
+  });
+
+  prueba('CA3', 'Arrastrar en Semana y Mes de la página personal (D-373): una tarea y una sesión se mueven a otro día con el aro de una publicación al pasar, la sesión de varios días entera; ⌘Z de la página las devuelve', async () => {
+    relojEn('2026-11-10T10:00:00+01:00');
+    try {
+      await tablero([pub(1)]); await sinTareas();
+      const t = await M.personal.tarea({ txt: 'Llamar al estudio', fecha: '2026-11-11', cliente: CLIENTE });
+      await taSes('ss-ca3', { txt: 'Sesión de dos días', fecha: '2026-11-12', hora: '09:00', fin: { fecha: '2026-11-13', hora: '18:00' }, clientes: [CLIENTE] });
+      await taAbrir({ vista: 'semana', tsem: 0 });
+      const aro = deRegla(/\.pp-fi:hover/, 'box-shadow', q('.pp-tareas')); ok(aro && /2px/.test(aro), 'sin el aro al pasar: ' + aro);
+      const m1 = await caArrastra(`.pp-sd[data-day="2026-11-11"] .pp-fi[data-tid="${t.id}"]`, '.pp-sd[data-day="2026-11-14"]');
+      ok(/pp-dropd/.test(m1), 'el día no se marcó para soltar: ' + m1);
+      igual((await caRec(t.id)).fecha, '2026-11-14', 'Semana: la tarea no se movió');
+      await caArrastra('.pp-sd[data-day="2026-11-13"] .pp-fi[data-tid="ss-ca3"]', '.pp-sd[data-day="2026-11-09"]');
+      let r = await caRec('ss-ca3'); igual([r.fecha, r.hora, r.fin], ['2026-11-08', '09:00', { fecha: '2026-11-09', hora: '18:00' }], 'Semana: la sesión no se movió entera');
+      await M.personal.set({ vista: 'mes', tmes: 0 }); await M.personal.render(); await espera(40);
+      await caArrastra(`.pp-md[data-day="2026-11-14"] .pp-mt[data-tid="${t.id}"]`, '.pp-md[data-day="2026-11-27"]');
+      igual((await caRec(t.id)).fecha, '2026-11-27', 'Mes: la tarea no se movió');
+      ppTecla('z', { metaKey: true }); await espera(200); igual((await caRec(t.id)).fecha, '2026-11-14', '⌘Z de la página no la devuelve');
+      ppTecla('z', { metaKey: true }); await espera(200); igual((await caRec('ss-ca3')).fecha, '2026-11-12', '⌘Z no devuelve la sesión');
+    } finally { paginaCerrada(); relojVuelve(); await sinTareas(); }
+  });
+
+  prueba('CA4', 'Lo que ve el cliente (D-373): mover una sesión que ve el cliente cuenta como cambio sin enviar a su web; soltarla en un día que ese calendario no enseña lo dice; una sesión de dos clientes se mueve para los dos', async () => {
+    relojEn('2026-11-10T10:00:00+01:00');
+    try {
+      await tablero([pub(1, 'Foto', 20)]); await sinTareas();
+      await taSes('ss-ca4', { txt: 'Sesión compartida', fecha: '2026-11-12', hora: '10:00', clientes: [CLIENTE, CLIENTE2] });
+      W.document.dispatchEvent(new W.CustomEvent('mesa-tareas')); await espera(120); await caCal();
+      await conWeb(async () => {
+        wbSesion(); await M.web.repasar(); ok((await M.web.enviar()).ok, 'no se envió'); await M.web.repasar();
+        igual(M.web.estado().cambios, 0, 'tras enviar');
+        await caArrastra('.side > .cal .chip[data-ses="ss-ca4"]', '.side > .cal .cday[data-day="2026-11-18"]');
+        igual((await caRec('ss-ca4')).fecha, '2026-11-18', 'la sesión no se movió');
+        await espera(800); igual(M.web.estado().cambios, 1, 'mover la sesión no cuenta como cambio sin enviar: ' + json(M.web.estado()));
+      });
+      const r = await caRec('ss-ca4'); igual([r.fecha, r.clientes], ['2026-11-18', [CLIENTE, CLIENTE2]], 'la sesión de dos clientes');
+      M._in.clearToasts();
+      const off = q('.side > .cal .cday.off[data-day]'); ok(off, 'el calendario no enseña días fuera del tablero');
+      await caArrastra('.side > .cal .chip[data-ses="ss-ca4"]', `.side > .cal .cday[data-day="${off.dataset.day}"]`);
+      igual((await caRec('ss-ca4')).fecha, off.dataset.day, 'no se soltó en un día a la vista');
+      ok(toastCon(/ya no se ve en este calendario/), 'sin aviso de que deja de verse: ' + qa('.toasts .toast').map(x => x.textContent).join(' | '));
+    } finally { relojVuelve(); await sinTareas(); }
+  });
+
+  prueba('CA5', 'El arrastre de siempre (D-373): una publicación no se marca como válida sobre un día que luego rechaza (fuera del tablero o pasado), Esc lo cancela; nada se arrastra en «Vista cliente» ni con la Mesa en pausa', async () => {
+    relojEn('2026-11-10T10:00:00+01:00');
+    try {
+      await tablero([pub(1, 'Foto', 20)]); await sinTareas();
+      await taSes('ss-ca5', { txt: 'Sesión', fecha: '2026-11-12', hora: '10:00', clientes: [CLIENTE] });
+      W.document.dispatchEvent(new W.CustomEvent('mesa-tareas')); await espera(120); await caCal();
+      const off = [...qa('.side > .cal .cday.off[data-day]')].pop(); ok(off && off.dataset.day > '2026-11-10', 'sin un día futuro fuera del tablero');
+      const m = await caArrastra('.side > .cal .chip[data-slot="r1"]', `.side > .cal .cday[data-day="${off.dataset.day}"]`);
+      ok(/\bcno\b/.test(m) && !/\bcover\b/.test(m), 'un día fuera del tablero se marca válido: ' + m);
+      igual(M._in.localDay(slot('r1').date), '2026-11-20', 'la publicación salió del tablero');
+      await caArrastra('.side > .cal .chip[data-slot="r1"]', '.side > .cal .cday[data-day="2026-11-25"]', { esc: true });
+      igual(M._in.localDay(slot('r1').date), '2026-11-20', 'Esc no canceló el arrastre de la publicación');
+      await vistaCliente(true); await espera(60);
+      const sc = q('.side > .cal .chip[data-ses="ss-ca5"]');
+      if (sc) await caArrastra('.side > .cal .chip[data-ses="ss-ca5"]', '.side > .cal .cday[data-day="2026-11-25"]');
+      igual((await caRec('ss-ca5')).fecha, '2026-11-12', 'se arrastró en «Vista cliente»');
+      await vistaCliente(false);
+    } finally { relojVuelve(); await sinTareas(); }
+  });
+
   prueba('AV1', 'Hoy, más marcado (D-222): en Avisos, cada fila de hoy que no está Programada ni Publicada (reels también) va tintada en --chg-soft con su franja de 3 px y la hora y el estado en --chg a 600; al pasar conserva su tinte sin bajar de 4,5:1, en claro y en oscuro (D-300); «Mañana» y lo programado, como estaban (D-190); una tarea de hoy sin hacer, como una publicación (D-300)', async () => {
     relojEn('2026-11-01T10:00:00+01:00');
     try {

@@ -2465,7 +2465,10 @@
     if (CLI) { const c = editCliente(); HC.curC = { st: c, j: JSON.stringify(c) }; }
   }
   const parteDe = (p, k) => p && p.p.find(x => x.k === k);
+  // one counter for the order of the board's steps and the tasks' (personal.js): ⌘Z in the board undoes the newest of the two (D-373)
+  let ZN = 0; const zN = () => ++ZN;
   function histPush(p) {
+    p.n = zN();
     const dropped = HC.redo.length || HC.undo.length >= HMAX;
     HC.undo.push(p); if (HC.undo.length > HMAX) { HC.undo.shift(); HC.drop++; } HC.redo = [];
     if (dropped) delSweep();
@@ -2695,6 +2698,7 @@
       const sigue = ahora === antes && from.length && aQuien(from[from.length - 1]) === S.key && from[from.length - 1].p.every(x => x.k === S.key || MEM.tab.has(x.k));
       if (!sigue) break;                           // a step that no longer changes anything (only Zernio's mark, D-097) is passed over
     }
+    inv.n = inv.ut = zN();                         // done again or undone: its place in the shared order (D-373)
     to.push(inv);
     if (sel && !S.tray.includes(sel)) sel = null;
     HC.tag = null;
@@ -2703,6 +2707,15 @@
     refreshDetail();
   }
   const undo = () => histStep(true), redo = () => histStep(false);
+  // ⌘Z in the board, also after moving a session, a task or a delivery in its calendar (D-373): of the board's steps and the
+  // tasks', the newest (⇧⌘Z: the last undone) goes first; on a «Solo contenido» page, only the tasks'
+  function zOrden(re) {
+    const P = M.personal && M.personal.ultimo ? M.personal.ultimo(re) : 0;
+    if (S && !locked && histMio()) track(S);
+    const top = re ? HC.redo[HC.redo.length - 1] : HC.undo[HC.undo.length - 1], b = S && top ? (re ? top.ut : top.n) || 0 : 0;
+    if (P && P > b) { if (re) M.personal.rehacer(); else M.personal.deshacer(); return; }
+    if (re) redo(); else undo();
+  }
   // A change of the folders that is not a step of ⌘Z (creating one, photos coming in, deleting one): it goes into every step
   // that keeps the tray too, so going back to one never undoes it. fn gets S (its tray is the client's) and then each step's {tray, carpetas}.
   function sinPaso(fn) {
@@ -6388,7 +6401,7 @@ ${TK_FUENTES}
         e.preventDefault();
         if (dibujoZ && dibujoZ.b && dibujoZ.b !== S) dibujoZ = null;   // pressed on another board: it acts here now (D-176)
         if (dibujoZ) { dibujoZ.push(!e.shiftKey); return; }   // a drop being drawn in a carousel of the editor: it acts once the photo is in (D-166)
-        if (e.shiftKey) redo(); else undo();
+        zOrden(e.shiftKey);
       }
     };
     document.addEventListener('keydown', M._onKey);
@@ -10262,7 +10275,7 @@ ${TK_FUENTES}
     dateChg, nameChg, typeChg, listaY, sharedWith, envDe, cambiosWeb, webFirma, webFecha, TIPO_WEB, envPoner, estLeer, estDe, igCaption, estRecValido, envRecValido, pnotHTML, MONTHS, hoy: () => madParts(ahora()).day, openIG, openPast, withPrev, setDate, madridISO, estIco, cambiosIco, motivoDe,   // the marks (D-081, mesa ≥ 3.66)
     PASOS, pasoDe, noteOf,   // the month's step bar (D-084, mesa ≥ 3.68)
     mesDe, pasosDe, rangeLabel,   // one step per month (D-119, mesa ≥ 3.91)
-    ahora, yaPaso, vencida, vencidas, avisosCal, cambiosProg, huecosVacios, envHuella, envHuellaPoner, envLeer: () => estLeer(), vencRefrescar, vencRevisar, fueraEstado, programadaAlDia, cycleOf,   // what is due (D-120, mesa ≥ 3.92)
+    zN, ahora, yaPaso, vencida, vencidas, avisosCal, cambiosProg, huecosVacios, envHuella, envHuellaPoner, envLeer: () => estLeer(), vencRefrescar, vencRevisar, fueraEstado, programadaAlDia, cycleOf,   // what is due (D-120, mesa ≥ 3.92)
     PASO_DE, estadoAuto, retrasada, retenida, capVacio,   // the bar carries the posts (D-085, mesa ≥ 3.69); an empty chosen caption (D-192, mesa ≥ 4.18)
     usoFoto, AVISOS,  // a photo used again (D-022, libre ≥ 1.12)
     rellenoLigero, avisoRelleno,   // only as filling: in without asking, a light notice (D-127, libre ≥ 1.50)

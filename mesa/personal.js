@@ -564,14 +564,14 @@
         const lun = addD(lunes(hoy), 7 * st.tsem), dias = Array.from({ length: 7 }, (_, i) => addD(lun, i));
         const t = (lun.slice(5, 7) === dias[6].slice(5, 7) ? `${+lun.slice(8, 10)}` : corto(lun)) + ' – ' + corto(dias[6]);
         barra = `<span class="pp-tsw">${nav(t, 'Semana anterior', 'Semana siguiente', 'esta semana')}${sw}</span>`;
-        izq = `<div class="pp-sem">${dias.map(d => `<div class="pp-sd${d === hoy ? ' hoy' : ''}${d < hoy ? ' pas' : ''}"><p class="pp-sh">${INI[dow(d)]} <b>${+d.slice(8, 10)}</b></p>${(celda = d, enDia(d, d === hoy ? lun : null)).map(ficha).join('')}</div>`).join('')}</div>`;
+        izq = `<div class="pp-sem">${dias.map(d => `<div class="pp-sd${d === hoy ? ' hoy' : ''}${d < hoy ? ' pas' : ''}" data-day="${d}"><p class="pp-sh">${INI[dow(d)]} <b>${+d.slice(8, 10)}</b></p>${(celda = d, enDia(d, d === hoy ? lun : null)).map(ficha).join('')}</div>`).join('')}</div>`;
       } else {
         const m = X.addMonths(hoy.slice(0, 7), st.tmes), d0 = m + '-01', ini = lunes(d0), fm = finMes(m), n = Math.ceil((difD(ini, fm) + 1) / 7) * 7;
         const t = MESL[+m.slice(5, 7) - 1] + ' ' + m.slice(0, 4);
         barra = `<span class="pp-tsw">${nav(t, 'Mes anterior', 'Mes siguiente', 'este mes')}${sw}</span>`;
         izq = `<div class="pp-mesg"><div class="pp-mcab" aria-hidden="true">${['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(x => `<span>${x}</span>`).join('')}</div><div class="pp-mgrid">${Array.from({ length: n }, (_, i) => addD(ini, i)).map(d => {
           const fuera = d.slice(0, 7) !== m, ks = fuera ? [] : enDia(d, d === hoy ? d0 : null);
-          return `<div class="pp-md${d === hoy ? ' hoy' : ''}${fuera ? ' fuera' : ''}"><span class="pp-mn">${+d.slice(8, 10)}</span>${ks.slice(0, 2).map(k => `<span class="pp-mt${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}${k.tipo === 'sesion' ? ' ses' : ''}${sigue(k, d)}${mkCls(marcaT(k, hoy))}" data-tid="${esc(k.id)}" ${ver(k)} title="${k.tipo === 'sesion' ? 'Sesión: ' : ''}${esc(k.txt)}${k.tipo === 'sesion' && k.fin ? ' · ' + esc(tramo(k)) : k.hora ? ' · ' + esc(k.hora) : ''}${venc(k) ? ' · ' + esc(corto(k.fecha)) : ''}">${k.tipo === 'sesion' ? ICO.sesion + (k.hora && k.fecha === d ? `<span class="pp-mh">${esc(k.hora)}</span> ` : '') : (k.fotos || []).length ? `<img src="${fotosURL(k.fotos[0])}" alt="">` : ''}${esc(k.txt)}${(k.subtareas || []).length ? ` · ${k.subtareas.filter(x => x.hecha).length}/${k.subtareas.length}` : ''}</span>`).join('')}${ks.length > 2 ? `<span class="pp-mm">${ks.length - 2} más</span>` : ''}</div>`; }).join('')}</div></div>`;
+          return `<div class="pp-md${d === hoy ? ' hoy' : ''}${fuera ? ' fuera' : ''}" data-day="${d}"><span class="pp-mn">${+d.slice(8, 10)}</span>${ks.slice(0, 2).map(k => `<span class="pp-mt${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}${k.tipo === 'sesion' ? ' ses' : ''}${sigue(k, d)}${mkCls(marcaT(k, hoy))}" data-tid="${esc(k.id)}" ${ver(k)} title="${k.tipo === 'sesion' ? 'Sesión: ' : ''}${esc(k.txt)}${k.tipo === 'sesion' && k.fin ? ' · ' + esc(tramo(k)) : k.hora ? ' · ' + esc(k.hora) : ''}${venc(k) ? ' · ' + esc(corto(k.fecha)) : ''}">${k.tipo === 'sesion' ? ICO.sesion + (k.hora && k.fecha === d ? `<span class="pp-mh">${esc(k.hora)}</span> ` : '') : (k.fotos || []).length ? `<img src="${fotosURL(k.fotos[0])}" alt="">` : ''}${esc(k.txt)}${(k.subtareas || []).length ? ` · ${k.subtareas.filter(x => x.hecha).length}/${k.subtareas.length}` : ''}</span>`).join('')}${ks.length > 2 ? `<span class="pp-mm">${ks.length - 2} más</span>` : ''}</div>`; }).join('')}</div></div>`;
       }
     }
     const ns = st.vista === 'lista' ? notas().filter(n => st.tcli ? n.cliente === st.tcli : !n.cliente) : [];
@@ -776,8 +776,10 @@
   const H = { u: [], r: [] };                  // steps: [{id, antes, despues}]
   const hondo = o => JSON.parse(JSON.stringify(o));   // a session's part and the list of material: plain data, copied whole (D-206)
   const copia = r => r ? { ...r, ...(r.fotos ? { fotos: r.fotos.slice() } : {}), ...(r.subtareas ? { subtareas: r.subtareas.map(x => ({ ...x })) } : {}), ...(r.sesion ? { sesion: hondo(r.sesion) } : {}), ...(r.lista ? { lista: hondo(r.lista) } : {}), ...(Array.isArray(r.clientes) ? { clientes: r.clientes.slice() } : {}), ...(r.fin ? { fin: { ...r.fin } } : {}) } : null;
-  async function escribir(cambios) {           // [{id, despues|null}]
-    const X = I();
+  async function escribir(cambios) {           // [{id, despues|null}]; a delivery's move (alm 'entregas', D-373): {fecha}
+    const X = I(), ents = cambios.filter(c => c.alm === 'entregas'); cambios = cambios.filter(c => c.alm !== 'entregas');
+    for (const c of ents) { try { await X.ent.cambiar(c.id, { fecha: c.despues.fecha }); } catch (e) { X.toast('No se pudo mover la entrega: ' + ((e && e.message) || e)); } }
+    if (!cambios.length) return true;
     gen++;
     for (const c of cambios) { TOCADA.set(c.id, gen); PEND.set(c.id, c.despues || null); if (c.despues) TK.set(c.id, c.despues); else { soltarFotos(TK.get(c.id)); TK.delete(c.id); } }
     let bien = true;
@@ -794,17 +796,38 @@
     if (!puede() || !cambios.length) return false;
     const paso = cambios.map(c => ({ id: c.id, antes: copia(TK.get(c.id) || null), despues: c.despues ? copia(c.despues) : null }));
     const u = H.u[H.u.length - 1];
-    if (junta && u && u.junta === junta && Date.now() - u.t < 2000) { paso.forEach(p => { const q = u.find(x => x.id === p.id); if (q) q.despues = p.despues; else u.push(p); }); u.t = Date.now(); }
-    else { paso.junta = junta || null; paso.t = Date.now(); H.u.push(paso); if (H.u.length > 60) H.u.shift(); }
+    if (junta && u && u.junta === junta && Date.now() - u.t < 2000) { paso.forEach(p => { const q = u.find(x => x.id === p.id); if (q) q.despues = p.despues; else u.push(p); }); u.t = Date.now(); u.n = zN(); }
+    else { paso.junta = junta || null; paso.t = Date.now(); paso.n = zN(); H.u.push(paso); if (H.u.length > 60) H.u.shift(); }
     H.r = [];
     return escribir(paso.map(p => ({ id: p.id, despues: p.despues })));   // false if IndexedDB failed
   }
   async function deshacer(re, sinCard) {        // sinCard: the card being written in stays as it is (a «/» command undone, D-204)
     if (!puede()) return false;
     const de = re ? H.r : H.u, a = re ? H.u : H.r, paso = de.pop(); if (!paso) return false;
+    if (re) paso.n = zN(); else paso.ut = zN();   // its place in the order shared with the board's steps (D-373)
     a.push(paso);
-    await escribir(paso.map(p => ({ id: p.id, despues: copia(re ? p.despues : p.antes) })));
+    await escribir(paso.map(p => ({ id: p.id, alm: p.alm, despues: p.alm ? p[re ? 'despues' : 'antes'] : copia(re ? p.despues : p.antes) })));
     pintar(); if (!sinCard) pintarCard(true); return true;
+  }
+  const zN = () => { const X = I(); return X && X.zN ? X.zN() : Date.now(); };
+  // moved in a calendar (D-373): a task to that day; a session or a meeting by as many days as it was dragged from the day it was
+  // grabbed by (one shown elsewhere, today's overdue, to that day), whole and with its time; a delivery, its deadline. A step each
+  async function mover(id, dia, desde) {
+    if (!puede() || !/^\d{4}-\d{2}-\d{2}$/.test(dia || '')) return null;
+    if (!TK.has(id)) await cargarTK();   // made elsewhere (its sheet, another tab, the iPhone) and not read here yet
+    const r = TK.get(id); if (!r || r._b || !r.fecha || (r.tipo !== 'tarea' && r.tipo !== 'sesion')) return null;
+    const x = copia(r), de = r.tipo === 'sesion' && desde && enTramo(r, desde) ? desde : r.fecha, f = addD(r.fecha, difD(de, dia));
+    if (f === r.fecha) return null;
+    moverInicio(x, f); x.at = ahoraISO();
+    const ok = await hacer([{ id, despues: x }]); if (ok && st.on) pintar();
+    return ok ? copia(x) : null;
+  }
+  async function moverEnt(id, dia) {
+    const X = I(), r = X && X.ent && X.ent.get(id); if (!puede() || !r || r.borrado || !/^\d{4}-\d{2}-\d{2}$/.test(dia || '') || r.fecha === dia) return null;
+    const paso = [{ id, alm: 'entregas', antes: { fecha: r.fecha }, despues: { fecha: dia } }]; paso.t = Date.now(); paso.n = zN(); paso.junta = null;
+    H.u.push(paso); if (H.u.length > 60) H.u.shift(); H.r = [];
+    await escribir(paso.map(p => ({ id: p.id, alm: p.alm, despues: p.despues })));
+    return X.ent.get(id);
   }
   const ahoraISO = () => new Date(I().ahora()).toISOString();
   async function nuevaTarea(o = {}) {
@@ -1336,6 +1359,7 @@
   function alClic(e) {
     const X = I(); if (!X || !X.root) return;
     const root = X.root(); if (!root || !root.contains(e.target)) return;
+    if (M.calendario && M.calendario.movido && M.calendario.movido() && e.target.closest('.pp-fi, .pp-mt, .pp-sd, .pp-md')) { e.preventDefault(); e.stopPropagation(); return; }   // the click that ends a move (D-373)
     if (e.detail >= 2 && !CARD && Date.now() - cerradaT < DBL + 200) { e.preventDefault(); e.stopPropagation(); return; }   // the second click of the double click that closed a card: never on what was under it (D-209)
     if (st.on && e.target.closest('.tabs [data-act="client"]')) { if (e.target.closest('[data-act="client"]') && e.target.closest('[data-act="client"]').dataset.id === X.curClient) cerrar(); return; }   // another client: its tab opens it (and M.openClient closes the page)
     if (CARD && enCard(e.target)) { clicCard(e); return; }
@@ -1646,6 +1670,7 @@
     campo: (id, campo, sid) => campoTarea(id, campo, sid), editar: (id, campo, v) => editarTarea(id, campo, v),   // the iPhone edits field by field (D-272)
     tareas: async () => { await leer(); return vivos().map(copia); },
     tarea: o => nuevaTarea(o), hecha: (id, v = true) => marcar(id, v), borrar, deshacer: () => deshacer(false), rehacer: () => deshacer(true),
+    mover, moverEnt, ultimo: re => { const p = re ? H.r[H.r.length - 1] : H.u[H.u.length - 1]; return p ? (re ? p.ut : p.n) || 0 : 0; },   // D-373
     estado: () => ({ ...st, abiertos: [...st.abiertos], plg: { ...st.plg }, nueva: { ...st.nueva, fotos: st.nueva.fotos.length } }),
     set: o => { Object.assign(st, o); pintar(); return refrescar(); },
     _test: { rebajar, H: () => ({ u: H.u.length, r: H.r.length }), olvidar: () => { H.u = []; H.r = []; } },
@@ -1869,6 +1894,7 @@
 #mesa .pp-fi .pp-tt{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;text-wrap-style:pretty}
 #mesa .pp-fi .pp-tt i{font-style:normal;color:var(--red);font-weight:600}
 #mesa .pp-fi .pp-ck{margin-top:1px;width:13px;height:13px}#mesa .pp-fi .pp-ava.xs{width:16px;height:16px;font-size:9.5px;margin-left:auto}#mesa .pp-fi .pp-avn{margin-left:auto}#mesa .pp-fi .pp-avn .pp-ava.xs{margin-left:0}
+#mesa .pp-fi:hover,#mesa .pp-mt:hover{box-shadow:0 0 0 2px var(--ink)}#mesa .pp-sd.pp-dropd,#mesa .pp-md.pp-dropd{background:var(--acc-soft);box-shadow:inset 0 0 0 2px var(--acc)}   /* a publication's ring; where it lands (D-373) */
 #mesa .pp-fi.venc .pp-tt{color:var(--red)}#mesa .pp-fi.pp-mk-hoy{background:var(--chg-soft)}#mesa .pp-fi.pp-mk-pasado{background:var(--red-soft)}   /* D-300: in Semana and Mes, only the tint (the cell already says today) */
 #mesa .pp-mcab,#mesa .pp-mgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--cx-gap)}
 #mesa .pp-mcab span{font-size:10.5px;color:var(--cx-wk-c);padding:0 4px 4px}

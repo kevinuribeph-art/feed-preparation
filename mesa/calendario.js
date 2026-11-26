@@ -524,6 +524,7 @@
     vencPintar();
   }
   function onKey(e) {                          // Enter in a field of the vencidas' window: its button; Esc: closes the form
+    if (mv && e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); if (mv.on) end(null); else mv = null; return; }   // a move under way: cancelled, nothing else (D-373)
     const t = e.target; if (!t || !t.matches) return;
     if (t.matches('#mesa .cal .vcp-tab') && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {   // the vista cliente's tabs, as a tab list (D-230)
       const ts = [...t.parentNode.querySelectorAll('.vcp-tab')], i = ts.indexOf(t), k = e.key, n = k === 'Home' ? 0 : k === 'End' ? ts.length - 1 : (i + (k === 'ArrowRight' ? 1 : -1) + ts.length) % ts.length;
@@ -534,34 +535,49 @@
     else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); vabre = null; vencPintar(); }
   }
 
-  // ---------- moving a post to another day (its time stays) ----------
-  // Pointer events (the mesa keeps HTML drag and drop for photos from the computer); a press that doesn't move is a click.
+  // ---------- moving to another day (its time stays) ----------
+  // A post (its time stays; never to the past nor outside its board, D-103), and since D-373 a session, a meeting or a delivery in
+  // the board's calendar and the «Solo contenido» page's, and a task or a session in Semana and Mes of the personal page (its days
+  // carry data-day): any day in sight, the past too; a session of several days, whole. Pointer events (the mesa keeps HTML drag and
+  // drop for photos from the computer); a press that doesn't move is a click; Esc cancels; let go elsewhere, nothing.
   let mv = null, later = false, noClick = 0, scr = 0;
-  const dayUnder = (x, y) => { const el = document.elementFromPoint(x, y); return el && el.closest ? el.closest('#mesa .side > .cal .cday[data-day]') : null; };
+  const CAL_D = '#mesa .side > .cal .cday[data-day]', PP_D = '#mesa .pp-sd[data-day], #mesa .pp-md[data-day]';
+  const dayUnder = (x, y, m) => { const el = document.elementFromPoint(x, y); return el && el.closest ? el.closest(m && m.pp ? PP_D : CAL_D) : null; };
   function onDown(e) {
     if (e.button !== 0 || e.pointerType === 'touch' || mv) return;
-    const X = I(), ch = e.target.closest && e.target.closest('#mesa .side > .cal .chip[data-slot]');
-    if (!ch || !X || X.locked || ch.classList.contains('cx') || X.root().classList.contains('client')) return;
-    const s = X.S && X.S.slots.find(x => x.id === ch.dataset.slot);
-    mv = { id: ch.dataset.slot, el: ch, x: e.clientX, y: e.clientY, on: false, over: null, pub: !!s && X.estadoDe(s) === 'publicado' };   // a published one never lands (D-103)
+    const X = I(), t = e.target && e.target.closest ? e.target : null; if (!t || !X || X.locked || X.root().classList.contains('client')) return;
+    const ch = t.closest('#mesa .side > .cal .chip[data-slot], #mesa .side > .cal .chip[data-ses], #mesa .side > .cal .chip[data-ent], #mesa .pp-fi[data-tid], #mesa .pp-mt[data-tid]');
+    if (!ch || ch.classList.contains('cx') || (t !== ch && t.closest('input, button, a') !== ch.closest('input, button, a'))) return;   // its checkbox or its photo: their own click
+    const dia = ch.closest('[data-day]'), b = { el: ch, x: e.clientX, y: e.clientY, on: false, over: null, desde: dia && dia.dataset.day };
+    if (!b.desde) return;
+    if (ch.dataset.slot) { const s = X.S && X.S.slots.find(x => x.id === ch.dataset.slot); mv = { ...b, k: 'slot', id: ch.dataset.slot, sel: `.side > .cal .chip[data-slot="${cssq(ch.dataset.slot)}"]`, pub: !!s && X.estadoDe(s) === 'publicado' }; }   // a published one never lands (D-103)
+    else if (!M.personal || !M.personal.mover) return;
+    else if (ch.dataset.ses) mv = { ...b, k: 'ses', id: ch.dataset.ses, sel: `.side > .cal .chip[data-ses="${cssq(ch.dataset.ses)}"]` };
+    else if (ch.dataset.ent) mv = { ...b, k: 'ent', id: ch.dataset.ent, sel: `.side > .cal .chip[data-ent="${cssq(ch.dataset.ent)}"]` };
+    else mv = { ...b, k: 'tk', pp: true, id: ch.dataset.tid, sel: `.pp-tareas [data-tid="${cssq(ch.dataset.tid)}"]` };
   }
   function begin() {
     const root = I().root();
-    if (!mv.el.isConnected) mv.el = root.querySelector(`.side > .cal .chip[data-slot="${cssq(mv.id)}"]`);   // drawn again while pressed
+    if (!mv.el.isConnected) mv.el = root.querySelector(mv.sel);   // drawn again while pressed
     if (!mv.el) { mv = null; return false; }
     const r = mv.el.getBoundingClientRect(), g = mv.el.cloneNode(true);
     mv.dx = mv.x - r.left; mv.dy = mv.y - r.top; mv.on = true;
-    g.classList.remove('calhi'); g.classList.add('cghost'); g.style.width = r.width + 'px';
+    g.classList.remove('calhi'); g.classList.add('cghost'); g.removeAttribute('data-tid'); g.style.width = r.width + 'px';
     root.append(g); mv.ghost = g; mv.el.classList.add('cmoving'); root.classList.add('calmv');
     return true;
   }
+  const SOLTAR = m => m.pp ? 'pp-dropd' : 'cover';
   function over(day) {
     if (mv.over === day) return;
-    if (mv.over) mv.over.classList.remove('cover', 'cno');
-    mv.over = day; if (day) day.classList.add(mv.pub || day.dataset.day < I().hoy() ? 'cno' : 'cover');
+    if (mv.over) mv.over.classList.remove('cover', 'cno', 'pp-dropd');
+    mv.over = day; if (!day) return;
+    // a post, only where it lands: never the past, nor a day outside its board or of its previous cycle (it would be refused)
+    const no = mv.k === 'slot' && (mv.pub || day.dataset.day < I().hoy() || day.classList.contains('off') || day.classList.contains('prevc'));
+    day.classList.add(no ? 'cno' : SOLTAR(mv));
   }
   function scrollNear(y) {                     // near the top or bottom edge of the month, it scrolls
     cancelAnimationFrame(scr);
+    if (mv && mv.pp) return;
     const b = I().root().querySelector('.side > .cal .calbody'); if (!b) return;
     const r = b.getBoundingClientRect(), v = y < r.top + 28 ? -8 : y > r.bottom - 28 ? 8 : 0; if (!v) return;
     const step = () => { b.scrollTop += v; scr = requestAnimationFrame(step); }; scr = requestAnimationFrame(step);
@@ -569,19 +585,28 @@
   function onMove(e) {
     if (!mv) return;
     if (!mv.on && (Math.hypot(e.clientX - mv.x, e.clientY - mv.y) < 5 || !begin())) return;
+    if (!e.buttons) { end(null); return; }     // let go out of the window: nothing (lesson A55-23)
     mv.ghost.style.transform = `translate(${e.clientX - mv.dx}px,${e.clientY - mv.dy}px)`;
-    over(dayUnder(e.clientX, e.clientY)); scrollNear(e.clientY);
+    over(dayUnder(e.clientX, e.clientY, mv)); scrollNear(e.clientY);
     e.preventDefault();
   }
   function end(e) {
     const m = mv; mv = null; cancelAnimationFrame(scr);
     if (!m || !m.on) return;
-    const day = e && e.type === 'pointerup' ? dayUnder(e.clientX, e.clientY) || m.over : null;   // also on pointerup: a drag may send one move only
-    if (m.over) m.over.classList.remove('cover', 'cno');
+    const day = e && e.type === 'pointerup' ? dayUnder(e.clientX, e.clientY, m) : null;   // only where it is let go: outside a day, nothing
+    if (m.over) m.over.classList.remove('cover', 'cno', 'pp-dropd');
     m.ghost.remove(); m.el.classList.remove('cmoving'); I().root().classList.remove('calmv');
     noClick = Date.now();
-    if (day) drop(m.id, day.dataset.day);
+    if (day) soltar(m, day.dataset.day);
     if (later) { later = false; render(); }
+  }
+  async function soltar(m, day) {
+    if (m.k === 'slot') { drop(m.id, day); return; }
+    const X = I(), r = m.k === 'ent' ? await M.personal.moverEnt(m.id, day) : await M.personal.mover(m.id, day, m.desde);
+    if (!r) return;
+    if (M.web && M.web.tocado) M.web.tocado();   // one the client sees counts as a change not sent to its web
+    // a session that no longer shows in the board's calendar (only its days, D-219) says so
+    if (m.k === 'ses' && X && X.S) { const sp = span(X), fin = r.fin && r.fin.fecha > r.fecha ? r.fin.fecha : r.fecha; if (fin < sp.lo || r.fecha > sp.hi) X.toast(`«${r.txt || 'La sesión'}» pasa al ${X.fmtDate(r.fecha)}: ya no se ve en este calendario. ⌘Z la devuelve.`, { ms: 6000 }); }
   }
   function drop(id, day) {
     const X = I(), s = X && X.S && X.S.slots.find(x => x.id === id); if (!s || X.localDay(s.date) === day) return;
@@ -666,7 +691,8 @@
 #mesa .chip.ty-foto{--cb:var(--ty-foto);--ci:var(--ty-foto-ink)}
 #mesa .chip.ty-carr{--cb:var(--ty-carr);--ci:var(--ty-carr-ink)}
 #mesa .chip.ty-trial{--cb:var(--ty-trial);--ci:var(--ty-trial-ink)}
-#mesa .chip.ty-ses{--cb:var(--ty-ses);--ci:var(--ty-ses-ink)}
+#mesa .chip.ty-ses{--cb:var(--ty-ses);--ci:var(--ty-ses-ink);flex-wrap:nowrap}#mesa .chip.ty-ses .ct{margin-left:auto}   /* one line, its name left and its time right, as a post (D-373) */
+#mesa .side>.cal .chip[data-ses]:hover,#mesa .side>.cal .chip[data-ent]:hover{box-shadow:0 0 0 2px var(--ink)}
 #mesa .chip.ty-ent{--cb:var(--acc-soft);--ci:var(--acc-ink)}#mesa .chip.ty-ent.entregada{--cb:var(--ok-soft);--ci:var(--ok)}#mesa .chip.ty-ent.pasada{--cb:var(--red-soft);--ci:var(--red)}
 #mesa .chip .cent{flex:none;width:11px;height:11px;margin-right:3px}
 #mesa .side>.cal.cont .calhead .ctit{font-size:17px;font-weight:800;letter-spacing:-.025em;color:var(--ink)}#mesa .chip.sigue-i{border-top-left-radius:0;border-bottom-left-radius:0}#mesa .chip.sigue-d{border-top-right-radius:0;border-bottom-right-radius:0}#mesa .chip .cses{flex:none;width:11px;height:11px}
@@ -762,7 +788,7 @@
   const alEntregas = () => { const X = I(); if (X && X.contCli && X.contCli()) render(); };   // a delivery changed (D-290), on its page (D-312)
   document.addEventListener('mesa-entregas', alEntregas);
   M.calendario = {
-    version: VERSION, render, vencidas: abrirVencidas, pastilla, pastillaPintar, avisos: () => avisos(I()),
+    version: VERSION, render, vencidas: abrirVencidas, pastilla, pastillaPintar, avisos: () => avisos(I()), movido: () => Date.now() - noClick < 400,
     _off: () => { ON.forEach(([t, f, c]) => document.removeEventListener(t, f, c !== false)); document.removeEventListener('mesa-tareas', alTareas); document.removeEventListener('mesa-entregas', alEntregas); if (mv) onCancel(); }
   };
   render();                                     // the mesa may have drawn its board before this file arrived

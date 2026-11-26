@@ -254,13 +254,13 @@
       items.push({ tipo: 'acuerdo', c, a, n, clientes: [c.id], dia: a.renegociar, ts: utc(a.renegociar), cat: n < 0 ? 'pasado' : 'acuerdos' });
     }
     // the last month's «Cómo fue» (D-362): from the 3rd (its last posts still add reach a couple of days), one notice in «Hoy»
-    // with the monthly clients that published that month and have no summary of it yet; it goes on its own once Claude loads
+    // with the monthly clients that published (or scheduled) that month and have no summary of it yet; it goes on its own once Claude loads
     // it (calendar-creator: «cómo fue [mes]»), all the clients at once
     const MS = X.mes;
-    if (MS && MS.listo && MS.listo() && +hoy.slice(8, 10) >= 3) {
+    if (MS && MS.listo && MS.listo() && !(MS.mal && MS.mal()) && +hoy.slice(8, 10) >= 3) {   // a failed reading of «meses»: no notice (it would name everyone)
       const pm = X.addMonths(hoy.slice(0, 7), -1);
       const faltan = D.CL.filter(c => !(X.esContenido && X.esContenido(c.id)) && !(MS.get(c.id, pm) || {}).resumen
-        && (Q.porCli.get(c.id) || []).some(o => o.e0 !== 'cancelado' && o.dia && o.dia.slice(0, 7) === pm)).map(c => c.id);
+        && (Q.porCli.get(c.id) || []).some(o => (o.e0 === 'publicado' || o.e0 === 'programado') && o.dia && o.dia.slice(0, 7) === pm)).map(c => c.id);   // what went out (or was scheduled to)
       if (faltan.length) items.push({ tipo: 'informe', mes: pm, clientes: faltan, dia: hoy, ts: utc(hoy), cat: 'hoy' });
     }
     for (const x of items) x.marca = marcaDe(x);   // the Mac and the iPhone only put its class (D-287, D-300)

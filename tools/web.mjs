@@ -563,8 +563,6 @@ const ORDENES = {
     if (!f) throw new Fallo(`no se pudo poner (${r.status}): ${r.text}`);
     return { proyecto: P.ref, version_minima: { antes: f.antes, ahora: f.ahora } };
   },
-  // Lo que apunta `mesa.actividad`: llamadas de quien no es Kevin, rechazos, choques, ordenadores nuevos y borrados masivos.
-  // Las 500 más recientes de esos días, con la hora de Madrid y quién (Kevin, el correo de un cliente o nadie). Nunca valores.
   // Las cuentas del portal (D-363): quién entra en la web de cada cliente. Solo lee; nunca enseña una clave ni un token
   async cuentas(cual, ...op) {
     const P = proyecto(cual);
@@ -574,14 +572,16 @@ const ORDENES = {
         case when m.observa then 'mira' else 'decide' end as rol, ${dia('u.created_at')} as alta, ${dia('u.last_sign_in_at')} as ultima_entrada,
         (u.banned_until is not null and u.banned_until > now()) as bloqueada
       from public.miembros m join auth.users u on u.id = m.user_id join public.clientes c on c.id = m.cliente_id
-      order by m.cliente_id, u.email`);
+      where u.deleted_at is null order by m.cliente_id, u.email`);
     const sinCliente = await sqlDe(P, `select u.email as correo, ${dia('u.created_at')} as alta, ${dia('u.last_sign_in_at')} as ultima_entrada,
         exists (select 1 from public.duenos d where d.user_id = u.id) as dueno
-      from auth.users u where not exists (select 1 from public.miembros m where m.user_id = u.id) order by u.email`);
-    const nunca = cuentas.filter(f => !f.ultima_entrada && !f.bloqueada).length;
+      from auth.users u where u.deleted_at is null and not exists (select 1 from public.miembros m where m.user_id = u.id) order by u.email`);
+    const nunca = new Set(cuentas.filter(f => !f.ultima_entrada && !f.bloqueada).map(f => f.correo)).size;   // accounts, not memberships
     return { proyecto: P.ref, clientes: new Set(cuentas.map(f => f.cliente)).size, cuentas, sinCliente, nuncaEntraron: nunca,
       nota: 'Solo lee. Dar de alta: `alta`; solo mirar: `observador`; el procedimiento, en CLAUDE.local.md.' };
   },
+  // Lo que apunta `mesa.actividad`: llamadas de quien no es Kevin, rechazos, choques, ordenadores nuevos y borrados masivos.
+  // Las 500 más recientes de esos días, con la hora de Madrid y quién (Kevin, el correo de un cliente o nadie). Nunca valores.
   async actividad(cual, dias = '7') {
     const P = proyecto(cual);
     if (!/^[0-9]{1,2}$/.test(String(dias)) || +dias < 1 || +dias > 90) throw new Fallo('los días, de 1 a 90');

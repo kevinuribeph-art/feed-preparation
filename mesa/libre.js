@@ -107,7 +107,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.66';   // 1.66: a photo that is only a working copy of 2560 px here (lot 4 of the traspaso) is decoded and measured at its real size, never enlarged; a big zoom on it says so once (D-259). 1.65: «Capas» with a handle, Lucide's eye, lock and link, seen on hover, chosen or with the focus, and the order in each row's right click; Lucide's lock on the canvas (D-215). 1.64: the «1 / 2» questions with their key drawn (D-199); an open section with a double click folds 0.2 s after a mouse click (D-200); the right-click menus only with what does something (D-201). 1.63: the «1 / 2» question's answer in terracotta (D-194); «Capas» within the panel (D-195); the design's actions in the right-click and «⋯» (D-196); the «Diseño» panel's titles alone, a double click puts them back, the engine's warnings in the title of «Texto» (D-197); <br> as line breaks (D-198). 1.62: a designed post opens in layers, «Diseño» is a layer of the slide, «Soltar del kit» / «Volver al diseño», applying keeps the design (D-193).   // 1.61: the veil and the texture are layers of «Capas»: chosen, moved (▲ ▼, ⌘] ⌘[, dragged, as every layer, which can be dragged now), hidden and deleted; what was saved before stays where it is (D-185). 1.60: «Barra de progreso», Visto and Aspa in «+ Forma» (D-179). 1.59: the second click of the double click that opened the editor is not the editor's; ▲ ▼ of «Capas» and × of «Plantillas» as Lucide icons (D-175); «Medidas exactas» like «Girar» and no message when a ⌘Z undoes a type change's drawing (D-176); «Elegir foto» without its grey explanation (D-177); «Desliza →», Comillas and «Número en círculo» in «+ Forma» (D-178). 1.57: «Girar»'s field and title say the real angle and a double click chooses it; no message when a ⌘Z pressed while a drop was drawn undid it (D-166). 1.56: without the floating bar (its actions in an element's right-click menu), «+ Forma», «⋯» with «Vista previa» and «Guías», the bars' double click, the state pill in the foot (D-163 to D-165). 1.55: an element's panel in folding sections, one open at a time, the last one opened remembered by kind (D-149); the tray's tab in use in the accent, no path in text, its row as wide as there is room (D-151). 1.54: «+ Diapositiva», header with the name alone, section titles alone at 21 px, no «Ajustar» (D-139–D-141, D-145), «Libres» (D-146)
+  const VERSION = '1.67';   // 1.67: «Espera a que termine la subida a Zernio» (Notion is off, D-361). 1.66: a photo that is only a working copy of 2560 px here (lot 4 of the traspaso) is decoded and measured at its real size, never enlarged; a big zoom on it says so once (D-259). 1.65: «Capas» with a handle, Lucide's eye, lock and link, seen on hover, chosen or with the focus, and the order in each row's right click; Lucide's lock on the canvas (D-215). 1.64: the «1 / 2» questions with their key drawn (D-199); an open section with a double click folds 0.2 s after a mouse click (D-200); the right-click menus only with what does something (D-201). 1.63: the «1 / 2» question's answer in terracotta (D-194); «Capas» within the panel (D-195); the design's actions in the right-click and «⋯» (D-196); the «Diseño» panel's titles alone, a double click puts them back, the engine's warnings in the title of «Texto» (D-197); <br> as line breaks (D-198). 1.62: a designed post opens in layers, «Diseño» is a layer of the slide, «Soltar del kit» / «Volver al diseño», applying keeps the design (D-193).   // 1.61: the veil and the texture are layers of «Capas»: chosen, moved (▲ ▼, ⌘] ⌘[, dragged, as every layer, which can be dragged now), hidden and deleted; what was saved before stays where it is (D-185). 1.60: «Barra de progreso», Visto and Aspa in «+ Forma» (D-179). 1.59: the second click of the double click that opened the editor is not the editor's; ▲ ▼ of «Capas» and × of «Plantillas» as Lucide icons (D-175); «Medidas exactas» like «Girar» and no message when a ⌘Z undoes a type change's drawing (D-176); «Elegir foto» without its grey explanation (D-177); «Desliza →», Comillas and «Número en círculo» in «+ Forma» (D-178). 1.57: «Girar»'s field and title say the real angle and a double click chooses it; no message when a ⌘Z pressed while a drop was drawn undid it (D-166). 1.56: without the floating bar (its actions in an element's right-click menu), «+ Forma», «⋯» with «Vista previa» and «Guías», the bars' double click, the state pill in the foot (D-163 to D-165). 1.55: an element's panel in folding sections, one open at a time, the last one opened remembered by kind (D-149); the tray's tab in use in the accent, no path in text, its row as wide as there is room (D-151). 1.54: «+ Diapositiva», header with the name alone, section titles alone at 21 px, no «Ajustar» (D-139–D-141, D-145), «Libres» (D-146)
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2560;                      // a photo's working size in the editor (long side); the original only with a strong zoom (D-116)
@@ -4202,7 +4202,7 @@
     try {
       need(s, 'La publicación ya no está en la mesa.');
       need(!I().locked, LOCKED);
-      need(!I().uploadsBusy(), 'Espera a que termine la subida a Notion.');
+      need(!I().uploadsBusy(), 'Espera a que termine la subida a Zernio.');
       need(I().same(s.photos, E.photos0), 'La publicación cambió mientras editabas: cierra el editor y vuelve a abrirlo.');
       need(!E.car || E.sl.length <= MAX_SLIDES, 'Un carrusel admite como máximo 20 diapositivas (límite de Instagram).');
       // an empty hole goes in as it is (the post is marked and never goes up, D-035); a photo or logo whose file is gone can't be drawn
@@ -4306,7 +4306,7 @@
       const s = S.slots.find(x => x.id === slotId); need(s && I().isCarousel(s.type) && !s.design, 'Esa publicación ya no está en la mesa.');
       need(!(E && E.busy) && !APL, 'Espera: el editor está dibujando una publicación.');
       need(!(M.diseno && M.diseno.aplicando && M.diseno.aplicando()), 'Espera: el diseñador está aplicando un diseño.');
-      need(!I().uploadsBusy(), 'Espera a que termine la subida a Notion.');
+      need(!I().uploadsBusy(), 'Espera a que termine la subida a Zernio.');
       ids = [...new Set(ids || [])].filter(f => M.files[f] && !M.files[f].design && !isKit(f) && !s.photos.includes(f));
       if (!ids.length) return { ok: true, cambios: 0 };
       const photos0 = s.photos.slice(), d0 = M.files[photos0[0]] || { w: 4, h: 5 };
@@ -4392,7 +4392,7 @@
       if ((E && E.busy) || APL) { cola.add(slotId); return { ok: true, pendiente: true }; }
       if (soloNum && ((E && E.board === S && E.slotId === slotId) || I().uploadsBusy() || (M.diseno && M.diseno.aplicando && M.diseno.aplicando()))) { NUM_VISTO.delete(S.key + ':' + slotId); return { ok: true, pendiente: true }; }   // the open editor numbers it; busy: looked at again on the next render
       need(!(M.diseno && M.diseno.aplicando && M.diseno.aplicando()), 'Espera: el diseñador está aplicando un diseño.');
-      need(!I().uploadsBusy(), 'Espera a que termine la subida a Notion.');
+      need(!I().uploadsBusy(), 'Espera a que termine la subida a Zernio.');
       const photos0 = s.photos.slice(), d0 = M.files[photos0[0]] || { w: 4, h: 5 };
       const W = OUT_W, H = Math.round(OUT_W / I().fmtRatio(I().cropOf(photos0[0], s).fmt, d0.w, d0.h)), R = W / H;   // the format the mesa shows the post in
       const n = photos0.length, sl = photos0.map((key, j) => {
@@ -4455,7 +4455,7 @@
       need(!I().locked, LOCKED);
       need(!E, 'Cierra el editor antes de diseñar una historia desde fuera.');
       need(!APL && !REDO.size && !NUMQ.size, 'Espera: la mesa está redibujando una publicación.');
-      need(!I().uploadsBusy(), 'Espera a que termine la subida a Notion.');
+      need(!I().uploadsBusy(), 'Espera a que termine la subida a Zernio.');
       need(!(M.diseno && M.diseno.aplicando && M.diseno.aplicando()), 'Espera: el diseñador está aplicando un diseño.');
       const photos0 = (h.photos || []).slice();
       APL++; counted = true;

@@ -868,7 +868,7 @@
   // bytes de lo que el feed enseña y sube: lo que no puede cambiar por tener historias
   async function vistaFeed() {
     await M.flush();
-    return json({ celdas: qa('.feed .grid .cell').map(c => [c.dataset.slot || '', c.className]), plan: M.plan(), cambios: M.notionChanges(), captions: M.captions(), slots: M.board().slots.map(s => ({ ...s, at: 0 })), estado: M.status().slots, cal: qa('.cal .chip').length, revisar: (await M.revisar()).puntos, imagen: (await sello(M.out.clean)).length });
+    return json({ celdas: qa('.feed .grid .cell').map(c => [c.dataset.slot || '', c.className]), plan: M.plan(), cambios: M.notionChanges(), captions: M.captions(), slots: M.board().slots.map(s => ({ ...s, at: 0 })), estado: M.status().slots, cal: qa('.cal .chip').length, revisar: (await M.revisar()).puntos });
   }
 
   prueba('H1', 'Las historias no se ven en el feed: casillas, imagen, plan, notionChanges, captions, calendario y contadores siguen igual (D-054)', async () => {
@@ -24567,7 +24567,7 @@
       ok(!M.board().tray.includes(g), 'la foto sigue en la bandeja');
     } finally { if (M._in.skill) M._in.skill.cerrar(); M._in.clearToasts(); await limpiar(); }
   });
-  prueba('FM7', 'Pulsar un mes de la cabecera mientras una skill trabaja (feed continuo, pieza 9; D-334): el mes cambia, pero cualquier llamada de la skill (plan, render, notionChanges, markSynced con y sin ids, setEstado, markUploaded) da el error «el mes abierto cambió» con su mes y no toca nada; MESA.open la cierra y la siguiente llamada la abre en su mes', async () => {
+  prueba('FM7', 'Pulsar un mes de la cabecera mientras una skill trabaja (feed continuo, pieza 9; D-334): el mes cambia, pero cualquier llamada de la skill (plan, setEstado; las de Notion están apagadas, D-361) da el error «el mes abierto cambió» con su mes y no toca nada; MESA.open la cierra y la siguiente llamada la abre en su mes', async () => {
     const FN = `${CLIENTE}-${MES}`, SK = M._in.skill || { ver: () => null, cerrar() {} };
     try {
       await fjSeis(); await M.open(FN); await fjQuieto(300);
@@ -24876,10 +24876,12 @@
     const csp = (W.document.querySelector('meta[http-equiv="Content-Security-Policy"]') || {}).content || '';
     ok(csp && !/notion|amazonaws/i.test(csp), 'la CSP sigue con Notion: ' + csp);
   });
-  prueba('CF1', 'El «Cómo fue» del mes pasado avisa desde el día 3 (D-362): en «Hoy», con los clientes que publicaron ese mes y sin su resumen, sin marca y sin abrir nada; el día 2, nada; con el resumen cargado, se va', async () => {
+  prueba('CF1', 'El «Cómo fue» del mes pasado avisa desde el día 3 (D-362): en «Hoy», con los clientes que publicaron (o programaron) ese mes y sin su resumen, sin marca y sin abrir nada; el día 2 o sin nada publicado, nada; con el resumen cargado, se va', async () => {
     try {
-      await tablero([pub(1), pub(2)]); await M.flush();   // noviembre, con publicaciones
+      await tablero([pub(1), pub(2)]); await M.flush();   // noviembre
       const inf = async () => (await M.personal.datos()).items.filter(x => x.tipo === 'informe');
+      reloj('2026-12-03', '10:00'); igual((await inf()).length, 0, 'avisa sin nada publicado en noviembre');
+      ok(!M.setEstado(['r1'], 'publicado')[0].error && !M.setEstado(['r2'], 'programado')[0].error, 'no se marcaron publicada y programada'); await M.flush();
       reloj('2026-12-02', '10:00'); igual((await inf()).length, 0, 'el día 2 ya avisa');
       reloj('2026-12-03', '10:00');
       const a = await inf();

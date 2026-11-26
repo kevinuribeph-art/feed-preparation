@@ -583,7 +583,8 @@
   function pintarPagosSolo() { const v = app.querySelector('[data-p="pagos"]'), n = seguro(() => pintarPagos(st.clientes.find(c => c.id === st.cli))); if (!v || !n) return pintar(); scrollCols(); v.replaceWith(n); scrollCols(true); }
   function estadoPago(r, H) {
     if (r.cobrada) return ['Pagada', 'ok', 'check', 'pagada el ' + diaCorto(r.cobrada)];
-    if (!r.emitida || r.emitida > H) return ['Sin emitir', 'sin', 'clock', r.emitida ? 'se emite el ' + diaCorto(r.emitida) : ''];
+    // como la Mesa (cobEstado): sin emisión ni vencimiento, o con la emisión más adelante, sin emitir; con solo «Vence», cuenta como emitida (D-368)
+    if ((!r.emitida && !r.vence) || (r.emitida && r.emitida > H)) return ['Sin emitir', 'sin', 'clock', r.emitida ? 'se emite el ' + diaCorto(r.emitida) : ''];
     if (r.vence && r.vence < H) return ['Pendiente', 'ven', 'alert', 'venció el ' + diaCorto(r.vence)];
     return ['Pendiente', 'pen', 'clock', r.vence ? 'vence el ' + diaCorto(r.vence) : ''];
   }
@@ -599,7 +600,7 @@
   function pintarPagos(cli) {
     const P = st.d.pagos, H = hoy(), clave = r => r.emitida || (/^\d{4}-\d{2}$/.test(r.periodo || '') ? r.periodo + '-01' : '') || r.vence || '';
     const orden = (a, b) => clave(b).localeCompare(clave(a)) || String(b.id).localeCompare(String(a.id));
-    const deber = P.filter(r => !r.cobrada && r.emitida && r.emitida <= H).sort((a, b) => clave(a).localeCompare(clave(b)));
+    const deber = P.filter(r => !r.cobrada && estadoPago(r, H)[1] !== 'sin').sort((a, b) => clave(a).localeCompare(clave(b)));
     const pagadas = P.filter(r => r.cobrada).sort(orden), N = Math.max(0, pagadas.length - 3), ver = st.verAnt === st.cli;
     const prox = cli && /^\d{4}-\d{2}-\d{2}$/.test(cli.proxima_emision || '') ? cli.proxima_emision : '';   // también una que ya tocaba (D-308)
     const tramo = cli && cli.pago && cli.pago !== 'mensual' && cli.pago_cent != null;

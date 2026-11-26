@@ -19646,6 +19646,59 @@
     });
   });
 
+  prueba('FX12', 'El portal enseña una factura pendiente que solo tiene fecha de vencimiento, como la «Vista cliente» (D-368): cuenta en «Pendiente de pago», sale «venció el…» (en rojo) o «vence el…»; sin emisión ni vencimiento, o con la emisión más adelante, no sale', async () => {
+    const f = (id, o) => ({ id, cliente_id: 'c1', periodo: '2026-0' + id.slice(1), concepto: null, importe_cent: 10000, factura: 'F-' + id.slice(1), emitida: null, vence: null, cobrada: null, pdf: null, ...o });
+    const pagos = [f('f1', { vence: fxDia(-3) }), f('f2', { vence: fxDia(20) }), f('f3', {}), f('f4', { emitida: fxDia(30), vence: fxDia(45) })];
+    await portalFalso({ w: 1200, h: 900, tablas: fxPortal({ pagos }) }, async (V, d) => {
+      await hasta(() => d.querySelector('[data-p="pagos"]'), 4000, '«Tus pagos»');
+      const sec = d.querySelector('[data-p="pagos"]'), filas = [...sec.querySelectorAll('.fac')].map(b => b.textContent);
+      igual(filas.length, 2, 'las facturas que salen: ' + json(filas));
+      ok(filas[0].includes('F-1') && /venció el/.test(filas[0]) && filas[1].includes('F-2') && /vence el/.test(filas[1]), 'lo que dicen: ' + json(filas));
+      ok(sec.querySelectorAll('.fac .est.ven').length === 1 && sec.querySelectorAll('.fac .est.pen').length === 1 && !sec.querySelector('.fac .est.sin'), 'sus marcas');
+      ok(/Pendiente de pago\s*200\s€/.test(sec.querySelector('.pend-pago').textContent.replace(/ /g, ' ')) && /1 vencida/.test(sec.textContent), 'el total pendiente: ' + sec.textContent);
+      ok(!/F-3|F-4/.test(sec.textContent), 'sale una factura que aún no se debe');
+    });
+  });
+
+  prueba('FX13', 'La tarjeta de un esporádico pinta su próxima reunión con el icono de reunión, y una sesión con el de sesión (D-368)', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await seListo();
+      const P = M.personal._p, now = new Date(M._in.ahora()).toISOString(), hoyP = M._in.hoy();
+      const e = { id: 'esfx13a', tipo: 'esporadico', txt: 'Con reunión', creada: now, at: now }, e2 = { id: 'esfx13b', tipo: 'esporadico', txt: 'Con sesión', creada: now, at: now };
+      await P.hacer([{ id: e.id, despues: e }, { id: e2.id, despues: e2 }]);
+      await M.sesiones._test.crear({ txt: 'Reunión suya', clase: 'reunion', fecha: hoyP, hora: '11:00', cliente: e.id, visible: false });
+      await M.sesiones._test.crear({ txt: 'Sesión suya', clase: 'foto', fecha: hoyP, hora: '12:00', cliente: e2.id });
+      await M.personal.set({ plg: { tareas: true, clientes: false, avisos: false } }); await M.personal.render();
+      q('[data-pp="cvista"][data-v="esporadicos"]').click(); await espera(80);
+      const ico = id => { const x = q(`[data-pp="esp"][data-id="${id}"] .pp-esf svg`); return x ? x.innerHTML : ''; };
+      ok(/M16 21v-2a4 4 0 0 0-4-4H6/.test(ico(e.id)), 'una reunión no lleva el icono de reunión: ' + ico(e.id));
+      ok(ico(e2.id) && !/M16 21v-2a4 4 0 0 0-4-4H6/.test(ico(e2.id)), 'una sesión no lleva su icono: ' + ico(e2.id));
+    } finally { await sinTareas(); paginaCerrada(); }
+  });
+
+  prueba('FX14', '«Editar cliente» → «Datos» de un cliente de solo contenido no pide «Inicio de ciclo», y guardar no le cambia el que tenía; el de redes sigue pidiéndolo (D-368)', async () => {
+    await tableroContenido();
+    try {
+      await M.updateClient(CLIENTE, { cycleDay: 15 });
+      await M._in.cob.dlgCliente(CLIENTE, 'datos');
+      const f = await hasta(() => q('.detail [data-form="editclient"]'), 3000, '«Editar cliente»');
+      ok(!f.querySelector('#ec-cycle') && !/Inicio de ciclo/.test(f.textContent), 'pide «Inicio de ciclo» a un cliente de solo contenido');
+      ok(f.querySelector('#ec-entregas'), 'sin «Entregas antes del día»');
+      f.querySelector('#ec-name').value = NOMBRE; f.requestSubmit();
+      await hasta(() => !q('.detail:not([hidden]) [data-form="editclient"]'), 4000, 'que guarde');
+      igual((M._in.CL.find(c => c.id === CLIENTE) || {}).cycleDay, 15, 'guardar le cambió el inicio de ciclo');
+      await M.updateClient(CLIENTE, { servicio: 'redes' }); await M.open(`${CLIENTE}-${MES}`); await espera(150);
+      await M._in.cob.dlgCliente(CLIENTE, 'datos');
+      const f2 = await hasta(() => q('.detail [data-form="editclient"]'), 3000, '«Editar cliente» de redes');
+      ok(f2.querySelector('#ec-cycle'), 'el de redes ya no pide «Inicio de ciclo»');
+    } finally {
+      M._in.closeDetail();
+      await M.updateClient(CLIENTE, { cycleDay: 1, servicio: 'redes' }).catch(() => {});
+      await M._test.vaciarTodo(); await sinTareas(); await tablero([pub(1)]);
+    }
+  });
+
   prueba('FX15', 'Restos de Notion fuera (D-367): MESA.calendario ya no tiene «cambios» (la ventana de «cambiadas»); ni la carga que quitaría publicaciones ni el porqué mal escrito nombran Notion; las llamadas de Notion siguen diciendo que está apagado (D-361)', async () => {
     await tablero([pub(1), pub(2)]);
     await poner('r2', [await foto('fx15.jpg')]);   // con una foto, quitarla se rechaza (D-360)

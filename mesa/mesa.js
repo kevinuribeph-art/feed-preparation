@@ -5558,7 +5558,7 @@ ${TK_FUENTES}
       <label for="ec-handle">Usuario de Instagram</label><input id="ec-handle" name="handle" type="text" maxlength="120" value="${esc(c.handle || '')}" placeholder="@usuario">
       <label for="ec-metricas">Enlace de métricas (Zernio) <span>(opcional)</span></label><input id="ec-metricas" name="metricas" type="text" inputmode="url" maxlength="500" value="${esc(c.metricas || '')}" placeholder="https://" autocomplete="off" spellcheck="false">
       ${esContenido(cid) ? `<label for="ec-entregas">Entregas antes del día <span>(opcional)</span></label><div class="ecdia">${diaSel('id="ec-entregas" name="entregasDia"', okCd(c.entregasDia) ? c.entregasDia || '' : '', true)}</div>` : ''}
-      <label for="ec-cycle" class="dcl" data-v="${cdOf(c.cycleDay)}" title="Inicio de ciclo · doble clic: el guardado">Inicio de ciclo <span>(los meses ya cargados conservan el suyo)</span></label><div class="ecdia">${diaSel('id="ec-cycle" name="cycleDay" required', cdOf(c.cycleDay))}</div>
+      ${cont ? '' : `<label for="ec-cycle" class="dcl" data-v="${cdOf(c.cycleDay)}" title="Inicio de ciclo · doble clic: el guardado">Inicio de ciclo <span>(los meses ya cargados conservan el suyo)</span></label><div class="ecdia">${diaSel('id="ec-cycle" name="cycleDay" required', cdOf(c.cycleDay))}</div>`}
       <label>Foto de perfil</label><div class="avrow">${avatarHTML(c, 'avprev')}<button type="button" class="btn2" data-act="avpick">Elegir foto…</button><button type="button" class="lnk" data-act="avdel"${c.foto ? '' : ' hidden'}>Quitar</button><input type="file" class="avin" accept="image/jpeg,image/png,image/webp" hidden></div>
       <p class="ferr" hidden></p>
       <div class="row">${nm && cont ? `<span class="left muted">${nm === 1 ? 'Un tablero viejo suyo lleva' : `${nm} tableros viejos suyos llevan`} publicaciones o fotos: no se puede eliminar.</span>` : nm ? `<span class="left muted">Tiene ${nm} mes${nm === 1 ? '' : 'es'} guardado${nm === 1 ? '' : 's'}: no se puede eliminar.</span>` : nf ? `<span class="left muted">Tiene ${nf} factura${nf === 1 ? '' : 's'}: no se puede eliminar.</span>` : '<button type="button" class="btn2 danger left" data-act="delclient">Eliminar cliente</button>'}<button type="submit" class="btn">Guardar</button></div></form>${U ? `<div class="co-pane" id="ecp-cobros" role="tabpanel" aria-labelledby="ect-cobros" data-co-cli="${esc(cid)}"${co ? '' : ' hidden'}>${U.pane(cid)}</div>` : ''}${E ? `<div class="est" id="ecp-estilo" role="tabpanel" aria-labelledby="ect-estilo" data-est-cli="${esc(cid)}"${es ? '' : ' hidden'}>${E.pane(cid)}</div>` : ''}`);
@@ -5574,11 +5574,12 @@ ${TK_FUENTES}
   window.addEventListener('unhandledrejection', e => { if (shellReady()) fallo(e.reason); });
   async function submitForm(form) {
     const kind = form.dataset.form, err = form.querySelector('.ferr');
-    const name = form.elements.name.value.trim(), handle = normHandle(form.elements.handle ? form.elements.handle.value : ''), cyc = form.elements.cycleDay ? form.elements.cycleDay.value.trim() : '1';
+    // without the field: a new client starts on day 1; editing («Solo contenido», without it, D-368), the stored one stays as it is
+    const name = form.elements.name.value.trim(), handle = normHandle(form.elements.handle ? form.elements.handle.value : ''), cyc = form.elements.cycleDay ? form.elements.cycleDay.value.trim() : kind === 'newclient' ? '1' : '';
     const fail = m => { err.textContent = m; err.hidden = false; };
     if (!name) return fail('Escribe el nombre del cliente.');
-    if (!/^\d+$/.test(cyc) || !okCd(+cyc)) return fail('El inicio de ciclo es un día del 1 al 28.');
-    const cycleDay = +cyc;
+    if (cyc !== '' && (!/^\d+$/.test(cyc) || !okCd(+cyc))) return fail('El inicio de ciclo es un día del 1 al 28.');
+    const cycleDay = cyc === '' ? '' : +cyc;
     const cid = edCid || curClient;   // D-233
     if (CL.some(c => c.name.toLowerCase() === name.toLowerCase() && (kind === 'newclient' || c.id !== cid))) return fail('Ya existe un cliente con ese nombre.');
     if (kind === 'newclient' && M.personal && M.personal._p && M.personal._p.esps && M.personal._p.esps().some(e => String(e.txt).toLowerCase() === name.toLowerCase())) return fail('Ya hay un esporádico con ese nombre.');

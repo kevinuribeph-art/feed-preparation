@@ -600,7 +600,7 @@
       const c1 = ss.length ? `${ss.length} ${ss.length === 1 ? 'sesión' : 'sesiones'}${pas ? ` · la última, ${diaHora(pas.fecha).replace(/ \d{4}$/, '')}` : ''}` : '';
       const c2 = [ts.length ? `${ts.length} ${ts.length === 1 ? 'tarea' : 'tareas'}` : '', ns.length ? `${ns.length} ${ns.length === 1 ? 'nota' : 'notas'}` : ''].filter(Boolean).join(' · ');
       const b = `<button type="button" class="pp-blq pp-esb" data-pp="esp" data-id="${esc(e.id)}" title="${esc(e.txt)}"><span class="pp-l1"><span class="pp-quien">${avatar(e.id)}<span class="pp-cn">${esc(e.txt)}</span></span><span class="pp-cuentas">${c1 ? `<span>${esc(c1)}</span>` : ''}${c2 ? `<span>${esc(c2)}</span>` : ''}</span></span>`
-        + (sig ? `<span class="pp-esf">${ICO.sesion}<b>${esc(sig.txt)}</b><span>${esc(diaHora(sig.fecha, sig.hora))}</span></span>` : '') + `</button>`;
+        + (sig ? `<span class="pp-esf">${esReunion(sig) ? ICO.reunion : ICO.sesion}<b>${esc(sig.txt)}</b><span>${esc(diaHora(sig.fecha, sig.hora))}</span></span>` : '') + `</button>`;
       return `<div class="pp-bw" data-c="${esc(e.id)}">${b}${cobLinea(e.id, e.txt, hueco)}</div>`;
     }).join('');
     return `<div class="pp-pc">${E.length ? `<div class="pp-bgrid pp-esg${cols > 2 ? ' estrecha' : ''}" style="--cols:${cols}">${bl}</div>` : ''}<button type="button" class="pp-cmas pp-esn" data-pp="esp-nuevo">${ICO.mas}Esporádico</button></div>`;

@@ -206,11 +206,13 @@
   // Since the 4.58 (D-372) it lives in 'enviados', with what was sent: it goes with the cloud and another Mac doesn't count a change
   // of more. The one of before, in this browser's localStorage, is taken once as it is (and left there).
   const claveHuella = B => { const c = sb(); return 'mesa-web-huella:' + (c ? c._url : '') + ':' + B.key; };
-  async function huellaVista(B) {
+  // It goes to the store only if it is what there is now (an older one, of a send another Mac made later, would show a change there
+  // that isn't), and with an old date: a real send wins over it in a copy or the cloud (revisión del lote 3)
+  async function huellaVista(B, ahora) {
     const X = I(), c = sb(), url = c ? c._url : '';
     if (X.envLeer) await X.envLeer().catch(() => null);
     let h = X.envHuella ? X.envHuella(B, url) : null;
-    if (h == null) { const v = lsG(claveHuella(B)); if (v && /^[0-9a-f]{64}$/.test(v)) { h = v; if (!X.locked && !MOVIL && X.envHuellaPoner) await X.envHuellaPoner(B, url, v).catch(() => 0); } }
+    if (h == null) { const v = lsG(claveHuella(B)); if (v && /^[0-9a-f]{64}$/.test(v)) { h = v; if (v === ahora && !X.locked && !MOVIL && X.envHuellaPoner) await X.envHuellaPoner(B, url, v, '2000-01-01T00:00:00.000Z').catch(() => 0); } }
     return h;
   }
   const huellaExtra = P => sha(JSON.stringify([P.cliente, P.sesiones, P.meses, P.mesesQuitar, P.pagos, P.entregas || []]));
@@ -231,7 +233,7 @@
         st.extraT = Date.now();
         const P = await paquete(B); if (tablero() !== B) return;
         if (P.error) throw new Error(P.error);   // sin poder leer, nunca «al día» (revisión del lote B)
-        const e = (await huellaExtra(P)) === (await huellaVista(B)) ? 0 : 1; if (tablero() !== B) return;
+        const hx = await huellaExtra(P), e = hx === (await huellaVista(B, hx)) ? 0 : 1; if (tablero() !== B) return;
         if (e !== st.extra) { st.extra = e; st.firma = ''; }
       }
       const errorAntes = st.error; st.error = '';
@@ -262,7 +264,7 @@
   // What the indicator says of its web (D-372): a row for each post whose content changes (what the client will see different),
   // one «El orden del feed» if others only change their place, those no longer in the board and the rest (sessions, payments, the
   // why). The count is its rows: a move no longer counts every post it shifts
-  const soloOrden = (p, r) => r && r.version === p.version && r.estado === p.fila.estado && r.visible === p.fila.visible && r.mes === p.fila.mes && r.orden !== p.fila.orden;
+  const soloOrden = (p, r) => r && r.visible && p.fila.visible && r.version === p.version && r.estado === p.fila.estado && r.visible === p.fila.visible && r.mes === p.fila.mes && r.orden !== p.fila.orden;
   function listaDe(B, pubs, serv, sobran) {
     const X = I(), out = [], cambian = pubs.filter(p => !igual(p, serv.get(p.pid)));
     cambian.filter(p => !soloOrden(p, serv.get(p.pid))).sort((a, b) => X.ts(a.s.date) - X.ts(b.s.date)).forEach(p => out.push({ k: p.s.id,
@@ -409,7 +411,7 @@
         if (P.entregas.length) await c.insertar('entregas', P.entregas, { upsert: true, conflicto: 'cliente_id,id' });
         await c.borrar(`entregas?cliente_id=eq.${ce}` + (P.entregas.length ? `&id=not.in.(${P.entregas.map(x => `"${x.id}"`).join(',')})` : ''));
       }
-      if (X.envHuellaPoner) await X.envHuellaPoner(B, c._url, await huellaExtra(P));   // in 'enviados' (D-372)
+      if (X.envHuellaPoner) await X.envHuellaPoner(B, c._url, await huellaExtra(P)).catch(() => 0);   // in 'enviados' (D-372); what was sent stays sent if this browser can't write it
       const ahoraIso = new Date().toISOString();   // lo enviado de cada publicación, campo a campo: la marca y la lista cuentan desde aquí (D-355)
       if (X.envPoner) await X.envPoner(P.publicaciones.filter(p => p.firma).map(p => ({ cliente: cli, slot: p.s.id, ...p.firma, estado: p.fila.estado, orden: p.fila.orden, visible: p.fila.visible, at: ahoraIso }))).catch(() => 0);
       st.servidor = await leerServidor(cli, B); st.clave = B.key; st.cliente = cli; st.firma = ''; st.cambios = null; st.lista = null; st.extra = 0; st.extraT = Date.now(); st.error = '';

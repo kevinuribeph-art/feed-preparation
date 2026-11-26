@@ -807,27 +807,30 @@
     if (re) paso.n = zN(); else paso.ut = zN();   // its place in the order shared with the board's steps (D-373)
     a.push(paso);
     await escribir(paso.map(p => ({ id: p.id, alm: p.alm, despues: p.alm ? p[re ? 'despues' : 'antes'] : copia(re ? p.despues : p.antes) })));
-    pintar(); if (!sinCard) pintarCard(true); return true;
+    pintar(); if (!sinCard) pintarCard(true);
+    if (M.web && M.web.tocado) M.web.tocado();   // a session or a delivery back where it was: what its web shows is read again (D-373)
+    return true;
   }
   const zN = () => { const X = I(); return X && X.zN ? X.zN() : Date.now(); };
   // moved in a calendar (D-373): a task to that day; a session or a meeting by as many days as it was dragged from the day it was
   // grabbed by (one shown elsewhere, today's overdue, to that day), whole and with its time; a delivery, its deadline. A step each
-  async function mover(id, dia, desde) {
+  async function mover(id, dia, desde, cli) {   // cli: the client of the calendar it was moved in (the board's ⌘Z reaches it there)
     if (!puede() || !/^\d{4}-\d{2}-\d{2}$/.test(dia || '')) return null;
     if (!TK.has(id)) await cargarTK();   // made elsewhere (its sheet, another tab, the iPhone) and not read here yet
     const r = TK.get(id); if (!r || r._b || !r.fecha || (r.tipo !== 'tarea' && r.tipo !== 'sesion')) return null;
     const x = copia(r), de = r.tipo === 'sesion' && desde && enTramo(r, desde) ? desde : r.fecha, f = addD(r.fecha, difD(de, dia));
     if (f === r.fecha) return null;
     moverInicio(x, f); x.at = ahoraISO();
-    const ok = await hacer([{ id, despues: x }]); if (ok && st.on) pintar();
+    const ok = await hacer([{ id, despues: x }]); if (ok) { const u = H.u[H.u.length - 1]; if (u) u.cli = cli || null; } if (ok && st.on) pintar();
     return ok ? copia(x) : null;
   }
-  async function moverEnt(id, dia) {
+  async function moverEnt(id, dia, cli) {
     const X = I(), r = X && X.ent && X.ent.get(id); if (!puede() || !r || r.borrado || !/^\d{4}-\d{2}-\d{2}$/.test(dia || '') || r.fecha === dia) return null;
-    const paso = [{ id, alm: 'entregas', antes: { fecha: r.fecha }, despues: { fecha: dia } }]; paso.t = Date.now(); paso.n = zN(); paso.junta = null;
-    H.u.push(paso); if (H.u.length > 60) H.u.shift(); H.r = [];
+    const paso = [{ id, alm: 'entregas', antes: { fecha: r.fecha }, despues: { fecha: dia } }]; paso.t = Date.now(); paso.n = zN(); paso.junta = null; paso.cli = cli || null;
     await escribir(paso.map(p => ({ id: p.id, alm: p.alm, despues: p.despues })));
-    return X.ent.get(id);
+    const r2 = X.ent.get(id); if (!r2 || r2.fecha !== dia) return null;   // not moved: no step
+    H.u.push(paso); if (H.u.length > 60) H.u.shift(); H.r = [];
+    return r2;
   }
   const ahoraISO = () => new Date(I().ahora()).toISOString();
   async function nuevaTarea(o = {}) {
@@ -1670,7 +1673,8 @@
     campo: (id, campo, sid) => campoTarea(id, campo, sid), editar: (id, campo, v) => editarTarea(id, campo, v),   // the iPhone edits field by field (D-272)
     tareas: async () => { await leer(); return vivos().map(copia); },
     tarea: o => nuevaTarea(o), hecha: (id, v = true) => marcar(id, v), borrar, deshacer: () => deshacer(false), rehacer: () => deshacer(true),
-    mover, moverEnt, ultimo: re => { const p = re ? H.r[H.r.length - 1] : H.u[H.u.length - 1]; return p ? (re ? p.ut : p.n) || 0 : 0; },   // D-373
+    // the newest step, for the board's ⌘Z (D-373): only a move made in the calendar of that client (cli)
+    mover, moverEnt, ultimo: (re, cli) => { const p = re ? H.r[H.r.length - 1] : H.u[H.u.length - 1]; return p && cli && p.cli === cli ? (re ? p.ut : p.n) || 0 : 0; },
     estado: () => ({ ...st, abiertos: [...st.abiertos], plg: { ...st.plg }, nueva: { ...st.nueva, fotos: st.nueva.fotos.length } }),
     set: o => { Object.assign(st, o); pintar(); return refrescar(); },
     _test: { rebajar, H: () => ({ u: H.u.length, r: H.r.length }), olvidar: () => { H.u = []; H.r = []; } },

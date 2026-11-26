@@ -15595,6 +15595,46 @@
     } finally { relojVuelve(); await sinTareas(); }
   });
 
+  prueba('CA6', '⌘Z del tablero y lo movido (D-373, revisión del lote 3): un paso del editor o del diseñador lleva su número y se deshace antes que una sesión movida antes; solo lo movido en el calendario de este cliente se deshace desde el tablero, no lo hecho en la página personal', async () => {
+    relojEn('2026-11-10T10:00:00+01:00');
+    try {
+      await tablero([pub(1, 'Foto', 20), pub(2, 'Foto', 24)]); await sinTareas();
+      await taSes('ss-ca6', { txt: 'Sesión CA6', fecha: '2026-11-12', hora: '10:30', clientes: [CLIENTE] });
+      W.document.dispatchEvent(new W.CustomEvent('mesa-tareas')); await espera(120); await caCal();
+      await caArrastra('.side > .cal .chip[data-ses="ss-ca6"]', '.side > .cal .cday[data-day="2026-11-18"]');
+      igual((await caRec('ss-ca6')).fecha, '2026-11-18', 'la sesión no se movió');
+      // a step of the editor's kind, merged with histJuntar, after the move: ⌘Z undoes it first
+      const m = M._in.histMarca(); M._test.setSlot('r1', { memo: 'del editor' }); M._in.histJuntar(m); await espera(40);
+      tecla('z', { meta: true }); await espera(200);
+      ok(!slot('r1').memo, '⌘Z no deshizo primero el paso del editor');
+      igual((await caRec('ss-ca6')).fecha, '2026-11-18', '⌘Z deshizo antes la sesión que el editor');
+      // a task done on the personal page is not undone from the board
+      const t = await M.personal.tarea({ txt: 'Tarea de la página', fecha: '2026-11-11' }); await M.personal.hecha(t.id);
+      tecla('z', { meta: true }); await espera(200);
+      ok((await caRec(t.id)).hecha, '⌘Z del tablero deshizo una tarea de la página personal');
+    } finally { relojVuelve(); await sinTareas(); }
+  });
+
+  prueba('IN8', 'La huella de su web (D-372, revisión del lote 3): una huella vieja de este navegador que ya no es la de ahora no pasa a «enviados» (otro Mac la tomaría por buena); la que pasa lleva una fecha vieja; un envío cuya huella no se puede guardar sigue siendo un envío bueno', async () => {
+    await tablero([pub(1)]);
+    await porAprobar(['r1'], 'in8');
+    await conWeb(async sv => {
+      wbSesion(); await M.web.repasar(); ok((await M.web.enviar()).ok, 'no se envió'); await M.web.repasar();
+      const k = M._in.S.key, hu = () => M._in.idbAll('enviados').then(l => (l || []).filter(r => r.cliente === CLIENTE && /^~huella:/.test(r.slot)));
+      const h0 = (await hu())[0]; await M._in.idbDel('enviados', CLIENTE + '|~huella:' + k); await M._in.envLeer();
+      W.localStorage.setItem('mesa-web-huella:' + WB_URL + ':' + k, 'b'.repeat(64));   // stale: another send since
+      M.web._test.olvidar(); await M.web.repasar();
+      igual(M.web.estado().cambios, 1, 'la huella vieja no cuenta su cambio aquí');
+      igual((await hu()).length, 0, 'una huella vieja que no es la de ahora pasó a «enviados»');
+      W.localStorage.setItem('mesa-web-huella:' + WB_URL + ':' + k, h0.huella);
+      M.web._test.olvidar(); await M.web.repasar();
+      const h1 = (await hu())[0]; ok(h1 && h1.huella === h0.huella && h1.at < '2001', 'la de ahora no pasa, o pasa con la fecha de hoy: ' + json(h1));
+      const p0 = M._in.envHuellaPoner; M._in.envHuellaPoner = () => Promise.reject(new Error('sin espacio (prueba)'));
+      try { M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 1 } }); const r = await M.web.enviar(); ok(r && r.ok, 'un envío bueno dice que falló: ' + json(r)); }
+      finally { M._in.envHuellaPoner = p0; }
+    });
+  });
+
   prueba('AV1', 'Hoy, más marcado (D-222): en Avisos, cada fila de hoy que no está Programada ni Publicada (reels también) va tintada en --chg-soft con su franja de 3 px y la hora y el estado en --chg a 600; al pasar conserva su tinte sin bajar de 4,5:1, en claro y en oscuro (D-300); «Mañana» y lo programado, como estaban (D-190); una tarea de hoy sin hacer, como una publicación (D-300)', async () => {
     relojEn('2026-11-01T10:00:00+01:00');
     try {

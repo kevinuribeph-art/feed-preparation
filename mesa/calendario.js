@@ -602,12 +602,13 @@
   }
   async function soltar(m, day, el) {
     if (m.k === 'slot') { drop(m.id, day); return; }
-    const X = I(), r = m.k === 'ent' ? await M.personal.moverEnt(m.id, day) : await M.personal.mover(m.id, day, m.desde);
+    const X = I(), S0 = X && X.S, cli = m.pp ? null : S0 ? S0.client : X && X.contCli ? X.contCli() : null;   // taken before the await (A55-14)
+    const r = m.k === 'ent' ? await M.personal.moverEnt(m.id, day, cli) : await M.personal.mover(m.id, day, m.desde, cli);
     if (!r) return;
     if (M.web && M.web.tocado) M.web.tocado();   // one the client sees counts as a change not sent to its web
     // a session that no longer shows in the board's calendar (only its days, D-219) says so
     if (m.pp && el && el.classList.contains('fuera')) X.toast(`«${r.txt || 'La tarea'}» pasa al ${X.fmtDate(r.fecha)}: ya no se ve en este mes. ⌘Z la devuelve.`, { ms: 6000 });   // a day of another month in Mes shows nothing
-    if (m.k === 'ses' && X && X.S) { const sp = span(X), fin = r.fin && r.fin.fecha > r.fecha ? r.fin.fecha : r.fecha; if (fin < sp.lo || r.fecha > sp.hi) X.toast(`«${r.txt || 'La sesión'}» pasa al ${X.fmtDate(r.fecha)}: ya no se ve en este calendario. ⌘Z la devuelve.`, { ms: 6000 }); }
+    if (m.k === 'ses' && X && X.S && X.S === S0) { const sp = span(X), fin = r.fin && r.fin.fecha > r.fecha ? r.fin.fecha : r.fecha; if (fin < sp.lo || r.fecha > sp.hi) X.toast(`«${r.txt || 'La sesión'}» pasa al ${X.fmtDate(r.fecha)}: ya no se ve en este calendario. ⌘Z la devuelve.`, { ms: 6000 }); }
   }
   function drop(id, day) {
     const X = I(), s = X && X.S && X.S.slots.find(x => x.id === id); if (!s || X.localDay(s.date) === day) return;

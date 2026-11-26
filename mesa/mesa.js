@@ -2497,6 +2497,7 @@
       if (sc.tray.some(f => !was.has(f)) && JSON.stringify({ ...sc, tray: sc.tray.filter(f => was.has(f)) }) === HC.curC.j) { HC.curC = { st: sc, j: jc }; HC.tag = null; return; }
     }
     const now = Date.now(), t0 = cc ? null : stepTag(e.st, st), tag = t0 && B.key + '|' + t0;
+    if (tag && tag === HC.tag && now - HC.t < HMERGE && HC.undo.length) HC.undo[HC.undo.length - 1].n = zN();   // merged into the last: it is the newest again (D-373)
     if (!(tag && tag === HC.tag && now - HC.t < HMERGE)) histPush({ p: [j === e.j ? { k: B.key } : { k: B.key, b: e.st }], ...(cc ? { c: HC.curC.st } : {}) });
     HC.cur.set(B.key, { st, j }); if (cc) HC.curC = { st: sc, j: jc };
     HC.tag = tag; HC.t = now;
@@ -2518,7 +2519,7 @@
     const e = HC.cur.get(S.key), c0 = m.c, c1 = HC.curC, was = new Set([...stRefs(m.st), ...(c0 ? stRefs(c0.st) : [])]);
     const igual = e.j === m.j && (!c0 || !c1 || JSON.stringify({ ...c1.st, tray: c1.st.tray.filter(f => was.has(f)) }) === c0.j);   // nothing, or only photos added to the tray
     HC.undo.splice(Math.max(0, k));
-    if (igual) HC.redo = m.redo; else { HC.undo.push({ p: [{ k: S.key, b: m.st }], ...(c0 && c1 && c0.j !== c1.j ? { c: c0.st } : {}) }); HC.redo = []; }
+    if (igual) HC.redo = m.redo; else { HC.undo.push({ n: zN(), p: [{ k: S.key, b: m.st }], ...(c0 && c1 && c0.j !== c1.j ? { c: c0.st } : {}) }); HC.redo = []; }   // its number (D-373)
     HC.tag = null;
     delSweep();
   }
@@ -2710,9 +2711,10 @@
   // ⌘Z in the board, also after moving a session, a task or a delivery in its calendar (D-373): of the board's steps and the
   // tasks', the newest (⇧⌘Z: the last undone) goes first; on a «Solo contenido» page, only the tasks'
   function zOrden(re) {
-    const P = M.personal && M.personal.ultimo ? M.personal.ultimo(re) : 0;
+    const cli = S ? S.client || boardClient(S) : (contCli && contCli()) || null;
+    const P = M.personal && M.personal.ultimo ? M.personal.ultimo(re, cli) : 0;   // only a move made in this client's calendar (not the personal page's steps)
     if (S && !locked && histMio()) track(S);
-    const top = re ? HC.redo[HC.redo.length - 1] : HC.undo[HC.undo.length - 1], b = S && top ? (re ? top.ut : top.n) || 0 : 0;
+    const top = re ? HC.redo[HC.redo.length - 1] : HC.undo[HC.undo.length - 1], b = S && top ? (re ? top.ut : top.n) || Infinity : 0;
     if (P && P > b) { if (re) M.personal.rehacer(); else M.personal.deshacer(); return; }
     if (re) redo(); else undo();
   }
@@ -7624,7 +7626,7 @@ ${TK_FUENTES}
   // here with what was sent (D-372), so that another Mac doesn't show a change of more (it lived in this browser's localStorage)
   const ENV_HU = '~huella:';
   const envHuella = (B, url) => { const r = ENV && B && ENV.get(B.client + '|' + ENV_HU + B.key); return r && r.url === (url || '') ? r.huella : null; };
-  const envHuellaPoner = (B, url, h) => envPoner([{ cliente: B.client, slot: ENV_HU + B.key, huella: h, url: url || '', at: new Date().toISOString() }]);
+  const envHuellaPoner = (B, url, h, at) => envPoner([{ cliente: B.client, slot: ENV_HU + B.key, huella: h, url: url || '', at: at || new Date().toISOString() }]);
   function estPlano(r) { return { cliente: r.cliente, tonos: r.tonos.map(t => ({ nombre: t.nombre, como: t.como })), secciones: { ...r.secciones }, aprendizajes: r.aprendizajes.map(a => ({ fecha: a.fecha || null, de: a.de, texto: a.texto })), at: r.at, por: r.por || null }; }
   const estVacio = c => ({ cliente: c, tonos: [], secciones: {}, aprendizajes: [], at: null, por: null });
   const estDe = c => (EST && EST.get(c) ? estPlano(EST.get(c)) : estVacio(c));   // «Editar cliente» → «Estilo» draws with it (read at the start)

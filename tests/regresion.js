@@ -41,6 +41,8 @@
   function cerca(a, b, tol, msg) { if (!(Math.abs(a - b) <= tol)) throw new Error(`${msg}: ${a} frente a ${b} (tolerancia ${tol})`); }
   const q = s => D.querySelector(s), qa = s => [...D.querySelectorAll(s)];
   const slot = id => M.board().slots.find(s => s.id === id);
+  // lo que una Mesa de antes guardaba al subir a Notion (markUploaded, apagado desde el lote 4, D-361): para probar datos viejos
+  const subidoViejo = (id, fileIds = slot(id).photos.slice(), note = String(slot(id).note || '').trim()) => M._test.setSlot(id, { uploaded: { fileIds, note, crop: '[]', at: new Date().toISOString() } });
   const celda = id => q(`.cell[data-slot="${id}"]`);
 
   // fotos sintéticas: un color, una cuadrícula y su nombre; la misma foto (nombre) siempre da los mismos bytes
@@ -250,25 +252,18 @@
     ok(M.captions('r1')[0].outdated, 'quitar una foto no los marca desactualizados (la prueba no distingue)');
   });
 
-  prueba('M4', 'Un caption subido sin fotos ni Contexto subidos no da la publicación por subida; la casilla ya no dice «✓ en Notion» (M4, D-081)', async () => {
+  prueba('M4', 'Un caption elegido no da la publicación por subida; marcarlo subido a Notion dice que Notion está apagado (M4, D-081, D-361)', async () => {
     await tablero([pub(1), pub(2)]);
     await poner('r1', [await foto('m4a.jpg')]);      // foto y Contexto puestos, pero sin subir
     M._test.setNote('r1', 'Contexto');
     M.loadCaptions([{ slotId: 'r1', options: [{ tone: 'a', text: '1' }, { tone: 'b', text: '2' }, { tone: 'c', text: '3' }] }]);
     M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 0 } });
     const r = M.markCaptionsUploaded(['r1']);
-    ok(r[0].result === 'subido', 'no se marcó subido: ' + json(r));
+    ok(r && /^Notion está apagado/.test(r.error || ''), 'markCaptionsUploaded no dice que Notion está apagado: ' + json(r));
     await espera(50);
     ok(!celda('r1').querySelector('.st, .dot'), 'la casilla lleva una marca de Notion (D-081)');
     const p = M.plan().find(x => x.slotId === 'r1');
     ok(p && p.status === 'nueva', 'plan() no la da como nueva: ' + json(p));
-    // control: con su foto y su Contexto subidos sí sale
-    const [f] = await poner('r2', [await foto('m4.jpg')]);
-    M._test.setNote('r2', 'Contexto');
-    M.markUploaded([{ slotId: 'r2', fileIds: [f] }]);
-    await espera(50);
-    igual((M.plan().find(x => x.slotId === 'r2') || {}).status, 'ya subida', 'una publicación subida de verdad no sale como subida (la prueba no distingue)');
-    ok(!celda('r2').querySelector('.st, .dot'), 'la casilla subida lleva una marca de Notion (D-081)');
   });
 
   prueba('M5', 'loadCaptions rechaza un tono o un texto que no sean texto (M5)', async () => {
@@ -282,7 +277,7 @@
     ok(!slot('r1').caption && !slot('r2').caption, 'se guardó un caption no válido');
   });
 
-  prueba('M6', 'Reabrir el tablero conserva un tipo cambiado en la mesa y pendiente para Notion (3.26)', async () => {
+  prueba('M6', 'Reabrir el tablero conserva un tipo cambiado en la mesa (3.26); notionChanges da [] con Notion apagado (D-361)', async () => {
     await tablero([pub(1)]);
     M._test.setType('r1', 'Carrusel');
     ok(slot('r1').type === 'Carrusel', 'setType no cambió el tipo');
@@ -290,8 +285,7 @@
     await M.open(`${CLIENTE}-${MES}`);
     const s = slot('r1');
     ok(s.type === 'Carrusel', 'al reabrir el tipo vuelve a ' + s.type);
-    const n = M.notionChanges().find(x => x.slotId === 'r1');
-    ok(n && n.typeChanged && n.notionType === 'Foto' && n.type === 'Carrusel', 'notionChanges no lo da como cambio de tipo: ' + json(n));
+    igual(M.notionChanges(), [], 'notionChanges no da [] con Notion apagado');
   });
 
   // la copia salía de un arrastre nativo de la imagen de la miniatura: el arreglo es que la imagen no recibe el puntero
@@ -668,7 +662,7 @@
     ok(/formato 3:4/.test(r.puntos[0].texto) && /4:5 a 1,91:1/.test(r.puntos[0].texto) && r.ok, r.puntos[0].texto);
   });
 
-  prueba('M17', '«sube» pasa la revisión sola sobre lo enviado (dos llamadas seguidas, una revisión): el hueco vacío no se sube y el resto sí (D-040, D-035)', async () => {
+  prueba('M17', '«programa» pasa la revisión sola sobre lo enviado (antes «sube», con Notion; D-361) (dos llamadas seguidas, una revisión): el hueco vacío no se sube y el resto sí (D-040, D-035)', async () => {
     await tablero([pub(1, 'Carrusel'), pub(2), pub(3)]);
     await poner('r1', [await foto('ra-a.jpg'), await foto('ra-b.jpg')]);
     const [f2] = await poner('r2', [await foto('ra-c.jpg', 800, 1000)]);
@@ -676,24 +670,24 @@
     await abrirEditor('r1'); accion('sl-add'); compDe(ed().i).els.push(huecoEl('hx', 0.1, 0.1, 0.8, 0.8)); await aplicarEditor();
     const f0 = W.fetch; W.fetch = async () => { throw new TypeError('sin red (prueba)'); };   // ninguna subida sale de aquí
     try {
-      const it = (fileId, slotId) => ({ fileId, slotId, url: location.origin + '/tests/no-hay-subida', auth: 'prueba' });   // a URL the Mesa's CSP allows that answers 404 (D-252)
+      const it = (fileId, slotId) => ({ fileId, slotId, url: location.origin + '/tests/no-hay-subida', publicUrl: 'https://cdn.invalid/' + fileId });   // a URL the Mesa's CSP allows that answers 404 (D-252)
       const r1 = slot('r1').photos;
       ok(q('.detail:not([hidden])[data-slot="r1"]'), 'tras «Aplicar» no quedó abierta la publicación');   // con algo abierto, no se lo cierra: una nota
-      M.startUpload(r1.map(f => it(f, 'r1')));
-      await hasta(() => qa('.toast').some(t => /antes de subir a Notion: 1 punto bloquea\. Pulsa «Revisar»/.test(t.textContent)), 8000, 'la nota de la revisión');
+      M.startZernio(r1.map(f => it(f, 'r1')));
+      await hasta(() => qa('.toast').some(t => /antes de programar: 1 punto bloquea\. Pulsa «Revisar»/.test(t.textContent)), 8000, 'la nota de la revisión');
       ok(q('.detail:not([hidden])[data-slot="r1"]') && !q('.detail[data-dlg="revisar"]'), 'la revisión cerró la publicación abierta');
       M._in.closeDetail();
       const raiz = q('#mesa'); raiz.classList.add('client');   // «Vista cliente»: ni diálogo ni nota
       try {
-        M.startUpload([it(f2, 'r2')]); await espera(1700); await M.revisar.ultima;
+        M.startZernio([it(f2, 'r2')]); await espera(1700); await M.revisar.ultima;
         ok(!dialogo() && !qa('.toast').some(t => /Revisión antes/.test(t.textContent) && /1 aviso\./.test(t.textContent)), 'la revisión salió en la vista cliente');
       } finally { raiz.classList.remove('client'); }
-      M.startUpload(r1.map(f => it(f, 'r1'))); M.startUpload([it(f2, 'r2')]);
+      M.startZernio(r1.map(f => it(f, 'r1'))); M.startZernio([it(f2, 'r2')]);
       const d = await hasta(() => q('.detail:not([hidden])[data-dlg="revisar"]'), 8000, 'la revisión al subir'), txt = d.textContent;
-      ok(/antes de subir a Notion/.test(txt) && txt.includes('Carrusel 1.1') && /hueco de foto vacío/.test(txt) && txt.includes('Foto 1.2') && /800 px/.test(txt) && !txt.includes('Foto 1.3'), 'el diálogo: ' + txt);
-      ok(r1.every(f => M.uploads[f] && M.uploads[f].state === 'error' && /hueco/.test(M.uploads[f].err)), 'la publicación con hueco no se rechazó: ' + json(r1.map(f => M.uploads[f])));
-      await M.waitUpload([f2], 15000);
-      ok(M.uploads[f2] && !/hueco/.test(M.uploads[f2].err || ''), 'la foto pequeña no se intentó subir: ' + json(M.uploads[f2]));
+      ok(/antes de programar/.test(txt) && txt.includes('Carrusel 1.1') && /hueco de foto vacío/.test(txt) && txt.includes('Foto 1.2') && /800 px/.test(txt) && !txt.includes('Foto 1.3'), 'el diálogo: ' + txt);
+      ok(r1.every(f => M.zUploads[f] && M.zUploads[f].state === 'error' && /hueco/.test(M.zUploads[f].err)), 'la publicación con hueco no se rechazó: ' + json(r1.map(f => M.zUploads[f])));
+      await M.waitZernio([f2], 15000);
+      ok(M.zUploads[f2] && !/hueco/.test(M.zUploads[f2].err || ''), 'la foto pequeña no se intentó subir: ' + json(M.zUploads[f2]));
     } finally { W.fetch = f0; }
   });
 
@@ -873,9 +867,8 @@
   const preguntaEditor = () => ed() && ed().ask && ed().ask.querySelector('[data-ask="usar"]');
   // bytes de lo que el feed enseña y sube: lo que no puede cambiar por tener historias
   async function vistaFeed() {
-    await M.render('clean');
     await M.flush();
-    return json({ celdas: qa('.feed .grid .cell').map(c => [c.dataset.slot || '', c.className]), plan: M.plan(), cambios: M.notionChanges(), captions: M.captions(), slots: M.board().slots.map(s => ({ ...s, at: 0 })), estado: M.status().slots, cal: qa('.cal .chip').length, revisar: (await M.revisar()).puntos, imagen: (await sello(M.out.clean)).length });
+    return json({ celdas: qa('.feed .grid .cell').map(c => [c.dataset.slot || '', c.className]), plan: M.plan(), cambios: M.notionChanges(), captions: M.captions(), slots: M.board().slots.map(s => ({ ...s, at: 0 })), estado: M.status().slots, cal: qa('.cal .chip').length, revisar: (await M.revisar()).puntos });
   }
 
   prueba('H1', 'Las historias no se ven en el feed: casillas, imagen, plan, notionChanges, captions, calendario y contadores siguen igual (D-054)', async () => {
@@ -1353,20 +1346,12 @@
       M.startZernio([{ fileId: fb, url: 'https://r2.invalid/b', publicUrl: 'https://cdn.invalid/b' }]);
       await M.waitZernio([fb], 8000);
       igual(M.zernioStatus([fb])[fb].state, 'ok', 'sin slotId');
-      // a Notion no
-      M.startUpload([{ fileId: fb, slotId: buena, url: 'https://notion.invalid', auth: 'x' }]);
-      igual(M.uploadStatus([fb])[fb].state, 'error', 'la imagen de una historia iba a Notion');
       // una foto del feed sigue igual, también con historias
       puts.length = 0;
       M.startZernio([it(p, 'r1')]);
       await M.waitZernio([p], 8000);
       igual(M.zernioStatus([p])[p].state, 'ok', 'una foto del feed');
       igual(puts.length, 1, 'subidas de la foto del feed');
-      // y a Notion: la subida que comparte código con la de Zernio
-      puts.length = 0;
-      M.startUpload([{ fileId: p, slotId: 'r1', url: 'https://notion.invalid/up', auth: 'Bearer x' }]);
-      await M.waitUpload([p], 8000);
-      igual([M.uploadStatus([p])[p].state, M.uploadStatus([p])[p].fileUploadId, puts.map(x => x.m)], ['ok', 'n1', ['POST']], 'la subida a Notion de una foto del feed');
     } finally { W.XMLHttpRequest = XHR; }
   });
 
@@ -2187,11 +2172,6 @@
     // no es una publicación
     igual([M.status().fillers, M.status().filled, M.plan().length], [2, 0, 0], 'huecos, casillas llenas y plan');
     ok(!json(await M.revisar({ ver: false })).includes('m24'), '«Revisar» habla de la portada');
-    // la imagen del feed: la misma casilla; la 1.ª tiene la foto, la 2.ª es negra (358 × 477, desde y = 250)
-    await M.render('clean');
-    const px = await pixelesDe(M.out.clean);
-    for (const [x, y] of [[30, 490], [328, 490], [179, 280]]) ok(!negro(px(x, y)), `no llega la foto a ${x},${y}`);
-    ok(negro(px(540, 490)), 'el hueco sin portada no es negro en la imagen');
     // «Vista cliente»: la foto y la etiqueta, sin la ×
     q('.clientToggle').click();
     ok(q('#mesa').classList.contains('client'), 'no se abrió «Vista cliente»');
@@ -2232,18 +2212,6 @@
     };
     mira();
     q('.clientToggle').click(); mira(); q('.clientToggle').click();
-    // la imagen del feed (casillas de 358 × 477, desde y = 250): la foto llega a los cantos y la etiqueta deja pasar un 30 %
-    await M.render('clean');
-    const px = await pixelesDe(M.out.clean), blanca = p => p.every(v => v > 225), hueco2 = 358 + 3;
-    for (const [x, y] of [[1, 251], [356, 251], [1, 725], [356, 725]]) ok(blanca(px(x, y)), `la foto clara no llega a ${x},${y}: ${px(x, y)}`);
-    for (const [x, y] of [[hueco2 + 1, 725], [hueco2 + 356, 725]]) { const p = px(x, y); ok(p.every(v => v < 40 && v > 6), `la foto oscura no llega a ${x},${y}: ${p}`); }
-    // el pie de la etiqueta, a la izquierda del texto; esquina recta: el píxel del canto ya lleva su fondo
-    const [tx, ty] = (() => { for (let x = 1; x < 179; x++) if (!blanca(px(x, 663))) return [x, 663]; throw new Error('sin etiqueta en la imagen'); })();
-    const fondo = px(tx + 3, ty);
-    fondo.forEach(v => cerca(v, Math.round(246 * .3), 8, 'el fondo de la etiqueta en la foto clara'));
-    let abajo = ty; while (!blanca(px(tx + 3, abajo + 1))) abajo++;
-    fondo.forEach((v, i) => cerca(px(tx + 1, abajo - 1)[i], v, 12, 'la esquina de la etiqueta no es recta'));
-    px(hueco2 + tx + 3, ty).forEach(v => cerca(v, Math.round(16 * .3), 8, 'el fondo de la etiqueta en la foto oscura'));
   });
 
   prueba('M28', 'La columna derecha de la publicación se desliza entera: captions enteros, sin scroll propio; la foto fija; escribir o redibujar no mueve el scroll; en móvil se desliza la ventana (D-068)', async () => {
@@ -3262,14 +3230,14 @@
     igual(M.plan().find(x => x.slotId === 'r1')['hueco vacío'], [p + 1, j + 1].sort((a, b) => a - b), 'plan() no marca las diapositivas con hueco vacío');
     ok(!('hueco vacío' in (M.plan().find(x => x.slotId === 'r2') || {})), 'un post sin hueco vacío salió marcado');
     const fid = s.photos[j];
-    M.startUpload([{ fileId: fid, slotId: 'r1', url: 'http://127.0.0.1:9/no', auth: 'x' }]);
-    ok(M.uploads[fid] && M.uploads[fid].state === 'error' && /hueco/.test(M.uploads[fid].err), 'la subida no se paró: ' + json(M.uploads[fid]));
+    M.startZernio([{ fileId: fid, slotId: 'r1', url: 'http://127.0.0.1:9/no', publicUrl: 'https://cdn.invalid/e29' }]);
+    ok(M.zUploads[fid] && M.zUploads[fid].state === 'error' && /hueco/.test(M.zUploads[fid].err), 'la subida no se paró: ' + json(M.zUploads[fid]));
     // intercambiar casillas mueve las fotos, no su composición: la marca y el bloqueo van con las fotos
     M._test.swap('r1', 'r4');
     igual((M.plan().find(x => x.slotId === 'r4') || {})['hueco vacío'], [p + 1, j + 1].sort((a, b) => a - b), 'tras intercambiar, plan() no marca el post que tiene las fotos');
     await hasta(() => (M.plan().find(x => x.slotId === 'r4') || {})['hueco vacío'] && !('hueco vacío' in (M.plan().find(x => x.slotId === 'r1') || {})), 4000, 'la marca tras intercambiar las casillas');
-    M.startUpload([{ fileId: fid, slotId: 'r4', url: 'http://127.0.0.1:9/no', auth: 'x' }]);
-    ok(M.uploads[fid].state === 'error' && /hueco/.test(M.uploads[fid].err), 'tras intercambiar, la subida no se paró: ' + json(M.uploads[fid]));
+    M.startZernio([{ fileId: fid, slotId: 'r4', url: 'http://127.0.0.1:9/no', publicUrl: 'https://cdn.invalid/e29' }]);
+    ok(M.zUploads[fid].state === 'error' && /hueco/.test(M.zUploads[fid].err), 'tras intercambiar, la subida no se paró: ' + json(M.zUploads[fid]));
     M._test.swap('r1', 'r4');
     // el rótulo no sale en la imagen: un hueco con rótulo y otro igual sin él dan la misma imagen
     const hacer = async (id, conRotulo) => {
@@ -3281,9 +3249,6 @@
     const [x2, x3] = [await hacer('r2', true), await hacer('r3', false)];
     const [b2, b3] = await Promise.all([x2, x3].map(async x => new Uint8Array(await (await M._in.getBlob(x.photos[0])).arrayBuffer())));
     ok(b2.length > 1000 && b2.length === b3.length && b2.every((v, i) => v === b3[i]), 'el rótulo del hueco salió en la imagen aplicada');
-    // la imagen del feed: con una portada con hueco vacío, no se sube
-    const r = await M.uploadOut('clean', 'http://127.0.0.1:9/no', 'x', 'feed.jpg');
-    ok(r.state === 'error' && /hueco/.test(r.err), 'la imagen del feed no se paró: ' + json(r));
   });
 
   prueba('E30', 'Plantilla sobre una diapositiva con hueco: lo sustituye; «Quitar plantilla» (también tras aplicar y volver) o ⌘Z lo devuelven tal cual (D-036, D-014)', async () => {
@@ -6092,7 +6057,7 @@
   prueba('V9', 'Sin «N cambiadas» ni su lista (D-357; antes D-126): un contexto y una fecha cambiados tras subirlos a Notion no sacan nada en la barra; la lista es la de «Web: N cambios» (D-355)', async () => {
     await tablero([pub(1), pub(2)]);
     await hasta(() => M.calendario, 4000, 'calendario.js');
-    await poner('r1', [await foto('v9-r1.jpg')]); M._test.setNote('r1', 'Contexto r1'); M.markUploaded([{ slotId: 'r1', fileIds: [slot('r1').photos[0]] }]);
+    await poner('r1', [await foto('v9-r1.jpg')]); M._test.setNote('r1', 'Contexto r1'); subidoViejo('r1');
     M._test.setNote('r1', 'Otro contexto'); M._test.setDate('r2', '2026-11-20T18:00:00.000+01:00'); await espera(200); M._in.renderBar(); await espera(60);
     igual(qa('.bar .stats button[data-act="cambios"]').length, 0, 'sale «N cambiadas»');
     ok(!/cambiadas|con fecha nueva/.test(q('.bar').textContent), 'la barra habla de cambiadas');
@@ -7333,16 +7298,6 @@
   });
 
   // ---------- auditoría, lote 4 (mesa 3.80): datos de la mesa ----------
-  prueba('M36', 'La imagen del feed cuadra con una publicación cancelada y el mes anterior debajo (check.ok)', async () => {
-    await limpiar();
-    const r = await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1), pub(2), pub(3)], past: [{ id: 'p36a', name: 'Foto 0.1', type: 'Foto', date: '2026-10-20T12:00:00.000+02:00' }, { id: 'p36b', name: 'Foto 0.2', type: 'Foto', date: '2026-10-22T12:00:00.000+02:00' }], force: true });
-    ok(r && r.key, 'no se abrió el tablero: ' + json(r));
-    await poner('r1', [await foto('m36a.jpg')]); await poner('r2', [await foto('m36b.jpg')]); await poner('r3', [await foto('m36c.jpg')]);
-    ok(!M.setEstado('r2', 'cancelado')[0].error, 'no se canceló');
-    const out = await M.render('clean');
-    ok(out && out.check && out.check.ok, 'la imagen del feed no cuadra con la mesa: ' + json(out && out.check));
-  });
-
   prueba('M37', 'Abrir un mes no borra la copia de una recarga (mesa-pending) hasta haber guardado el tablero', async () => {
     await tablero([pub(1)]); await poner('r1', [await foto('m37.jpg')]);
     await M.flush();
@@ -10315,7 +10270,7 @@
 
   prueba('J7', 'Un solo indicador, el de la web (D-355, D-357; antes D-144): ni «N cambiadas» ni «con fecha nueva» en la barra del mes', async () => {
     await tablero([pub(1), pub(2), pub(3)]);
-    await poner('r1', [await foto('j7-r1.jpg')]); M.markUploaded([{ slotId: 'r1', fileIds: [slot('r1').photos[0]] }]);
+    await poner('r1', [await foto('j7-r1.jpg')]); subidoViejo('r1');
     M._test.setDate('r1', '2026-11-20T18:00:00.000+01:00'); M._test.setDate('r3', '2026-11-10T18:00:00.000+01:00'); await espera(200);
     ok(!q('.bar .stats [data-act="cambios"]') && !q('.bar .stats .dates') && !/con fecha nueva|cambiadas/.test(q('.bar .stats').textContent), 'sigue un indicador de Notion');
   });
@@ -13304,7 +13259,7 @@
   prueba('UN1', 'Nadie usa Notion (D-357; antes «Usa Notion», D-184): con lo subido a Notion cambiado, ni marca de Notion, ni «N cambiadas», ni la línea del calendario; la ventana no nombra Notion; «Usa Notion» ya no está en «Editar cliente»; window.MESA sigue viendo lo de Notion (la skill instalada, hasta el lote 4)', async () => {
     await tablero([pub(1), pub(2)]);
     for (const id of ['r1', 'r2']) await poner(id, [await foto(`un1-${id}.jpg`)]);
-    M.markUploaded(['r1', 'r2'].map(id => ({ slotId: id, fileIds: slot(id).photos.slice(), note: '' })));
+    for (const id of ['r1', 'r2']) subidoViejo(id, slot(id).photos.slice(), '');
     M._test.setNote('r1', 'Otro contexto'); M._test.setSlot('r2', { date: '2026-11-09T18:00:00.000+01:00' }); await M.flush(); M._in.render(); await espera(60);
     ok(!q('.cell[data-slot="r1"] .mk-cambios') && !q('.bar .stats [data-act="cambios"]') && !q('.csync'), 'sale lo de Notion');
     M._in.openDetail('r1'); await hasta(() => dialogo(), 3000, 'la ventana');
@@ -13314,7 +13269,7 @@
     await pulsar('[data-act="editclient"]'); await hasta(() => q('.detail[data-dlg="editclient"]'), 3000, '«Editar cliente»');
     ok(!q('.detail[data-dlg="editclient"] input[name="notion"]'), 'sigue «Usa Notion»');
     M._in.closeDetail();
-    ok(M.notionChanges().length >= 1 && M.plan().length >= 1, 'window.MESA dejó de ver lo de Notion');
+    ok(M.plan().length >= 1, 'plan() dejó de ver las publicaciones'); igual(M.notionChanges(), [], 'notionChanges con Notion apagado (D-361)');
   });
   prueba('UN2', 'Una Programada guarda sus fotos con su recorte y su caption; si cambian, o su fecha, su ventana dice «Zernio sigue con lo de antes» (D-355, que lo saca de la marca de la casilla, D-184); marcada Programado otra vez, se quita', async () => {
     await tablero([pub(1), pub(2)]);
@@ -18095,8 +18050,8 @@
       await M._in.getBlob(id); await hasta(() => M.files[id] && M.files[id].copia && !M.files[id].copia.falta, 8000, 'la copia');
       const pf = ((M.plan().find(p => p.slotId === 'r1') || {}).files || [])[0] || {};
       ok(pf.soloCopia && +String(pf.recorte).split('x')[0] <= cw, 'el plan no lo dice: ' + json(pf));
-      const st = M.startUpload([{ fileId: id, url: 'http://127.0.0.1:9/nada', auth: 'x' }]);
-      ok(JSON.stringify(st).includes('copia de 2560'), 'Notion sube la copia sin decirlo: ' + json(st));
+      const st = M.startZernio([{ fileId: id, url: 'http://127.0.0.1:9/nada', publicUrl: 'https://cdn.invalid/ft4' }]);
+      ok(JSON.stringify(st).includes('copia de 2560'), 'Zernio sube la copia sin decirlo: ' + json(st));
       await M._in.esperar(() => M.libre && M.libre.rev, 'libre');
       const el = { t: 'foto', src: id, x: 0, y: 0, w: 1, h: 1 };
       const m1 = await M.libre.rev.medida(el, 1080, 720), cp = M.files[id].copia; delete M.files[id].copia;
@@ -23661,39 +23616,6 @@
     const m = [0, 0, 0]; for (let k = 0; k < d.length; k += 4) { m[0] += d[k]; m[1] += d[k + 1]; m[2] += d[k + 2]; }
     return m.map(v => Math.round(v / (d.length / 4)));
   }
-  prueba('FF6', 'La imagen del feed enseña lo que el feed (feed continuo, pieza 3b; D-005, respuesta 7.4): el mes anterior sale de su propio tablero, con lo oculto otra vez y sin lo cambiado solo en la franja; con un tablero que no es el más nuevo, sin sus fijadas ni sus huecos', async () => {
-    try {
-      await limpiar();
-      await M.init({ client: CLIENTE, clientName: NOMBRE, month: FD_OCT, cycleDay: 1, slots: [fcSlot('ff6-o1', '4.1', 20, FD_OCT), fcSlot('ff6-o2', '4.2', 22, FD_OCT), fcSlot('ff6-o3', '4.3', 24, FD_OCT)], past: [], force: true });
-      await poner('ff6-o1', [await foto('ff6-o1.jpg', 1200, 1500, '#c03030')]);
-      await poner('ff6-o2', [await foto('ff6-o2.jpg', 1200, 1500, '#c03030')]);
-      await poner('ff6-o3', [await foto('ff6-o3.jpg', 1200, 1500, '#c03030')]);
-      M._in.S.fillers = 1; M._in.S.pins = ['ff6-o3']; M._in.save(); await M.flush();   // octubre con un hueco y una fijada de antes
-      await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, cycleDay: 1, slots: [pub(1), pub(2), pub(3)], past: [], force: true });
-      for (const n of [1, 2, 3]) await poner(`r${n}`, [await foto(`ff6-n${n}.jpg`, 1200, 1500, '#30a040')]);
-      const [azul] = await M.addFiles([await foto('ff6-azul.jpg', 1200, 1500, '#3040c0')]);
-      await M.flush();
-      // en la franja de antes: o1 cambiada por la azul (solo en la franja) y o2 oculta
-      const pv = M._in.S.prev, p1 = pv.find(p => p.id === 'ff6-o1'), p2 = pv.find(p => p.id === 'ff6-o2');
-      ok(p1 && p2, 'noviembre no tiene octubre en S.prev: ' + json(pv.map(p => p.id)));
-      Object.assign(p1, { own: true, photos: [azul] }); p2.hidden = true; M._in.save(); await M.flush();
-      let r = await M.render('clean');
-      ok(r && !r.error && r.check.ok, 'la imagen no cuadra: ' + json(r));
-      igual([r.posts, r.fresh], [6, 3], 'la imagen no enseña las tres de octubre (la oculta, otra vez)');
-      const cols = []; for (let i = 3; i < 6; i++) cols.push(await ffColor(M.out.clean, i));
-      ok(cols.every(c => c[0] > c[2] + 60), 'debajo no van las fotos de octubre de su tablero (lo cambiado en la franja no cuenta): ' + json(cols));
-      // octubre abierto (no es el más nuevo): sin su hueco ni su fijada; noviembre (el de después) no sale
-      await fdAct(fdO);
-      r = await M.render('clean');
-      ok(r && !r.error && r.check.ok, 'la imagen de octubre no cuadra: ' + json(r));
-      igual([r.pinned, r.posts, r.height], [0, 3, 250 + 477 + 40], 'octubre (no es el más nuevo) lleva su fijada o su hueco');
-      // noviembre (el más nuevo), con su hueco y su fijada: como siempre
-      await fdAct(fdN); M._in.S.fillers = 1; M._in.S.pins = ['r2']; M._in.save(); await M.flush();
-      r = await M.render('clean');
-      igual([r.pinned, r.posts, r.check.ok], [1, 6, true], 'noviembre (el más nuevo) sin su fijada');
-    } finally { await limpiar(); }
-  });
-
   // ---------- feed continuo, pieza 4: la cabecera de meses (estática) ----------
   // anterior | píldora fija con el mes activo | siguiente, con una flecha a cada lado; sustituye a los chips del mes (D-323)
   const fgCab = () => q('.bar .mescab');
@@ -24526,7 +24448,7 @@
       await bien('tras volver a leer', B, A);
     } finally { await limpiar(); }
   });
-  prueba('FM2', 'Una skill trabajando en un mes (feed continuo, pieza 8; D-329): tras sus llamadas (plan), deslizar y parar en otro tablero o tocar una publicación de otro mes no cambia el mes abierto, y markUploaded guarda en el suyo; pulsar un mes de la cabecera sí lo cambia y la concesión sigue (D-334); una llamada con una publicación de otro mes da error y no toca nada; MESA.open la cierra; render, renderBar, el calendario y su cuenta de cambios no la abren', async () => {
+  prueba('FM2', 'Una skill trabajando en un mes (feed continuo, pieza 8; D-329): tras sus llamadas (plan), deslizar y parar en otro tablero o tocar una publicación de otro mes no cambia el mes abierto, y setEstado guarda en el suyo; pulsar un mes de la cabecera sí lo cambia y la concesión sigue (D-334); una llamada con una publicación de otro mes da error y no toca nada; MESA.open la cierra; render, renderBar, el calendario y su cuenta de cambios no la abren', async () => {
     const FN = `${CLIENTE}-${MES}`, SK = M._in.skill || { ver: () => null, cerrar() {} };   // (sin el arreglo no existe: lo que se mira es lo que pasa)
     try {
       await fjSeis(); const P = fjPuntos();
@@ -24539,9 +24461,9 @@
       await fjA(P['2026-07'] - 3); await fjQuieto(900);
       igual(fgActivo(), [FN, MES], 'deslizar con una skill trabajando cambió el mes abierto');
       cerca(fjX(), fjXde(fjJ(MES)), 1, 'la tira no volvió a noviembre');
-      const r = M.markUploaded([{ slotId: 'fj-n1', fileIds: [], note: 'Contexto FM2' }]);
-      ok(Array.isArray(r) && r.some(x => x.slotId === 'fj-n1'), 'markUploaded no devolvió el plan de noviembre: ' + json(r && r.error));
-      await M.flush(); igual(((await ffSlot(FN, 'fj-n1')) || {}).uploaded && (await ffSlot(FN, 'fj-n1')).uploaded.note, 'Contexto FM2', 'markUploaded no guardó en noviembre');
+      const r = M.setEstado(['fj-n1'], 'cancelado');
+      ok(Array.isArray(r) && !(r[0] || {}).error, 'setEstado no contestó con noviembre: ' + json(r));
+      await M.flush(); ok(/cancelad/.test(json(await ffSlot(FN, 'fj-n1'))), 'setEstado no guardó en noviembre');
       igual(SK.ver() && SK.ver().key, FN, 'la concesión no está en noviembre');
       // tocar una publicación de otro mes: no cambia (y lo dice)
       celda('fj-o1').scrollIntoView({ block: 'center' }); await espera(30); celda('fj-o1').click(); await espera(300); M._in.closeDetail();
@@ -24552,14 +24474,14 @@
       igual(SK.ver() && SK.ver().key, FN, 'pulsar un mes cerró o movió la concesión');
       // una llamada con una publicación de otro mes: error, nada cambia
       const n0 = json(await ffSlot(FN, 'fj-n1'));
-      for (const [que, x] of [['setEstado', () => M.setEstado(['fj-n1'], 'programado')], ['markUploaded', () => M.markUploaded([{ slotId: 'fj-n1', fileIds: [], note: 'otro' }])], ['markSynced', () => M.markSynced(['fj-n1'])]]) {
+      for (const [que, x] of [['setEstado', () => M.setEstado(['fj-n1'], 'programado')]]) {
         const e = x(); ok(e && !Array.isArray(e) && /^el mes abierto cambió/.test(e.error || '') && e.error.includes(FN), `${que} con una publicación de noviembre no dio el error: ` + json(e));
       }
       await M.flush(); igual(json(await ffSlot(FN, 'fj-n1')), n0, 'una llamada con error cambió noviembre');
       igual(fgActivo(), [FJ_SO, '2026-10'], 'una llamada con error cambió el mes abierto');
       // MESA.open de la skill la cierra y su siguiente llamada la abre en su tablero
-      await M.open(FN); igual(SK.ver(), null, 'MESA.open no la cerró'); ok(Array.isArray(M.notionChanges()), 'notionChanges tras abrir');
-      igual(SK.ver().key, FN, 'notionChanges no la abrió en noviembre');
+      await M.open(FN); igual(SK.ver(), null, 'MESA.open no la cerró'); ok(Array.isArray(M.plan()), 'plan() tras abrir');
+      igual(SK.ver().key, FN, 'plan() no la abrió en noviembre');
     } finally { SK.cerrar(); await limpiar(); }
   });
   prueba('FM3', 'Una Publicada no se vacía arrastrándola a la bandeja (feed continuo, pieza 8; D-324, D-330): la bandeja no se resalta, soltarla no le quita sus fotos y avisa «Ya está publicada: no se mueve.»; una que no lo está se vacía como siempre', async () => {
@@ -24645,7 +24567,7 @@
       ok(!M.board().tray.includes(g), 'la foto sigue en la bandeja');
     } finally { if (M._in.skill) M._in.skill.cerrar(); M._in.clearToasts(); await limpiar(); }
   });
-  prueba('FM7', 'Pulsar un mes de la cabecera mientras una skill trabaja (feed continuo, pieza 9; D-334): el mes cambia, pero cualquier llamada de la skill (plan, render, notionChanges, markSynced con y sin ids, setEstado, markUploaded) da el error «el mes abierto cambió» con su mes y no toca nada; MESA.open la cierra y la siguiente llamada la abre en su mes', async () => {
+  prueba('FM7', 'Pulsar un mes de la cabecera mientras una skill trabaja (feed continuo, pieza 9; D-334): el mes cambia, pero cualquier llamada de la skill (plan, setEstado; las de Notion están apagadas, D-361) da el error «el mes abierto cambió» con su mes y no toca nada; MESA.open la cierra y la siguiente llamada la abre en su mes', async () => {
     const FN = `${CLIENTE}-${MES}`, SK = M._in.skill || { ver: () => null, cerrar() {} };
     try {
       await fjSeis(); await M.open(FN); await fjQuieto(300);
@@ -24653,31 +24575,11 @@
       await fgPulsar(fgHueco('Oct')); await fjQuieto(700);
       igual(fgActivo(), [FJ_SO, '2026-10'], 'el clic de Kevin no cambió el mes');
       const s0 = json(M._in.S);
-      for (const [que, x] of [['plan', () => M.plan()], ['notionChanges', () => M.notionChanges()], ['markSynced()', () => M.markSynced()], ['markSynced([…])', () => M.markSynced(['fj-o1'])], ['setEstado', () => M.setEstado(['fj-o1'], 'programado')], ['markUploaded', () => M.markUploaded([{ slotId: 'fj-o1', fileIds: [], note: 'FM7' }])]]) {
+      for (const [que, x] of [['plan', () => M.plan()], ['setEstado', () => M.setEstado(['fj-o1'], 'programado')]]) {
         const e = x(); ok(e && !Array.isArray(e) && /^el mes abierto cambió/.test(e.error || '') && e.error.includes(FN), `${que} tras el clic no dio el error con noviembre: ` + json(e).slice(0, 200));
       }
-      const er = await M.render(); ok(er && /^el mes abierto cambió/.test(er.error || ''), 'render tras el clic no dio el error');
       igual(json(M._in.S), s0, 'una llamada con error cambió octubre');
-      await M.open(FN); ok(Array.isArray(M.notionChanges()), 'notionChanges tras abrir'); igual(SK.ver() && SK.ver().key, FN, 'la concesión, en noviembre otra vez');
-    } finally { SK.cerrar(); await limpiar(); }
-  });
-  prueba('FM8', 'markSynced con ids nunca guarda y da error a la vez (feed continuo, pieza 9; D-335): con la concesión en otro tablero, da el error sin haber marcado nada; con el tablero de la skill abierto, marca y devuelve lo de siempre (las llamadas de la Mesa por dentro no pasan por la envoltura de la skill)', async () => {
-    const FN = `${CLIENTE}-${MES}`, SK = M._in.skill || { ver: () => null, cerrar() {} };
-    try {
-      await fjSeis(); await M.open(FN); await fjQuieto(300);
-      ok(Array.isArray(M.plan()), 'plan()');
-      const rp = await M._in.mesActivo.pon('2026-10', 'prueba'); ok(rp && rp.ok, 'pon de octubre: ' + json(rp));   // como un ⌘Z que lleva a otro mes: no cierra la concesión
-      igual(M._in.S.key, FJ_SO, 'octubre abierto');
-      const n0 = M._in.S.notionAt || null, d0 = json(slot('fj-o1'));
-      const e = M.markSynced(['fj-o1']);
-      const guardo = (M._in.S.notionAt || null) !== n0 || json(slot('fj-o1')) !== d0, error = !!(e && !Array.isArray(e) && e.error);
-      ok(!(guardo && error), 'markSynced marcó octubre y además dijo que no tocó nada: ' + json(e).slice(0, 160));
-      ok(error && !guardo, 'con la concesión en noviembre, markSynced de octubre no dio el error sin tocar nada');
-      await M.open(FJ_SO); await fjQuieto(300); ok(Array.isArray(M.plan()), 'plan() de octubre');
-      const n1 = M._in.S.notionAt || null, r = M.markSynced(['fj-o1']);
-      ok(Array.isArray(r) && (M._in.S.notionAt || null) !== n1, 'con su tablero abierto, markSynced no marcó o no devolvió la lista: ' + json(r).slice(0, 160));
-      const u = M.markUploaded([{ slotId: 'fj-o1', fileIds: [], note: 'FM8' }]); ok(Array.isArray(u), 'markUploaded no devolvió el plan: ' + json(u).slice(0, 160));
-      igual(SK.ver() && SK.ver().key, FJ_SO, 'la concesión no sigue en octubre');
+      await M.open(FN); ok(Array.isArray(M.plan()), 'plan() tras abrir'); igual(SK.ver() && SK.ver().key, FN, 'la concesión, en noviembre otra vez');
     } finally { SK.cerrar(); await limpiar(); }
   });
   prueba('FM9', 'Con una skill trabajando, deslizar y parar en otro tablero o tocar una de sus publicaciones lo dice (feed continuo, pieza 9; D-336): un solo aviso, el mismo, que dice cómo cambiar de mes (en la cabecera); el mes abierto y la tira no cambian', async () => {
@@ -24957,6 +24859,39 @@
       igual(pl('r1').cambiosDesdeProgramar, ['caption'], 'lo que cambió desde programarla');
       ok(!pl('r2').cambiosDesdeProgramar, 'una no programada dice que cambió');
     } finally { await limpiar(); }
+  });
+  prueba('NF11', 'Notion apagado (D-361): sus llamadas siguen con su nombre y dicen que está apagado sin cambiar nada; notionChanges da []; sin imagen del feed (render y uploadOut ya no están); la CSP sin Notion', async () => {
+    await tablero([pub(1)]);
+    const [f] = await poner('r1', [await foto('nf11.jpg')]); M._test.setNote('r1', 'Contexto NF11');
+    M.loadCaptions([{ slotId: 'r1', options: [{ tone: 'a', text: '1' }, { tone: 'b', text: '2' }, { tone: 'c', text: '3' }] }]);
+    M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 0 } }); await M.flush();
+    const s0 = json(slot('r1'));
+    for (const [que, x] of [['startUpload', () => M.startUpload([{ fileId: f, slotId: 'r1', url: 'https://notion.invalid', auth: 'x' }])], ['uploadStatus', () => M.uploadStatus([f])], ['markUploaded', () => M.markUploaded([{ slotId: 'r1', fileIds: [f] }])], ['markSynced', () => M.markSynced()], ['markCaptionsUploaded', () => M.markCaptionsUploaded(['r1'])]]) {
+      const e = x(); ok(e && /^Notion está apagado/.test(e.error || ''), `${que} no dice que Notion está apagado: ` + json(e));
+    }
+    const w = await M.waitUpload([f], 100); ok(w && /^Notion está apagado/.test(w.error || ''), 'waitUpload: ' + json(w));
+    igual(M.notionChanges(), [], 'notionChanges');
+    await M.flush(); igual(json(slot('r1')), s0, 'una llamada de Notion cambió la publicación');
+    igual([typeof M.render, typeof M.uploadOut, typeof M.out], ['undefined', 'undefined', 'object'], 'la imagen del feed');
+    const csp = (W.document.querySelector('meta[http-equiv="Content-Security-Policy"]') || {}).content || '';
+    ok(csp && !/notion|amazonaws/i.test(csp), 'la CSP sigue con Notion: ' + csp);
+  });
+  prueba('CF1', 'El «Cómo fue» del mes pasado avisa desde el día 3 (D-362): en «Hoy», con los clientes que publicaron (o programaron) ese mes y sin su resumen, sin marca y sin abrir nada; el día 2 o sin nada publicado, nada; con el resumen cargado, se va', async () => {
+    try {
+      await tablero([pub(1), pub(2)]); await M.flush();   // noviembre
+      const inf = async () => (await M.personal.datos()).items.filter(x => x.tipo === 'informe');
+      reloj('2026-12-03', '10:00'); igual((await inf()).length, 0, 'avisa sin nada publicado en noviembre');
+      ok(!M.setEstado(['r1'], 'publicado')[0].error && !M.setEstado(['r2'], 'programado')[0].error, 'no se marcaron publicada y programada'); await M.flush();
+      reloj('2026-12-02', '10:00'); igual((await inf()).length, 0, 'el día 2 ya avisa');
+      reloj('2026-12-03', '10:00');
+      const a = await inf();
+      ok(a.length === 1 && a[0].mes === '2026-11' && a[0].clientes.includes(CLIENTE) && a[0].cat === 'hoy' && !a[0].marca, 'el día 3 no avisa como toca: ' + json(a));
+      await M.personal.abrir(); await hasta(() => qa('.pp-av.pp-avinf').length === 1, 4000, 'la línea del aviso');
+      const l = q('.pp-av.pp-avinf');
+      ok(l.tagName === 'DIV' && /Falta el «Cómo fue» de noviembre/.test(l.textContent) && l.textContent.includes(NOMBRE), 'la línea del aviso: ' + l.outerHTML.slice(0, 200));
+      const r = await M.informe.cargar(CLIENTE, '2026-11', { resumen: IF_RES('2026-11') }); ok(r && r.ok, 'no carga el resumen: ' + json(r));
+      igual((await inf()).length, 0, 'con el resumen sigue el aviso');
+    } finally { volverReloj(); if (M.personal) M.personal.cerrar(); await limpiar(); }
   });
   prueba('NF7', 'Una carga no quita publicaciones de la Mesa (D-360): MESA.init sin una con fotos o creada en la Mesa da error y no cambia nada; una vacía sí se quita; con force: true, todo', async () => {
     try {

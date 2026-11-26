@@ -18,7 +18,7 @@
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
   const ENG = () => window.DisenoMotor;
-  const VERSION = '1.27';   // 1.27: a photo that is only a working copy of 2560 px here (lot 4 of the traspaso) is decoded at its real size, never enlarged, and the small-photo warning counts its real pixels; the final photo fixed from it is what it is, without the mark (D-259). 1.26: an open section with a double click folds 0.2 s after a mouse click (D-200). 1.25: the «Diseño» panel's titles without a datum, a double click on a title puts it back (D-197); <br> as line breaks in its fields (D-198); a section's inside never wider than the panel (D-195). 1.24: the editor's «Diseño» layer (D-193): a slide's free layers and one let go from the kit, drawn here; the panel shared with the editor; a design is no longer opened by «Editar …» to add a photo.   // 1.23: the panel folds as the editor's, one section open at a time and the last one remembered, with no grey explanations (D-177). 1.21: without _sustituir, which nothing used (D-167). 1.20: «+ Diapositiva» on one line at every width (D-166). 1.19: the panel's double clicks, without «Auto» and «Centrar»; the post view's reference after an apply (D-159, D-164, D-165)
+  const VERSION = '1.28';   // 1.28: «Espera a que termine la subida a Zernio» (Notion is off, D-361). 1.27: a photo that is only a working copy of 2560 px here (lot 4 of the traspaso) is decoded at its real size, never enlarged, and the small-photo warning counts its real pixels; the final photo fixed from it is what it is, without the mark (D-259). 1.26: an open section with a double click folds 0.2 s after a mouse click (D-200). 1.25: the «Diseño» panel's titles without a datum, a double click on a title puts it back (D-197); <br> as line breaks in its fields (D-198); a section's inside never wider than the panel (D-195). 1.24: the editor's «Diseño» layer (D-193): a slide's free layers and one let go from the kit, drawn here; the panel shared with the editor; a design is no longer opened by «Editar …» to add a photo.   // 1.23: the panel folds as the editor's, one section open at a time and the last one remembered, with no grey explanations (D-177). 1.21: without _sustituir, which nothing used (D-167). 1.20: «+ Diapositiva» on one line at every width (D-166). 1.19: the panel's double clicks, without «Auto» and «Centrar»; the post view's reference after an apply (D-159, D-164, D-165)
   const FMTS = { v45: '4:5', v34: '3:4', h: 'Horizontal' };
   const TIPOS_CAR = ['portada', 'ficha', 'final'];
   const TIPO_LABEL = { portada: 'Portada', ficha: 'Ficha', final: 'Final', reel: 'Portada de reel' };
@@ -625,7 +625,7 @@
   async function aplicarNow(slotId, opts) {
     const s = slotOf(slotId), S = I().S;
     need(!I().locked, LOCKED);
-    need(!I().uploadsBusy(), 'Espera a que termine la subida a Notion.');
+    need(!I().uploadsBusy(), 'Espera a que termine la subida a Zernio.');
     need(s.design && s.design.slides.length, NO_DESIGN);
     const d = s.design, reel = isReelS(s);
     need(reel || d.slides.length <= MAX_SLIDES, MAX_MSG);

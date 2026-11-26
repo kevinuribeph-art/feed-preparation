@@ -48,7 +48,7 @@ DECISIONES.md en el mismo PR, choque o no con algo.
   avisos se guardan en el servidor; `es_dueno()` pide además que la sesión siga abierta en `auth.sessions` (`sesion_viva()`).
 - `tools/zernio.mjs`: script Node 18+ sin dependencias para la API de Zernio. Solo en local, nunca en el navegador.
 - `tools/web.mjs`: script Node 18+ sin dependencias para el servidor del portal (esquema, entrada, altas) y el de la Mesa (`mesa`,
-  `mesa-version`, `mesa-epoca`, `actividad`), la función `zernio` del servidor (`zernio`, D-261) y la entrada de Kevin (`codigo`:
+  `mesa-version`, `mesa-epoca`, `actividad`), las cuentas del portal (`cuentas`, solo lee, D-363), la función `zernio` del servidor (`zernio`, D-261) y la entrada de Kevin (`codigo`:
   el interruptor del código de su app; `rescate`: quitar su código y sus sesiones si pierde el iPhone y el Mac; D-262) y las claves
   heredadas de Supabase (`heredada`, D-280: apagadas y su secreto revocado en los dos proyectos). Solo en local.
   `entrada real` pone también los límites de los códigos (D-278: uno cada 3 min por correo, 60 por hora, 10 por IP cada 5 min) y

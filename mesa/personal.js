@@ -11,7 +11,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.18';   // 1.18: a delivery gone past and a «Solo contenido» client's block open its page (D-312); each day of Semana, Mes and the clients' strips under the mouse (D-313). 1.17: an invoice not issued whose day passed says «con retraso» (D-304). 1.16: a notice's and a task's mark from the core, marcaDe and marcaT; a task not done tinted as a post not scheduled, in Avisos and Tareas; at hover the row keeps its tint (D-300). 1.15: «Acuerdos» in Avisos, 14 days before renegotiating and, gone past, in «Se ha pasado» (D-288); a sporadic client from «Nuevo cliente» (D-289); a «Solo contenido» client's block counts its deliveries and one gone past goes to «Se ha pasado» (D-290). 1.14: from the board's calendar, a session or a task with that day and the client, a session duplicated or deleted with «Deshacer» (D-285); «/-» a separator (D-283). 1.13: campo/editar de una tarea o nota desde el iPhone (D-272), _p.clis y esps para la sesión (D-275). 1.12: in the iPhone (data-movil) nothing mounts; datos(o), lista(), valor(id), nuevoId(tipo) and a task with its id for the phone (D-267). 1.11: the symbol's button says «Clic: tu página · Clic derecho: copias» (D-263). 1.10: a photo of a task or note that hasn't come down from the server yet (lot 4 of the traspaso) shows nothing and says so, instead of breaking the page (D-259). 1.9: the cloud's activity notices, first in Avisos (D-257). 1.8: «aprobó / pidió cambios / ha comentado en su web» en «Esperando al cliente» (D-244). 1.7: each client's most urgent payment under its block, which opens its «Cobros», and the sums paid this month and pending in the header of Clientes (D-235); a late invoice in «Se ha pasado» (D-236); «Borrar esporádico» off with payments (D-234). 1.6: today's posts not scheduled, tinted amber in Avisos (D-222); the page and a card change in place only what changed (D-223); widen and reduce in the ×'s box (D-224); Tareas as this tab left it (D-225); a session in 600 with its clapperboard in --ty-ses-ink (D-226); square corners where a session goes on, --mute for what is read, «Fecha» / «Cliente» with the pointer over them, widening with a transform (D-231). 1.5: a session's several clients shown once, «A · B» and the first one's avatar with «+N» (D-217); its end in Avisos, Lista, Semana and Mes, «Reprogramar» keeps its length (D-218); its sheet opens over the board from the posts' calendar (D-219); «Duplicar sesión» in its menu (D-221). 1.4: a click writes, Esc and the × close (D-209); a session's sheet widens (D-210); «Hoy» and «Mañana» apart (D-212); one thin line on what is written (D-213). 1.3: the note and the details write with marks and the «/» menu (escritura.js, D-202–D-204); the card widens (D-205). 1.2: a task's date offers «Sin fecha» (D-188); what is not scheduled stands out in «Hoy y mañana» and «Se ha pasado» (D-190); each month's step is its most delayed post's (D-192)
+  const VERSION = '1.19';   // 1.19: the last month's «Cómo fue» in «Hoy» from the 3rd, with the clients that published and have no summary yet (D-362). 1.18: a delivery gone past and a «Solo contenido» client's block open its page (D-312); each day of Semana, Mes and the clients' strips under the mouse (D-313). 1.17: an invoice not issued whose day passed says «con retraso» (D-304). 1.16: a notice's and a task's mark from the core, marcaDe and marcaT; a task not done tinted as a post not scheduled, in Avisos and Tareas; at hover the row keeps its tint (D-300). 1.15: «Acuerdos» in Avisos, 14 days before renegotiating and, gone past, in «Se ha pasado» (D-288); a sporadic client from «Nuevo cliente» (D-289); a «Solo contenido» client's block counts its deliveries and one gone past goes to «Se ha pasado» (D-290). 1.14: from the board's calendar, a session or a task with that day and the client, a session duplicated or deleted with «Deshacer» (D-285); «/-» a separator (D-283). 1.13: campo/editar de una tarea o nota desde el iPhone (D-272), _p.clis y esps para la sesión (D-275). 1.12: in the iPhone (data-movil) nothing mounts; datos(o), lista(), valor(id), nuevoId(tipo) and a task with its id for the phone (D-267). 1.11: the symbol's button says «Clic: tu página · Clic derecho: copias» (D-263). 1.10: a photo of a task or note that hasn't come down from the server yet (lot 4 of the traspaso) shows nothing and says so, instead of breaking the page (D-259). 1.9: the cloud's activity notices, first in Avisos (D-257). 1.8: «aprobó / pidió cambios / ha comentado en su web» en «Esperando al cliente» (D-244). 1.7: each client's most urgent payment under its block, which opens its «Cobros», and the sums paid this month and pending in the header of Clientes (D-235); a late invoice in «Se ha pasado» (D-236); «Borrar esporádico» off with payments (D-234). 1.6: today's posts not scheduled, tinted amber in Avisos (D-222); the page and a card change in place only what changed (D-223); widen and reduce in the ×'s box (D-224); Tareas as this tab left it (D-225); a session in 600 with its clapperboard in --ty-ses-ink (D-226); square corners where a session goes on, --mute for what is read, «Fecha» / «Cliente» with the pointer over them, widening with a transform (D-231). 1.5: a session's several clients shown once, «A · B» and the first one's avatar with «+N» (D-217); its end in Avisos, Lista, Semana and Mes, «Reprogramar» keeps its length (D-218); its sheet opens over the board from the posts' calendar (D-219); «Duplicar sesión» in its menu (D-221). 1.4: a click writes, Esc and the × close (D-209); a session's sheet widens (D-210); «Hoy» and «Mañana» apart (D-212); one thin line on what is written (D-213). 1.3: the note and the details write with marks and the «/» menu (escritura.js, D-202–D-204); the card widens (D-205). 1.2: a task's date offers «Sin fecha» (D-188); what is not scheduled stands out in «Hoy y mañana» and «Se ha pasado» (D-190); each month's step is its most delayed post's (D-192)
   if (M.personal && M.personal._off) { try { M.personal._off(); } catch (e) { /* */ } }
 
   const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
@@ -31,6 +31,7 @@
     fecha: svg('<path d="M8 2v4m8-4v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>'),
     euro: svg('<path d="M4 10h12"/><path d="M4 14h9"/><path d="M19 6a7.7 7.7 0 0 0-5.2-2A7.9 7.9 0 0 0 6 12c0 4.4 3.5 8 7.8 8 2 0 3.8-.8 5.2-2"/>'),
     reloj: svg('<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>'),
+    grafica: svg('<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>'),
     reunion: svg('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'),   // Lucide users: a meeting (D-291)
     entrega: svg('<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><path d="m3.3 7 7.703 4.734a2 2 0 0 0 1.994 0L20.7 7"/><path d="m7.5 4.27 9 5.15"/>'),   // Lucide package (D-290)
     alerta: svg('<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>'),
@@ -118,6 +119,7 @@
     const X = I(), B0 = X.S, g0 = gen;
     const boards = ((await X.idbAll('boards')) || []).filter(b => b && b.month && Array.isArray(b.slots)).map(b => (B0 && b.key === B0.key ? B0 : b));
     ponerTK((await X.idbAll('tareas').catch(() => [])) || [], g0);
+    if (X.mes && X.mes.leer && !X.mes.listo()) await X.mes.leer().catch(() => {});   // each month's «Cómo fue», for its notice (D-362)
     return { CL: X.CL.slice(), boards };
   }
   function ponerTK(ts, g0) {
@@ -251,6 +253,16 @@
       const n = difD(hoy, a.renegociar); if (n > 14) continue;
       items.push({ tipo: 'acuerdo', c, a, n, clientes: [c.id], dia: a.renegociar, ts: utc(a.renegociar), cat: n < 0 ? 'pasado' : 'acuerdos' });
     }
+    // the last month's «Cómo fue» (D-362): from the 3rd (its last posts still add reach a couple of days), one notice in «Hoy»
+    // with the monthly clients that published (or scheduled) that month and have no summary of it yet; it goes on its own once Claude loads
+    // it (calendar-creator: «cómo fue [mes]»), all the clients at once
+    const MS = X.mes;
+    if (MS && MS.listo && MS.listo() && !(MS.mal && MS.mal()) && +hoy.slice(8, 10) >= 3) {   // a failed reading of «meses»: no notice (it would name everyone)
+      const pm = X.addMonths(hoy.slice(0, 7), -1);
+      const faltan = D.CL.filter(c => !(X.esContenido && X.esContenido(c.id)) && !(MS.get(c.id, pm) || {}).resumen
+        && (Q.porCli.get(c.id) || []).some(o => (o.e0 === 'publicado' || o.e0 === 'programado') && o.dia && o.dia.slice(0, 7) === pm)).map(c => c.id);   // what went out (or was scheduled to)
+      if (faltan.length) items.push({ tipo: 'informe', mes: pm, clientes: faltan, dia: hoy, ts: utc(hoy), cat: 'hoy' });
+    }
     for (const x of items) x.marca = marcaDe(x);   // the Mac and the iPhone only put its class (D-287, D-300)
     items.sort((a, b) => a.ts - b.ts || (a.tipo === 'historias') - (b.tipo === 'historias'));
     const cuenta = c => items.filter(x => x.cat === c && !x.hecha).length;
@@ -265,7 +277,7 @@
     if (x.tipo === 'post') return x.e !== 'programado' && x.e !== 'publicado' ? x.cat : '';
     if (x.tipo === 'tarea') return x.hecha ? '' : x.cat;
     if (x.tipo === 'sesion') return !x.hecha && x.cat === 'pasado' ? 'pasado' : '';
-    if (x.tipo === 'historias') return '';
+    if (x.tipo === 'historias' || x.tipo === 'informe') return '';
     return x.cat === 'pasado' ? 'pasado' : '';
   }
   // a task's mark in Tareas (D-300): not done, today, tomorrow or gone past; a session only once it went past (as in Avisos
@@ -350,6 +362,10 @@
     if (x.tipo === 'entrega') {                 // a delivery gone past (D-290): its board on its row, as a late invoice
       const r = x.r, n = -difD(R.hoy, r.fecha);
       return `<button type="button" class="pp-av${mk}" data-pp="entrega" data-c="${esc(r.cliente)}" data-id="${esc(r.id)}"${x.B ? ` data-key="${esc(x.B.key)}"` : ''} title="${esc(r.que || 'Entrega')} · venció el ${esc(corto(r.fecha))}">${avs}${cuando(x, R)}<span class="pp-afoto vacia">${ICO.entrega}</span><span class="pp-nm"><b>${esc(r.que || 'Entrega sin título')}</b> <i>${quien}</i></span><span class="pp-est">Sin entregar · hace ${n} ${n === 1 ? 'día' : 'días'}</span></button>`;
+    }
+    if (x.tipo === 'informe') {                 // the last month's «Cómo fue» (D-362): a reminder; Claude loads it, nothing opens
+      const mt = MESL[+x.mes.slice(5, 7) - 1];
+      return `<div class="pp-av pp-avinf" title="${esc('Dile a Claude «cómo fue ' + mt + '»: lo carga de todos los clientes a la vez')}">${avs}${cuando(x, R)}<span class="pp-afoto vacia">${ICO.grafica}</span><span class="pp-nm"><b>Falta el «Cómo fue» de ${esc(mt)}</b></span><span class="pp-est">${esc(x.clientes.map(nombreC).join(' · '))}</span></div>`;
     }
     if (x.tipo === 'acuerdo') {                 // renegotiate (D-288): the clock where the photo goes; gone past, tinted red as a late invoice
       const t = acuerdoCuando(x);
@@ -1537,6 +1553,7 @@
     let rT = 0; on(window, 'resize', () => { if (CARD && CARD.amplia) colocarAmplia(); clearTimeout(rT); rT = setTimeout(() => { if (st.on && !ocupada()) pintar(); }, 120); });   // fewer clients a row when they don't fit
     on(document, 'mesa-cobros', () => { if (!st.on) return; if (ocupada()) pendiente = true; else pintar(); });   // the invoices changed (D-235)
     on(document, 'mesa-entregas', () => { if (!st.on) return; if (ocupada()) pendiente = true; else pintar(); });   // the deliveries changed (D-290)
+    on(document, 'mesa-meses', () => { if (!st.on) return; if (ocupada()) pendiente = true; else pintar(); });   // a month's «Cómo fue» came in (D-362)
     try { bc = new BroadcastChannel('mesa-personal'); bc.onmessage = e => { if (!e.data || e.data.t !== 'tareas') return; if (st.on) refrescar(); else if (CARD && CARD.tablero) { cargarTK().then(() => pintarCard()); } avisar(); }; } catch (e) { bc = null; }
     // «Usar aquí» opens the board again: with the page open, it stays, with what the other tab saved
     on(document, 'click', e => { if (st.on && e.target.closest && e.target.closest('[data-act="takeover"]')) retomando = Date.now(); }, true);
@@ -1564,7 +1581,7 @@
     for (const L of [H.u, H.r]) { for (let i = L.length - 1; i >= 0; i--) { const paso = L[i]; if (sinId) for (let j = paso.length - 1; j >= 0; j--) if (paso[j].id === sinId) paso.splice(j, 1); if (!paso.length) { L.splice(i, 1); continue; } for (const p of paso) { if (p.antes) f(p.antes); if (p.despues) f(p.despues); } } }
   }
   const _p = {
-    EXT, TK, I, esc, ICO, st, avatar, avatarN, cliDe, clis, conCli, cliOk, esps, sesiones, tareas, notas, vivos, opcionesCli, diaHora, tramo, ultDia, marcaT, moverInicio, finOk, finNuevo, corto, fechaLarga, addD, dow, difD, acuerdoCuando,
+    EXT, TK, I, esc, ICO, st, avatar, avatarN, cliDe, clis, conCli, cliOk, esps, sesiones, tareas, notas, vivos, opcionesCli, diaHora, tramo, ultDia, marcaT, moverInicio, finOk, finNuevo, corto, fechaLarga, addD, dow, difD, acuerdoCuando, MESL,
     hacer, cambiar, enmendar, escribir, deshacer, copia, hondo, nuevoId, ahoraISO, puede, borrar, marcar, rebajar, esImagen, verFoto, remapH, guardarCard, ampliar, colocarAmplia,
     pintar, refrescar, cargarTK, abrirCard, cerrarCard, quitarCard, pintarCard, editar, borrador, pedirFecha, comando, menuSesion, menuEsp,
     abrirMenu, cerrarMenu, ES, leerTxt, lsGet, lsSet, enCard, pocoMov, DBL, fotosURL, botonesCard, ponerCard, seleccionando, morfar,
@@ -1700,6 +1717,7 @@
 #mesa .pp-av.tarea .pp-nm,#mesa .pp-av:not(:has(.pp-est:not(:empty))) .pp-nm{grid-row:1 / span 2;align-self:center}
 #mesa .pp-av .pp-est:empty{display:none}
 #mesa .pp-av.tarea{cursor:default}
+#mesa .pp-av.pp-avinf{cursor:default}#mesa .pp-av.pp-avinf:active{transform:none}   /* the «Cómo fue» notice: a reminder, nothing opens (D-362) */
 #mesa button.pp-av:hover{background:var(--bg-2)}
 #mesa .pp-grupo[data-cat="hoy"] .pp-av.sinprog{box-shadow:inset 3px 0 0 var(--chg)}#mesa .pp-grupo[data-cat="hoy"] .pp-av.sinprog .pp-cu{color:var(--chg);font-weight:600}
 #mesa .pp-grupo[data-cat="hoy"] .pp-av.pp-avhoy{background:var(--chg-soft)}#mesa .pp-grupo[data-cat="hoy"] button.pp-av.pp-avhoy:hover{background:var(--chg-soft);box-shadow:inset 3px 0 0 var(--chg),inset 0 0 0 1px var(--chg)}   /* D-300: at hover the row keeps its tint (4.87:1 light, 7.26:1 dark) and a thin ring of its colour */

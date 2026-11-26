@@ -6,7 +6,7 @@
 // Mesa cogida un momento (lote 4, más abajo).
 (function () {
   'use strict';
-  const VERSION = '1.8';   // 1.8: la marca de cambios del Mac desde el último envío a la web, junto al estado de cada publicación y bajo su título (D-355; D-287 la dejó para este encargo). 1.7: la página de un cliente de solo contenido en #cli/<cliente>; una ruta vieja de su mes lleva a ella (D-312). 1.6: las marcas del Mac en Hoy y en Tareas, leídas del núcleo (D-300); el aviso en terracota, el error con su triángulo rojo en un disco blanco (D-303). 1.5: «Acuerdos» en Hoy, el aviso de renegociar (D-288); un cliente de solo contenido cuenta y lista sus entregas, y una pasada sale en Hoy (D-290). 1.4: «Cancelar · Guardar» tapa las marcas dibujadas al deslizar la hoja (D-286, probado en el iPhone). 1.3: la hoja sigue al teclado (resize y scroll del visualViewport), el campo del ordenador en notas, «Detalles» y textos de una sesión (D-286) y las marcas de estado del Mac (D-287). 1.2: las listas se leen como en el Mac: viñeta y número en terracota y el separador «⸻» como una línea (D-283). 1.1: los ajustes tras probarla en el iPhone (D-271), editar tareas (D-272) y la sesión entera (D-275)
+  const VERSION = '1.9';   // 1.9: el aviso del «Cómo fue» del mes pasado, como lo da el núcleo, sin verse pulsado (D-362). 1.8: la marca de cambios del Mac desde el último envío a la web, junto al estado de cada publicación y bajo su título (D-355; D-287 la dejó para este encargo). 1.7: la página de un cliente de solo contenido en #cli/<cliente>; una ruta vieja de su mes lleva a ella (D-312). 1.6: las marcas del Mac en Hoy y en Tareas, leídas del núcleo (D-300); el aviso en terracota, el error con su triángulo rojo en un disco blanco (D-303). 1.5: «Acuerdos» en Hoy, el aviso de renegociar (D-288); un cliente de solo contenido cuenta y lista sus entregas, y una pasada sale en Hoy (D-290). 1.4: «Cancelar · Guardar» tapa las marcas dibujadas al deslizar la hoja (D-286, probado en el iPhone). 1.3: la hoja sigue al teclado (resize y scroll del visualViewport), el campo del ordenador en notas, «Detalles» y textos de una sesión (D-286) y las marcas de estado del Mac (D-287). 1.2: las listas se leen como en el Mac: viñeta y número en terracota y el separador «⸻» como una línea (D-283). 1.1: los ajustes tras probarla en el iPhone (D-271), editar tareas (D-272) y la sesión entera (D-275)
   const M = window.MESA, D = document, W = window;
   const fallo = t => { (W.MESA_CARGA = W.MESA_CARGA || {}).movil = 'fallo'; const p = D.getElementById('arranque'); if (p) p.textContent = t; };
   if (!M || !M._in || !M._in.movil || !M._in.movil.activo) { fallo('No se pudo cargar la Mesa. Cierra la app y vuelve a abrirla.'); return; }
@@ -33,6 +33,7 @@
     paquete: '<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><path d="m3.3 7 7.703 4.734a2 2 0 0 0 1.994 0L20.7 7"/><path d="m7.5 4.27 9 5.15"/>',
     abajo: '<path d="m6 9 6 6 6-6"/>', arriba: '<path d="m18 15-6-6-6 6"/>', izq: '<path d="m15 18-6-6 6-6"/>', der: '<path d="m9 18 6-6-6-6"/>',
     reloj: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+    grafica: '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
     euro: '<path d="M4 10h12"/><path d="M4 14h9"/><path d="M19 6a7.7 7.7 0 0 0-5.2-2A7.9 7.9 0 0 0 6 12c0 4.4 3.5 8 7.8 8 2 0 3.8-.8 5.2-2"/>',
     ojo: '<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>',
     nubeok: '<path d="m17 15-5.5 5.5L9 18"/><path d="M5 17.743A7 7 0 1 1 15.71 10h1.79a4.5 4.5 0 0 1 1.5 8.742"/>',
@@ -527,7 +528,7 @@
 #movil .tarea .tm .cn{display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 #movil .top-in{grid-template-columns:minmax(max-content,1fr) minmax(0,auto) minmax(max-content,1fr);column-gap:6px}#movil .top-r{justify-self:end}#movil .top-t{max-width:none;min-width:0}#movil .back{min-width:0;max-width:34vw}#movil .back>span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 #movil .fila{touch-action:manipulation}
-#movil .fila:active{background:var(--bg-2)}#movil .fila.mk-hoy:active{background:var(--chg-soft);box-shadow:inset 3px 0 0 var(--chg),inset 0 0 0 1px var(--chg)}#movil .fila.mk-pasado:active{background:var(--red-soft);box-shadow:inset 3px 0 0 var(--red),inset 0 0 0 1px var(--red)}#movil .fila.mk-man:active{box-shadow:inset 3px 0 0 var(--chg),inset 0 0 0 1px var(--chg)}   /* D-300: a touch keeps the tint, as the Mac's mouse */
+#movil .fila:active{background:var(--bg-2)}#movil .fila.inf{cursor:default}#movil .fila.inf:active{background:none}#movil .fila.mk-hoy:active{background:var(--chg-soft);box-shadow:inset 3px 0 0 var(--chg),inset 0 0 0 1px var(--chg)}#movil .fila.mk-pasado:active{background:var(--red-soft);box-shadow:inset 3px 0 0 var(--red),inset 0 0 0 1px var(--red)}#movil .fila.mk-man:active{box-shadow:inset 3px 0 0 var(--chg),inset 0 0 0 1px var(--chg)}   /* D-300: a touch keeps the tint, as the Mac's mouse */
 #movil .fila .hr.roja{color:var(--red)}
 #movil .t1 .ty{vertical-align:1px}
 #movil .vacio{margin:18px var(--pad) 0;padding:22px 18px;border-radius:16px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2);color:var(--mute);font-size:15px;text-align:center}
@@ -1003,6 +1004,10 @@
     if (x.tipo === 'entrega') {   // una entrega pasada sin entregar (D-290): su mes, para mirarla
       const r = x.r;
       return fila({ cls, a: `data-ir="cli/${esc(r.cliente)}"`, izq: icoFila('paquete', true), t1: esc(r.que || 'Entrega sin título'), t2: `${esc(quien)} · <span class="roja">sin entregar · ${esc(corto(r.fecha))}</span>` });   // su página (D-312)
+    }
+    if (x.tipo === 'informe') {   // el «Cómo fue» del mes pasado (D-362): lo dice el núcleo; lo carga Claude, no se abre nada
+      const mt = (M.personal._p && M.personal._p.MESL ? M.personal._p.MESL : [])[+x.mes.slice(5, 7) - 1] || x.mes;
+      return `<div class="fila inf">${icoFila('grafica')}<span class="tx"><span class="t1">Falta el «Cómo fue» de ${esc(mt)}</span><span class="t2">${esc(x.clientes.map(nombreCli).join(' · '))}</span></span></div>`;
     }
     if (x.tipo === 'acuerdo') {   // renegociar (D-288): lo dice el núcleo (personal.js); se abre en el escritorio, como una factura
       const pas = x.cat === 'pasado', cu = M.personal._p && M.personal._p.acuerdoCuando ? M.personal._p.acuerdoCuando(x) : corto(x.dia);

@@ -41,6 +41,9 @@
 //   node tools/web.mjs mesa-epoca <pruebas|real> [--si]     época nueva, tras restaurar una copia de la base: las Mesas vuelven a
 //                                                     bajar todo desde 0 (en el real, solo con --si)
 //   node tools/web.mjs actividad <pruebas|real> [días]   la actividad de la Mesa en el servidor (7 días si no se dice; hasta 90)
+//   node tools/web.mjs cuentas <pruebas|real>         las cuentas del portal (D-363, solo lee): por cliente, correo, nombre, si
+//                                                     decide o mira, su alta, su última entrada y si está bloqueada; y las cuentas
+//                                                     sin cliente. Sustituye al registro de Notion «Alta de clientes en el portal»
 //   node tools/web.mjs heredada <pruebas|real> [apagar|encender|revocar] [--si]   las claves heredadas de Supabase (D-280): sin
 //                                                     nada, enseña cómo están (nunca un valor); «apagar» apaga anon y service_role
 //                                                     («encender» lo deshace); «revocar» revoca el secreto JWT viejo, sin vuelta atrás
@@ -559,6 +562,23 @@ const ORDENES = {
     const f = r.ok && Array.isArray(r.json) && r.json[0];
     if (!f) throw new Fallo(`no se pudo poner (${r.status}): ${r.text}`);
     return { proyecto: P.ref, version_minima: { antes: f.antes, ahora: f.ahora } };
+  },
+  // Las cuentas del portal (D-363): quién entra en la web de cada cliente. Solo lee; nunca enseña una clave ni un token
+  async cuentas(cual, ...op) {
+    const P = proyecto(cual);
+    if (op.length) throw new Fallo('cuentas <pruebas|real>, sin nada más');
+    const dia = c => `coalesce(to_char(${c} at time zone 'Europe/Madrid', 'YYYY-MM-DD HH24:MI'), '')`;
+    const cuentas = await sqlDe(P, `select m.cliente_id as cliente, c.nombre as cliente_nombre, u.email as correo, m.nombre,
+        case when m.observa then 'mira' else 'decide' end as rol, ${dia('u.created_at')} as alta, ${dia('u.last_sign_in_at')} as ultima_entrada,
+        (u.banned_until is not null and u.banned_until > now()) as bloqueada
+      from public.miembros m join auth.users u on u.id = m.user_id join public.clientes c on c.id = m.cliente_id
+      where u.deleted_at is null order by m.cliente_id, u.email`);
+    const sinCliente = await sqlDe(P, `select u.email as correo, ${dia('u.created_at')} as alta, ${dia('u.last_sign_in_at')} as ultima_entrada,
+        exists (select 1 from public.duenos d where d.user_id = u.id) as dueno
+      from auth.users u where u.deleted_at is null and not exists (select 1 from public.miembros m where m.user_id = u.id) order by u.email`);
+    const nunca = new Set(cuentas.filter(f => !f.ultima_entrada && !f.bloqueada).map(f => f.correo)).size;   // accounts, not memberships
+    return { proyecto: P.ref, clientes: new Set(cuentas.map(f => f.cliente)).size, cuentas, sinCliente, nuncaEntraron: nunca,
+      nota: 'Solo lee. Dar de alta: `alta`; solo mirar: `observador`; el procedimiento, en CLAUDE.local.md.' };
   },
   // Lo que apunta `mesa.actividad`: llamadas de quien no es Kevin, rechazos, choques, ordenadores nuevos y borrados masivos.
   // Las 500 más recientes de esos días, con la hora de Madrid y quién (Kevin, el correo de un cliente o nadie). Nunca valores.

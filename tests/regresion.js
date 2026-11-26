@@ -23616,6 +23616,53 @@
     const m = [0, 0, 0]; for (let k = 0; k < d.length; k += 4) { m[0] += d[k]; m[1] += d[k + 1]; m[2] += d[k + 2]; }
     return m.map(v => Math.round(v / (d.length / 4)));
   }
+  // ---------- feed continuo, pieza 4: la cabecera de meses (estática) ----------
+  // anterior | píldora fija con el mes activo | siguiente, con una flecha a cada lado; sustituye a los chips del mes (D-323)
+  const fgCab = () => q('.bar .mescab');
+  const fgVent = () => q('.bar .mescab .mescab-vent');
+  const fgHuecos = () => qa('.bar .mescab .mescab-vent > .mescab-tira > .mescab-mes');
+  const fgFl = d => q(`.bar .mescab .mescab-fl[data-d="${d}"]`);
+  const fgCentro = r => r.left + r.width / 2;
+  // lo que se ve en los tres huecos de la ventana (por geometría): [{t, sin, on}]
+  function fgVisibles() {
+    const v = fgVent().getBoundingClientRect();
+    return fgHuecos().filter(e => { const x = fgCentro(e.getBoundingClientRect()); return x > v.left && x < v.right; })
+      .map(e => ({ t: e.textContent, sin: e.classList.contains('sin'), on: e.getAttribute('aria-current') === 'true' }));
+  }
+  // el nombre que se ve dentro de la píldora (su capa propia, recortada a la píldora)
+  function fgPildora() {
+    const p = q('.bar .mescab .mescab-pild'), r = p.getBoundingClientRect();
+    const dentro = [...p.querySelectorAll('.mescab-mes')].filter(e => { const x = fgCentro(e.getBoundingClientRect()); return x > r.left && x < r.right; });
+    return dentro.map(e => e.textContent);
+  }
+  const fgHueco = t => fgHuecos().find(e => e.textContent === t);
+  const FG_SO = `${CLIENTE}-2026-09`, FG_EN = `${CLIENTE}-2027-01`;
+  // junio, julio, (agosto sin tablero), septiembre–octubre en un tablero, noviembre (dos publicaciones) y enero de 2027; abierto noviembre
+  async function fgSeis() {
+    await limpiar();
+    const t = async (month, slots, months = 1) => { await M.init({ client: CLIENTE, clientName: NOMBRE, month, months, cycleDay: 1, slots, past: [], force: true }); await M.flush(); };
+    await t('2026-06', [fcSlot('fg-jn', '6.1', 10, '2026-06')]);
+    await t('2026-07', [fcSlot('fg-jl', '7.1', 10, '2026-07')]);
+    await t('2026-09', [fcSlot('fg-s1', '9.1', 10, '2026-09'), fcSlot('fg-o1', '10.1', 12, '2026-10'), fcSlot('fg-o2', '10.2', 20, '2026-10')], 2);
+    await t('2027-01', [{ ...pub(1, 'Foto', 12, '2027-01') }]);
+    await t(MES, [pub(1), pub(2)]);
+    await hasta(() => fgCab() && fgHuecos().length, 3000, 'la cabecera de meses');
+    await hasta(() => fgHuecos().every(e => e.title), 2000, 'los títulos de la cabecera (van en el fotograma siguiente)');
+  }
+  async function fgPulsar(el) { ok(el, 'no está lo que hay que pulsar'); el.click(); await espera(30); if (M._test.histListo) await M._test.histListo(); await hasta(() => !M._in.switching(), 3000, 'el cambio de mes'); await espera(60); }
+  const fgActivo = () => [M._in.S.key, M._in.mesActivo.lee()];
+  const fgEnFila = (a, b) => { const r = a.getBoundingClientRect(), s = b.getBoundingClientRect(); return r.left < s.right && s.left < r.right && r.top < s.bottom && s.top < r.bottom; };
+  async function fgAncho(w, fn) {   // el marco de la batería a otro ancho (la Mesa pasa a una columna a 720)
+    const marco = W.frameElement, w0 = marco.style.width;
+    try { marco.style.width = w + 'px'; W.dispatchEvent(new W.Event('resize')); await espera(250); return await fn(); }
+    finally { marco.style.width = w0; W.dispatchEvent(new W.Event('resize')); await espera(150); }
+  }
+  async function fgOscuro(fn) {
+    const h = D.documentElement, antes = W.localStorage.getItem('mesa-tema');
+    try { if (h.dataset.theme !== 'dark') q('.appbar .ibtn.tema').click(); await espera(60); return await fn(); }
+    finally { if (h.dataset.theme === 'dark') q('.appbar .ibtn.tema').click(); if (antes == null) W.localStorage.removeItem('mesa-tema'); else W.localStorage.setItem('mesa-tema', antes); }
+  }
+
   prueba('FG1', 'Qué enseña la cabecera de meses (feed continuo, pieza 4; D-323): los tres meses en orden de calendario con el activo en la píldora, sin cifras, nombre corto con el año solo si no es el de hoy, «sin crear» apagado y sin pulsar (los huecos sin tablero también) que nunca sale en «Vista cliente»; flechas apagadas en los extremos; con un solo mes; con día de ciclo distinto de 1; el título dice «N de M con foto» solo a Kevin (D-157)', async () => {
     try {
       await fgSeis();
@@ -24828,6 +24875,21 @@
     igual([typeof M.render, typeof M.uploadOut, typeof M.out], ['undefined', 'undefined', 'object'], 'la imagen del feed');
     const csp = (W.document.querySelector('meta[http-equiv="Content-Security-Policy"]') || {}).content || '';
     ok(csp && !/notion|amazonaws/i.test(csp), 'la CSP sigue con Notion: ' + csp);
+  });
+  prueba('CF1', 'El «Cómo fue» del mes pasado avisa desde el día 3 (D-362): en «Hoy», con los clientes que publicaron ese mes y sin su resumen, sin marca y sin abrir nada; el día 2, nada; con el resumen cargado, se va', async () => {
+    try {
+      await tablero([pub(1), pub(2)]); await M.flush();   // noviembre, con publicaciones
+      const inf = async () => (await M.personal.datos()).items.filter(x => x.tipo === 'informe');
+      reloj('2026-12-02', '10:00'); igual((await inf()).length, 0, 'el día 2 ya avisa');
+      reloj('2026-12-03', '10:00');
+      const a = await inf();
+      ok(a.length === 1 && a[0].mes === '2026-11' && a[0].clientes.includes(CLIENTE) && a[0].cat === 'hoy' && !a[0].marca, 'el día 3 no avisa como toca: ' + json(a));
+      await M.personal.abrir(); await hasta(() => qa('.pp-av.pp-avinf').length === 1, 4000, 'la línea del aviso');
+      const l = q('.pp-av.pp-avinf');
+      ok(l.tagName === 'DIV' && /Falta el «Cómo fue» de noviembre/.test(l.textContent) && l.textContent.includes(NOMBRE), 'la línea del aviso: ' + l.outerHTML.slice(0, 200));
+      const r = await M.informe.cargar(CLIENTE, '2026-11', { resumen: IF_RES('2026-11') }); ok(r && r.ok, 'no carga el resumen: ' + json(r));
+      igual((await inf()).length, 0, 'con el resumen sigue el aviso');
+    } finally { volverReloj(); if (M.personal) M.personal.cerrar(); await limpiar(); }
   });
   prueba('NF7', 'Una carga no quita publicaciones de la Mesa (D-360): MESA.init sin una con fotos o creada en la Mesa da error y no cambia nada; una vacía sí se quita; con force: true, todo', async () => {
     try {

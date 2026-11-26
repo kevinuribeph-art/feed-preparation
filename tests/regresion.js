@@ -19573,6 +19573,81 @@
     });
   });
 
+  // ---------- el portal con su código de verdad y un servidor falso en la propia prueba (ajustes de la 4.55, lote 1) ----------
+  async function portalFalso({ w = 844, h = 390, tablas = {} }, fn) {
+    const html = await (await fetch('../portal/index.html', { cache: 'no-store' })).text();
+    const cuerpo = html.slice(html.indexOf('<body>') + 6, html.indexOf('</body>'));
+    const f = document.createElement('iframe'); f.style.cssText = `position:fixed;left:0;top:0;width:${w}px;height:${h}px;border:0;z-index:9999;background:#fff`;
+    const x = Date.now();
+    f.srcdoc = `<!doctype html><html lang="es"><meta charset="utf-8"><link rel="stylesheet" href="../portal/portal.css?fx=${x}"><link rel="stylesheet" href="../portal/feed-mov.css?fx=${x}"><body>${cuerpo}</body></html>`;
+    const previas = Object.keys(localStorage).filter(k => k.startsWith('portal-'));
+    await new Promise(r => { f.onload = r; document.body.append(f); });
+    const V = f.contentWindow, d = V.document;
+    V.PORTAL_CONFIG = { url: 'https://portal.invalid', publica: 'publica-de-prueba' };
+    V.Supa = { crear: () => ({ usuario: () => ({ id: 'u-fx', email: 'ana@prueba.test' }), leer: async ruta => (tablas[ruta.split('?')[0]] || []).map(r => ({ ...r })), firmar: async (b, rs) => Object.fromEntries(rs.map(r => [r, 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="8" height="10"/>'])), insertar: async () => {}, alCambiar: () => {}, pedirCodigo: async () => {}, verificarCodigo: async () => {}, salir: async () => {} }) };
+    try {
+      for (const src of ['../portal/feed-mov.js', '../portal/portal.js']) await new Promise((res, rej) => { const sc = d.createElement('script'); sc.src = `${src}?fx=${x}`; sc.async = false; sc.onload = res; sc.onerror = () => rej(new Error('no carga ' + src)); d.body.append(sc); });
+      await hasta(() => d.querySelector('.pv .cols'), 8000, 'el portal pintado');
+      await espera(200);
+      return await fn(V, d);
+    } finally { f.remove(); Object.keys(localStorage).filter(k => k.startsWith('portal-') && !previas.includes(k)).forEach(k => localStorage.removeItem(k)); }
+  }
+  const fxDia = n => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+  const fxPortal = (o = {}) => {
+    const mes = fxDia(0).slice(0, 7), img = n => ({ ruta: `c1/${n}.jpg`, mini: `c1/${n}-m.jpg`, an: 1080, al: 1350 });
+    return {
+      miembros: [{ cliente_id: 'c1', nombre: 'Ana', observa: !!o.observa }],
+      clientes: [{ id: 'c1', nombre: 'Cliente de la prueba', handle: 'cliente.prueba', foto: null, cuota_cent: 10000, proxima_emision: null }],
+      publicaciones: [{ cliente_id: 'c1', pid: 'p1', mes, orden: 1, tipo: 'carrusel', nombre: 'Carrusel 1.1', fecha: new Date(Date.now() + 5 * 864e5).toISOString(), sin_hora: false, caption: 'Un caption de prueba con texto suficiente para ocupar un par de líneas en la ficha.', imagenes: [img(1), img(2), img(3)], estado: 'por_aprobar', version: 'v1', visible: true, enviada: new Date().toISOString() }],
+      pagos: o.pagos || []
+    };
+  };
+  // cada cosa, dentro de la zona segura [izq, ancho − der], sin que el fondo deje de llegar a los lados
+  function fxDentro(V, d, sel, izq = 59, der = 59) {
+    const e = d.querySelector(sel); ok(e, 'falta ' + sel);
+    const r = e.getBoundingClientRect(); ok(r.width > 0, sel + ' no se ve');
+    ok(r.left >= izq - 0.5 && r.right <= V.innerWidth - der + 0.5, `${sel} se mete bajo la muesca: ${Math.round(r.left)}–${Math.round(r.right)} de ${V.innerWidth}`);
+    return r;
+  }
+  const fxASangre = (V, d, sel) => { const r = d.querySelector(sel).getBoundingClientRect(); ok(r.left <= 0.5 && r.right >= V.innerWidth - 0.5, `${sel} no llega a los lados: ${Math.round(r.left)}–${Math.round(r.right)} de ${V.innerWidth}`); };
+
+  prueba('FX11', 'Portal en el iPhone apaisado (D-366): la barra, el aviso de la cuenta que solo mira, la ficha (con «volver»), los diálogos, los avisos de abajo y las flechas del feed y del carrusel quedan dentro de la zona segura a izquierda y derecha, sin perder el fondo a sangre; los diálogos, con alto máximo y deslizables', async () => {
+    const css = await (await fetch('../portal/portal.css', { cache: 'no-store' })).text();
+    ok(/--sa-l:env\(safe-area-inset-left,0px\)/.test(css) && /--sa-r:env\(safe-area-inset-right,0px\)/.test(css), 'portal.css no toma la zona segura de los lados del iPhone');
+    const zona = d => { d.documentElement.style.setProperty('--sa-l', '59px'); d.documentElement.style.setProperty('--sa-r', '59px'); };
+    await portalFalso({ tablas: fxPortal({ observa: true }) }, async (V, d) => {
+      zona(d); await espera(150);
+      fxDentro(V, d, '.pv-obs-t'); fxASangre(V, d, '.pv-obs');
+      fxDentro(V, d, '.pv-top'); fxDentro(V, d, '.pv-marca'); fxDentro(V, d, '.cols'); fxDentro(V, d, '.pie');
+      for (const b of d.querySelectorAll('.fm-fl')) { const r = b.getBoundingClientRect(); if (r.width) ok(r.left >= 58.5 && r.right <= V.innerWidth - 58.5, 'una flecha de mes bajo la muesca'); }
+    });
+    await portalFalso({ tablas: fxPortal() }, async (V, d) => {
+      zona(d); await espera(150);
+      const cas = d.querySelector('.feed button'); ok(cas, 'sin casillas en el feed'); cas.click();
+      await hasta(() => d.querySelector('.hoja .acc .btn'), 4000, 'la ficha');
+      await espera(250);
+      fxASangre(V, d, '.hoja'); fxASangre(V, d, '.hoja>.ig');
+      fxDentro(V, d, '.hoja .bk'); fxDentro(V, d, '.hoja .car-b.sig'); fxDentro(V, d, '.hoja .ig-n'); fxDentro(V, d, '.hoja .dl-h h2'); fxDentro(V, d, '.hoja .cap'); fxDentro(V, d, '.hoja .escr textarea');
+      for (const b of d.querySelectorAll('.hoja .acc .btn')) { const r = b.getBoundingClientRect(); ok(r.left >= 58.5 && r.right <= V.innerWidth - 58.5, 'un botón de la ficha bajo la muesca'); }
+      const acc = d.querySelector('.hoja .acc').getBoundingClientRect(); ok(acc.left <= 0.5 && acc.right >= V.innerWidth - 0.5, 'la barra de aprobar no llega a los lados');
+      // la flecha de atrás, visible al pasar de foto
+      const sig = d.querySelector('.hoja .car-b.sig'); sig.click(); await espera(500); fxDentro(V, d, '.hoja .car-b.ant');
+      // el diálogo «¿Qué cambiarías?», también con el teclado abierto: dentro y deslizable
+      [...d.querySelectorAll('.hoja .acc .btn')].find(b => /Pedir cambios/.test(b.textContent)).click();
+      await hasta(() => d.querySelector('.dlg textarea'), 3000, 'el diálogo');
+      await espera(250);
+      fxASangre(V, d, '.dlg'); fxDentro(V, d, '.dlg textarea'); fxDentro(V, d, '.dlg .fila');
+      d.documentElement.style.setProperty('--kb', '200px'); await espera(150);
+      const dlg = d.querySelector('.dlg'), r = dlg.getBoundingClientRect();
+      ok(r.top >= -0.5 && r.bottom <= V.innerHeight - 200 + 0.5, `con el teclado el diálogo se sale: ${Math.round(r.top)}–${Math.round(r.bottom)} de ${V.innerHeight - 200}`);
+      ok(/auto|scroll/.test(V.getComputedStyle(dlg).overflowY) && dlg.scrollHeight > dlg.clientHeight, 'el diálogo no se desliza cuando no cabe');
+      dlg.scrollTop = dlg.scrollHeight; const env = [...dlg.querySelectorAll('.btn')].pop().getBoundingClientRect(); ok(env.bottom <= r.bottom + 1, 'no se puede llegar a «Enviar»');
+      // un aviso de abajo, largo
+      const t = d.createElement('div'); t.className = 'toast'; t.textContent = 'Un aviso bastante largo que no cabe en una sola línea en un teléfono y se parte en dos o tres líneas para leerlo entero sin problema'; d.body.append(t); await espera(300);
+      fxDentro(V, d, '.toast');
+    });
+  });
+
   prueba('MV31', 'Las versiones de las dos páginas (lote 5, D-269): movil.html pide de lo que comparte con index.html la misma versión, y la de mesa.js es la de la Mesa (M.version), en las dos', async () => {
     const tx = async u => (await W.fetch(u + '?mv31=' + Date.now(), { cache: 'no-store' })).text();
     const vs = h => Object.fromEntries([...h.matchAll(/<script[^>]*\ssrc="([^"?]+)\?v=([^"]+)"/g)].map(m => [m[1], m[2]]));

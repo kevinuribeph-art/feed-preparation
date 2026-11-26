@@ -14,6 +14,9 @@
 --line:#3D352E;--line2:#2F2822;--line-strong:#574C42;--acc-ink:#D9805F;--acc-soft:#3B241B;--focus:#D9805F;--ok:#6FBF85;--ok-soft:#1F2E22;--red:#F0727A;--red-soft:#3A1E21;
 --chg:#E0B25C;--chg-soft:#33291A;--st-aprobar:#8FB4E0;--st-aprobar-soft:#22303F;--on-ink:#16110E;--barra:#726960;--barra-top:var(--acc-ink);--sep:var(--line);
 --ty-reel:#23352A;--ty-reel-ink:#CFE6D3;--ty-collab:#2D4834;--ty-collab-ink:#DDF0E1;--ty-foto:#46271F;--ty-foto-ink:#F5D7CC;--ty-carr:#392C42;--ty-carr-ink:#E6DAEE;--ty-ses:#27323F;--ty-ses-ink:#D2DDEB;--ty-trial:#2E2823;--ty-trial-ink:#E2D9CE;--veil:rgba(0,0,0,.6);--cx-hov:var(--bg-2)}}
+/* lo que la muesca y las esquinas tapan a izquierda y derecha en un iPhone en apaisado (D-366): cada fondo llega a los lados;
+   su contenido, no */
+:root{--sa-l:env(safe-area-inset-left,0px);--sa-r:env(safe-area-inset-right,0px)}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html{-webkit-text-size-adjust:100%}
@@ -60,12 +63,12 @@ svg.i *{vector-effect:non-scaling-stroke}
 
 /* su vista */
 /* las medidas de la «Vista cliente» de la Mesa (D-264): 12 px de margen, la barra a 20 y 16 como su cabecera */
-.pv{display:flex;flex-direction:column;gap:16px;padding:16px 12px 24px;max-width:1440px;margin:0 auto}
+.pv{display:flex;flex-direction:column;gap:16px;padding:16px calc(12px + var(--sa-r)) 24px calc(12px + var(--sa-l));max-width:1440px;margin:0 auto}
 .pv-top{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;padding:0 4px 0 8px}
 .pv-marca{flex:none;align-self:center;display:block;width:24px;height:24px;margin-right:10px}   /* la marca, sin pulsar: a 22 px del nombre (D-264) */
 .pv-clis{display:flex;gap:4px;margin-right:auto;flex-wrap:wrap}
 /* la cuenta que solo mira (D-266): una tira encima, «Ver como» cada cliente; en la hoja, lo que no puede hacer, apagado en su sitio */
-.pv-obs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;max-width:1440px;margin:0 auto;padding:8px 20px;border-bottom:1px solid var(--line2);background:var(--bg-2);font-size:13px;color:var(--ink-2)}
+.pv-obs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;max-width:1440px;margin:0 auto;padding:8px calc(20px + var(--sa-r)) 8px calc(20px + var(--sa-l));border-bottom:1px solid var(--line2);background:var(--bg-2);font-size:13px;color:var(--ink-2)}
 .pv-obs-t{margin-right:auto}.pv-obs-t b{color:var(--ink);font-weight:600}
 .pv-obs-l{color:var(--mute);font-size:12px}
 .pv-obs-c{border:1px solid var(--line-strong);background:var(--panel-2);border-radius:var(--r-pill);padding:4px 12px;min-height:30px;font-size:13px;color:var(--ink)}
@@ -290,22 +293,23 @@ svg.i *{vector-effect:non-scaling-stroke}
 .acc .hecho b{font-weight:600}
 .acc .sig{flex-basis:100%;display:inline-flex;align-items:center;justify-content:center;gap:4px}
 .acc .sig svg{width:16px;height:16px}
-.dlg{position:fixed;z-index:31;left:50%;top:50%;transform:translate(-50%,-50%);width:min(440px,calc(100vw - 32px));background:var(--panel);border-radius:var(--r-xl);box-shadow:var(--shadow-lg);padding:20px;display:flex;flex-direction:column;gap:12px}
+.dlg{position:fixed;z-index:31;left:50%;top:50%;transform:translate(-50%,-50%);width:min(440px,calc(100vw - 32px));max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain;background:var(--panel);border-radius:var(--r-xl);box-shadow:var(--shadow-lg);padding:20px;display:flex;flex-direction:column;gap:12px}
+.dlg>*{flex-shrink:0}
 .dlg h2{margin:0;font-size:20px;font-weight:800}
 .dlg p{margin:0;color:var(--ink-2);font-size:14px}
 .dlg textarea{min-height:120px;border:1px solid var(--line-strong);border-radius:var(--r-md);background:var(--panel-2);padding:12px;font-size:16px;line-height:1.4;resize:none}
 .dlg textarea:focus{outline:none;border-color:var(--ink);box-shadow:0 0 0 3px var(--acc-soft)}
 .dlg .fila{display:flex;gap:10px;justify-content:flex-end}
 .velo.alto{z-index:30}
-.toast{pointer-events:none;position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:40;background:var(--acc);color:var(--on-acc);border-radius:var(--r-md);padding:12px 16px;font-size:14px;box-shadow:var(--shadow-lg);width:max-content;max-width:calc(100vw - 32px);animation:aparece var(--d2) var(--ease)}
+.toast{pointer-events:none;position:fixed;left:calc(50% + (var(--sa-l) - var(--sa-r)) / 2);bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:40;background:var(--acc);color:var(--on-acc);border-radius:var(--r-md);padding:12px 16px;font-size:14px;box-shadow:var(--shadow-lg);width:max-content;max-width:calc(100vw - 32px - var(--sa-l) - var(--sa-r));animation:aparece var(--d2) var(--ease)}
 
 /* 720 */
 @container app (max-width: 1099px){
-  .pv{padding:16px 6px 24px;gap:12px}
+  .pv{padding:16px calc(6px + var(--sa-r)) 24px calc(6px + var(--sa-l));gap:12px}
   .pv-top{padding:0 2px 0 6px}
   .pv-marca{margin-right:8px}
   .lado .card{padding:18px 16px 20px}
-  .pv-obs{padding:8px 12px}
+  .pv-obs{padding:8px calc(12px + var(--sa-r)) 8px calc(12px + var(--sa-l))}
   .cols,.cols.con-lado,.cols.cont.con-lado{grid-template-columns:1fr}
   .feedw .feed{max-width:420px;margin:0 auto}   /* el panel a todo el ancho, la cuadrícula ceñida (D-264) */
 }
@@ -321,11 +325,11 @@ svg.i *{vector-effect:non-scaling-stroke}
 /* 390 */
 @container app (max-width: 559px){
   .ent-m img{height:60px}
-  .pv{padding:8px 16px 24px;gap:12px}
+  .pv{padding:8px calc(16px + var(--sa-r)) 24px calc(16px + var(--sa-l));gap:12px}
   .pv-top{gap:8px;padding:0}
   .pv-marca{margin-right:2px}
   .feedw .feed{max-width:none}
-  .pv-obs{padding:8px 16px}
+  .pv-obs{padding:8px calc(16px + var(--sa-r)) 8px calc(16px + var(--sa-l))}
   .pv-obs-t{flex-basis:100%}
   .pv-cli{padding:8px 4px 10px}
   .pv-salir .tx{display:none}
@@ -347,21 +351,22 @@ svg.i *{vector-effect:non-scaling-stroke}
      (también en un iPhone de 667 px); la barra de acciones, pegada abajo de la hoja (sin nada que decidir, no se pega) */
   .hoja{inset:0;margin:0;width:auto;max-width:none;height:auto;border-radius:0;box-shadow:none;display:flex;flex-direction:column;overflow-y:auto}
   .dl,.dl-pie{display:contents}
-  .hoja>.ig-h{padding:6px 16px 6px 8px;min-height:52px;border-bottom:0;border-left:0}
+  .hoja>.ig-h{padding:6px calc(16px + var(--sa-r)) 6px calc(8px + var(--sa-l));min-height:52px;border-bottom:0;border-left:0}
   .hoja>.ig{order:0;flex:none;height:auto;background:var(--bg-3)}
   .ig .car,.ig .car-l{height:auto}
   .ig .car-l>div{background:var(--bg-3);height:min(60vh,calc(100vw / var(--r,.8)));height:min(60dvh,calc(100vw / var(--r,.8)))}   /* su caja antes de cargar: nada salta */
   .car-l img{object-fit:contain}
+  .car-b.ant{left:calc(12px + var(--sa-l))}.car-b.sig{right:calc(12px + var(--sa-r))}.ig-n{right:calc(10px + var(--sa-r))}   /* la foto, a sangre; lo que se toca, dentro */
   .ig-dots{position:static;padding:10px;min-height:26px}
   .ig-dots i{background:var(--line-strong)}.ig-dots i.on{background:#0095F6}
   .hoja-x{display:none}
   .bk{display:flex}
-  .dl-h{padding:16px 16px 8px}
-  .dl-b{flex:none;overflow:visible;padding:0 16px 12px}
-  .dl-pie .escr{padding:0 16px 16px}
-  .acc{position:sticky;bottom:0;margin-top:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));box-shadow:0 -1px 0 var(--sep)}
+  .dl-h{padding:16px calc(16px + var(--sa-r)) 8px calc(16px + var(--sa-l))}
+  .dl-b{flex:none;overflow:visible;padding:0 calc(16px + var(--sa-r)) 12px calc(16px + var(--sa-l))}
+  .dl-pie .escr{padding:0 calc(16px + var(--sa-r)) 16px calc(16px + var(--sa-l))}
+  .acc{position:sticky;bottom:0;margin-top:0;padding:12px calc(16px + var(--sa-r)) calc(12px + env(safe-area-inset-bottom)) calc(16px + var(--sa-l));box-shadow:0 -1px 0 var(--sep)}
   .acc.quieta{position:static}
-  .dlg{top:auto;bottom:var(--kb,0px);left:0;transform:none;width:100%;border-radius:var(--r-xl) var(--r-xl) 0 0;padding:20px 16px calc(24px + env(safe-area-inset-bottom))}
+  .dlg{top:auto;bottom:var(--kb,0px);left:0;transform:none;width:100%;max-height:calc(100vh - var(--kb,0px) - env(safe-area-inset-top,0px) - 8px);max-height:calc(100dvh - var(--kb,0px) - env(safe-area-inset-top,0px) - 8px);border-radius:var(--r-xl) var(--r-xl) 0 0;padding:20px calc(16px + var(--sa-r)) calc(24px + env(safe-area-inset-bottom)) calc(16px + var(--sa-l))}
   .dlg .fila .btn{flex:1}
   .velo.alto{display:block}
   .toast{bottom:calc(88px + var(--kb,0px) + env(safe-area-inset-bottom))}

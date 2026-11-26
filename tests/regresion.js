@@ -13,7 +13,7 @@
   }
 
   const CLIENTE = 'prueba-regresion', NOMBRE = 'Cliente de prueba', MES = '2026-11';
-  const V_ARCHIVO = 21, V_IDB = 26;   // IndexedDB 26 y v21 desde la 4.51 (los acuerdos y los paquetes, D-305 a D-307); 25 y v20 desde la 4.47 (el acuerdo, el servicio, las entregas y la reunión, D-288 a D-292); 24 desde la 4.33 (la marca «copia» de una foto que bajó como copia de trabajo, D-259); 23 desde la 4.32 (la nube, almacén 'nube', D-253); 22 desde la 4.31 (el diario de cambios, D-250); v19 y 21 desde la 4.27 (el porqué y cómo fue de cada mes, el almacén 'meses', D-238); v18 y 20 desde la 4.26 (cobros y sus facturas en PDF, la cuota de un cliente, D-232); v17 y 19 desde la 4.24 (varios clientes, fin y plantillas de material de una sesión, D-217 a D-220); v16 y 18 desde la 4.22 (sesiones, esporádicos, material y el almacén 'tfotos', D-206 a D-208); la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183); v15 y 17 desde la 4.19 (D-193)
+  const V_ARCHIVO = 22, V_IDB = 27;   // IndexedDB 27 y v22 desde la 4.54 (los estilos, lo enviado a la web y los meses provisionales, D-355, D-356, D-358); 26 y v21 desde la 4.51 (los acuerdos y los paquetes, D-305 a D-307); 25 y v20 desde la 4.47 (el acuerdo, el servicio, las entregas y la reunión, D-288 a D-292); 24 desde la 4.33 (la marca «copia» de una foto que bajó como copia de trabajo, D-259); 23 desde la 4.32 (la nube, almacén 'nube', D-253); 22 desde la 4.31 (el diario de cambios, D-250); v19 y 21 desde la 4.27 (el porqué y cómo fue de cada mes, el almacén 'meses', D-238); v18 y 20 desde la 4.26 (cobros y sus facturas en PDF, la cuota de un cliente, D-232); v17 y 19 desde la 4.24 (varios clientes, fin y plantillas de material de una sesión, D-217 a D-220); v16 y 18 desde la 4.22 (sesiones, esporádicos, material y el almacén 'tfotos', D-206 a D-208); la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183); v15 y 17 desde la 4.19 (D-193)
   // la batería va con el reloj de la mesa parado antes de sus fechas (noviembre de 2026): nada vence ni pasa solo a Publicado
   // salvo en las pruebas que lo adelantan (D-120)
   const RELOJ_PRUEBAS = Date.parse('2026-10-01T10:00:00+02:00');
@@ -80,6 +80,7 @@
     if (M._test.perBorrar) await M._test.perBorrar();   // las listas de personas (D-130)
     if (M._test.cobBorrarTodo) await M._test.cobBorrarTodo();   // los cobros, sus PDF y las cuotas (D-232)
     if (M._test.mesBorrarTodo) await M._test.mesBorrarTodo();   // el porqué y cómo fue de cada mes (D-238)
+    if (M._test.estBorrarTodo) await M._test.estBorrarTodo();   // los estilos y lo enviado a la web (D-355, D-356)
     if (M._test.entBorrarTodo) await M._test.entBorrarTodo();   // las entregas (D-290)
     if (M._test.camposBorrar) await M._test.camposBorrar([CLIENTE, CLIENTE2]);   // servicio, día de entregas y métricas (D-289, D-290, D-292)
   }
@@ -361,39 +362,37 @@
     try { ok(qa('.cell .mks').every(e => e.offsetParent === null), 'las marcas salen en «Vista cliente»'); } finally { M._in.root().classList.remove('client'); }
   });
 
-  prueba('M29', 'Un solo marcador de cambios desde la última subida (caption, foto o encuadre, fecha u hora, contexto, nombre o tipo); al pasar el ratón dice qué cambió (D-081)', async () => {
+  prueba('M29', 'Un solo marcador de cambios desde el último envío a la web (caption, foto o encuadre, fecha u hora, nombre o tipo; el Contexto no: el cliente no lo ve); al pasar el ratón dice qué cambió (D-081; al día a propósito: desde el envío, D-355)', async () => {
     await tablero([pub(1), pub(2)]);
     await hasta(() => M.calendario, 4000, 'calendario.js');
     await porAprobar(['r1'], 'm29');
     const f = slot('r1').photos[0];
-    M.markUploaded([{ slotId: 'r1', fileIds: [f] }]); M.markCaptionsUploaded(['r1']);
+    await M._in.envPoner([{ cliente: CLIENTE, slot: 'r1', ...M._in.webFirma(slot('r1'), M._in.S), estado: 'por_aprobar', orden: 0, visible: true, at: '2026-11-20T10:00:00.000Z' }]);
     await espera(60);
     const mk = () => celda('r1') && celda('r1').querySelector('.mks .mk-cambios');
     ok(!mk(), 'sale el marcador sin cambios');
-    M._test.setNote('r1', 'Otro contexto');
-    await hasta(() => mk(), 3000, 'el marcador tras cambiar el contexto');
-    igual(mk().dataset.tip, 'Cambió: contexto', 'lo que dice el marcador');
+    M._test.setNote('r1', 'Otro contexto'); await espera(150);
+    ok(!mk(), 'el Contexto cuenta como cambio de la web');
     M._test.setCrop(f, 'r1', { z: 1.6 });
-    await hasta(() => mk() && mk().dataset.tip === 'Cambió: foto o encuadre y contexto', 3000, 'el encuadre en el marcador');
+    await hasta(() => mk() && mk().dataset.tip === 'Cambió desde que la enviaste: foto o encuadre', 3000, 'el encuadre en el marcador');
     M._test.setDate('r1', '2026-11-20T18:00:00.000+01:00');
     M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 1 } });
     M._test.setType('r1', 'Carrusel');
-    await hasta(() => mk() && mk().dataset.tip === 'Cambió: caption, foto o encuadre, fecha u hora, contexto y nombre o tipo', 3000, 'los cinco cambios, en su orden: ' + (mk() && mk().dataset.tip));
+    const todo = 'Cambió desde que la enviaste: caption, foto o encuadre, fecha u hora y nombre o tipo';
+    await hasta(() => mk() && mk().dataset.tip === todo, 3000, 'los cuatro cambios, en su orden: ' + (mk() && mk().dataset.tip));
     igual(qa('.cell[data-slot="r1"] .mk-cambios').length, 1, 'más de un marcador de cambios');
-    const r = mk().getBoundingClientRect(); igual([Math.round(r.width), Math.round(r.height)], [10, 10], 'el tamaño del marcador (el del punto de antes: 7 px y su aro)');
+    const r = mk().getBoundingClientRect(); igual([Math.round(r.width), Math.round(r.height)], [10, 10], 'el tamaño del marcador');
     igual(mk().getAttribute('title'), '', 'el marcador deja ver el título de la casilla');
     igual(W.getComputedStyle(mk()).pointerEvents, 'auto', 'el marcador no recibe el puntero');
-    igual(W.getComputedStyle(mk(), '::after').content, '"Cambió: caption, foto o encuadre, fecha u hora, contexto y nombre o tipo"', 'el texto al pasar el ratón');
-    ok(+W.getComputedStyle(mk(), '::after').zIndex < +W.getComputedStyle(q('.detail')).zIndex, 'el texto del marcador queda por encima de las ventanas');
-    igual([...mk().querySelectorAll('circle')].map(c => W.getComputedStyle(c).fill), ['rgb(255, 207, 31)', 'rgb(31, 95, 214)', 'rgb(227, 38, 43)'], 'los tres colores: aro amarillo, disco azul, punto rojo');   // desde el rediseño (D-131) salen del bloque de tokens, no del atributo fill: se mira el color pintado
+    igual(W.getComputedStyle(mk(), '::after').content, '"' + todo + '"', 'el texto al pasar el ratón');
+    igual([...mk().querySelectorAll('circle')].map(c => W.getComputedStyle(c).fill), ['rgb(255, 207, 31)', 'rgb(31, 95, 214)', 'rgb(227, 38, 43)'], 'los tres colores: aro amarillo, disco azul, punto rojo');
     // el calendario lleva el mismo marcador, con lo que cambió
     const cm = await hasta(() => q('.side > .cal .chip[data-slot="r1"] .mk-cambios'), 3000, 'el marcador en el calendario');
-    ok(/contexto/.test(cm.title), 'el calendario no dice qué cambió: ' + cm.title);
-    // deshecho el contexto, sale de la lista
-    M._test.setNote('r1', 'Contexto r1');
-    await hasta(() => mk() && !/contexto/.test(mk().dataset.tip), 3000, 'el contexto fuera de la lista');
+    ok(/caption/.test(cm.title), 'el calendario no dice qué cambió: ' + cm.title);
+    // deshecho el caption, sale de la lista
+    M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 0 } });
+    await hasta(() => mk() && !/caption/.test(mk().dataset.tip), 3000, 'el caption fuera de la lista');
   });
-
   prueba('M30', 'No aprobado: va después de Por aprobar, se pone desde Por aprobar y vuelve a Por aprobar si la publicación cambia (D-082)', async () => {
     await tablero([pub(1), pub(2)]);
     await poner('r1', [await foto('m30.jpg')]); M._test.setNote('r1', 'Contexto');
@@ -6090,46 +6089,13 @@
   });
 
   // ---------- «N cambiadas» y «N con fecha nueva», pulsables (mesa 3.97, calendario 1.12, D-126) ----------
-  prueba('V9', '«N cambiadas» de la barra (una sola desde D-144) abre una sola lista por fecha, cada una una vez, con «Cambió: …» como su marcador; el nombre abre la publicación; sin acciones; sin calendario.js no falla; no en «Vista cliente» (D-126)', async () => {
-    await tablero([pub(1), pub(2), pub(3), pub(4)]);
+  prueba('V9', 'Sin «N cambiadas» ni su lista (D-357; antes D-126): un contexto y una fecha cambiados tras subirlos a Notion no sacan nada en la barra; la lista es la de «Web: N cambios» (D-355)', async () => {
+    await tablero([pub(1), pub(2)]);
     await hasta(() => M.calendario, 4000, 'calendario.js');
-    for (const id of ['r1', 'r3']) { await poner(id, [await foto(`v9-${id}.jpg`)]); M._test.setNote(id, 'Contexto ' + id); M.markUploaded([{ slotId: id, fileIds: [slot(id).photos[0]] }]); }
-    await espera(60);
-    M._test.setNote('r1', 'Otro contexto');                                   // r1: cambiada (contexto)
-    M._test.setDate('r2', '2026-11-20T18:00:00.000+01:00');                  // r2: con fecha nueva
-    M._test.setDate('r3', '2026-11-10T18:00:00.000+01:00'); M._test.setNote('r3', 'Otro r3');   // r3: las dos
-    const txt = () => qa('.bar .stats button[data-act="cambios"]').map(b => b.textContent.trim());
-    await hasta(() => json(txt()) === json(['3 cambiadas']), 3000, 'el botón de la barra: ' + json(txt()));   // uno solo, cada una una vez (D-144)
-    await hasta(() => /contexto/.test((celda('r3').querySelector('.mk-cambios') || { dataset: {} }).dataset.tip || ''), 3000, 'la marca de r3 con su contexto');   // el «2 cambiadas» de antes lo esperaba
-    const bs = qa('.bar .stats button[data-act="cambios"]');
-    for (const b of bs) {
-      b.click(); await espera(30);
-      const d = await hasta(() => q('.detail:not([hidden])[data-dlg="cambios"]'), 2000, 'la ventana de la lista');
-      igual(qa('.detail[data-dlg="cambios"] .vlist li').map(li => li.dataset.k), ['r1', 'r3', 'r2'], 'la lista, por fecha y cada una una vez');
-      for (const li of qa('.detail[data-dlg="cambios"] .vlist li')) {
-        const tip = celda(li.dataset.k).querySelector('.mk-cambios').dataset.tip;
-        ok(li.querySelector('.vque').textContent.endsWith('· ' + tip), `la fila de ${li.dataset.k} no dice «${tip}»: ${li.querySelector('.vque').textContent}`);
-      }
-      ok(/\b3 publicaciones con cambios\b/.test(d.querySelector('h3').textContent), 'el título: ' + d.querySelector('h3').textContent);
-      ok(!d.querySelector('.vacc, .vform') && qa('.detail[data-dlg="cambios"] .vlist button').every(x => x.dataset.cal === 'c-abrir'), 'la lista lleva acciones');
-      M._in.closeDetail();
-    }
-    // se dibuja de nuevo con la mesa: r1 sin cambios ya no sale
-    bs[0].click(); await hasta(() => q('.detail:not([hidden])[data-dlg="cambios"]'), 2000, 'la ventana otra vez');
-    M._test.setNote('r1', 'Contexto r1');
-    await hasta(() => json(qa('.detail[data-dlg="cambios"] .vlist li').map(li => li.dataset.k)) === json(['r3', 'r2']), 3000, 'r1 fuera de la lista abierta');
-    // el nombre abre la publicación
-    q('.detail[data-dlg="cambios"] li[data-k="r2"] .vnom').click();
-    await hasta(() => { const d = dialogo(); return d && d.dataset.slot === 'r2' && !d.dataset.dlg; }, 3000, 'abrir r2 desde la lista');
-    M._in.closeDetail();
-    // sin calendario.js todavía: no falla y lo dice
-    const cal = M.calendario; M.calendario = undefined;
-    try { q('.bar .stats button[data-act="cambios"]').click(); await espera(30); ok(toastCon(/Vuelve a pulsar en un momento/), 'sin aviso sin calendario.js'); ok(!q('.detail:not([hidden])[data-dlg="cambios"]'), 'se abrió sin calendario.js'); }
-    finally { M.calendario = cal; }
-    // «Vista cliente»: no se ven y no abre
-    M._in.root().classList.add('client');
-    try { ok(qa('.bar .stats button').every(b => b.offsetParent === null), 'los botones salen en «Vista cliente»'); M.calendario.cambios(); ok(!q('.detail:not([hidden])[data-dlg="cambios"]'), 'abre en «Vista cliente»'); }
-    finally { M._in.root().classList.remove('client'); }
+    await poner('r1', [await foto('v9-r1.jpg')]); M._test.setNote('r1', 'Contexto r1'); M.markUploaded([{ slotId: 'r1', fileIds: [slot('r1').photos[0]] }]);
+    M._test.setNote('r1', 'Otro contexto'); M._test.setDate('r2', '2026-11-20T18:00:00.000+01:00'); await espera(200); M._in.renderBar(); await espera(60);
+    igual(qa('.bar .stats button[data-act="cambios"]').length, 0, 'sale «N cambiadas»');
+    ok(!/cambiadas|con fecha nueva/.test(q('.bar').textContent), 'la barra habla de cambiadas');
   });
 
   // =====================================================================================================
@@ -10347,32 +10313,12 @@
     ok(Math.abs(c - cb) < 1.5 && Math.abs(c - ca) < 1.5, `no va centrado: ${c} frente a ${cb} y ${ca}`);
   }
 
-  prueba('J7', 'Un solo «N cambiadas» en la barra del mes: cada publicación con cualquier cambio una vez, el número de la lista; los renombres, en la nota de la ventana (D-144)', async () => {
-    await tablero([pub(1), pub(2), pub(3), pub(4)]);
-    await hasta(() => M.calendario, 4000, 'calendario.js');
-    for (const id of ['r1', 'r3']) { await poner(id, [await foto(`j7-${id}.jpg`)]); M._test.setNote(id, 'Contexto ' + id); M.markUploaded([{ slotId: id, fileIds: [slot(id).photos[0]] }]); }
-    await espera(60);
-    M._test.setNote('r1', 'Otro contexto');
-    M._test.setDate('r2', '2026-11-20T18:00:00.000+01:00');
-    M._test.setDate('r3', '2026-11-10T18:00:00.000+01:00'); M._test.setNote('r3', 'Otro r3');
-    const bs = () => qa('.bar .stats button[data-act="cambios"]');
-    await hasta(() => bs().length === 1 && bs()[0].textContent.trim() === '3 cambiadas', 3000, 'un solo botón «3 cambiadas»: ' + json(bs().map(b => b.textContent.trim())));
-    ok(!q('.bar .stats .dates') && !/con fecha nueva/.test(q('.bar .stats').textContent), 'queda «con fecha nueva»');
-    ok(/fecha u hora/.test(bs()[0].title) && !/renombran/.test(bs()[0].title), 'el título: ' + bs()[0].title);
-    bs()[0].click();
-    const dl = await hasta(() => q('.detail:not([hidden])[data-dlg="cambios"]'), 2000, 'la lista');
-    igual(qa('.detail[data-dlg="cambios"] .vlist li').length, 3, 'la lista no tiene las 3');
-    const nr = M._in.S.slots.filter(s => M._in.vivo(s) && M._in.nameChg(s)).length;
-    const nota = dl.querySelector('.cpnota').textContent;
-    if (nr) ok(/se renombra.*para que la numeración cuadre/.test(nota), 'la nota no dice los renombres: ' + nota);
-    M._in.closeDetail();
-    slot('r1').notionName = 'Nombre de antes'; M._test.setNote('r1', 'Otro contexto más');
-    await espera(60); bs()[0].click();
-    const dl2 = await hasta(() => q('.detail:not([hidden])[data-dlg="cambios"]'), 2000, 'la lista otra vez');
-    ok(/se renombran? .*para que la numeración cuadre/.test(dl2.querySelector('.cpnota').textContent), 'la nota no dice los renombres: ' + dl2.querySelector('.cpnota').textContent);
-    M._in.closeDetail();
+  prueba('J7', 'Un solo indicador, el de la web (D-355, D-357; antes D-144): ni «N cambiadas» ni «con fecha nueva» en la barra del mes', async () => {
+    await tablero([pub(1), pub(2), pub(3)]);
+    await poner('r1', [await foto('j7-r1.jpg')]); M.markUploaded([{ slotId: 'r1', fileIds: [slot('r1').photos[0]] }]);
+    M._test.setDate('r1', '2026-11-20T18:00:00.000+01:00'); M._test.setDate('r3', '2026-11-10T18:00:00.000+01:00'); await espera(200);
+    ok(!q('.bar .stats [data-act="cambios"]') && !q('.bar .stats .dates') && !/con fecha nueva|cambiadas/.test(q('.bar .stats').textContent), 'sigue un indicador de Notion');
   });
-
   prueba('J8', 'Sin «Ajustar»: un doble clic en el porcentaje deja la diapositiva entera, al 100 %, sin seleccionar su texto; ⌘0 sigue (D-145)', async () => {
     await tablero([pub(1, 'Carrusel')]);
     await poner('r1', [await foto('j8a.jpg')]);
@@ -10647,8 +10593,7 @@
       q('.clientToggle').click(); await espera(60);
       // la marca de cambios, la vencida, la cancelada y hoy, igual de claras sobre un día atenuado
       await porAprobar(['r1', R3], 'q7');
-      M.markUploaded(['r1', R3].map(id => ({ slotId: id, fileIds: slot(id).photos }))); M.markCaptionsUploaded(['r1', R3]);
-      M._test.setNote('r1', 'Otro contexto'); M._test.setNote(R3, 'Otro contexto');
+      await M._in.envPoner(['r1', R3].map(id => ({ cliente: CLIENTE, slot: id, ...M._in.webFirma(slot(id), M._in.S), caption: 'otro', estado: 'por_aprobar', orden: 0, visible: true, at: '2026-11-20T10:00:00.000Z' })));   // al día a propósito: la marca, desde el envío a la web (D-355)
       const mk = id => hasta(() => chip(id) && chip(id).querySelector('.mk-cambios'), 3000, 'la marca de cambios de ' + id);
       const vmk = m => [cs(m).opacity, m.getBoundingClientRect().width, ...[...m.querySelectorAll('circle')].map(c => cs(c).fill)];
       igual(vmk(await mk(R3)), vmk(await mk('r1')), 'la marca de cambios sobre un día atenuado');
@@ -11051,16 +10996,12 @@
     } finally { if (q('.clientToggle') && q('.clientToggle').checked) q('.clientToggle').click(); volverReloj(); }
   });
 
-  prueba('LZ13', 'El calendario no enseña «Notion a fecha de: …»: va en el título de «Igual que Notion» y de «N cambios sin subir» (D-160)', async () => {
+  prueba('LZ13', 'El calendario no habla de Notion (D-357; antes D-160): ni «Notion a fecha de», ni «Igual que Notion», ni «N cambios sin subir», también con una fecha movida', async () => {
     await tablero([pub(1), pub(2)]);
     const cal = await hasta(() => q('.side > .cal .calhead'), 3000, 'el calendario');
-    ok(!q('.side > .cal .cnat') && !/Notion a fecha de/.test(cal.textContent), 'sigue el texto');
-    ok(/^Notion a fecha de: /.test(q('.side > .cal .csync').title), 'el título de «Igual que Notion»: ' + q('.side > .cal .csync').title);
-    M._test.setDate('r1', '2026-11-20T12:00:00.000+01:00');
-    await hasta(() => q('.side > .cal .csync.c'), 3000, '«1 cambio sin subir»');
-    ok(/ · Notion a fecha de: /.test(q('.side > .cal .csync.c').title), 'el título de «N cambios sin subir»: ' + q('.side > .cal .csync.c').title);
+    M._test.setDate('r1', '2026-11-20T12:00:00.000+01:00'); await espera(200); if (M.calendario && M.calendario.render) M.calendario.render(); await espera(60);
+    ok(!q('.side > .cal .csync') && !/Notion|sin subir/.test(q('.side > .cal .calhead').textContent), 'el calendario habla de Notion: ' + q('.side > .cal .calhead').textContent);
   });
-
   prueba('LZ14', 'Sin «+ Mes» en la barra del mes (D-157)', async () => {
     await tablero([pub(1)]);
     await hasta(() => q('.bar .mescab .mescab-mes'), 3000, 'la barra del mes');   // al día a propósito: la cabecera de meses en vez de los chips (D-323)
@@ -11192,32 +11133,20 @@
     igual(M._test.hist().undo, u, 'dejó un paso de ⌘Z');
   });
 
-  prueba('LZ34', 'Doble clic en «En Notion: …» devuelve la fecha y el tipo a los de Notion en un paso de ⌘Z (D-159)', async () => {
+  prueba('LZ34', 'Sin «En Notion: …» ni su doble clic en la ventana (D-357; antes D-159): con fecha y tipo cambiados, la línea es la de la web', async () => {
     await tablero([pub(1), pub(2)]);
     M._test.setDate('r1', '2026-11-20T12:00:00.000+01:00'); M._test.setType('r1', 'Carrusel');
-    M._in.openDetail('r1', 0);
-    const l = await hasta(() => q('.detail .pnot > .pnotx'), 3000, 'la línea «En Notion»');
-    ok(/ · doble clic: volver a lo de Notion$/.test(l.title), 'el título: ' + l.title);
-    const u0 = M._test.hist().undo, cambiado = () => [M._in.dateChg(slot('r1')), M._in.typeChg(slot('r1'))];
-    dbl(l); await espera(80);
-    igual(cambiado(), [false, false], 'no volvió a lo de Notion');
-    igual(M._test.hist().undo, u0 + 1, 'pasos de ⌘Z');
-    await M._test.undo(); await espera(80);
-    igual(cambiado(), [true, true], '⌘Z no lo devuelve todo');
+    M._in.openDetail('r1', 0); await hasta(() => dialogo(), 3000, 'la ventana');
+    ok(!q('.detail .pnot > .pnotx') && !/Notion/.test(q('.detail .phead').textContent), 'sigue «En Notion»');
     M._in.closeDetail();
   });
-
-  prueba('LZ35', 'Sin «Volver a la fecha de Notion» ni «Volver a {tipo}»: con solo la fecha cambiada, el doble clic devuelve solo la fecha (D-159)', async () => {
+  prueba('LZ35', 'Sin «Volver a la fecha de Notion» ni «Volver a {tipo}» (D-159, D-357)', async () => {
     await tablero([pub(1)]);
     M._test.setDate('r1', '2026-11-21T12:00:00.000+01:00');
-    M._in.openDetail('r1', 0);
-    const l = await hasta(() => q('.detail .pnot > .pnotx'), 3000, 'la línea «En Notion»');
-    ok(!q('.detail [data-act="datereset"], .detail [data-act="typereset"]') && !/Volver a/.test(q('.detail .pnot').textContent), 'siguen los enlaces');
-    dbl(l); await espera(80);
-    igual([M._in.dateChg(slot('r1')), slot('r1').type], [false, 'Foto'], 'la fecha o el tipo');
+    M._in.openDetail('r1', 0); await hasta(() => dialogo(), 3000, 'la ventana');
+    ok(!q('.detail [data-act="datereset"], .detail [data-act="typereset"]') && !/Volver a/.test(q('.detail .phead').textContent), 'siguen los enlaces');
     M._in.closeDetail();
   });
-
   prueba('LZ36', 'Una publicación Por aprobar no lleva «Aprobar»: se aprueba con «Aprobado» en su desplegable (D-161)', async () => {
     await tablero([pub(1)]);
     await porAprobar(['r1'], 'lz36');
@@ -12195,7 +12124,7 @@
     igual(pers(), ['100000000000002', ['aj12.prueba'], ['aj12.colab']], 'la ubicación, las etiquetas y los colaboradores tras el ⌘Z');
   });
 
-  prueba('AJ13', '«En Notion: …» (fecha y tipo a la vez, un solo paso) con otro paso y un ⌘Z mientras se dibuja: el ⌘Z deja la publicación con su imagen en su formato (D-176)', async () => {
+  prueba('AJ13', 'Volver a Foto (un paso) con otro paso y un ⌘Z mientras se dibuja: el ⌘Z deja la publicación con su imagen en su formato (D-176; al día a propósito: sin «En Notion: …», D-357, el cambio de tipo va por la ventana)', async () => {
     await tablero([pub(1, 'Foto')]);
     await poner('r1', [await foto('aj13.jpg')]);
     await abrirEditor('r1');
@@ -12207,8 +12136,8 @@
     const nota0 = slot('r1').note;
     M._in.openDetail('r1', 0);
     try {
-      const pn = await hasta(() => q('.detail .pnot > .pnotx[data-slot]'), 4000, '«En Notion: …» en la ventana');
-      pn.dispatchEvent(new W.MouseEvent('dblclick', { bubbles: true, cancelable: true, detail: 2 }));   // vuelve a la fecha y al tipo de Notion (D-159)
+      await hasta(() => dialogo(), 4000, 'la ventana');
+      M._test.setType('r1', 'Foto');   // vuelve a Foto: dibuja en el formato nuevo
       ok(/formato nuevo/.test(M.busyText || '') && slot('r1').type === 'Foto', 'no está dibujando la Foto: ' + M.busyText + ' · ' + slot('r1').type);
       M._test.setNote('r1', 'Cambiada mientras se dibuja'); M._in.changed();
       tecla('z', { meta: true, code: 'KeyZ' });
@@ -13372,71 +13301,38 @@
   // «Usa Notion» (D-184)
   // =====================================================================================================
   const notionCliente = async on => { await M.updateClient(CLIENTE, { name: NOMBRE, cycleDay: 1, notion: on }); await espera(40); };
-  prueba('UN1', '«Usa Notion» en «Editar cliente», encendida por defecto: apagada, el tablero no compara con Notion ni invita a subir (marca de cambios por subir, «N cambiadas», «✓ en Notion» / «cambiada», «En Notion: …», «se sube a Notion», «… sin subir» del calendario); encendida, todo vuelve; viaja en «⇅ Exportar» (D-184)', async () => {
+  prueba('UN1', 'Nadie usa Notion (D-357; antes «Usa Notion», D-184): con lo subido a Notion cambiado, ni marca de Notion, ni «N cambiadas», ni la línea del calendario; la ventana no nombra Notion; «Usa Notion» ya no está en «Editar cliente»; window.MESA sigue viendo lo de Notion (la skill instalada, hasta el lote 4)', async () => {
     await tablero([pub(1), pub(2)]);
-    try {
-      for (const id of ['r1', 'r2']) await poner(id, [await foto(`un1-${id}.jpg`)]);
-      M.markUploaded(['r1', 'r2'].map(id => ({ slotId: id, fileIds: slot(id).photos.slice(), note: '' })));
-      M._test.setNote('r1', 'Otro contexto'); M._test.setSlot('r2', { date: '2026-11-09T18:00:00.000+01:00' }); await M.flush(); M._in.render(); await espera(60);
-      const marca = () => !!q('.cell[data-slot="r1"] .mk-cambios'), barra = () => !!q('.bar .stats [data-act="cambios"]'), cal = () => !!q('.csync');
-      ok(marca() && barra(), 'con Notion no salen la marca de cambios o «N cambiadas»');
-      // el interruptor, encendido por defecto, se apaga con «Guardar»
-      await pulsar('[data-act="editclient"]');
-      const sw = await hasta(() => q('.detail[data-dlg="editclient"] input[name="notion"]'), 3000, '«Usa Notion»');
-      ok(sw.checked && /Usa Notion/.test(sw.closest('.ecnot').textContent), '«Usa Notion» no está encendida por defecto');
-      sw.checked = false; q('.detail[data-dlg="editclient"] button[type="submit"]').click();
-      await hasta(() => !dialogo(), 3000, 'que se cierre «Editar cliente»');
-      igual(((await M.clients()).find(c => c.id === CLIENTE) || {}).notion, false, 'el cliente no guarda «Usa Notion» apagada');
-      M._in.render(); await espera(60);
-      ok(!marca() && !barra() && !cal(), 'sin Notion siguen la marca, «N cambiadas» o la línea de Notion del calendario');
-      M._in.openDetail('r1'); await hasta(() => dialogo(), 3000, 'la ventana');
-      ok(!q('.detail .phead .st') && !/Notion/.test(q('.detail .nlab').textContent), 'la ventana sin Notion sigue diciendo «en Notion» o «se sube a Notion»');
-      M._in.closeDetail(); M._in.openDetail('r2'); await hasta(() => dialogo(), 3000, 'la ventana');
-      ok(q('.detail .phead .pnot') && q('.detail .phead .pnot').hidden, 'sin Notion sale «En Notion: …»');
-      ok(!/Notion/.test(q('.detail .dtin').title), 'el título de la fecha nombra Notion');
-      M._in.closeDetail();
-      ok(M.notionChanges().length >= 1 && M.plan().length >= 1, 'window.MESA dejó de ver lo de Notion');
-      // otra vez encendida, vuelve todo
-      await notionCliente(true); M._in.render(); await espera(60);
-      ok(marca() && barra() && cal(), 'encendida no vuelven la marca, «N cambiadas» o la línea del calendario');
-      // viaja en el archivo: la elección más reciente gana
-      await notionCliente(false);
-      const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
-      const c = d.clients.find(x => x.id === CLIENTE); ok(c && c.notion === false && c.notionAt, 'no viaja «Usa Notion»');
-      await notionCliente(true);
-      await M.importData(d, { confirm: false });
-      ok(((await M.clients()).find(x => x.id === CLIENTE) || {}).notion !== false, 'una elección más vieja pisó la de aquí');
-      c.notionAt = '2099-01-01T00:00:00.000Z';
-      ok(!(await M.importData(d, { confirm: false })).error, 'no se importa');
-      igual(((await M.clients()).find(x => x.id === CLIENTE) || {}).notion, false, 'la elección más nueva del archivo no llega');
-    } finally { M._in.closeDetail(); await notionCliente(true); }
+    for (const id of ['r1', 'r2']) await poner(id, [await foto(`un1-${id}.jpg`)]);
+    M.markUploaded(['r1', 'r2'].map(id => ({ slotId: id, fileIds: slot(id).photos.slice(), note: '' })));
+    M._test.setNote('r1', 'Otro contexto'); M._test.setSlot('r2', { date: '2026-11-09T18:00:00.000+01:00' }); await M.flush(); M._in.render(); await espera(60);
+    ok(!q('.cell[data-slot="r1"] .mk-cambios') && !q('.bar .stats [data-act="cambios"]') && !q('.csync'), 'sale lo de Notion');
+    M._in.openDetail('r1'); await hasta(() => dialogo(), 3000, 'la ventana');
+    ok(!q('.detail .phead .st') && !/Notion/.test(q('.detail .nlab').textContent), 'la ventana dice «en Notion» o «se sube a Notion»');
+    ok(!/Notion/.test(q('.detail .dtin').title), 'el título de la fecha nombra Notion');
+    M._in.closeDetail();
+    await pulsar('[data-act="editclient"]'); await hasta(() => q('.detail[data-dlg="editclient"]'), 3000, '«Editar cliente»');
+    ok(!q('.detail[data-dlg="editclient"] input[name="notion"]'), 'sigue «Usa Notion»');
+    M._in.closeDetail();
+    ok(M.notionChanges().length >= 1 && M.plan().length >= 1, 'window.MESA dejó de ver lo de Notion');
   });
-
-  prueba('UN2', 'Sin Notion, una Programada guarda sus fotos con su recorte y su caption: si cambian, o su fecha, la marca de cambios de la casilla y del calendario dice «Cambió después de programarla»; marcada Programado otra vez se quita; con Notion, la marca de siempre (D-184)', async () => {
+  prueba('UN2', 'Una Programada guarda sus fotos con su recorte y su caption; si cambian, o su fecha, su ventana dice «Zernio sigue con lo de antes» (D-355, que lo saca de la marca de la casilla, D-184); marcada Programado otra vez, se quita', async () => {
     await tablero([pub(1), pub(2)]);
-    try {
-      await porAprobar(['r1', 'r2'], 'un2');
-      M.setEstado(['r1', 'r2'], 'aprobado'); M.setEstado(['r1', 'r2'], 'programado'); await M.flush();
-      ok(slot('r1').estado.firma && slot('r1').estado.firma.foto && slot('r1').estado.firma.cap === '1', 'al programarla no guarda sus fotos y su caption');
-      await notionCliente(false); M._in.render(); await espera(40);
-      ok(!q('.cell[data-slot="r1"] .mk-cambios'), 'recién programada lleva la marca');
-      // cambia el caption de r1 y la foto de r2
-      M._test.setSlot('r1', { caption: { ...slot('r1').caption, text: ['1 bis', '2', '3'] } });
-      await poner('r2', [await foto('un2-otra.jpg', 1200, 1500, '#9c4a4a')]);
-      await M.flush(); M._in.render(); await espera(60);
-      const tip = id => { const m = q(`.cell[data-slot="${id}"] .mk-cambios`); return m ? m.dataset.tip : ''; };
-      ok(/Cambió después de programarla: caption/.test(tip('r1')), 'el caption cambiado no se marca: ' + tip('r1'));
-      ok(/después de programarla: .*foto o encuadre/.test(tip('r2')), 'la foto cambiada no se marca: ' + tip('r2') + ' · ' + M._in.estadoDe(slot('r2')));
-      ok(q('.chip[data-slot="r1"] .cmk') && /programarla/.test(q('.chip[data-slot="r1"] .cmk').title), 'el calendario no lleva la marca');
-      // la fecha
-      M.setEstado('r1', 'programado'); await M.flush(); M._in.render(); await espera(40);
-      ok(!q('.cell[data-slot="r1"] .mk-cambios'), 'marcada Programado otra vez no se quita la marca');
-      M._test.setSlot('r1', { date: '2026-11-04T19:00:00.000+01:00' }); await M.flush(); M._in.render(); await espera(40);
-      ok(/fecha u hora/.test(tip('r1')), 'la fecha cambiada no se marca: ' + tip('r1'));
-      // con Notion, la de siempre
-      await notionCliente(true); M._in.render(); await espera(40);
-      ok(!/programarla/.test(tip('r1')), 'con Notion la marca habla de programarla');
-    } finally { await notionCliente(true); }
+    await porAprobar(['r1', 'r2'], 'un2');
+    M.setEstado(['r1', 'r2'], 'aprobado'); M.setEstado(['r1', 'r2'], 'programado'); await M.flush();
+    ok(slot('r1').estado.firma && slot('r1').estado.firma.foto && slot('r1').estado.firma.cap === '1', 'al programarla no guarda sus fotos y su caption');
+    const zer = id => (M._in.pnotHTML(slot(id)).match(/Zernio sigue con lo de antes: ([^<]*)/) || [])[1] || '';
+    igual(zer('r1'), '', 'recién programada lo dice');
+    M._test.setSlot('r1', { caption: { ...slot('r1').caption, text: ['1 bis', '2', '3'] } });
+    await poner('r2', [await foto('un2-otra.jpg', 1200, 1500, '#9c4a4a')]);
+    await M.flush(); await espera(60);
+    ok(/caption/.test(zer('r1')), 'el caption cambiado no sale: ' + zer('r1'));
+    ok(/foto o encuadre/.test(zer('r2')), 'la foto cambiada no sale: ' + zer('r2'));
+    ok(!q('.cell[data-slot="r1"] .mk-cambios'), 'la casilla lleva la marca sin nada enviado a la web');
+    M.setEstado('r1', 'programado'); await M.flush(); await espera(40);
+    igual(zer('r1'), '', 'marcada Programado otra vez no se quita');
+    M._test.setSlot('r1', { date: '2026-11-04T19:00:00.000+01:00' }); await M.flush(); await espera(40);
+    ok(/fecha u hora/.test(zer('r1')), 'la fecha cambiada no sale: ' + zer('r1'));
   });
 
 
@@ -13617,27 +13513,12 @@
     });
   });
 
-  prueba('PA2', '«Usa Notion» dice su estado junto al interruptor, «Conectado» o «Desconectado», y cambia al pulsarlo; la frase de antes va en el título; el texto, centrado con el interruptor (D-187)', async () => {
+  prueba('PA2', '«Usa Notion» ya no está en «Editar cliente» (D-357; antes D-187)', async () => {
     await tablero([pub(1)]);
     await pulsar('[data-act="editclient"]');
-    try {
-      const fila = await hasta(() => q('.detail[data-dlg="editclient"] .ecnot'), 3000, 'la fila de «Usa Notion»');
-      const sw = fila.querySelector('input[name="notion"]'), lab = fila.querySelector('label.sw');
-      const dice = () => lab.innerText.trim();
-      const centro = e => { const r = e.getBoundingClientRect(); return r.top + r.height / 2; };
-      ok(sw.checked, 'un cliente sin el dato no empieza con Notion');
-      igual(dice(), 'Conectado', 'encendido');
-      ok(!/Apagada/.test(fila.innerText) && /Apagada, la Mesa no compara con Notion/.test(fila.title), 'la frase de antes sigue a la vista o no va en el título');
-      const t = [...lab.querySelectorAll('.ecnot-e > span')].find(e => e.getClientRects().length);
-      cerca(centro(t), centro(sw), 1, 'el texto no va centrado con el interruptor');
-      sw.click(); await espera(30);
-      ok(!sw.checked, 'el interruptor no se apagó');
-      igual(dice(), 'Desconectado', 'apagado');
-      sw.click(); await espera(30);
-      igual(dice(), 'Conectado', 'otra vez encendido');
-    } finally { const x = q('.detail[data-dlg="editclient"] .x'); if (x) x.click(); await espera(60); }
+    try { await hasta(() => q('.detail[data-dlg="editclient"]'), 3000, '«Editar cliente»'); ok(!q('.detail[data-dlg="editclient"] .ecnot'), 'sigue la fila de «Usa Notion»'); }
+    finally { const x = q('.detail[data-dlg="editclient"] .x'); if (x) x.click(); await espera(60); }
   });
-
   prueba('PA3', 'Tarea sin fecha: el calendario de la fecha de una tarea ofrece «Sin fecha» (apagado si no tiene) y la quita, al crearla y en edición; borrar con el teclado sigue; la fecha de una publicación no lo ofrece (D-188)', async () => {
     await tablero([pub(1)]); await sinTareas();
     const calDe = async nat => {                     // pulsa el campo de la Mesa de ese campo de fecha y espera su calendario
@@ -15878,7 +15759,7 @@
       // another client's dialog over the page: its board isn't opened, curClient stays
       const cur0 = M._in.curClient, d = await coFicha(CLIENTE2, 'cobros');
       ok(M.personal.abierta() && M._in.curClient === cur0, 'abrir la ficha de otro cliente cierra la página o cambia de tablero');
-      const tabs = qa('.detail .ectab'); igual(tabs.map(b => [b.textContent, b.getAttribute('role'), b.getAttribute('aria-selected')]), [['Datos', 'tab', 'false'], ['Cobros', 'tab', 'true']], 'las pestañas');
+      const tabs = qa('.detail .ectab'); igual(tabs.map(b => [b.textContent, b.getAttribute('role'), b.getAttribute('aria-selected')]), [['Datos', 'tab', 'false'], ['Cobros', 'tab', 'true'], ['Estilo', 'tab', 'false']], 'las pestañas');   // al día a propósito: «Estilo» (D-356)
       ok(D.activeElement === tabs[1], 'el foco no va a «Cobros»');
       ok(q('#ecp-datos').hidden && !q('#ecp-cobros').hidden && !q('#ecp-cobros [type=submit]') && !q('.detail button[type=submit]').getClientRects().length, '«Guardar» sale en «Cobros»');
       const w1 = q('.detail .card').getBoundingClientRect().width;
@@ -17588,10 +17469,10 @@
     await conWeb(async sv => {
       wbSesion(); await M.web.repasar();
       igual(M.web.estado().cambios, 3, 'al empezar (las 2 publicaciones y el cliente)');
-      ok(/3 cambios sin enviar · Enviar/.test((q('[data-web="enviar"]') || {}).textContent || ''), 'la barra');
+      ok(/^Web: 3 cambios$/.test(((q('[data-web="lista"]') || {}).textContent || '').trim()), 'la barra');   // al día a propósito: «Web: N cambios», que abre la lista (D-355)
       ok((await M.web.enviar()).ok, 'no se envió'); await M.web.repasar();
       igual(M.web.estado().cambios, 0, 'tras enviar');
-      ok(/al día/.test((q('[data-web]') || {}).textContent || ''), 'la barra no dice «al día»');
+      ok(/Web al día/.test((q('[data-web]') || {}).textContent || ''), 'la barra no dice «Web al día»');
       M._test.setSlot('r1', { memo: 'otra nota' }); await M.web.repasar();
       igual(M.web.estado().cambios, 0, 'la Nota contó como cambio');
       M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 1 } }); await M.web.repasar();
@@ -23691,7 +23572,7 @@
       await ffArrastrar(celda('ff-n1'), celda('ff-o3'));
       igual([slot('ff-n1').photos[0], (await ffSlot(fdO, 'ff-o3')).photos[0]], [po, pn], 'la Programada y la aprobada no se intercambiaron');
       igual([M._in.estadoDe(slot('ff-n1')), slot('ff-n1').estado.v], ['programado', 'programado'], 'la Programada no sigue Programada');
-      await hasta(() => (marcas('ff-n1') || []).includes('cambios'), 3000, 'la Programada sin la marca de «cambió»');
+      await hasta(() => /Zernio sigue con lo de antes/.test(M._in.pnotHTML(slot('ff-n1'))), 3000, 'la Programada no dice que Zernio sigue con lo de antes');   // al día a propósito: en su ventana, no en la marca (D-355)
       // una cancelada no está en el feed
       M.setEstado('ff-n2', 'cancelado'); await M.flush();
       ok(!celda('ff-n2'), 'una cancelada está en el feed');
@@ -24935,6 +24816,202 @@
       await fjQuieto(1000);
       igual([feed.scrollTop, M._in.mesActivo.lee()], [P['2026-09'], '2026-09'], 'al parar, el imán no actuó o no se asentó en septiembre');
     } finally { await limpiar(); }
+  });
+
+  // ---------- Notion fuera, lote 1: la web en lugar de Notion, el estilo y los meses sin Notion (D-355 a D-360) ----------
+  prueba('NF1', 'Notion fuera, datos (D-355, D-356, D-358): IndexedDB 27 con «estilos» y «enviados»; «Exportar» v22 los lleva, con los meses provisionales del tablero, e «Importar» los trae', async () => {
+    try {
+      await tablero([pub(1), pub(2)]);
+      const nombres = await new Promise((res, rej) => { const o = W.indexedDB.open('mesa-feed'); o.onsuccess = () => { const l = [...o.result.objectStoreNames]; o.result.close(); res(l); }; o.onerror = () => rej(o.error); });
+      ok(nombres.includes('estilos') && nombres.includes('enviados'), 'faltan almacenes: ' + json(nombres));
+      const e = await M.estilo.cambiar(CLIENTE, { tonos: [{ nombre: 'Cercano', como: 'De tú' }], secciones: { contexto: 'Café de barrio' } }); ok(e && e.ok, 'cambiar: ' + json(e));
+      const n = await M._in.envPoner([{ cliente: CLIENTE, slot: 'r1', ...M._in.webFirma(slot('r1'), M._in.S), estado: 'preparando', orden: 0, visible: true, at: '2026-11-20T10:00:00.000Z' }]); igual(n, 1, 'envPoner');
+      ok(M.provisional('2026-11', true).ok, 'provisional'); await M.flush();
+      const blob = await M.exportAll({ returnBlob: true }), d = JSON.parse(await blob.text());
+      igual(d.v, V_ARCHIVO, 'la versión del archivo');
+      ok((d.estilos || []).some(r => r.cliente === CLIENTE && r.secciones.contexto === 'Café de barrio'), 'el archivo no lleva el estilo');
+      ok((d.enviados || []).some(r => r.cliente === CLIENTE && r.slot === 'r1'), 'el archivo no lleva lo enviado');
+      const b = (d.boards || []).find(x => x.key === `${CLIENTE}-${MES}`); ok(b && b.provisional && b.provisional[MES] === true, 'el tablero no lleva su mes provisional');
+      await M._test.estBorrarTodo(); await sinMes(`${CLIENTE}-${MES}`);
+      igual((await M.estilo.ver(CLIENTE)).at, null, 'no se borró el estilo');
+      const r = await M.importData(blob, { confirm: false }); ok(r && !r.error, 'importar: ' + json(r));
+      igual((await M.estilo.ver(CLIENTE)).secciones.contexto, 'Café de barrio', 'el estilo no volvió');
+      await M.open(`${CLIENTE}-${MES}`);
+      ok(M._in.envDe(slot('r1')), 'lo enviado no volvió'); igual(M.provisional().provisional, [MES], 'el mes provisional no volvió');
+    } finally { await limpiar(); }
+  });
+  prueba('NF2', 'MESA.estilo (D-356): un cliente sin estilo da uno vacío; cambiar es todo o nada, con sus problemas; solo las secciones que vienen (vacía, la quita); aprender pone una arriba, con la fecha de hoy si no trae', async () => {
+    try {
+      await tablero([pub(1)]);
+      igual(await M.estilo.ver(CLIENTE), { cliente: CLIENTE, tonos: [], secciones: {}, aprendizajes: [], at: null, por: null }, 'el vacío');
+      const mal = await M.estilo.cambiar(CLIENTE, { tonos: [{ nombre: '' }], secciones: { nada: 'x' }, otra: 1 });
+      ok(mal && mal.error && mal.problemas && mal.problemas.length === 3, 'sin sus problemas: ' + json(mal));
+      igual((await M.estilo.ver(CLIENTE)).at, null, 'guardó algo con problemas');
+      ok((await M.estilo.cambiar('no-existe', {})).error, 'un cliente que no existe');
+      let r = await M.estilo.cambiar(CLIENTE, { tonos: [{ nombre: 'Uno', como: 'a' }, { nombre: 'Dos' }], secciones: { tono: 'Corto', direccion: 'C/ Mar 1' } }); ok(r.ok, json(r));
+      r = await M.estilo.cambiar(CLIENTE, { secciones: { direccion: '' } }); ok(r.ok, json(r));
+      const v = await M.estilo.ver(CLIENTE);
+      igual(v.secciones, { tono: 'Corto' }, 'las secciones'); igual(v.tonos.map(t => t.nombre), ['Uno', 'Dos'], 'los tonos'); igual(v.por, 'claude', 'quién');
+      ok((await M.estilo.aprender(CLIENTE, { de: 'captions', texto: 'Elige Uno' })).ok, 'aprender');
+      ok((await M.estilo.aprender(CLIENTE, { de: 'historias', texto: 'Titular corto', fecha: '2026-11-02' })).ok, 'aprender con fecha');
+      const a = (await M.estilo.ver(CLIENTE)).aprendizajes;
+      igual(a.map(x => x.texto), ['Titular corto', 'Elige Uno'], 'el orden'); igual(a[1].fecha, M._in.hoy(), 'sin fecha, la de hoy');
+      ok((await M.estilo.aprender(CLIENTE, { de: 'nada', texto: 'x' })).error, 'un «de» que no existe');
+    } finally { await limpiar(); }
+  });
+  prueba('NF3', '«Editar cliente» → «Estilo» (D-356): tercera pestaña, siete secciones con una abierta, «Guardar» lo guarda como de Kevin; sin «Usa Notion» (D-357); nada del estilo va en lo que se envía a la web', async () => {
+    try {
+      await tablero([pub(1)]);
+      await M.estilo.cambiar(CLIENTE, { tonos: [{ nombre: 'Tono NF3', como: 'NF3-tono-secreto' }], secciones: { reglas: 'NF3-regla-secreta' } });
+      await hasta(() => M.estiloUI && M.cobrosUI, 6000, 'estilo.js y cobros.js');
+      await pulsar('[data-act="editclient"]');
+      const t = await hasta(() => q('.detail[data-dlg="editclient"] #ect-estilo'), 3000, 'la pestaña «Estilo»');
+      ok(!q('.detail[data-dlg="editclient"] .ecnot'), '«Usa Notion» sigue en «Editar cliente»');
+      t.click(); await espera(60);
+      const p = q('#ecp-estilo'); ok(p && !p.hidden, 'su panel no se ve'); ok(q('#ecp-datos').hidden, '«Datos» sigue a la vista');
+      igual(qa('#ecp-estilo .est-sec').length, 7, 'las secciones'); igual(qa('#ecp-estilo .est-sec.on').length, 1, 'una abierta');
+      qa('#ecp-estilo .est-h')[4].click(); await espera(30);
+      ok(qa('#ecp-estilo .est-sec')[4].classList.contains('on') && qa('#ecp-estilo .est-sec.on').length === 1, 'abrir otra no cierra la de antes');
+      p.querySelector('[name="sec-reglas"]').value = 'NF3 nueva regla'; p.querySelector('[name="tono-n-1"]').value = 'Segundo NF3';
+      p.querySelector('[data-est="guardar"]').click();
+      await hasta(async () => (await M.estilo.ver(CLIENTE)).secciones.reglas === 'NF3 nueva regla', 3000, 'lo guardado');
+      const v = await M.estilo.ver(CLIENTE); igual(v.tonos.map(x => x.nombre), ['Tono NF3', 'Segundo NF3'], 'los tonos'); igual(v.por, 'kevin', 'quién');
+      M._in.closeDetail();
+      if (M.web && M.web.paquete) { const P = await M.web.paquete(M._in.S), tx = json(P); ok(!/NF3-tono-secreto|NF3 nueva regla|Tono NF3/.test(tx), 'el estilo va en lo que se envía a la web'); }
+    } finally { M._in.closeDetail(); await limpiar(); }
+  });
+  prueba('NF4', 'La marca de cambios cuenta desde el último envío a la web (D-355): sin envío, ninguna; recién enviada, «En la web tal como está»; otro caption pone la marca en la casilla y la línea en la ventana; la «Vista cliente» enseña el caption enviado (D-359)', async () => {
+    try {
+      await tablero([pub(1), pub(2)]);
+      await poner('r1', [await foto('nf4a.jpg')]);
+      M.loadCaptions([{ slotId: 'r1', options: [{ tone: 'A', text: 'Primero NF4' }, { tone: 'B', text: 'Segundo NF4' }, { tone: 'C', text: 'Tercero NF4' }] }]);
+      M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 0 } }); M._in.renderFeed(); await espera(30);
+      ok(!celda('r1').querySelector('.mk-cambios'), 'sin envío lleva la marca'); igual(M._in.cambiosWeb(slot('r1')), [], 'sin envío, con cambios');
+      await M._in.envPoner([{ cliente: CLIENTE, slot: 'r1', ...M._in.webFirma(slot('r1'), M._in.S), estado: 'por_aprobar', orden: 0, visible: true, at: '2026-11-20T10:00:00.000Z' }]);
+      M._in.renderFeed(); await espera(30);
+      ok(!celda('r1').querySelector('.mk-cambios'), 'recién enviada lleva la marca');
+      M._in.openDetail('r1', 0); await espera(80);
+      ok(/En la web tal como está/.test(q('.detail .phead .pnot').textContent), 'la ventana: ' + q('.detail .phead .pnot').textContent);
+      igual(M._in.igCaption('r1'), 'Primero NF4', 'la vista cliente no enseña el enviado');
+      M._in.closeDetail();
+      M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 1 } }); M._in.renderFeed(); await espera(30);
+      igual(M._in.cambiosWeb(slot('r1')), ['caption'], 'lo que cambió');
+      const mk = celda('r1').querySelector('.mk-cambios'); ok(mk && /desde que la enviaste: caption/.test(mk.getAttribute('aria-label') || ''), 'la casilla: ' + (mk && mk.outerHTML));
+      M._in.openDetail('r1', 0); await espera(80);
+      ok(/Cambió desde el envío del .+: caption/.test(q('.detail .phead .pnot').textContent), 'la línea: ' + q('.detail .phead .pnot').textContent);
+      ok(!/Notion/.test(q('.detail').textContent), 'la ventana nombra Notion');
+      igual(M._in.igCaption('r1'), 'Primero NF4', 'la vista cliente enseña el elegido, no el enviado');
+    } finally { M._in.closeDetail(); await limpiar(); }
+  });
+  prueba('NF5', 'Nadie usa Notion (D-357): una fecha movida no saca «N cambiadas», «N cambios sin subir» ni «Igual que Notion»; la mesa no nombra Notion', async () => {
+    try {
+      await tablero([pub(1), pub(2)]);
+      await poner('r1', [await foto('nf5a.jpg')]);
+      M._in.setDate('r1', '2026-11-20T11:00:00Z'); await espera(60); M._in.renderBar(); if (M.calendario && M.calendario.render) M.calendario.render(); await espera(60);
+      ok(M._in.dateChg(slot('r1')), 'la fecha no cambió');
+      const txt = M._in.root().innerText;
+      ok(!/cambiadas|Igual que Notion|sin subir|Notion/.test(txt), 'la mesa habla de Notion: ' + (txt.match(/.{0,40}(cambiadas|Igual que Notion|sin subir|Notion).{0,40}/) || [''])[0]);
+    } finally { await limpiar(); }
+  });
+  prueba('NF6', 'MESA.crearMes (D-358): crea el mes sin Notion, con ids de la Mesa, sus nombres y la hora de Madrid; todo o nada; añade a un mes que ya existe; el mes provisional sale en captions() y en la cabecera del calendario, y un doble clic lo fija', async () => {
+    try {
+      await tablero([pub(1)]);
+      const mal = await M.crearMes(CLIENTE, '2026-12', [{ nombre: 'Foto 1.1', tipo: 'Foto', fecha: '2026-12-02T13:00' }, { nombre: '', tipo: 'Nada', fecha: 'mañana' }]);
+      ok(mal && mal.error && mal.problemas && mal.problemas.length >= 3, 'sin sus problemas: ' + json(mal));
+      ok(!(await M.boards()).some(b => b.key === `${CLIENTE}-2026-12`), 'creó algo con problemas');
+      const r = await M.crearMes(CLIENTE, '2026-12', [{ nombre: 'Foto 1.1', tipo: 'Foto', fecha: '2026-12-02T13:00' }, { nombre: 'Reel 1.2', tipo: 'Reel', fecha: '2026-12-03' }], { provisional: true });
+      ok(r && r.ok, 'crearMes: ' + json(r)); igual(r.clave, `${CLIENTE}-2026-12`, 'la clave');
+      ok(r.publicaciones.every(x => /^mesa-/.test(x.id)), 'los ids: ' + json(r.publicaciones));
+      const s1 = M.board().slots.find(s => s.id === r.publicaciones[0].id);
+      igual(M._in.localDay(s1.date) + ' ' + M._in.localTime(s1.date), '2026-12-02 13:00', 'la hora de Madrid');
+      igual(M.board().slots.find(s => s.id === r.publicaciones[1].id).date, '2026-12-03', 'sin hora');
+      igual(M.provisional().provisional, ['2026-12'], 'provisional'); ok(M.captions().every(c => c.provisional === true), 'captions() no dice provisional');
+      const r2 = await M.crearMes(CLIENTE, '2026-12', [{ nombre: 'Foto 1.3', tipo: 'Foto', fecha: '2026-12-04T19:00' }]); ok(r2 && r2.ok, json(r2));
+      igual(M.board().slots.length, 3, 'no añadió al mes que ya estaba');
+      if (M.calendario && M.calendario.render) M.calendario.render();
+      const tag = await hasta(() => q('.side > .cal .cprov'), 3000, '«provisional» en la cabecera del calendario');
+      tag.dispatchEvent(new W.MouseEvent('dblclick', { bubbles: true, cancelable: true })); await espera(60);
+      igual(M.provisional().provisional, [], 'el doble clic no fijó el mes'); ok(!q('.side > .cal .cprov'), 'la etiqueta sigue');
+      ok(M.captions().every(c => c.provisional === false), 'captions() sigue diciendo provisional');
+    } finally { await limpiar(); }
+  });
+  prueba('NF10', 'Para las skills sin Notion (D-356, D-358): estilo.ver de un cliente que no existe da error; repetir crearMes no duplica; captions() y plan() dicen el estado; plan() dice lo que cambió de una Programada desde que se programó', async () => {
+    try {
+      await tablero([pub(1), pub(2)]);
+      const nadie = await M.estilo.ver('no-existe-nf10'); ok(nadie && nadie.error && /cliente desconocido/.test(nadie.error), 'ver de un cliente que no existe: ' + json(nadie));
+      ok(!(await M.estilo.ver(CLIENTE)).error, 'ver del cliente de prueba da error');
+      const lista = [{ nombre: 'Foto 1.1', tipo: 'Foto', fecha: '2026-12-02T13:00' }, { nombre: 'Reel 1.2', tipo: 'Reel', fecha: '2026-12-03' }];
+      const r = await M.crearMes(CLIENTE, '2026-12', lista); ok(r && r.ok, 'crearMes: ' + json(r));
+      const otra = await M.crearMes(CLIENTE, '2026-12', lista);
+      ok(otra && otra.error && (otra.problemas || []).length === 2 && otra.problemas.every(x => /ya está en ese mes con esa fecha/.test(x)), 'repetirlo no da error: ' + json(otra));
+      igual(M.board().slots.length, 2, 'repetirlo duplicó el mes');
+      const r3 = await M.crearMes(CLIENTE, '2026-12', [{ nombre: 'Foto 1.1', tipo: 'Foto', fecha: '2026-12-05T13:00' }]); ok(r3 && r3.ok, 'mismo nombre y otra fecha no entra: ' + json(r3));
+      await M.open(`${CLIENTE}-${MES}`);
+      await porAprobar(['r1', 'r2'], 'nf10');
+      const est = id => (M.captions([id])[0] || {}).estado, pl = id => M.plan().find(x => x.slotId === id) || {};
+      igual([est('r1'), pl('r1').estado], ['aprobar', 'aprobar'], 'el estado en captions() y plan()');
+      M.setEstado(['r1', 'r2'], 'aprobado'); M.setEstado('r1', 'programado'); await M.flush();
+      igual([est('r1'), est('r2'), pl('r2').estado], ['programado', 'aprobado', 'aprobado'], 'el estado tras programar');
+      ok(!pl('r1').cambiosDesdeProgramar, 'recién programada dice que cambió: ' + json(pl('r1').cambiosDesdeProgramar));
+      M._test.setSlot('r1', { caption: { ...slot('r1').caption, text: ['1 bis', '2', '3'] } }); await M.flush(); await espera(40);
+      igual(pl('r1').cambiosDesdeProgramar, ['caption'], 'lo que cambió desde programarla');
+      ok(!pl('r2').cambiosDesdeProgramar, 'una no programada dice que cambió');
+    } finally { await limpiar(); }
+  });
+  prueba('NF7', 'Una carga no quita publicaciones de la Mesa (D-360): MESA.init sin una con fotos o creada en la Mesa da error y no cambia nada; una vacía sí se quita; con force: true, todo', async () => {
+    try {
+      await tablero([pub(1), pub(2), pub(3)]);
+      await poner('r1', [await foto('nf7.jpg')]);
+      let err = null; try { await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(2), pub(3)], past: [] }); } catch (e) { err = e.message; }
+      ok(err && /quitaría una publicación/.test(err), 'sin error: ' + err); igual(M.board().slots.length, 3, 'cambió el tablero');
+      const r = await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1), pub(2)], past: [] }); ok(r && r.key, json(r)); igual(M.board().slots.length, 2, 'no quitó la vacía');
+      const c = await M.crearMes(CLIENTE, MES, [{ nombre: 'Foto 1.9', tipo: 'Foto', fecha: '2026-11-20T13:00' }]); ok(c && c.ok, json(c));
+      err = null; try { await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1), pub(2)], past: [] }); } catch (e) { err = e.message; }
+      ok(err && /quitaría/.test(err), 'quitó la creada en la Mesa'); igual(M.board().slots.length, 3, 'cambió el tablero (2)');
+      const f = await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(2)], past: [], force: true }); ok(f && f.key, 'force');
+    } finally { await limpiar(); }
+  });
+  prueba('NF8', 'La lista de «Web: N cambios» (D-355) dice qué verá distinto el cliente: nueva, cancelada, caption, foto o encuadre (de lo apuntado o, si nada más cambió, del servidor), fecha u hora y estado', async () => {
+    await hasta(() => M.web && M.web._que, 6000, 'web.js');
+    const f = { visible: true, caption: 'B', nombre: 'Foto 1.1', tipo: 'foto', fecha: '2026-11-03T11:00:00.000Z', sin_hora: false, estado: 'por_aprobar', orden: 0 };
+    const p = (o = {}) => ({ fila: { ...f, ...o }, version: 'v2', firma: { fotos: 'F2' } });
+    const r = (o = {}) => ({ visible: true, caption: 'B', nombre: 'Foto 1.1', tipo: 'foto', fecha: '2026-11-03T11:00:00+00:00', sin_hora: false, estado: 'por_aprobar', orden: 0, version: 'v1', ...o });
+    igual(M.web._que(p(), null, null), 'Nueva: aún no está en su web', 'nueva');
+    igual(M.web._que(p({ visible: false }), r(), null), 'Cancelada: se oculta en su web', 'cancelada');
+    igual(M.web._que(p({ caption: 'C' }), r(), { fotos: 'F2' }), 'Cambió: caption', 'caption');
+    igual(M.web._que(p(), r(), { fotos: 'F1' }), 'Cambió: foto o encuadre', 'la foto, de lo apuntado');
+    igual(M.web._que(p(), r(), null), 'Cambió: foto o encuadre', 'la foto, sin nada apuntado');
+    igual(M.web._que(p({ fecha: '2026-11-04T11:00:00.000Z', estado: 'aprobada' }), r(), { fotos: 'F2' }), 'Cambió: fecha u hora y estado: aprobada', 'fecha y estado');
+  });
+
+  prueba('NF9', '«Web: N cambios» con su lista (D-355), contra el servidor de pruebas: enviar apunta lo enviado (sin marca); otro caption pone la marca y la lista lo dice con «Enviar»; enviar la quita; lo enviado antes se aprende del servidor', async () => {
+    await tablero([pub(1), pub(2)]);
+    await poner('r1', [await foto('nf9.jpg')]);
+    M.loadCaptions([{ slotId: 'r1', options: [{ tone: 'a', text: 'uno' }, { tone: 'b', text: 'dos' }, { tone: 'c', text: 'tres' }] }]);
+    M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 0 } });
+    await conWeb(async () => {
+      wbSesion(); await M.web.repasar();
+      ok((await M.web.enviar()).ok, 'no se envió'); await M.web.repasar();
+      ok(M._in.envDe(slot('r1')) && M._in.envDe(slot('r2')), 'enviar no apuntó lo enviado');
+      igual(M._in.cambiosWeb(slot('r1')), [], 'recién enviada, con cambios');
+      ok(/Web al día/.test((q('[data-web="lista"]') || {}).textContent || ''), 'la barra no dice «Web al día»');
+      M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 1 } }); await M.web.repasar(); M._in.renderFeed(); await espera(60);
+      ok(/^Web: 1 cambio$/.test(((q('[data-web="lista"]') || {}).textContent || '').trim()), 'la barra: ' + ((q('[data-web]') || {}).textContent || ''));
+      ok(celda('r1').querySelector('.mk-cambios'), 'la casilla no lleva la marca');
+      q('[data-web="lista"]').click();
+      const d = await hasta(() => q('.detail:not([hidden])[data-dlg="webcambios"]'), 4000, 'la lista');
+      ok(/1 cambio sin enviar/.test(d.querySelector('h3').textContent), 'el título: ' + d.querySelector('h3').textContent);
+      igual(qa('.detail[data-dlg="webcambios"] .vlist li').length, 1, 'la lista');
+      ok(/Cambió: caption/.test(d.querySelector('.vlist li').textContent), 'la fila: ' + d.querySelector('.vlist li').textContent);
+      d.querySelector('[data-web="enviar"]').click();
+      await hasta(() => !q('.detail:not([hidden])[data-dlg="webcambios"]') && M.web.estado().enviando === false, 6000, 'que envíe');
+      await hasta(() => M._in.cambiosWeb(slot('r1')).length === 0, 4000, 'la marca después de enviar');
+      // lo enviado antes de la 4.54: sin nada apuntado, se aprende del servidor al leerlo
+      await M._test.estBorrarTodo(); igual(M._in.envDe(slot('r1')), null, 'no se borró lo apuntado');
+      await M.web.repasar(); await hasta(() => M._in.envDe(slot('r1')), 4000, 'lo aprendido del servidor');
+      igual(M._in.envDe(slot('r1')).caption, 'dos', 'lo aprendido no es lo del servidor');
+      igual(M._in.cambiosWeb(slot('r1')), [], 'lo aprendido da cambios');
+    });
   });
 
   window.pasarBateria = pasar;

@@ -7,7 +7,7 @@
 (function cobrosBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
-  const VERSION = '1.5';   // 1.5: the agreement's head goes on below at 280–340 px, its chip on the right (D-314). 1.4: the agreement's fields with options (D-304); the list of agreements, each with its invoices, «Nuevo acuerdo», «Termina en» and the packages' catalog (D-305 to D-307); «Tus pagos» from when to when and what it includes (D-308); «Se factura» (D-309). 1.3: «Tus pagos» of the vista cliente with its stretch — «Pago semestral · 2700 €», «Cubre may – oct 2026 · el siguiente, el 1 nov» and each invoice «Mayo – octubre» (D-297). 1.2: «Acuerdo» instead of «Cuota mensual» — how often it pays, from when, for how long, whether it renews and when to renegotiate, with its line; «+ Factura» of its stretch; in «Tus pagos», «al mes» only if it pays each month and each invoice by its first month, as the client's web gets them until lot D (D-288). 1.1: a PDF that hasn't come down from the server yet (lot 4 of the traspaso) says so (D-259)
+  const VERSION = '1.6';   // 1.6: las pestañas de «Editar cliente» cambian cualquier panel: Datos, Cobros y Estilo (D-356). 1.5: the agreement's head goes on below at 280–340 px, its chip on the right (D-314). 1.4: the agreement's fields with options (D-304); the list of agreements, each with its invoices, «Nuevo acuerdo», «Termina en» and the packages' catalog (D-305 to D-307); «Tus pagos» from when to when and what it includes (D-308); «Se factura» (D-309). 1.3: «Tus pagos» of the vista cliente with its stretch — «Pago semestral · 2700 €», «Cubre may – oct 2026 · el siguiente, el 1 nov» and each invoice «Mayo – octubre» (D-297). 1.2: «Acuerdo» instead of «Cuota mensual» — how often it pays, from when, for how long, whether it renews and when to renegotiate, with its line; «+ Factura» of its stretch; in «Tus pagos», «al mes» only if it pays each month and each invoice by its first month, as the client's web gets them until lot D (D-288). 1.1: a PDF that hasn't come down from the server yet (lot 4 of the traspaso) says so (D-259)
   const I = () => M._in, C = () => M._in.cob, P = () => (M.personal && M.personal._p) || null;
   if (M.cobrosUI && M.cobrosUI._off) { try { M.cobrosUI._off(); } catch (e) { /* */ } }
   const OFF = [];
@@ -453,7 +453,7 @@
   function tab(t, foco) {
     const d = I().root().querySelector('.detail[data-dlg="editclient"]'); if (!d) return;
     d.querySelectorAll('.ectab').forEach(b => { const si = b.dataset.t === t; b.classList.toggle('on', si); b.setAttribute('aria-selected', String(si)); b.tabIndex = si ? 0 : -1; });
-    const fd = d.querySelector('#ecp-datos'), fc = d.querySelector('#ecp-cobros'); if (fd) fd.hidden = t !== 'datos'; if (fc) fc.hidden = t !== 'cobros';
+    d.querySelectorAll('[role="tabpanel"][id^="ecp-"]').forEach(p => { p.hidden = p.id !== 'ecp-' + t; });   // Datos, Cobros and Estilo (D-356)
     if (foco) { const b = d.querySelector(`.ectab[data-t="${t}"]`); if (b) b.focus(); }
   }
 

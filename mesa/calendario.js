@@ -657,7 +657,7 @@
 @media (prefers-reduced-motion:reduce){#mesa .cvenc:hover{transition:none}}
 #mesa .avlist{margin-top:6px;max-height:min(64vh,560px);overflow:auto}#mesa .avsec + .avsec{margin-top:16px}
 #mesa .avsec h4{display:flex;align-items:center;gap:8px;margin:0 0 2px;font-size:12px;font-weight:600}#mesa .avsec h4 > :not(.avtag){margin-left:auto}
-#mesa .avtag{display:inline-flex;align-items:center;padding:3px 10px;border-radius:var(--r-pill);font-size:12px;font-weight:600}#mesa .avtag.rojo{background:var(--red-soft);color:var(--red)}#mesa .avtag.ambar{background:var(--chg-soft);color:var(--chg)}
+#mesa .avtag{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:600}#mesa .avtag::before{content:'';flex:none;width:7px;height:7px;border-radius:50%;background:currentColor}#mesa .avtag.rojo{color:var(--red)}#mesa .avtag.ambar{color:var(--chg)}   /* a dot of colour and the text, as the indicator's: never mistaken for a button (Kevin, 26/11/2026) */
 #mesa .avsec .vlist{max-height:none;overflow:visible;margin-top:2px}#mesa .avsec .cpnota{margin:6px 0 0}
 #mesa .avl li:has(> .avtx){display:flex;align-items:center;justify-content:space-between;gap:10px}#mesa .avl li > .btn2{flex:none;font-size:12px;min-height:28px;padding:0 12px}
 #mesa .avpie{display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:8px;font-size:12px;color:var(--mute)}   /* «Enviar» and its progress, under its rows (D-372) */

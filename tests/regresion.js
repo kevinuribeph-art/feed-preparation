@@ -14308,7 +14308,7 @@
       const tm = await M.personal.tarea({ txt: 'Tarea mañana', fecha: '2026-10-02' });
       await M.personal.set({ avTareas: true, plg: { tareas: false, clientes: false, avisos: false }, vista: 'lista' }); await M.personal.render();
       igual(ppLineas('hoy'), [hoy.id, man.id], '«Hoy y mañana» (una tarea de mañana no entra)');
-      ok(/17:00/.test(q(`.pp-av[data-tid="${hoy.id}"] .pp-cu`).textContent) && q(`.pp-av[data-tid="${hoy.id}"] .pp-afoto svg`), 'sin la hora o el icono en «Hoy y mañana»');
+      ok(/17:00/.test(q(`.pp-av[data-tid="${hoy.id}"] .pp-cu`).textContent) && q(`.pp-av[data-tid="${hoy.id}"] .pp-nm .pp-tses svg`), 'sin la hora o el icono en «Hoy y mañana»');   // al día a propósito: el icono, delante del nombre, como en Tareas (D-371)
       igual(ppLineas('pasado'), [pas.id], '«Se ha pasado»');
       const rp = q(`.pp-av[data-tid="${pas.id}"] [data-pp="reprog"]`); ok(rp && q(`.pp-av[data-tid="${pas.id}"] .pp-ck`), 'sin casilla o «Reprogramar»');
       igual([ppCifras().pasado, ppCifras().hoy, ppCifras().man], [1, 1, 1], 'las cifras no cuentan las sesiones');   // «Hoy» y «Mañana» aparte desde D-212
@@ -15218,6 +15218,7 @@
       ok(/No aprobado/.test(inFilas('cliente')[0].textContent), 'Del cliente sin «No aprobado»');
       ok(/sin programar/.test(inFilas('pronto')[0].textContent), '48 h sin «sin programar»');
       ok(q('.detail[data-dlg="venc"] .avsec[data-sec="venc"] .avtag.rojo') && q('.detail[data-dlg="venc"] .avsec[data-sec="pronto"] .avtag.ambar'), 'los colores de cada aviso');
+      const tg = q('.detail[data-dlg="venc"] .avtag'); igual(W.getComputedStyle(tg).backgroundColor, 'rgba(0, 0, 0, 0)', 'el título de un apartado parece un botón (Kevin, 26/11/2026: un punto y el texto)'); ok(W.getComputedStyle(tg, '::before').width === '7px', 'el título sin su punto');
       inFilas('zernio')[0].querySelector('[data-cal="av-abrir"]').click(); await espera(80);
       ok(q('.detail:not([hidden])') && q('.detail').dataset.slot === 'r2', 'no abre la publicación');
       M._in.closeDetail();
@@ -15637,6 +15638,25 @@
       try { M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 1 } }); const r = await M.web.enviar(); ok(r && r.ok, 'un envío bueno dice que falló: ' + json(r)); }
       finally { M._in.envHuellaPoner = p0; }
     });
+  });
+
+  prueba('TA4', 'En Avisos, una tarea o una sesión como una fila de Tareas (Kevin, 26/11/2026, D-371): el cliente a la izquierda, como en cada fila; la casilla donde va la miniatura; el icono de una sesión o una reunión delante de su nombre; la casilla sigue marcándola hecha', async () => {
+    relojEn('2026-11-10T10:00:00+01:00');
+    try {
+      await tablero([pub(1, 'Foto', 20)]); await sinTareas();
+      const t = await M.personal.tarea({ txt: 'Tarea de hoy', fecha: '2026-11-10', cliente: CLIENTE });
+      await taSes('ss-ta4', { txt: 'Reunión de hoy', fecha: '2026-11-10', hora: '13:00', clase: 'reunion', clientes: [CLIENTE] });
+      await paginaAbierta(); await M.personal.set({ plg: { tareas: true, clientes: true, avisos: false }, avTareas: true }); await M.personal.render(); await espera(40);
+      const fila = id => q(`.pp-avisos .pp-av[data-tid="${id}"]`);
+      for (const id of [t.id, 'ss-ta4']) {
+        const f = fila(id), k = f && [...f.children];
+        ok(k && k[0].matches('.pp-avs') && k[0].querySelector('.pp-ava') && !k[0].querySelector('.pp-ck'), id + ': el cliente no va a la izquierda');
+        ok(k && k[2].matches('.pp-afoto') && k[2].querySelector('.pp-ck') && !k[2].querySelector('svg'), id + ': la casilla no va donde la miniatura');
+      }
+      ok(fila('ss-ta4').querySelector('.pp-nm b .pp-tses svg') && fila('ss-ta4').querySelector('.pp-tses').title === 'Reunión', 'la reunión sin su icono delante del nombre');
+      ok(!fila(t.id).querySelector('.pp-nm .pp-tses'), 'una tarea lleva icono de sesión');
+      fila(t.id).querySelector('.pp-ck').click(); await hasta(async () => !!(await M._in.idbGet('tareas', t.id)).hecha, 2000, 'la casilla no la marca hecha');
+    } finally { paginaCerrada(); relojVuelve(); await sinTareas(); }
   });
 
   prueba('AV1', 'Hoy, más marcado (D-222): en Avisos, cada fila de hoy que no está Programada ni Publicada (reels también) va tintada en --chg-soft con su franja de 3 px y la hora y el estado en --chg a 600; al pasar conserva su tinte sin bajar de 4,5:1, en claro y en oscuro (D-300); «Mañana» y lo programado, como estaban (D-190); una tarea de hoy sin hacer, como una publicación (D-300)', async () => {

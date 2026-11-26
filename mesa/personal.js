@@ -362,7 +362,10 @@
     // a session gone past: its checkbox and «Reprogramar» (the mesa's calendar; a step of ⌘Z, D-206)
     const repro = x.tipo === 'sesion' && x.cat === 'pasado' && !x.hecha ? `<button type="button" class="btn2 pp-repro" data-pp="reprog" data-id="${esc(x.k.id)}" title="Otra fecha para la sesión">${ICO.fecha}Reprogramar</button>` : '';
     const mk = `${x.marca ? ' sinprog' : ''}${x.marca === 'hoy' ? ' pp-avhoy' : ''}`;   // the core's mark (D-300)
-    if (x.tipo === 'tarea' || x.tipo === 'sesion') return `<div class="pp-av tarea${x.hecha ? ' hecha' : ''}${x.tipo === 'sesion' ? ' ses' : ''}${repro ? ' repro' : ''}${mk}" data-tid="${esc(x.k.id)}"><span class="pp-avs"><input type="checkbox" class="pp-ck" data-pp="ck" data-id="${esc(x.k.id)}"${x.hecha ? ' checked' : ''} aria-label="Hecha"></span>${cuando(x, R)}${mini(x)}<span class="pp-nm" data-pp="tver" data-id="${esc(x.k.id)}" tabindex="0" role="button"><b>${esc(x.k.txt)}</b>${x.clientes.length ? ` <i>${quien}</i>` : ''}</span><span class="pp-est"></span>${repro}</div>`;
+    // a task or a session as a row of Tareas (Kevin, 26/11/2026, after the lot's doubts; D-371): its client on the left as every
+    // row, the checkbox where the thumbnail goes, a session's or a meeting's icon before its name
+    const sIco = x.tipo === 'sesion' ? `<span class="pp-tses" title="${esReunion(x.k) ? 'Reunión' : 'Sesión'}">${esReunion(x.k) ? ICO.reunion : ICO.sesion}</span>` : '';
+    if (x.tipo === 'tarea' || x.tipo === 'sesion') return `<div class="pp-av tarea${x.hecha ? ' hecha' : ''}${x.tipo === 'sesion' ? ' ses' : ''}${repro ? ' repro' : ''}${mk}" data-tid="${esc(x.k.id)}">${avs}${cuando(x, R)}<span class="pp-afoto vacia pp-ack"><input type="checkbox" class="pp-ck" data-pp="ck" data-id="${esc(x.k.id)}"${x.hecha ? ' checked' : ''} aria-label="Hecha"></span><span class="pp-nm" data-pp="tver" data-id="${esc(x.k.id)}" tabindex="0" role="button"><b>${sIco}${esc(x.k.txt)}</b>${x.clientes.length ? ` <i>${quien}</i>` : ''}</span><span class="pp-est"></span>${repro}</div>`;
     if (x.tipo === 'entrega') {                 // a delivery gone past (D-290): its board on its row, as a late invoice
       const r = x.r, n = -difD(R.hoy, r.fecha);
       return `<button type="button" class="pp-av${mk}" data-pp="entrega" data-c="${esc(r.cliente)}" data-id="${esc(r.id)}"${x.B ? ` data-key="${esc(x.B.key)}"` : ''} title="${esc(r.que || 'Entrega')} · venció el ${esc(corto(r.fecha))}">${avs}${cuando(x, R)}<span class="pp-afoto vacia">${ICO.entrega}</span><span class="pp-nm"><b>${esc(r.que || 'Entrega sin título')}</b> <i>${quien}</i></span><span class="pp-est">Sin entregar · hace ${n} ${n === 1 ? 'día' : 'días'}</span></button>`;
@@ -1775,7 +1778,7 @@
 #mesa .pp-grupo[data-cat="hoy"] .pp-av.tarea.pp-avhoy:hover{box-shadow:inset 3px 0 0 var(--chg),inset 0 0 0 1px var(--chg)}#mesa .pp-grupo[data-cat="pasado"] .pp-av.tarea.sinprog:hover{box-shadow:inset 3px 0 0 var(--red),inset 0 0 0 1px var(--red)}   /* D-300: a task or a session, as a post */
 #mesa .pp-avs{display:inline-flex;align-items:center}
 #mesa .pp-avs .pp-ava:first-child{position:relative;z-index:1;box-shadow:0 0 0 2px var(--panel)}#mesa .pp-avs .pp-ava + .pp-ava{margin-left:-7px}
-#mesa .pp-av .pp-avs:has(.pp-ck){justify-content:center}
+#mesa .pp-av .pp-nm .pp-tses{margin-right:6px;vertical-align:-2px}#mesa .pp-av.ses:not(.hecha) .pp-tses{color:var(--ty-ses-ink)}   /* a session's icon before its name, as in Tareas (D-371) */
 #mesa .pp-cu{font-size:12.5px;color:var(--mute);white-space:nowrap}#mesa .pp-cu.rojo{color:var(--red);font-weight:600}
 #mesa .pp-afoto{position:relative;display:inline-flex;align-items:center;justify-content:center;width:32px;height:40px;border-radius:var(--r-xs);overflow:hidden;background:var(--bg-2);color:var(--mute)}
 #mesa .pp-afoto img{width:100%;height:100%;object-fit:cover;display:block}

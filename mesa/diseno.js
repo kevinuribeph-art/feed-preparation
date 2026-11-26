@@ -18,7 +18,7 @@
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
   const ENG = () => window.DisenoMotor;
-  const VERSION = '1.29';   // 1.29: the notice of a changed type no longer speaks of Notion (D-367). 1.28: «Espera a que termine la subida a Zernio» (Notion is off, D-361). 1.27: a photo that is only a working copy of 2560 px here (lot 4 of the traspaso) is decoded at its real size, never enlarged, and the small-photo warning counts its real pixels; the final photo fixed from it is what it is, without the mark (D-259). 1.26: an open section with a double click folds 0.2 s after a mouse click (D-200). 1.25: the «Diseño» panel's titles without a datum, a double click on a title puts it back (D-197); <br> as line breaks in its fields (D-198); a section's inside never wider than the panel (D-195). 1.24: the editor's «Diseño» layer (D-193): a slide's free layers and one let go from the kit, drawn here; the panel shared with the editor; a design is no longer opened by «Editar …» to add a photo.   // 1.23: the panel folds as the editor's, one section open at a time and the last one remembered, with no grey explanations (D-177). 1.21: without _sustituir, which nothing used (D-167). 1.20: «+ Diapositiva» on one line at every width (D-166). 1.19: the panel's double clicks, without «Auto» and «Centrar»; the post view's reference after an apply (D-159, D-164, D-165)
+  const VERSION = '1.30';   // 1.30: a Publicada is not loaded, applied, opened, reformatted, applied again nor retyped (D-370); the images it makes are given with whose they are (D-369). 1.29: the notice of a changed type no longer speaks of Notion (D-367). 1.28: «Espera a que termine la subida a Zernio» (Notion is off, D-361). 1.27: a photo that is only a working copy of 2560 px here (lot 4 of the traspaso) is decoded at its real size, never enlarged, and the small-photo warning counts its real pixels; the final photo fixed from it is what it is, without the mark (D-259). 1.26: an open section with a double click folds 0.2 s after a mouse click (D-200). 1.25: the «Diseño» panel's titles without a datum, a double click on a title puts it back (D-197); <br> as line breaks in its fields (D-198); a section's inside never wider than the panel (D-195). 1.24: the editor's «Diseño» layer (D-193): a slide's free layers and one let go from the kit, drawn here; the panel shared with the editor; a design is no longer opened by «Editar …» to add a photo.   // 1.23: the panel folds as the editor's, one section open at a time and the last one remembered, with no grey explanations (D-177). 1.21: without _sustituir, which nothing used (D-167). 1.20: «+ Diapositiva» on one line at every width (D-166). 1.19: the panel's double clicks, without «Auto» and «Centrar»; the post view's reference after an apply (D-159, D-164, D-165)
   const FMTS = { v45: '4:5', v34: '3:4', h: 'Horizontal' };
   const TIPOS_CAR = ['portada', 'ficha', 'final'];
   const TIPO_LABEL = { portada: 'Portada', ficha: 'Ficha', final: 'Final', reel: 'Portada de reel' };
@@ -38,6 +38,9 @@
   class DzError extends Error { constructor(m, slide) { super(m); if (slide != null) this.slide = slide; } }   // slide: index of the slide at fault
   const need = (ok, msg, slide) => { if (!ok) throw new DzError(msg, slide); };
   const LOCKED = 'La mesa está abierta en otra pestaña: pulsa «Usar aquí» antes de diseñar.';
+  // a Publicada: its photo, its frame and its format don't change by any way, nor through the designer (D-339, D-370)
+  const publicada = s => !!(s && I() && I().estadoDe && I().estadoDe(s) === 'publicado');
+  const PUB = () => (I() && I().PUB_AVISO) || 'Ya está publicada: no se cambia su foto, su encuadre ni su formato.';
   // a post with images drawn by the free editor (libre.js) is designed there, not here (v1.4)
   const LIBRE = 'Este carrusel tiene diapositivas del editor: quítales la edición en «Editar diapositivas» antes de cargarle un diseño.';
   const libreEn = s => !s.design && (s.photos || []).some(f => (M.files[f] || {}).design && I().S.slots.some(x => x.libre && x.libre.slides && x.libre.slides[f]));
@@ -146,6 +149,7 @@
   // an applied design drawn again after its photos changed outside the editor; repeated requests are coalesced
   const REAP = {};
   function reaplicar(slotId) {
+    { const S0 = I() && I().S, s0 = S0 && S0.slots.find(x => x.id === slotId); if (publicada(s0)) return Promise.resolve({ ok: false }); }   // a Publicada's images stay (D-370)
     if (REAP[slotId]) { REAP[slotId].again = true; return REAP[slotId].p; }
     const job = REAP[slotId] = { again: true };
     job.p = (async () => {
@@ -253,7 +257,7 @@
   }
   // a designed carousel's format changed from the post view (its text offsets keep their place, as in the editor)
   function formato(slotId, fmt) {
-    const S = I().S, s = S && S.slots.find(x => x.id === slotId); if (!s || !s.design || isReelS(s) || !FMTS[fmt] || s.design.fmt === fmt) return false;
+    const S = I().S, s = S && S.slots.find(x => x.id === slotId); if (!s || !s.design || isReelS(s) || !FMTS[fmt] || s.design.fmt === fmt || publicada(s)) return false;
     const d = s.design, H = VI.slotId === slotId && VI.sz ? VI.sz.H : EXT_H[d.fmt];
     stampOffsets(d, H); d.fmt = fmt; d.at = nowISO(); syncFmt(s); remember(s);
     if (VI.slotId === slotId) vistaLibre();
@@ -525,6 +529,7 @@
   async function cargar(slotId, opts = {}) {
     const s = slotOf(slotId), S = I().S;
     need(!I().locked, LOCKED);
+    need(!publicada(s), PUB());
     need(!libreEn(s), LIBRE);
     opts = opts || {};
     const reel = isReelS(s), list = Array.isArray(opts.slides) ? opts.slides : [];
@@ -625,6 +630,7 @@
   async function aplicarNow(slotId, opts) {
     const s = slotOf(slotId), S = I().S;
     need(!I().locked, LOCKED);
+    need(!publicada(s), PUB());
     need(!I().uploadsBusy(), 'Espera a que termine la subida a Zernio.');
     need(s.design && s.design.slides.length, NO_DESIGN);
     const d = s.design, reel = isReelS(s);
@@ -657,7 +663,7 @@
       const { w, h, thumb } = r.thumb ? r : await I().makeThumb(r.blob);
       const id = I().newId();
       await I().idbPut('files', id, { name, size: r.blob.size, type: 'image/jpeg', w, h, lastModified: Date.now(), blob: r.blob, thumb, design: true });
-      M.files[id] = { name, size: r.blob.size, type: 'image/jpeg', w, h, thumbUrl: URL.createObjectURL(thumb), design: true };
+      M.files[id] = { name, size: r.blob.size, type: 'image/jpeg', w, h, thumbUrl: I().apuntarUrl(URL.createObjectURL(thumb), id, 'mini'), design: true };
       M.thumbBlobs[id] = thumb;
       outs.push(id);
     }
@@ -874,6 +880,7 @@
     try {
       const s = slotOf(slotId), S = I().S;
       need(!I().locked, LOCKED);
+      need(!publicada(s), PUB());
       need(!libreEn(s), LIBRE);
       if (E) cerrar();
       const cid = (s.design && s.design.kit) || S.client;
@@ -1816,7 +1823,7 @@
     const X = I(), S = X && X.S; if (!S || X.locked) return;
     const hechos = [];
     for (const s of S.slots) {
-      const d = s.design, dk = kindOf(d); if (!dk) continue;
+      const d = s.design, dk = kindOf(d); if (!dk || publicada(s)) continue;   // never a Publicada's (D-370)
       const tk = X.isReel(s.type) ? 'r' : X.isCarousel(s.type) ? 'c' : 'f';
       if (dk === tk || (tk === 'f' && !(d.out && d.out.length))) continue;   // another type: dormant once converted
       const x = retipo(s, s.type); if (!x) continue;

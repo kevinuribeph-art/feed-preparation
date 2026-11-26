@@ -6,7 +6,7 @@
 // Mesa cogida un momento (lote 4, más abajo).
 (function () {
   'use strict';
-  const VERSION = '1.10';   // 1.10: «Del cliente» is read again on opening a post and on coming back to the month, never showing another client's thread; the month arrows come computed by the core (D-365). 1.9: el aviso del «Cómo fue» del mes pasado, como lo da el núcleo, sin verse pulsado (D-362). 1.8: la marca de cambios del Mac desde el último envío a la web, junto al estado de cada publicación y bajo su título (D-355; D-287 la dejó para este encargo). 1.7: la página de un cliente de solo contenido en #cli/<cliente>; una ruta vieja de su mes lleva a ella (D-312). 1.6: las marcas del Mac en Hoy y en Tareas, leídas del núcleo (D-300); el aviso en terracota, el error con su triángulo rojo en un disco blanco (D-303). 1.5: «Acuerdos» en Hoy, el aviso de renegociar (D-288); un cliente de solo contenido cuenta y lista sus entregas, y una pasada sale en Hoy (D-290). 1.4: «Cancelar · Guardar» tapa las marcas dibujadas al deslizar la hoja (D-286, probado en el iPhone). 1.3: la hoja sigue al teclado (resize y scroll del visualViewport), el campo del ordenador en notas, «Detalles» y textos de una sesión (D-286) y las marcas de estado del Mac (D-287). 1.2: las listas se leen como en el Mac: viñeta y número en terracota y el separador «⸻» como una línea (D-283). 1.1: los ajustes tras probarla en el iPhone (D-271), editar tareas (D-272) y la sesión entera (D-275)
+  const VERSION = '1.11';   // 1.11: a thumbnail that doesn't load is drawn again once from the photo kept (D-369). 1.10: «Del cliente» is read again on opening a post and on coming back to the month, never showing another client's thread; the month arrows come computed by the core (D-365). 1.9: el aviso del «Cómo fue» del mes pasado, como lo da el núcleo, sin verse pulsado (D-362). 1.8: la marca de cambios del Mac desde el último envío a la web, junto al estado de cada publicación y bajo su título (D-355; D-287 la dejó para este encargo). 1.7: la página de un cliente de solo contenido en #cli/<cliente>; una ruta vieja de su mes lleva a ella (D-312). 1.6: las marcas del Mac en Hoy y en Tareas, leídas del núcleo (D-300); el aviso en terracota, el error con su triángulo rojo en un disco blanco (D-303). 1.5: «Acuerdos» en Hoy, el aviso de renegociar (D-288); un cliente de solo contenido cuenta y lista sus entregas, y una pasada sale en Hoy (D-290). 1.4: «Cancelar · Guardar» tapa las marcas dibujadas al deslizar la hoja (D-286, probado en el iPhone). 1.3: la hoja sigue al teclado (resize y scroll del visualViewport), el campo del ordenador en notas, «Detalles» y textos de una sesión (D-286) y las marcas de estado del Mac (D-287). 1.2: las listas se leen como en el Mac: viñeta y número en terracota y el separador «⸻» como una línea (D-283). 1.1: los ajustes tras probarla en el iPhone (D-271), editar tareas (D-272) y la sesión entera (D-275)
   const M = window.MESA, D = document, W = window;
   const fallo = t => { (W.MESA_CARGA = W.MESA_CARGA || {}).movil = 'fallo'; const p = D.getElementById('arranque'); if (p) p.textContent = t; };
   if (!M || !M._in || !M._in.movil || !M._in.movil.activo) { fallo('No se pudo cargar la Mesa. Cierra la app y vuelve a abrirla.'); return; }
@@ -868,6 +868,12 @@
   D.addEventListener('mesa-foto-llego', e => {   // una miniatura bajó (lote 4 del traspaso): se vuelve a dibujar donde se ve
     const id = e.detail && e.detail.id; if (!id) return;
     olvidarMini(id); raiz.querySelectorAll(`img.mi[data-id="${CSS.escape(id)}"]`).forEach(i => { i.removeAttribute('src'); llenar(i); });
+  });
+  D.addEventListener('mesa-foto-rota', e => {   // una miniatura que ya no carga se hace otra vez desde lo guardado, una vez (D-369); si vuelve a fallar, el gris del núcleo
+    const im = e.detail && e.detail.img; if (!im || !im.classList.contains('mi') || im.dataset.rehecha) return;
+    e.preventDefault(); im.dataset.rehecha = '1'; im.removeAttribute('src');
+    olvidarMini(im.dataset.id || im.dataset.alm + '|' + im.dataset.k + '|' + im.dataset.ruta);   // its drawing, made again from the photo kept
+    llenar(im);
   });
   D.addEventListener('mesa-archivo-llego', e => {   // una foto de una tarea o de una sesión bajó: donde se ve, se rellena en su sitio
     const d = e.detail || {}; if (!d.a) return;

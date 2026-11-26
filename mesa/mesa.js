@@ -618,7 +618,8 @@
   // a client without Notion (D-184: «Usa Notion» off in «Editar cliente»): what compares with Notion or invites to upload it
   // goes from the mesa (window.MESA, plan() and notionChanges() don't change); its programmed posts say what changed since
   // No client uses Notion any more (Kevin, 24/11/2026; D-357): what compared with Notion or invited to upload it is gone for every
-  // client, as «Usa Notion» off did (D-184); the client's `notion` stays in its record, unread, until lot 4 takes it away
+  // client, as «Usa Notion» off did (D-184); the switch and its `notion` / `notionAt` went with lot 4 (D-361): an old record
+  // that still carries them is read as any other
   const sinNotion = () => true;
   const typeChg = s => s.notionType != null && s.type !== s.notionType;   // the type was changed here (3.26): pending for Notion
   const ord = iso => dOnly(iso) ? ts(madridISO(localDay(iso), '00:00')) : ts(iso);
@@ -7623,7 +7624,6 @@ ${TK_FUENTES}
       if (patch.name != null) c.name = String(patch.name).trim() || c.name;
       if (patch.handle != null) c.handle = normHandle(patch.handle);
       if (patch.cycleDay != null && patch.cycleDay !== '') c.cycleDay = cdOf(patch.cycleDay);   // the boards already made keep theirs
-      if (patch.notion != null && (patch.notion !== false) !== (c.notion !== false)) { if (patch.notion === false) c.notion = false; else delete c.notion; c.notionAt = new Date().toISOString(); }   // «Usa Notion» (D-184): on unless off
       if (patch.foto !== undefined && (patch.foto || null) !== (c.foto || null)) { gone = c.foto || null; if (patch.foto) c.foto = patch.foto; else delete c.foto; c.fotoAt = new Date().toISOString(); }   // profile photo (vista cliente)
       // its service, the day of its deliveries and the link of its metrics (D-289, D-290, D-292): each with its date, when it changes
       const campo = (k, v) => { const ya = c[k] == null ? '' : c[k]; if ((v == null ? '' : v) === ya) return; if (v == null || v === '') delete c[k]; else c[k] = v; c[k + 'At'] = new Date().toISOString(); };
@@ -9290,7 +9290,6 @@ ${TK_FUENTES}
     const pk = new Set(P.put.map(b => b.key));
     P.refs = new Set([...local.filter(b => !pk.has(b.key)), ...P.put].flatMap(b => [...refsTodo(b)]));   // photos the mesa uses after the import
     P.fotoUpd = d.clients.filter(c => cids.has(c.id) && c.fotoAt && String(c.fotoAt) > String((clients.find(x => x.id === c.id) || {}).fotoAt || ''));   // a newer profile photo of a client that is here
-    P.notUpd = d.clients.filter(c => cids.has(c.id) && c.notionAt && String(c.notionAt) > String((clients.find(x => x.id === c.id) || {}).notionAt || ''));   // a newer «Usa Notion» (D-184)
     d.clients.forEach(c => { const k = kitRef(c); if (k) P.refs.add(k); if (c.foto && (!cids.has(c.id) || P.fotoUpd.includes(c))) P.refs.add(c.foto); });
     // the locations (D-124): a place new here, or corrected later on the other Mac; a client's newer list (a new client brings its own)
     const ubAqui = Object.fromEntries(((await idbAll('ubicaciones')) || []).map(u => [u.id, u]));
@@ -9394,7 +9393,7 @@ ${TK_FUENTES}
       }
       C.hay = !!(C.fotos || C.miniaturas || C.sesion || C.pdf || C.mejoran || C.carpetas);
     }
-    P.nothing = !P.put.length && !P.newClients.length && !P.newFiles.length && !P.newPast.length && !P.kitUpd.length && !P.libUpd.length && !P.fotoUpd.length && !P.capKeep.length && !P.trayAdd && !P.ubPut.length && !P.ubLista.length && !P.perLista.length && !P.notUpd.length && !P.tarPut.length && !P.cuotaUpd.length && !P.cliCampos.length && !P.entPut.length && !P.acuPut.length && !P.paqPut.length && !P.cobPut.length && !P.pdfPut.length && !P.mesPut.length && !P.estPut.length && !P.envPut.length && !(P.copia && P.copia.hay);
+    P.nothing = !P.put.length && !P.newClients.length && !P.newFiles.length && !P.newPast.length && !P.kitUpd.length && !P.libUpd.length && !P.fotoUpd.length && !P.capKeep.length && !P.trayAdd && !P.ubPut.length && !P.ubLista.length && !P.perLista.length && !P.tarPut.length && !P.cuotaUpd.length && !P.cliCampos.length && !P.entPut.length && !P.acuPut.length && !P.paqPut.length && !P.cobPut.length && !P.pdfPut.length && !P.mesPut.length && !P.estPut.length && !P.envPut.length && !(P.copia && P.copia.hay);
     return P;
   }
   // «Exportar todo»'s copy (D-249): the photos here that an import reduced to 1080 px and whose full one the copy brings
@@ -9498,7 +9497,6 @@ ${TK_FUENTES}
       P.ubPut && P.ubPut.length && nOf(P.ubPut.length, 'ubicación nueva o corregida', 'ubicaciones nuevas o corregidas'),
       P.ubLista && P.ubLista.length && nOf(P.ubLista.length, 'cliente con su lista de ubicaciones al día', 'clientes con su lista de ubicaciones al día'),
       P.perLista && P.perLista.length && nOf(P.perLista.length, 'cliente con su lista de personas al día', 'clientes con su lista de personas al día'),
-      P.notUpd && P.notUpd.length && nOf(P.notUpd.length, 'cliente con «Usa Notion» al día', 'clientes con «Usa Notion» al día'),
       P.capKeep && P.capKeep.length && `${nOf(P.capKeep.length, 'mes recibe', 'meses reciben')} captions que solo estaban en el archivo`,
       P.tarPut && P.tarPut.length && nOf(P.tarPut.length, 'tarea o nota nueva o al día', 'tareas o notas nuevas o al día'),
       P.cuotaUpd && P.cuotaUpd.length && nOf(P.cuotaUpd.length, 'cliente con su acuerdo al día', 'clientes con su acuerdo al día'),
@@ -9685,7 +9683,6 @@ ${TK_FUENTES}
         if (fs.length) await tx('tfotos', 'readwrite', st => fs.forEach(f => st.put(f, f.id)));
         const ls = l.map(t => t.tipo === 'sesion' && Array.isArray(t.fotos) ? { ...t, fotos: t.fotos.map(f => ({ id: f.id, w: f.w, h: f.h })) } : t);
         if (ls.length) await tx('tareas', 'readwrite', st => ls.forEach(t => st.put(t, t.id))); res.tareas = l.length; }
-      for (const c of P.notUpd || []) await editarCliente(c.id, o => { const n = { ...o, notionAt: c.notionAt }; if (c.notion === false) n.notion = false; else delete n.notion; return n; });
       { const pdfs = Object.values(gotPdf).filter(f => !d.copia || (P.pdfPut || []).some(x => x.id === f.id)), aqui = id => (P.cobAqui || {})[id], tiene = pid => !!pid && (!!gotPdf[pid] || (P.pdfAqui && P.pdfAqui.has(pid))), co = (P.cobPut || []).map(r => r.borrado ? { id: r.id, cliente: r.cliente, borrado: true, at: r.at } : { ...r, pdf: !r.pdf || tiene(r.pdf) ? r.pdf || '' : (aqui(r.id) && !aqui(r.id).borrado && tiene(aqui(r.id).pdf) ? aqui(r.id).pdf : '') });   // a PDF the file names but doesn't bring: the one here stays   // D-232: the PDFs first, then the invoices that name them
         if (pdfs.length) await tx('cfacturas', 'readwrite', st => pdfs.forEach(f => st.put(f, f.id)));
         if (co.length) { await tx('cobros', 'readwrite', st => co.forEach(r => st.put(r, r.id))); res.cobros = co.length; } }

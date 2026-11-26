@@ -159,6 +159,16 @@ svg.i *{vector-effect:non-scaling-stroke}
 .emite{display:flex;align-items:center;gap:8px;color:var(--mute);font-size:13px;margin-top:8px}
 .cubre{margin:-4px 0 10px;font-size:13.5px;color:var(--ink-2)}.cubre b{font-weight:600;color:var(--ink)}   /* el tramo que cubre (D-297) */
 .incluye{margin:-4px 0 10px;font-size:13px;line-height:1.45;color:var(--mute)}   /* lo que incluye su paquete (D-307, D-308) */
+/* «Tu plan» (D-376): una línea y su ficha; como la «Vista cliente» */
+.pagos-ti.tp{flex-wrap:nowrap}.pagos-ti.tp .tp-n{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:18px;font-weight:500;color:var(--ink-2)}
+.tp-qi{margin:-12px -2px -12px auto;flex:none;align-self:center;display:inline-flex;align-items:center;gap:2px;min-height:44px;padding:0 2px 0 10px;border:0;border-radius:var(--r-pill);background:none;font:inherit;font-size:13px;font-weight:600;color:var(--acc-ink)}
+.tp-qi .i{width:15px;height:15px}
+.dlg.plan{gap:0;width:min(480px,calc(100vw - 32px))}.dlg.plan h2{margin-right:44px}.dlg .plan-pr{margin:4px 0 0;line-height:1.45}
+.plan-x{position:absolute;top:10px;right:10px;width:44px;height:44px;border:0;border-radius:50%;background:none;display:grid;place-items:center;color:var(--ink-2)}.plan-x .i{width:20px;height:20px}
+.plan-g h3{margin:16px 0 6px;font-size:13px;font-weight:700;color:var(--ink)}
+.plan-l{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px}.plan-l li{display:grid;grid-template-columns:18px minmax(0,1fr);gap:8px;font-size:14px;line-height:1.45;color:var(--ink-2)}
+.plan-l .i{margin-top:2px}.plan-l.no .i{color:var(--mute)}.plan-l.c li::before{content:"";width:5px;height:5px;margin:8px 0 0 6px;border-radius:50%;background:var(--mute)}
+.dlg.plan .fila{display:none;margin-top:16px}
 /* las entregas de un cliente de solo contenido, en el sitio del feed (D-297) */
 .ents{list-style:none;margin:0;padding:0}
 .ent-f{display:grid;grid-template-columns:64px minmax(0,1fr) auto;align-items:center;gap:12px;min-height:56px;padding:8px 0;border-top:1px solid var(--sep)}
@@ -373,6 +383,7 @@ svg.i *{vector-effect:non-scaling-stroke}
   .velo.alto{display:block}
   .toast{bottom:calc(88px + var(--kb,0px) + env(safe-area-inset-bottom))}
   body.con-hoja .toast{bottom:auto;top:calc(16px + env(safe-area-inset-top))}
+  .dlg.plan{width:100%}.dlg.plan .plan-x{display:none}.dlg.plan .fila{display:flex}.dlg.plan .fila .btn{flex:1}.dlg.plan h2{margin-right:0}   /* «Tu plan»: hoja desde abajo, con «Cerrar» (D-376) */
 }
 /* en un teléfono tumbado, el campo y el margen de abajo, más bajos: con el teclado queda sitio para lo que se escribe */
 @media (max-height:599px) and (orientation:landscape){.dlg textarea{min-height:72px}.dlg .fila{padding-bottom:calc(12px + env(safe-area-inset-bottom))}.dlg{scroll-padding-bottom:calc(76px + env(safe-area-inset-bottom))}}

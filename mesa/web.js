@@ -149,6 +149,9 @@
       // incluye (D-307, D-308); nunca la fecha de renegociar
       acuerdo_de: rg ? rg.de : null, acuerdo_hasta: rg && rg.hasta ? rg.hasta : null, acuerdo_renueva: q ? !!(q.renueva && !q.cubreHasta && (q.pago || 'mensual') !== 'unico') : null,
       paquete: q && q.paquete && q.paquete.nombre ? String(q.paquete.nombre).slice(0, 60) : null, incluye: q && q.paquete && q.paquete.incluye && q.paquete.incluye.length ? q.paquete.incluye.slice(0, 20).map(x => String(x).slice(0, 80)) : null,
+      // «Tu plan» (D-376): what it costs each month without IVA and its IVA (only an agreement separated, D-374), and what it
+      // doesn't include and its conditions (D-375)
+      ...planWeb(q, cob),
       metricas: c.metricas && X.metricasOk && X.metricasOk(c.metricas) && /^https:\/\//.test(c.metricas) ? c.metricas : null, _foto: c.foto || null };   // «Ver más en Zernio» (D-294)
     // Las entregas de un cliente de solo contenido (D-297), todas las suyas (son pocas): qué, cuánto, su fecha y, solo entregada,
     // su enlace. Leídas del almacén: una lectura fallida no es «sin entregas» (lección 94), no se envía.
@@ -214,6 +217,10 @@
     let h = X.envHuella ? X.envHuella(B, url) : null;
     if (h == null) { const v = lsG(claveHuella(B)); if (v && /^[0-9a-f]{64}$/.test(v)) { h = v; if (v === ahora && !X.locked && !MOVIL && X.envHuellaPoner) await X.envHuellaPoner(B, url, v, '2000-01-01T00:00:00.000Z').catch(() => 0); } }
     return h;
+  }
+  function planWeb(q, cob) {
+    const sp = q && cob && cob.ivaSep ? cob.ivaSep(q) : null, n = q && q.pago === 'unico' ? 1 : (q && cob.paso ? cob.paso(q) : 1) || 1, l = (k, m) => q && q.paquete && Array.isArray(q.paquete[k]) && q.paquete[k].length ? q.paquete[k].slice(0, 20).map(x => String(x).slice(0, m)) : null;
+    return { plan_mes_cent: sp ? Math.round(sp.base / n * 100) : null, iva: sp ? sp.iva : null, no_incluye: l('noIncluye', 80), condiciones: l('condiciones', 160) };
   }
   const huellaExtra = P => sha(JSON.stringify([P.cliente, P.sesiones, P.meses, P.mesesQuitar, P.pagos, P.entregas || []]));
   async function repaso(todo) {

@@ -82,6 +82,22 @@ alter table public.clientes add constraint clientes_paquete_check check (paquete
 alter table public.clientes drop constraint if exists clientes_incluye_check;
 alter table public.clientes add constraint clientes_incluye_check check (incluye is null
   or (cardinality(incluye) <= 20 and array_position(incluye, null) is null and char_length(array_to_string(incluye, '')) <= 1600));
+-- «Tu plan» (D-376): lo que cuesta al mes sin IVA y su IVA (solo un acuerdo con el IVA separado, D-374), lo que no incluye y sus
+-- condiciones (D-375). Sin ellas, el portal pinta lo de antes.
+alter table public.clientes add column if not exists plan_mes_cent integer;
+alter table public.clientes add column if not exists iva           smallint;
+alter table public.clientes add column if not exists no_incluye    text[];
+alter table public.clientes add column if not exists condiciones   text[];
+alter table public.clientes drop constraint if exists clientes_plan_check;
+alter table public.clientes add constraint clientes_plan_check check (
+  (plan_mes_cent is null and iva is null)
+  or (plan_mes_cent is not null and iva is not null and plan_mes_cent between 0 and 100000000 and iva in (0, 21)));
+alter table public.clientes drop constraint if exists clientes_no_incluye_check;
+alter table public.clientes add constraint clientes_no_incluye_check check (no_incluye is null
+  or (cardinality(no_incluye) <= 20 and array_position(no_incluye, null) is null and char_length(array_to_string(no_incluye, '')) <= 1600));
+alter table public.clientes drop constraint if exists clientes_condiciones_check;
+alter table public.clientes add constraint clientes_condiciones_check check (condiciones is null
+  or (cardinality(condiciones) <= 20 and array_position(condiciones, null) is null and char_length(array_to_string(condiciones, '')) <= 3200));
 
 -- Un id de cliente borrado no se vuelve a usar: sus archivos podían seguir en el almacén.
 create table if not exists public.clientes_borrados (

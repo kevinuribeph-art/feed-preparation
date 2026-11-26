@@ -30,6 +30,7 @@
     x: svg('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
     mas: svg('<path d="M5 12h14"/><path d="M12 5v14"/>'),
     chev: svg('<path d="m9 18 6-6-6-6"/>'),
+    menos: svg('<path d="M5 12h14"/>'),
     atras: svg('<path d="m15 18-6-6 6-6"/>')
   };
 
@@ -611,11 +612,33 @@
     const px = prox && !tramo ? `<p class="co-vprox">${IC.doc}Próxima factura, ${esc(sig)}</p>` : '';   // with a stretch, it's in «Cubre …»
     const inc = q && q.paquete && q.paquete.incluye && q.paquete.incluye.length ? `<p class="co-vinc">Incluye ${esc(q.paquete.incluye.join(' · '))}</p>` : '';   // what its package includes (D-307)
     const sub = q && q.pago === 'mensual' ? `${eur(q.importe)} al mes${rgT ? ' · ' + rgT : ''}` : tramo ? `${PAGO_VC[q.pago] || 'Pago'} · ${eur(q.importe)}${rgT ? ' · ' + rgT + (q.pago !== 'unico' && q.renueva && !q.cubreHasta ? ', se\u00a0renueva' : '') : ''}` : '';
-    return `<div class="co-pagos"><h2 class="co-vh">Tus pagos${sub ? ` <span>${esc(sub)}</span>` : ''}</h2>${inc}${cubre}`
+    // «Tu plan» (D-376): an agreement with a package, one line — the title, its name (none with «Personalizado») and «Qué incluye»,
+    // that opens its card (its price, how it's paid and from when to when, and its three lists); without one, «Tus pagos» as before
+    const pl = q && q.paquete && q.paquete.nombre ? q.paquete : null, hayL = pl && ['incluye', 'noIncluye', 'condiciones'].some(k => (pl[k] || []).length);
+    const cab = pl ? `<h2 class="co-vh co-tp">Tu plan${pl.id !== 'personalizado' ? ` <span class="co-tpn">${esc(pl.nombre)}</span>` : ''}${hayL ? `<button type="button" class="co-tpb" data-co="plan" data-c="${esc(cli)}" aria-haspopup="dialog">Qué incluye${IC.chev}</button>` : ''}</h2>`
+      : `<h2 class="co-vh">Tus pagos${sub ? ` <span>${esc(sub)}</span>` : ''}</h2>${inc}`;
+    return `<div class="co-pagos">${cab}${cubre}`
       + (deber.length ? `<p class="co-vp">Pendiente de pago <b>${esc(eur(suma))}</b>${venc ? ` <span class="rojo">· ${venc} vencida${venc === 1 ? '' : 's'}</span>` : ''}</p>` : '')
       + (lis ? `<ul class="co-vl">${lis}</ul>` : '')
       + (N ? `<button type="button" class="co-ver" data-co="ver-ant" data-c="${esc(cli)}" aria-expanded="${ver}">${ver ? 'Ocultar las anteriores' : `Ver las anteriores (${N})`}</button>` : '')
       + px + `</div>`;
+  }
+
+  // ---------- «Tu plan»: its card (D-376) ----------
+  const PAGO_PL = { mensual: 'pago mensual', trimestral: 'pago trimestral', semestral: 'pago semestral', anual: 'pago anual', unico: 'un solo pago' };
+  // «1200 € + IVA al mes · pago semestral · ene – dic 2027»; sin IVA, «300 € al mes · sin IVA · …»; one of before, its total
+  function planPrecio(q, rgT) {
+    const sp = C().ivaSep ? C().ivaSep(q) : null, uno = q.pago === 'unico', n = uno ? 1 : (C().paso ? C().paso(q) : 1) || 1;
+    const cuanto = sp ? `${eur(r2(sp.base / n))}${sp.iva ? ' + IVA' : ''}${uno ? '' : ' al mes'}${sp.iva ? '' : ' · sin IVA'}` : q.importe != null ? `${eur(uno ? q.importe : r2(q.importe / n))}${uno ? '' : ' al mes'}` : '';
+    return [cuanto, PAGO_PL[q.pago] || '', rgT].filter(Boolean).join(' · ');
+  }
+  function abrirPlan(cli) {
+    const h = hoy(), c = cliRec(cli), q = c && C().cuota(c, h.slice(0, 7)), p = q && q.paquete; if (!p || !I().showDialog) return;
+    const rg = C().rango ? C().rango(q, h.slice(0, 7)) : null, nb = m => mesC0(m).replace(' ', '\u00a0');
+    const rgT = rg ? (rg.hasta ? (rg.hasta === rg.de ? nb(rg.de) : `${nb(rg.de)} – ${nb(rg.hasta)}`) : `desde ${nb(rg.de)}`) : '';
+    const ls = [['incluye', 'Incluye', IC.ok, 'si'], ['noIncluye', 'No incluye', IC.menos, 'no'], ['condiciones', 'Condiciones', '', 'c']].map(([k, t, ic, cl]) => (p[k] || []).length ? `<div class="co-plg"><h4>${t}</h4><ul class="co-pll ${cl}">${p[k].map(x => `<li>${ic}<span>${esc(x)}</span></li>`).join('')}</ul></div>` : '').join('');
+    I().showDialog('plan', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3 class="co-plh">${esc(p.id === 'personalizado' ? 'Tu plan' : p.nombre)}</h3><p class="co-plp">${esc(planPrecio(q, rgT))}</p>${ls}`);
+    const d = I().root().querySelector('.detail[data-dlg="plan"]'), x = d && d.querySelector('.x'); if (x) x.focus();
   }
 
   // ---------- events ----------
@@ -625,6 +648,7 @@
     if (e.detail > 1 && k !== 'tab') return;      // the second click of a double click does nothing (lesson 57): no second invoice, no chooser under the ×
     if (k === 'tab') { tab(b.dataset.t, true); return; }
     if (k === 'dl') { e.preventDefault(); descargar(b.dataset.id, true); return; }
+    if (k === 'plan') { abrirPlan(b.dataset.c); return; }   // D-376
     if (k === 'ver-ant') { const c = b.dataset.c; if (UI.ant.has(c)) UI.ant.delete(c); else UI.ant.add(c); if (I().vc) I().vc.pintar(); enfocar('[data-co="ver-ant"]'); return; }
     const f = filaDe(b);
     if (k === 'nueva') nueva(b);
@@ -828,6 +852,13 @@
 #mesa .co-vh{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;margin:0 0 12px;font-size:17px;font-weight:800;letter-spacing:-.01em}
 #mesa .co-vh span{font-size:13px;font-weight:400;letter-spacing:0;color:var(--mute)}
 #mesa .co-vcubre{margin:-6px 0 12px;font-size:13.5px;color:var(--ink-2)}#mesa .co-vcubre b{font-weight:600;color:var(--ink)}
+#mesa .co-vh.co-tp{flex-wrap:nowrap}#mesa .co-vh .co-tpn{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:17px;font-weight:500;letter-spacing:-.01em;color:var(--ink-2)}
+#mesa .co-tpb{margin-left:auto;flex:none;align-self:center;display:inline-flex;align-items:center;gap:2px;min-height:32px;padding:0 2px 0 8px;border:0;border-radius:var(--r-sm);background:none;font:inherit;font-size:13px;font-weight:600;letter-spacing:0;color:var(--acc-ink);cursor:pointer}
+#mesa .co-pagos .co-tpb svg{width:15px;height:15px}#mesa .co-pll li svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:var(--i-trazo);stroke-linecap:round;stroke-linejoin:round}#mesa .co-tpb:hover{background:var(--co-hov,var(--bg-2))}#mesa .co-tpb:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+#mesa .detail[data-dlg="plan"] .card{width:min(480px,calc(100vw - 32px));max-height:calc(100vh - 48px);overflow-y:auto}#mesa .co-plh{margin-right:40px}
+#mesa .co-plp{margin:0 0 6px;font-size:14px;line-height:1.45;color:var(--ink-2)}#mesa .co-plg h4{margin:14px 0 6px;font-size:13px;font-weight:700;color:var(--ink)}
+#mesa .co-pll{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px}#mesa .co-pll li{display:grid;grid-template-columns:18px minmax(0,1fr);gap:8px;font-size:14px;line-height:1.45;color:var(--ink-2)}
+#mesa .co-pll li svg{margin-top:2px}#mesa .co-pll.no li svg{color:var(--mute)}#mesa .co-pll.c li::before{content:"";width:5px;height:5px;margin:8px 0 0 6px;border-radius:50%;background:var(--mute)}
 #mesa .co-vinc{margin:-6px 0 12px;font-size:13px;line-height:1.45;color:var(--mute)}
 #mesa .co-vp{display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 8px;margin:-4px 0 12px;font-size:13.5px;color:var(--ink-2)}
 #mesa .co-vp b{font-size:18px;font-weight:800;color:var(--ink)}#mesa .co-vp .rojo{color:var(--red);font-weight:600}

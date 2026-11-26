@@ -83,9 +83,10 @@
     if (!ids.length) return [];
     // `metricas` (D-294), el acuerdo y el servicio (D-297) y el acuerdo de cuándo a cuándo con su paquete (D-308): un servidor que
     // aún no los tiene contesta 400 y se lee como antes, un escalón cada vez
-    const en = ids.map(encodeURIComponent).join(','), C0 = 'id,nombre,handle,foto,cuota_cent,proxima_emision', C1 = 'metricas,servicio,pago,pago_cent,cubre_de,cubre_hasta', C2 = 'acuerdo_de,acuerdo_hasta,acuerdo_renueva,paquete,incluye';
+    // «Tu plan» (D-376): lo del mes sin IVA, su IVA, lo que no incluye y sus condiciones, otro escalón
+    const en = ids.map(encodeURIComponent).join(','), C0 = 'id,nombre,handle,foto,cuota_cent,proxima_emision', C1 = 'metricas,servicio,pago,pago_cent,cubre_de,cubre_hasta', C2 = 'acuerdo_de,acuerdo_hasta,acuerdo_renueva,paquete,incluye', C3 = 'plan_mes_cent,iva,no_incluye,condiciones';
     let l;
-    for (const cols of [`${C0},${C1},${C2}`, `${C0},${C1}`, C0]) {
+    for (const cols of [`${C0},${C1},${C2},${C3}`, `${C0},${C1},${C2}`, `${C0},${C1}`, C0]) {
       try { l = await S.leer(`clientes?select=${cols}&id=in.(${en})`); break; } catch (e) { if (e.status !== 400 || cols === C0) throw e; }
     }
     return (l || []).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
@@ -622,10 +623,36 @@
     const cubre = tramo && cli.cubre_de && cli.cubre_hasta ? h('p', { class: 'cubre' }, 'Cubre ', h('b', { text: tramoTxt(cli.cubre_de, cli.cubre_hasta) }), cli.pago !== 'unico' && prox && prox >= H ? ` · próxima factura, ${sig}` : '') : null;
     const inc = cli && Array.isArray(cli.incluye) && cli.incluye.length ? h('p', { class: 'incluye', text: 'Incluye ' + cli.incluye.join(' · ') }) : null;   // lo que incluye su paquete (D-307)
     const mas = N ? h('button', { type: 'button', class: 'lnk ver-ant', 'aria-expanded': String(ver), text: ver ? 'Ocultar las anteriores' : `Ver las anteriores (${N})`, onclick: () => { st.verAnt = ver ? null : st.cli; pintarPagosSolo(); } }) : null;
+    // «Tu plan» (D-376): con un paquete, una línea —el título, su nombre (ninguno con «Personalizado») y «Qué incluye», que abre su
+    // ficha: el precio, cómo se paga y de cuándo a cuándo, y sus tres listas—; sin paquete, «Tus pagos» como antes. Como la Mesa
+    const plan = cli && cli.paquete ? cli.paquete : null, listas = plan ? [['incluye', 'Incluye', 'check', 'si'], ['no_incluye', 'No incluye', 'minus', 'no'], ['condiciones', 'Condiciones', null, 'c']].filter(([k]) => Array.isArray(cli[k]) && cli[k].length) : [];
+    const ti = plan ? h('div', { class: 'ti pagos-ti tp' }, h('h2', { id: 'h-pagos', text: 'Tu plan' }), plan !== 'Personalizado' ? h('span', { class: 'tp-n', text: plan }) : null,
+      listas.length ? h('button', { type: 'button', class: 'tp-qi', 'aria-haspopup': 'dialog', onclick: ev => abrirPlan(cli, listas, rg, ev.currentTarget) }, 'Qué incluye', ico('right')) : null)
+      : h('div', { class: 'ti pagos-ti' }, h('h2', { id: 'h-pagos', text: 'Tus pagos' }), tramo ? h('span', { text: `${PAGO[cli.pago] || 'Pago'} · ${eur(cli.pago_cent)}${rg ? ' · ' + rg + (cli.acuerdo_renueva ? ', se\u00a0renueva' : '') : ''}` }) : cli && cli.cuota_cent ? h('span', { text: eur(cli.cuota_cent) + ' al mes' + (rg ? ' · ' + rg : '') }) : null);
     return h('section', { class: 'card', 'aria-labelledby': 'h-pagos', 'data-p': 'pagos' },
-      h('div', { class: 'ti pagos-ti' }, h('h2', { id: 'h-pagos', text: 'Tus pagos' }), tramo ? h('span', { text: `${PAGO[cli.pago] || 'Pago'} · ${eur(cli.pago_cent)}${rg ? ' · ' + rg + (cli.acuerdo_renueva ? ', se\u00a0renueva' : '') : ''}` }) : cli && cli.cuota_cent ? h('span', { text: eur(cli.cuota_cent) + ' al mes' + (rg ? ' · ' + rg : '') }) : null), inc, cubre,
+      ti, plan ? null : inc, cubre,
       deber.length ? h('p', { class: 'pend-pago' }, 'Pendiente de pago ', h('b', { text: eur(deber.reduce((s, r) => s + r.importe_cent, 0)) }), venc ? h('em', { text: `· ${venc === 1 ? '1 vencida' : venc + ' vencidas'}` }) : null) : null,
       filas.map(fila), mas, emite);
+  }
+  // la ficha de «Tu plan» (D-376): centrada en el ordenador, con su ×; en el móvil sube desde abajo, con «Cerrar» a la vista
+  const PAGO_PL = { mensual: 'pago mensual', trimestral: 'pago trimestral', semestral: 'pago semestral', anual: 'pago anual', unico: 'un solo pago' };
+  function precioPlan(cli, rg) {
+    const uno = cli.pago === 'unico', n = { mensual: 1, trimestral: 3, semestral: 6, anual: 12 }[cli.pago] || 1;
+    const cuanto = cli.plan_mes_cent != null ? `${eur(cli.plan_mes_cent)}${cli.iva ? ' + IVA' : ''}${uno ? '' : ' al mes'}${cli.iva === 0 ? ' · sin IVA' : ''}` : cli.pago_cent != null ? `${eur(uno ? cli.pago_cent : Math.round(cli.pago_cent / n))}${uno ? '' : ' al mes'}` : '';
+    return [cuanto, PAGO_PL[cli.pago] || '', rg].filter(Boolean).join(' · ');
+  }
+  function abrirPlan(cli, listas, rg, origen) {
+    if (document.querySelector('.dlg')) return;
+    const velo = h('div', { class: 'velo alto' });
+    const quitar = () => { velo.remove(); dlg.remove(); if (origen && origen.isConnected) origen.focus(); };
+    const dlg = h('section', { class: 'dlg plan', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'h-plan' },
+      h('button', { type: 'button', class: 'plan-x', 'aria-label': 'Cerrar', onclick: quitar }, ico('x')),
+      h('h2', { id: 'h-plan', text: cli.paquete === 'Personalizado' ? 'Tu plan' : cli.paquete }), h('p', { class: 'plan-pr', text: precioPlan(cli, rg) }),
+      listas.map(([k, t, i, cl]) => h('div', { class: 'plan-g' }, h('h3', { text: t }), h('ul', { class: 'plan-l ' + cl }, cli[k].map(x => h('li', {}, i ? ico(i) : null, h('span', { text: x })))))),
+      h('div', { class: 'fila' }, h('button', { type: 'button', class: 'btn s', text: 'Cerrar', onclick: quitar })));
+    dlg._quitar = quitar; velo.addEventListener('click', quitar);
+    document.body.append(velo, dlg);
+    const x = dlg.querySelector('.plan-x'); (x.offsetParent ? x : dlg.querySelector('.fila .btn')).focus();
   }
   async function abrirPdf(ruta) {
     const w = window.open('', '_blank');   // abierta ya con el toque: si no, el móvil la bloquea («noopener» la devuelve nula)

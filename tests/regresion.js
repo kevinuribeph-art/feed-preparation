@@ -23472,12 +23472,12 @@
       await M.cobros.cargar([{ id: 'ax-11', cliente: CLIENTE, periodo: '2026-11', importe: 450, factura: 'AX-11', emitida: '2026-10-10', vence: '2026-10-25', cobrada: '2026-10-20' }, { id: 'ax-12', cliente: CLIENTE, periodo: '2026-12', importe: 450, factura: 'AX-12', emitida: '2026-11-10', vence: '2026-11-25' }]);
       await vistaCliente(true); M._in.render(); await espera(120);
       const p = await hasta(() => q('.main > .vc-lado [data-vc="pagos"]'), 3000, '«Tus pagos»');
-      igual(p.querySelector('.co-vh').textContent, 'Tus pagos 450 € al mes · nov\u00a02026 – abr\u00a02027', 'el título de un mensual');   // sin partir las fechas (D-310), a propósito
-      ok(/Incluye 12 fotos al mes · 4 reels/.test(p.textContent), 'sin lo que incluye: ' + p.textContent);
+      igual(p.querySelector('.co-vh').textContent, 'Tu plan Paquete BQué incluye', 'el título de uno con paquete');   // «Tu plan»: el precio y las fechas, en su ficha (D-376), a propósito
+      ok(!/Incluye 12 fotos/.test(p.textContent), 'lo que incluye sigue debajo: ' + p.textContent);   // en su ficha (D-376), a propósito
       igual(p.querySelector('.co-vprox').textContent, 'Próxima factura, el 10 dic', 'la siguiente por su fecha');   // «Próxima factura» (D-311), a propósito
       ok(!/abr 2027 ·|15 abr|renegoci/i.test(p.textContent.replace(/\u00a0/g, ' ').replace('nov 2026 – abr 2027', '')), 'sale la fecha de renegociar: ' + p.textContent);
       // sin fin
-      await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 450, dia: 10, plazo: 15, desde: '2026-05', meses: null, renueva: true }); M._in.render(); await espera(120);
+      await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 450, dia: 10, plazo: 15, desde: '2026-05', meses: null, renueva: true, paquete: null }); M._in.render(); await espera(120);   // sin paquete: «Tus pagos» (D-376), a propósito
       await hasta(() => /desde may\u00a02026/.test(q('.main > .vc-lado [data-vc="pagos"] .co-vh').textContent), 3000, '«desde may 2026»');   // sin partir (D-310), a propósito
       // por tramos
       await CB().acuGuardar(CLIENTE, { ...AU_ACU, meses: null }); await M.cobros.cargar([{ id: 'ax-s', cliente: CLIENTE, periodo: '2026-11', hasta: '2027-04', importe: 2700, factura: 'AX-S', emitida: '2026-10-01', cobrada: '2026-10-05' }]); M._in.render(); await espera(120);
@@ -23897,6 +23897,48 @@
       coCambiar(sel(), id('Plan Viejo')); await hasta(() => a().paquete.nombre === 'Plan Viejo', 3000, '«Plan Viejo»');
       igual(a().base, 6000, 'uno de antes cambió el importe');
     } finally { relojVuelve(); if (M.controles) M.controles.cerrar(); M._in.closeDetail(); }
+  });
+  prueba('TP1', '«Tu plan» en la «Vista cliente» (D-376): con un paquete, una línea —«Tu plan», su nombre y «Qué incluye»—, sin «Incluye …» debajo; su ficha, con el precio sin IVA, cómo se paga y de cuándo a cuándo, y sus tres listas; con «Personalizado», sin nombre; sin listas, sin botón; sin paquete, «Tus pagos» como antes', async () => {
+    await tablero([pub(1)]);
+    await hasta(() => M.cobrosUI, 8000, 'cobros.js');
+    relojEn('2026-11-20T10:00:00+01:00');
+    try {
+      await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 450, dia: 5, plazo: 15, desde: '2026-01' });
+      await vistaCliente(true); await espera(80);
+      const pag = () => q('.vc-lado [data-vc="pagos"] .co-pagos');
+      await hasta(() => pag() && /Tus pagos/.test(pag().textContent), 3000, '«Tus pagos» sin paquete');
+      await M.cobros.paquetes(IV_PAQ); const dos = (await M.cobros.paquetes()).find(p => p.nombre === 'Plan Dos');
+      await CB().acuCambiar(CLIENTE, CB().acuerdos(CLIENTE)[0].id, { pago: 'semestral', desde: '2026-05', meses: 12, base: 6000, iva: 21, importe: 7260, paquete: { id: dos.id, nombre: dos.nombre, incluye: dos.incluye, noIncluye: dos.noIncluye, condiciones: dos.condiciones } });
+      await hasta(() => pag() && pag().querySelector('.co-tp'), 3000, '«Tu plan»');
+      const h2 = pag().querySelector('.co-tp'); igual([h2.firstChild.textContent.trim(), h2.querySelector('.co-tpn').textContent], ['Tu plan', 'Plan Dos'], 'la línea');
+      ok(!pag().querySelector('.co-vinc'), '«Incluye …» sigue debajo');
+      h2.querySelector('[data-co="plan"]').click();
+      const d = await hasta(() => q('.detail[data-dlg="plan"]:not([hidden])'), 2000, 'la ficha');
+      igual(d.querySelector('.co-plp').textContent.replace(/ /g, ' '), '1000 € + IVA al mes · pago semestral · may 2026 – abr 2027', 'el precio');
+      igual([...d.querySelectorAll('.co-plg h4')].map(x => x.textContent), ['Incluye', 'No incluye', 'Condiciones'], 'sus listas');
+      ok(D.activeElement === d.querySelector('.x'), 'el foco no va a la ×');
+      M._in.closeDetail();
+      // sin IVA: «al mes · sin IVA»
+      await CB().acuCambiar(CLIENTE, CB().acuerdos(CLIENTE)[0].id, { iva: 0, importe: 6000 });
+      await hasta(() => pag() && pag().querySelector('.co-tp'), 3000, 'otra vez'); pag().querySelector('[data-co="plan"]').click();
+      await hasta(() => /1000 € al mes · sin IVA · pago semestral/.test((q('.detail[data-dlg="plan"] .co-plp') || {}).textContent || ''), 2000, 'sin IVA'); M._in.closeDetail();
+      // «Personalizado» sin listas: sin nombre ni botón
+      await CB().acuCambiar(CLIENTE, CB().acuerdos(CLIENTE)[0].id, { paquete: { id: 'personalizado', nombre: 'Personalizado', incluye: [] } });
+      await hasta(() => pag() && pag().querySelector('.co-tp') && !pag().querySelector('.co-tpn'), 3000, 'sin nombre');
+      ok(!pag().querySelector('[data-co="plan"]'), 'sin listas, con botón');
+    } finally { relojVuelve(); await vistaCliente(false); M._in.closeDetail(); }
+  });
+  prueba('TP2', 'Lo que recibe la web de «Tu plan» (D-376): lo del mes sin IVA y su IVA (solo un acuerdo separado), lo que no incluye y sus condiciones; uno de antes, sin ellos', async () => {
+    await tablero([pub(1)]);
+    relojEn('2026-11-20T10:00:00+01:00');
+    try {
+      await hasta(() => M.web && M.web.paquete, 8000, 'web.js');
+      await CB().acuGuardar(CLIENTE, { pago: 'semestral', importe: 7260, dia: 1, plazo: 15, desde: '2026-05', meses: 12, renueva: true, paquete: { id: 'p-d', nombre: 'Plan Dos', incluye: ['12 fotos al mes'], noIncluye: ['Anuncios'], condiciones: ['Se renueva solo'] } });
+      let P = await M.web.paquete(M._in.S);
+      igual([P.cliente.plan_mes_cent, P.cliente.iva, P.cliente.no_incluye, P.cliente.condiciones, P.cliente.pago_cent], [null, null, ['Anuncios'], ['Se renueva solo'], 726000], 'uno de antes');
+      await M.cobros.separar(CLIENTE, CB().acuerdos(CLIENTE)[0].id, 'incluido'); P = await M.web.paquete(M._in.S);
+      igual([P.cliente.plan_mes_cent, P.cliente.iva, P.cliente.pago_cent], [100000, 21, 726000], 'separado');
+    } finally { relojVuelve(); }
   });
 
   // ---------- feed continuo, pieza 1: cada tablero «como abierto», sin nada a la vista ----------

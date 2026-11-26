@@ -98,8 +98,7 @@
   M.pastErrors = {};
   M.uploads = M.uploads || {};         // fileId -> {state,...}
   M.zUploads = M.zUploads || {};       // fileId -> {state,...} of the uploads to Zernio (their own record, apart from Notion's)
-  M.out = M.out || {};                 // rendered preview Blobs
-  const OUT_SLOTS = {};                // mode -> ids of the posts drawn in M.out[mode] (the later months are blank cells)
+  M.out = M.out || {};                 // what the designer draws for Claude to look at (M.out.diseno)
   M._ctrl = M._ctrl || {};             // fileId ('z:' + fileId for Zernio) -> controller of the running upload
   M._gen = M._gen || {};               // fileId ('z:' + fileId for Zernio) -> generation of the latest upload request
 
@@ -8556,9 +8555,7 @@ ${TK_FUENTES}
     if (skillViva() && SKILL.key !== S.key) return cambioMsg(SKILL.key);   // the board changed under the skill (a click on the header, ⌘Z): any of its calls says so (pieza 9, D-334)
     let ids = null;
     if (k === 'setEstado') ids = [].concat(a[0] ?? []);
-    else if (k === 'markUploaded') ids = [].concat(a[0] || []).map(x => x && x.slotId);
-    else if (k === 'markSynced') ids = a[0] == null ? null : [].concat(a[0]);
-    else if (k === 'startUpload' || k === 'startZernio') ids = [].concat(a[0] || []).map(x => x && x.slotId);
+    else if (k === 'startZernio') ids = [].concat(a[0] || []).map(x => x && x.slotId);
     if (ids) {
       for (const id of ids) {
         if (!id || S.slots.some(x => x.id === id)) continue;
@@ -8594,16 +8591,16 @@ ${TK_FUENTES}
     };
   }) : [];
 
-  // Where a photo goes: Notion (multipart POST with the upload's auth) or Zernio (raw PUT to a presigned URL: the API
-  // key stays in tools/zernio.mjs, never here). Each keeps its own record, so one never aborts or overwrites the other.
+  // Where a photo goes: Zernio (raw PUT to a presigned URL: the API key stays in tools/zernio.mjs, never here). Notion was the
+  // other one until lot 4 (D-361): Notion is off.
   const DEST = {
-    notion: { label: 'Notion', store: () => M.uploads, key: fid => fid, max: MAX_UPLOAD },
     zernio: { label: 'Zernio', store: () => M.zUploads, key: fid => 'z:' + fid, max: ZERNIO_MAX, jpegOnly: true, shrink: true }   // Instagram takes JPEG only
   };
-  // items: [{fileId, slotId, url, auth, crop?}] — starts in background, poll with waitUpload().
-  // The crop is fixed at the moment of the call, so later edits or a board switch can't change what is sent.
-  // A new request for a photo that is still uploading replaces (aborts) the previous one.
-  M.startUpload = (items, conc = M.cfg.uploadConc) => startJobs('notion', items, conc);
+  // Notion is off for everyone (D-357; lot 4, D-361): its calls keep their names, because an old skill or a note may still
+  // name them, and answer that instead of doing anything. notionChanges gives [] (nothing to write to Notion).
+  const NOTION_OFF = 'Notion está apagado (D-361): la Mesa ya no sube nada a Notion ni lee de allí. El cliente ve su web: se pone al día con «Enviar» en la barra «Web»';
+  const apagado = () => ({ error: NOTION_OFF });
+  M.startUpload = apagado;
   // ---------- upload to Zernio (to schedule on Instagram) ----------
   // items: [{fileId, slotId, url, publicUrl}] — url / publicUrl from `node tools/zernio.mjs presign <n>`. Same crop as the
   // upload to Notion, always JPEG and under 8 MB. Poll with waitZernio(); each 'ok' carries its publicUrl for the
@@ -8612,7 +8609,7 @@ ${TK_FUENTES}
   function startJobs(dn, items, conc) {
     if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; pulsa «Usar aquí» o vuelve a abrirla' };
     if ((S && esContenido(S.client)) || contCli()) return {};   // a client of «Solo contenido» has no feed (D-289): nothing starts, as with no items; also its page (D-312)
-    revAuto(dn === 'zernio' ? 'programa' : 'sube', items);
+    revAuto('programa', items);   // only Zernio since lot 4 (D-361)
     const D = DEST[dn], U = D.store(), B = S;
     const jobs = []; let soloCopiaN = 0;
     for (const it of items || []) {
@@ -8685,17 +8682,8 @@ ${TK_FUENTES}
       if (ctrl.reason) throw new Error('aborted');
       name = safeName(name);
       const prog = f => { if (live()) busyUpload(Math.round(f * 100)); }, mb = +(blob.size / 1048576).toFixed(1);
-      if (j.dn === 'zernio') {
-        const r = await send('PUT', j.url, { 'content-type': 'image/jpeg' }, blob, ctrl, D.label, prog);
-        res = r.ok ? { state: 'ok', publicUrl: j.publicUrl, name, mb, reencoded, cropped } : { state: 'error', http: r.status, err: r.text.slice(0, 200) };
-      } else {
-        const fd = new FormData(); fd.append('file', blob, name);
-        const r = await send('POST', j.url, { authorization: j.auth }, fd, ctrl, D.label, prog);
-        let js = {}; try { js = JSON.parse(r.text); } catch (e) { /* not json */ }
-        res = (r.ok && js.status === 'uploaded')
-          ? { state: 'ok', fileUploadId: js.file_upload_id, name, mb, reencoded, cropped }
-          : { state: 'error', http: r.status, err: r.text.slice(0, 200) };
-      }
+      const r = await send('PUT', j.url, { 'content-type': 'image/jpeg' }, blob, ctrl, D.label, prog);   // Zernio (Notion's POST went with lot 4, D-361)
+      res = r.ok ? { state: 'ok', publicUrl: j.publicUrl, name, mb, reencoded, cropped } : { state: 'error', http: r.status, err: r.text.slice(0, 200) };
     } catch (e) {
       delete M.blobs[j.fid];
       const why = ctrl.reason === 'idle' ? `sin progreso durante ${Math.round(M.cfg.uploadIdleMs / 1000)} s: vuelve a intentarlo` : ctrl.reason ? 'sustituida por un nuevo intento' : String(e.message || e).slice(0, 200);
@@ -8711,43 +8699,12 @@ ${TK_FUENTES}
     while (ids.some(id => upBusy(U[id])) && Date.now() - t0 < ms) await new Promise(r => setTimeout(r, 400));
     return upStatus(U, ids);
   }
-  M.uploadStatus = ids => upStatus(M.uploads, ids);
-  M.waitUpload = (ids, ms = 45000) => upWait(M.uploads, ids, ms);
+  M.uploadStatus = apagado;
+  M.waitUpload = async () => apagado();
   M.zernioStatus = ids => upStatus(M.zUploads, ids);
   M.waitZernio = (ids, ms = 45000) => upWait(M.zUploads, ids, ms);
-  // list: [{slotId, fileIds, note}] — records exactly the crop that was sent for each photo.
-  M.markUploaded = list => {
-    if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; no se ha guardado nada' };
-    if (!S) return [];
-    list.forEach(({ slotId, fileIds, note }) => {
-      const s = slot(slotId); if (!s) return;
-      fileIds = fileIds || [];
-      const nt = note == null ? noteOf(s) : String(note).trim();
-      if (!fileIds.length && !nt) { s.uploaded = null; return; }
-      const sigs = fileIds.map(fid => { const u = M.uploads[fid]; return u && u.slotId === slotId && u.sig ? u.sig : fileSig(fid, s); });
-      s.uploaded = { fileIds, note: nt, crop: JSON.stringify(sigs), at: new Date().toISOString() };
-    });
-    changed();
-    return (planRaw || M.plan)();   // the Mesa's own call: never through a skill's wrapper (pieza 9, D-335)
-  };
-  // Dates/times changed here and the renames they cause (numbering «W.N» / collab «Mes K»), to write to Notion.
-  // dateMadrid = the new date as Madrid wall clock ('YYYY-MM-DDTHH:MM', or 'YYYY-MM-DD' when date-only).
-  // type / notionType / typeChanged (3.26): a type changed in the post view goes to «Tipo de Contenido».
-  M.notionChanges = () => S ? S.slots.filter(s => vivo(s) && (dateChg(s) || nameChg(s) || typeChg(s))).map(s => ({
-    slotId: s.id, notionName: s.notionName, name: s.name, notionDate: s.notionDate, date: s.date, dateOnly: dOnly(s.date),
-    dateMadrid: dOnly(s.date) ? localDay(s.date) : localDay(s.date) + 'T' + localTime(s.date),
-    notionType: s.notionType ?? s.type, type: s.type, typeChanged: typeChg(s)
-  })) : [];
-  // After Claude has written them to Notion: those posts (all if no ids) take their current date and name as Notion's.
-  M.markSynced = ids => {
-    if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; no se ha guardado nada' };
-    if (!S) return [];
-    const only = ids == null ? null : new Set([].concat(ids));
-    S.slots.forEach(s => { if (only ? only.has(s.id) : vivo(s)) { s.notionDate = s.date; s.notionName = s.name; s.notionType = s.type; delete s.hold; } });
-    S.notionAt = new Date().toISOString();
-    holdOrphans(); renumber(); changed(); refreshDetail();
-    return (cambiosRaw || M.notionChanges)();   // the Mesa's own call: never through a skill's wrapper (pieza 9, D-335)
-  };
+  M.markUploaded = apagado; M.markSynced = apagado;
+  M.notionChanges = () => [];
   // States (3.32): ids = a slotId or a list; estado = 'aprobado' or 'noaprobado' (only from «Por aprobar», D-082) |
   // 'programado' | 'publicado' | 'cancelado' | 'empezar', 'captions' or 'aprobar' to put it back by hand, never past what its
   // data gives (D-085), or null to give the post back the state its data gives; opts.motivo: the
@@ -8871,182 +8828,11 @@ ${TK_FUENTES}
       };
     });
   };
-  // list: [{slotId, text?}] (or slotIds) — after Claude has written the chosen caption in its Notion page; text = what went
-  // up (default: the chosen one as it is now). The vista cliente shows it from then on; editing it or choosing another one
-  // makes the post «cambiada».
-  M.markCaptionsUploaded = list => {
-    if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; no se ha guardado nada' };
-    if (!S) return { error: 'no hay mesa abierta' };
-    const out = [], now = new Date().toISOString();
-    for (const it of [].concat(list || [])) {
-      const id = typeof it === 'string' ? it : it && it.slotId, s = S.slots.find(x => x.id === id), c = capOf(s), r = { slotId: id, name: s ? s.name : null };
-      if (!s) { out.push({ ...r, result: 'error', error: 'no está en la mesa abierta' }); continue; }
-      if (!c || c.pick == null) { out.push({ ...r, result: 'error', error: 'no tiene caption elegido' }); continue; }
-      const t = it && it.text != null ? String(it.text).replace(/\r\n?/g, '\n').trim() : capFinal(s);
-      s.caption.sent = { text: t, pick: c.pick, tone: c.tones[c.pick], at: now };
-      out.push({ ...r, result: 'subido', state: capState(s) });
-    }
-    if (out.some(x => x.result === 'subido')) { changed(); refreshDetail(); if (ig) openIG(ig.id, ig.idx); }   // an open vista cliente shows it at once
-    return out;
-  };
+  M.markCaptionsUploaded = apagado;   // Notion is off (D-361)
 
-  // ---------- preview image for the client (1080 px wide) ----------
-  // opts.month ('YYYY-MM', one of the board's months): only that month above the line; the board's earlier
-  // months (if any) and the previous month go below, so a client can approve one month of a 2-3 month board.
-  // The later months are not drawn, but their place is kept: blank cells at the start (their count mod 3) so every
-  // photo sits in the same row/column as in the mesa. Fillers («+ Hueco») drawn black after the pinned posts, with their
-  // preview if they have one (D-049), as in the mesa. `check` compares each drawn post with its mesa position.
-  // Since the feed continuo (pieza 3b, D-322) it shows what the feed shows under that month: the month before the board's first comes
-  // from its own board (the one that owns it in the feed, D-318: its posts of that month, as they are, with what was hidden or changed
-  // only in the strip, S.prev, not applied), or Notion's when no board holds it; one board back, as before. The pinned posts and the
-  // fillers only when the open board is the newest (those of an older board go by their date, as in the feed).
-  async function mesAnteriorFeed() {
-    const pm = prevMonth(S.month), k = MB.some(b => monthsOf(b.month, b.span).includes(pm)) ? feedDueno(pm) : null;
-    if (k && k !== S.key) {
-      const T = feedTablero(k) || await memLeer(k); if (!T || !S) return [];
-      return T.slots.filter(s => vivo(s) && mesDe(s, T) === pm && !S.slots.some(x => x.id === s.id)).map(s => {
-        const f = s.photos[0] && M.files[s.photos[0]] ? s.photos[0] : null;
-        return { name: s.name, type: s.type, date: s.date, photos: s.photos, fid: f, item: s, B: T, thumb: null, pin: isPinned(s, T) };
-      });
-    }
-    return pastPosts(S).slice().sort((a, b) => ts(b.date) - ts(a.date)).map(p => ({ name: p.name, type: p.type, date: p.date, photos: [], fid: null, item: p, B: null, thumb: M.pastThumbs[p.id] || M.pastPending[p.id] ? p.id : null }));
-  }
-  M.render = async (mode = 'clean', opts = {}) => {
-    if (!S) return { error: 'no hay mesa abierta' };
-    const only = opts && opts.month ? String(opts.month) : null;
-    if (only && !boardMonths().includes(only)) return { error: `${only} no está en esta mesa (${boardMonths().join(', ')})` };
-    const W = 1080, GAP = 3, COLS = 3, TW = 358, TH = 477, HEADER = 250, FOOT = 40;
-    const c0 = CL.find(c => c.id === S.client) || {};
-    const nuevo = esNuevo(), past = await mesAnteriorFeed();   // what the feed shows under it (pieza 3b)
-    if (!S) return { error: 'no hay mesa abierta' };
-    const cd = curCd(), cyc = iso => cycleOf(iso, cd);     // opts.month = a cycle of the board ('YYYY-MM' of its start)
-    // pinned posts (B8) first, as in the mesa; a pinned one of a later month keeps its place as a blank cell
-    const order = nuevo ? feedOrder() : S.slots.filter(vivo), pinned = new Set(nuevo ? pinsOf() : []), un = order.filter(s => !pinned.has(s.id));   // an older board's pinned posts, by their date
-    const mOf = s => cyc(s.date), inM = s => !only || mOf(s) === only, isLater = s => !!only && !!mOf(s) && mOf(s) > only;
-    const fresh = un.filter(inM);
-    const earlier = only ? un.filter(s => { const m = mOf(s); return m && m < only; }) : [];
-    const later = only ? un.filter(isLater).length : 0;
-    const lead = later % COLS, F = nuevo ? fillersOf() : 0;
-    const slotPost = (s, isNew) => ({ mesaIdx: order.indexOf(s) + (pinned.has(s.id) ? 0 : F), name: s.name, type: s.type, n: s.photos.length, date: s.date, isNew, planned: !isNew, pin: pinned.has(s.id) || (!nuevo && isPinned(s)), blob: s.photos.length ? M.thumbBlobs[s.photos[0]] : null, rect: s.photos.length && M.files[s.photos[0]] ? { g: gridRect(s.photos[0], s), f: M.files[s.photos[0]] } : null });
-    const pinPosts = order.filter(s => pinned.has(s.id)).map(s => isLater(s) ? { blank: true, mesaIdx: null } : slotPost(s, inM(s)));
-    const nuevas = fresh.length + order.filter(s => pinned.has(s.id) && !isLater(s) && inM(s)).length;
-    const posts = [
-      ...pinPosts,
-      ...Array.from({ length: F }, (_, k) => ({ blank: true, filler: true, mesaIdx: null, preview: previewAt(k) && M.thumbBlobs[previewAt(k)] })),
-      ...Array.from({ length: lead }, () => ({ blank: true, mesaIdx: null })),
-      ...fresh.map(s => slotPost(s, true)),
-      ...earlier.map(s => slotPost(s, false)),
-      ...past.map((p, j) => (p.fid
-        ? { mesaIdx: order.length + F + j, name: p.name, type: p.type, n: (p.photos || []).length, date: p.date, isNew: false, pin: !!p.pin, blob: M.thumbBlobs[p.fid] || null, rect: M.files[p.fid] ? { g: gridRect(p.fid, p.item, p.B), f: M.files[p.fid] } : null }
-        : { mesaIdx: order.length + F + j, name: p.name, type: p.type, date: p.date, isNew: false, blob: p.thumb ? (M.pastBlobs[p.thumb] || null) : null }))
-    ];
-    const N = pinPosts.length + F + lead + fresh.length;   // first cell below the line
-    // each drawn post in the same column as in the mesa, and in the mesa's order
-    const mismatches = []; let lastIdx = -1;
-    posts.forEach((p, i) => { if (p.mesaIdx == null) return; if ((p.mesaIdx - i) % COLS !== 0 || p.mesaIdx < lastIdx) mismatches.push(p.name); lastIdx = p.mesaIdx; });
-    const BLUE = '#0095f6';
-    const rows = Math.ceil(posts.length / COLS);
-    const H = HEADER + rows * TH + (rows - 1) * GAP + FOOT;
-    const c = document.createElement('canvas'); c.width = W; c.height = H;
-    const x = c.getContext('2d');
-    x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
-    x.textBaseline = 'alphabetic';
-    x.fillStyle = '#111'; x.font = `700 46px ${FONT}`; x.fillText(c0.handle || c0.name || '', 48, 92);
-    x.fillStyle = '#555'; x.font = `400 30px ${FONT}`; x.fillText('Propuesta de feed · ' + (only ? rangeLabel(only, 1, false, cd) : rangeLabel(S.month, S.span, false, cd)), 48, 140);
-    x.fillStyle = '#8a8a8a'; x.font = `400 24px ${FONT}`;
-    const planificadas = earlier.length + (only ? order.filter(s => pinned.has(s.id) && !isLater(s) && !inM(s)).length : 0);
-    const below = [planificadas ? `${planificadas} ya planificadas` : '', past.length ? `${past.length} de ${cd === 1 ? MONTHS[+prevMonth(S.month).slice(5) - 1] : rangeLabel(prevMonth(S.month), 1, true, cd)}` : ''].filter(Boolean).join(' + ');
-    x.fillText(`${nuevas} publicaciones nuevas${below ? ' + ' + below : ''} · vista del perfil (recorte 3:4)`, 48, 184);
-    if (earlier.length || past.length) {
-      x.fillStyle = BLUE; x.fillRect(48, 212, 44, 8);
-      x.fillStyle = '#8a8a8a'; x.font = `400 22px ${FONT}`; x.fillText(`Por encima de la franja: publicaciones nuevas · Debajo: ${earlier.length ? 'lo anterior' : 'ya publicado'}`, 104, 222);
-    }
-    const drawIcon = (svg, cx, cy, color) => new Promise(res => {
-      const im = new Image();
-      im.onload = () => { x.save(); x.shadowColor = 'rgba(0,0,0,.45)'; x.shadowBlur = 6; x.drawImage(im, cx - 16, cy - 16, 32, 32); x.restore(); res(); };
-      im.onerror = () => res();
-      im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg.replace('<svg ', `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" style="color:${color}" `).replace(/currentColor/g, color));
-    });
-    for (let i = 0; i < posts.length; i++) {
-      const p = posts[i];
-      const px = (i % COLS) * (TW + GAP), py = HEADER + Math.floor(i / COLS) * (TH + GAP);
-      if (p.blank) {
-        x.fillStyle = p.filler ? '#000' : '#efefef'; x.fillRect(px, py, TW, TH);
-        if (p.preview) {                   // the same proportions as .hfoto and .htag in the mesa
-          const bmp = await createImageBitmap(p.preview), k = Math.max(TW / bmp.width, TH / bmp.height), sw = TW / k, sh = TH / k;
-          x.imageSmoothingQuality = 'high';
-          x.drawImage(bmp, (bmp.width - sw) / 2, (bmp.height - sh) / 2, sw, sh, px, py, TW, TH);
-          bmp.close();
-          const fs = TW * .052, lbl = 'Preview · próximo mes';
-          x.font = `600 ${fs}px ${FONT}`;
-          const tw = x.measureText(lbl).width + 1.6 * fs, th = 1.9 * fs, tx = px + (TW - tw) / 2, ty = py + TH - TW * .09 - th;
-          x.fillStyle = 'rgba(0,0,0,.7)'; x.fillRect(tx, ty, tw, th);
-          x.fillStyle = '#fff'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(lbl, px + TW / 2, ty + th / 2);
-          x.textAlign = 'left'; x.textBaseline = 'alphabetic';
-        }
-        continue;
-      }
-      if (p.blob) {
-        const bmp = await createImageBitmap(p.blob);
-        const r = TW / TH, sr = bmp.width / bmp.height;
-        let sw, sh, sx, sy;
-        if (p.rect) { const k = bmp.width / p.rect.f.w; sx = p.rect.g.x * k; sy = p.rect.g.y * k; sw = p.rect.g.w * k; sh = p.rect.g.h * k; }
-        else if (sr > r) { sh = bmp.height; sw = sh * r; sx = (bmp.width - sw) / 2; sy = 0; } else { sw = bmp.width; sh = sw / r; sx = 0; sy = (bmp.height - sh) / 2; }
-        x.imageSmoothingQuality = 'high';
-        x.drawImage(bmp, sx, sy, sw, sh, px, py, TW, TH);
-        bmp.close();
-      } else {
-        x.fillStyle = '#efefef'; x.fillRect(px, py, TW, TH);
-        if (mode === 'annotated' || p.isNew || p.planned) {
-          x.fillStyle = '#9a9a9a'; x.font = `600 26px ${FONT}`; x.textAlign = 'center';
-          x.fillText(p.isNew || p.planned ? 'Pendiente' : 'Publicada', px + TW / 2, py + TH / 2);
-          x.textAlign = 'left';
-        }
-      }
-      if (p.pin) await drawIcon(ICON.pin, px + TW - 30, py + 30, p.blob ? '#fff' : '#9a9a9a');
-      else if (isReel(p.type)) await drawIcon(ICON.reel, px + TW - 30, py + 30, p.blob ? '#fff' : '#9a9a9a');
-      else if (typeIcon(p.type, p.n)) await drawIcon(ICON.carousel, px + TW - 30, py + 30, p.blob ? '#fff' : '#9a9a9a');
-      if (mode === 'annotated') {
-        const g = x.createLinearGradient(0, py + TH - 112, 0, py + TH);
-        g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.72)');
-        x.fillStyle = g; x.fillRect(px, py + TH - 112, TW, 112);
-        x.fillStyle = '#fff'; x.font = `600 22px ${FONT}`; x.fillText(p.name, px + 14, py + TH - 44, TW - 28);
-        x.font = `400 19px ${FONT}`; x.fillStyle = 'rgba(255,255,255,.9)'; x.fillText(fmtDate(p.date) + (p.isNew || p.planned ? '' : '  ·  publicada'), px + 14, py + TH - 16, TW - 28);
-      }
-    }
-    if (N > 0 && N < posts.length) {
-      const R = Math.floor(N / COLS), k = N % COLS;
-      const yRow = r => HEADER + r * (TH + GAP) - GAP / 2;
-      const xCol = cc => cc * (TW + GAP) - GAP / 2;
-      x.strokeStyle = BLUE; x.lineWidth = 12; x.lineCap = 'square';
-      x.beginPath();
-      if (k === 0) { x.moveTo(0, yRow(R)); x.lineTo(W, yRow(R)); }
-      else if ((R + 1) * COLS < posts.length) { x.moveTo(0, yRow(R + 1)); x.lineTo(xCol(k), yRow(R + 1)); x.lineTo(xCol(k), yRow(R)); x.lineTo(W, yRow(R)); }
-      else { x.moveTo(xCol(k), yRow(R + 1)); x.lineTo(xCol(k), yRow(R)); x.lineTo(W, yRow(R)); }
-      x.stroke();
-      // label on the first cell below the band, like the mesa's «Septiembre · publicado»
-      const lbl = earlier.length ? cycName(cyc(earlier[0].date), cd) + ' · planificado' : cycName(prevMonth(S.month), cd) + ' · publicado';
-      const lx = k * (TW + GAP) + 16, ly = HEADER + R * (TH + GAP) + 18;
-      x.font = `600 24px ${FONT}`; const tw = x.measureText(lbl).width;
-      x.fillStyle = BLUE; x.beginPath();
-      if (x.roundRect) x.roundRect(lx, ly, tw + 32, 44, 22); else x.rect(lx, ly, tw + 32, 44);
-      x.fill();
-      x.fillStyle = '#fff'; x.textBaseline = 'middle'; x.fillText(lbl, lx + 16, ly + 23); x.textBaseline = 'alphabetic';
-    }
-    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9));
-    M.out[mode] = blob; OUT_SLOTS[mode] = order.filter(s => !isLater(s)).map(s => s.id);
-    return { mode, month: only || null, width: W, height: H, kb: Math.round(blob.size / 1024), posts: posts.filter(p => !p.blank).length, fresh: nuevas, blankStart: lead, pinned: pinPosts.filter(p => !p.blank).length,
-      empty: posts.filter(p => p.isNew && !p.blob).map(p => p.name),
-      check: { ok: !mismatches.length, sameColumnsAsMesa: !mismatches.length, mismatches } };
-  };
-  M.uploadOut = async (mode, url, auth, filename) => {
-    const hv = S ? S.slots.filter(s => vivo(s) && (!OUT_SLOTS[mode] || OUT_SLOTS[mode].includes(s.id)) && huecosVacios(s)[0] === 1) : [];   // a cover in the image with an empty photo hole (D-035)
-    if (hv.length) return { http: 0, state: 'error', fileUploadId: null, err: `hueco de foto vacío en la portada de ${hv.map(s => s.name).join(', ')}: llénalo antes de subir la imagen` };
-    const fd = new FormData(); fd.append('file', M.out[mode], safeName(filename));
-    const r = await fetch(url, { method: 'POST', headers: { authorization: auth }, body: fd });
-    const t = await r.text(); let j = {}; try { j = JSON.parse(t); } catch (e) { /* */ }
-    return { http: r.status, state: j.status || 'error', fileUploadId: j.file_upload_id || null };
-  };
+  // The preview image of the feed (MESA.render, with uploadOut to put it in Notion) is gone (lot 4, D-361; Kevin, 24/11/2026,
+  // an exception to keeping window.MESA's names, as D-167): the client sees its feed in its web. M.out stays: the designer
+  // leaves its slide there (M.out.diseno).
 
   // ---------- pasar la mesa a otro Mac (exportar / importar a mano) ----------
   // One JSON file with the whole mesa: clients, every board, the photos they use and the previous-month thumbnails.
@@ -10139,8 +9925,8 @@ ${TK_FUENTES}
   // a board switch in progress (the designer refuses to open meanwhile: its board is about to go away)
   let switching = 0;
   estadoRaw = M.setEstado; cambiosRaw = M.notionChanges; planRaw = M.plan;
-  for (const k of ['plan', 'render', 'startUpload', 'startZernio', 'markUploaded', 'markSynced', 'setEstado', 'notionChanges']) { const f = M[k]; M[k] = (...a) => {   // a skill's calls (D-329): the same names and answers
-    const e = skillAntes(k, a); if (e) return k === 'render' ? Promise.resolve(e) : e;
+  for (const k of ['plan', 'startZernio', 'setEstado']) { const f = M[k]; M[k] = (...a) => {   // a skill's calls (D-329): the same names and answers (Notion's are off since lot 4, D-361)
+    const e = skillAntes(k, a); if (e) return e;
     const r = f(...a); skillToca(); return r; }; }
   for (const k of ['openClient', 'open', 'init']) { const f = M[k]; M[k] = async (...a) => {
     SKILL = null;                        // a month opened: a skill's concession ends (its next call starts it on its board, D-329)

@@ -9275,8 +9275,9 @@ ${TK_FUENTES}
   // «Importar…» of a .json: what it is doing, with «Cancelar» while nothing is written (D-364). Closing it any other way (Esc, a
   // click outside, another dialog) is «Cancelar». antes(): the confirmation comes, it is no longer ours; parada(): it stops
   function xferLeyendo() {
-    showDialog('xfer-read', '<h3>Importar la mesa</h3><p class="xprog" aria-live="polite">Leyendo el archivo…</p><div class="form"><div class="row"><button type="button" class="btn2 xleer" data-cp="parar">Cancelar</button></div></div>');
+    showDialog('xfer-read', '<h3 id="xr-t">Importar la mesa</h3><p class="xprog" aria-live="polite">Leyendo el archivo…</p><div class="form"><div class="row"><button type="button" class="btn2 xleer" data-cp="parar">Cancelar</button></div></div>');
     const d = root.querySelector('.detail'), b = d.querySelector('.xleer'); let pedido = false, fuera = false, mo = null;
+    d.querySelector('.card').setAttribute('aria-labelledby', 'xr-t');
     const soltar = () => { fuera = true; if (mo) mo.disconnect(); };
     const pedir = () => { if (fuera) return; pedido = true; if (b.isConnected) { b.disabled = true; b.textContent = 'Parando…'; } };
     b.addEventListener('click', pedir);
@@ -9404,8 +9405,9 @@ ${TK_FUENTES}
         const e = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate().catch(() => ({})) : {}, falta = P.copia.bytes;
         if (e.quota && e.usage != null && e.quota - e.usage < falta + 104857600) return fail(`No hay espacio en el navegador para la copia: necesita ${pesoTxt(falta)} y quedan ${pesoTxt(Math.max(0, e.quota - e.usage))}. Libera espacio en el disco. No se ha importado nada.`);
       }
-      if (shellReady()) showDialog('xfer-busy', d.copia ? '<h3>Importando la copia…</h3><p class="xprog" aria-live="polite">Guardando los archivos…</p><div class="form"><div class="row"><button type="button" class="btn2 xparar">Cancelar</button></div></div><p class="cp-porque" aria-live="polite"></p>'
-        : `<h3>Importando la mesa…</h3><p>Un momento: se están guardando los meses y las fotos.</p><div class="form"><div class="row"><button type="button" class="btn2" disabled>Cancelar</button></div></div><p class="cp-porque">${XFER_YA_NO}</p>`);
+      if (shellReady()) showDialog('xfer-busy', d.copia ? '<h3 id="xb-t">Importando la copia…</h3><p class="xprog" aria-live="polite">Guardando los archivos…</p><div class="form"><div class="row"><button type="button" class="btn2 xparar">Cancelar</button></div></div><p class="cp-porque" aria-live="polite"></p>'
+        : `<h3 id="xb-t">Importando la mesa…</h3><p>Un momento: se están guardando los meses y las fotos.</p><div class="form"><div class="row"><button type="button" class="btn2" disabled>Cancelar</button></div></div><p class="cp-porque" id="xb-porque">${XFER_YA_NO}</p>`);
+      if (shellReady()) { const c = root.querySelector('.detail .card'); c.setAttribute('aria-labelledby', 'xb-t'); if (!d.copia) c.setAttribute('aria-describedby', 'xb-porque'); }   // the reason of the disabled «Cancelar», read with the dialog
       const bP = d.copia && shellReady() && root.querySelector('.detail .xparar');
       let enRegistros = false;                    // the files are in: the records go together, nothing stops them now
       const yaNo = () => { if (!bP || !bP.isConnected) return; bP.disabled = true; const p = root.querySelector('.detail .cp-porque'); if (p && !p.textContent) p.textContent = XFER_YA_NO; };   // «Cancelar» off, saying why (D-364)

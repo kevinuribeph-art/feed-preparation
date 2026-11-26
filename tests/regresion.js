@@ -19636,7 +19636,7 @@
       [...d.querySelectorAll('.hoja .acc .btn')].find(b => /Pedir cambios/.test(b.textContent)).click();
       await hasta(() => d.querySelector('.dlg textarea'), 3000, 'el diálogo');
       await espera(250);
-      fxASangre(V, d, '.dlg'); fxDentro(V, d, '.dlg textarea'); fxDentro(V, d, '.dlg .fila');
+      fxASangre(V, d, '.dlg'); fxDentro(V, d, '.dlg textarea'); fxASangre(V, d, '.dlg .fila'); fxDentro(V, d, '.dlg .fila .btn:first-child'); fxDentro(V, d, '.dlg .fila .btn:last-child');
       d.documentElement.style.setProperty('--kb', '200px'); await espera(150);
       const dlg = d.querySelector('.dlg'), r = dlg.getBoundingClientRect();
       ok(r.top >= -0.5 && r.bottom <= V.innerHeight - 200 + 0.5, `con el teclado el diálogo se sale: ${Math.round(r.top)}–${Math.round(r.bottom)} de ${V.innerHeight - 200}`);
@@ -19712,6 +19712,172 @@
     ok(/etiqueta de trabajo.*«Horario»/.test(json(i)) && !/Notion/.test(json(i)), 'el error del porqué: ' + json(i));
     ok(/Notion está apagado/.test(json(await M.startUpload({}))), 'startUpload ya no dice que está apagado');
     ok(!/Notion/.test(q('.appbar').textContent + q('.bar').textContent + q('.side > .cal').textContent), 'la pantalla nombra Notion');
+  });
+
+  // ---------- arreglos de la revisión en frío del lote 1 (D-364, D-365, D-366) ----------
+  const fxSinAvisos = () => qa('.toasts > *').forEach(t => t.remove());
+  const fxBajar = () => qa('.detail[data-dlg="copia"] [data-cp="bajar"]');
+  // el portal, con «¿Qué cambiarías?» abierto sobre el carrusel (el caso más alto: con «Sobre la diapositiva»)
+  async function fxPedir(V, d) {
+    d.querySelector('.feed button').click();
+    await hasta(() => d.querySelector('.hoja .acc .btn'), 4000, 'la ficha'); await espera(250);
+    [...d.querySelectorAll('.hoja .acc .btn')].find(b => /Pedir cambios/.test(b.textContent)).click();
+    await hasta(() => d.querySelector('.dlg textarea'), 3000, 'el diálogo');
+    const ta = d.querySelector('.dlg textarea'); ta.value = 'La foto, un poco más clara'; ta.dispatchEvent(new V.Event('input', { bubbles: true })); await espera(200);
+    return d.querySelector('.dlg');
+  }
+
+  prueba('FX16', 'Portal con el teclado abierto en un iPhone tumbado (D-366): al pedir cambios, «Cancelar» y «Enviar» se ven y se pulsan sin deslizar, y lo que se escribe queda a la vista encima de ellos; de pie, como estaban', async () => {
+    for (const c of [{ w: 844, h: 390, kb: 160 }, { w: 667, h: 375, kb: 170 }]) {
+      await portalFalso({ w: c.w, h: c.h, tablas: fxPortal() }, async (V, d) => {
+        d.documentElement.style.setProperty('--sa-l', '47px'); d.documentElement.style.setProperty('--sa-r', '47px');
+        const dlg = await fxPedir(V, d);
+        // el teclado, como lo cuenta el iPhone: encoge lo que se ve y avisa
+        Object.defineProperty(V.visualViewport, 'height', { configurable: true, get: () => V.innerHeight - c.kb });
+        V.visualViewport.dispatchEvent(new V.Event('resize')); await espera(350);
+        igual(d.documentElement.style.getPropertyValue('--kb'), c.kb + 'px', 'el alto del teclado');
+        const r = dlg.getBoundingClientRect(), tope = V.innerHeight - c.kb, fila = dlg.querySelector('.fila').getBoundingClientRect(), donde = `${c.w}×${c.h}`;
+        for (const b of dlg.querySelectorAll('.fila .btn')) {
+          const x = b.getBoundingClientRect();
+          ok(x.top >= r.top - .5 && x.bottom <= Math.min(r.bottom, tope) + .5, `${donde}: «${b.textContent}» fuera de la vista: ${Math.round(x.top)}–${Math.round(x.bottom)}, el diálogo ${Math.round(r.top)}–${Math.round(r.bottom)}`);
+          const en = d.elementFromPoint(x.left + x.width / 2, x.top + x.height / 2); ok(en === b || b.contains(en), `${donde}: «${b.textContent}» tapado por ${en && en.className}`);
+        }
+        const ta = dlg.querySelector('textarea').getBoundingClientRect(), visto = Math.min(ta.bottom, fila.top) - Math.max(ta.top, r.top);
+        ok(visto >= 48, `${donde}: del campo se ven ${Math.round(visto)} px sobre los botones`);
+        fxDentro(V, d, '.dlg textarea', 47, 47);
+        const f2 = dlg.querySelector('.fila').getBoundingClientRect(); ok(f2.left <= .5 && f2.right >= V.innerWidth - .5, `${donde}: el fondo de los botones no llega a los lados`);
+      });
+    }
+    // con el teclado ya abierto (se venía escribiendo en la ficha): el campo, a la vista desde que sale
+    await portalFalso({ w: 844, h: 390, tablas: fxPortal() }, async (V, d) => {
+      d.documentElement.style.setProperty('--kb', '160px');
+      const dlg = await fxPedir(V, d), r = dlg.getBoundingClientRect(), fila = dlg.querySelector('.fila').getBoundingClientRect(), ta = dlg.querySelector('textarea').getBoundingClientRect();
+      const visto = Math.min(ta.bottom, fila.top) - Math.max(ta.top, r.top); ok(visto >= 48, `con el teclado ya abierto, del campo se ven ${Math.round(visto)} px`);
+    });
+    await portalFalso({ w: 390, h: 844, tablas: fxPortal() }, async (V, d) => {
+      const dlg = await fxPedir(V, d), r = dlg.getBoundingClientRect();
+      const env = [...dlg.querySelectorAll('.fila .btn')].pop().getBoundingClientRect(), ta = dlg.querySelector('textarea').getBoundingClientRect();
+      igual([Math.round(r.bottom - env.bottom), Math.round(env.top - ta.bottom)], [24, 12], 'de pie, los márgenes de abajo cambiaron');
+    });
+  });
+
+  prueba('FX17', '«Exportar» (D-364): cerrar a medias (×, Esc o fuera) lo dice como «Cancelar»; «Cancelar» no se mueve, devuelve el foco al símbolo y el segundo clic de un doble clic no cae debajo; el diálogo tiene nombre y «Lanzada» se oye', async () => {
+    await cpSembrar();
+    const L = fxLento(150);
+    try {
+      // 1. cerrado mientras lee
+      fxSinAvisos(); const p0 = M.copia.exportar(); M._in.closeDetail(); await p0; await espera(80);
+      ok(/Exportación cancelada: no se ha descargado nada/.test(fxToasts()), 'cerrado mientras leía, no lo dice: ' + fxToasts());
+      // 2. cerrado a medias: no «ha quedado 1 archivo»
+      fxSinAvisos(); const p1 = M.copia.exportar(); await hasta(() => /Preparando/.test(fxEstado()), 8000, 'que prepare'); M._in.closeDetail(); await p1; await espera(80);
+      ok(/Exportación cancelada/.test(fxToasts()) && !/sin descargar/.test(fxToasts()), 'cerrado a medias: ' + fxToasts());
+      // 3. «Cancelar», quieto desde el primer dibujo, con las filas y con el pie
+      M.copia._test.parteMax(60000);
+      const p2 = M.copia.exportar(), can = () => q('.detail[data-dlg="copia"] [data-cp="cancelar"]'), arriba = () => Math.round(can().getBoundingClientRect().top);
+      const t0 = arriba();
+      igual(q('.detail .card').getAttribute('aria-labelledby'), (q('.detail .card h3') || {}).id || 'sin id', 'el diálogo sin nombre');
+      await hasta(() => fxBajar().length > 3, 8000, 'las filas'); const t1 = arriba();
+      await hasta(() => fxBajar()[0] && !fxBajar()[0].disabled && /Preparando/.test(fxEstado()), 20000, 'una lista con otras preparándose');
+      await conDescarga(async cap => { fxBajar()[0].click(); await hasta(() => cap(), 3000, 'la descarga'); });
+      ok(/^Lanzada: /.test(fxBajar()[0].getAttribute('aria-label')), 'el nombre del botón no dice «Lanzada»: ' + fxBajar()[0].getAttribute('aria-label'));
+      ok(q('.detail .cp-pie').textContent.length > 0, 'sin el pie'); const t2 = arriba();
+      igual([t1, t2], [t0, t0], '«Cancelar» cambia de sitio');
+      fxSinAvisos(); can().click(); await p2; await espera(80);
+      ok(/Comprueba en el SSD lo que ya habías lanzado/.test(fxToasts()), 'el aviso al cancelar con algo lanzado: ' + fxToasts());
+      ok(W.document.activeElement && W.document.activeElement.matches('.appbar .brand'), 'el foco se pierde: ' + (W.document.activeElement || {}).tagName);
+      const frenado2 = tipo => { const ev = new W.MouseEvent(tipo, { bubbles: true, cancelable: true, detail: 2 }); q('.appbar').dispatchEvent(ev); return ev.defaultPrevented; };
+      ok(frenado2('mousedown') && frenado2('click'), 'el segundo clic del doble clic cae en lo de debajo (o se lleva el foco)');
+      await espera(750); ok(!frenado2('mousedown') && !frenado2('click'), 'un rato después, los dobles clics siguen sin pasar');
+    } finally { L.vuelve(); await cpFin(); }
+  });
+
+  prueba('FX18', '«Exportar» al acabar (D-364): si hay algo que revisar, la línea de arriba lo dice; con un solo hueco, en singular; si no sale ningún archivo no dice «Listo»; un cliente que falla tiene una sola fila', async () => {
+    await cpSembrar();
+    const rev = M.revisar, huecos = M._in.huecosVacios;
+    try {
+      const b = await M.init({ client: CLIENTE, clientName: NOMBRE, month: '2026-10', slots: [{ ...pub(1), id: 'x1' }], past: [], force: true }); ok(b && b.key, 'otro mes'); await M.flush();
+      await M.open(`${CLIENTE}-${MES}`); await espera(150);
+      M.revisar = async () => ({ key: M._in.S.key, puntos: [] }); M._in.huecosVacios = s => (s.id === 'x1' ? [1] : []);
+      await M.copia.exportar();
+      igual(fxEstado(), 'Listo: descarga cada archivo. Revisa lo de abajo.', 'la línea de estado');
+      ok(/Rellénalo en el editor antes de subir o programar esa publicación\./.test(q('.detail .cp-rev').textContent), 'un solo hueco, en plural: ' + q('.detail .cp-rev').textContent);
+      M._in.closeDetail(); await espera(80); M.revisar = rev; M._in.huecosVacios = huecos;
+      M.copia._test.parteMax(60000);
+      const sub = W.crypto.subtle, dig = sub.digest;
+      sub.digest = function (al, x) { return ArrayBuffer.isView(x) ? Promise.reject(new W.DOMException('a propósito', 'OperationError')) : dig.call(sub, al, x); };
+      try {
+        await M.copia.exportar();
+        igual(fxEstado(), 'No se ha podido preparar ningún archivo: pulsa «Reintentar».', 'con todo mal');
+        const porCliente = {}; qa('.detail[data-dlg="copia"] .cp-f').forEach(li => { porCliente[li.dataset.a] = (porCliente[li.dataset.a] || 0) + 1; });
+        ok(Object.values(porCliente).length >= 2 && Object.values(porCliente).every(n => n === 1), 'un cliente que falla repite filas: ' + json(porCliente));
+      } finally { sub.digest = dig; }
+    } finally { M.revisar = rev; M._in.huecosVacios = huecos; await cpFin(); }
+  });
+
+  prueba('FX19', 'Importar (D-364): pedir otra copia con una en marcha lo dice; «Importar la mesa» tiene nombre para el lector de pantalla', async () => {
+    await cpSembrar();
+    try {
+      const ar = await cpExportar();
+      const p1 = M.importData(cpArchivos(ar));
+      await hasta(() => q('.detail:not([hidden])[data-dlg="xfer-confirm"]'), 10000, 'la confirmación');
+      fxSinAvisos(); const r2 = await M.importData(cpArchivos(ar), { confirm: false }); await espera(80);
+      ok(r2 && r2.error && /ya se está importando/.test(fxToasts()), 'la segunda no dice nada: ' + json(r2) + ' · ' + fxToasts());
+      M._in.closeDetail(); await p1;
+      const j = await M.exportAll({ returnBlob: true });
+      const det = q('.detail'); let nombre = null;
+      const mo = new W.MutationObserver(() => { const c = det.dataset.dlg === 'xfer-read' && det.querySelector('.card'); if (c && nombre === null) nombre = (W.document.getElementById(c.getAttribute('aria-labelledby')) || {}).textContent || ''; });
+      mo.observe(det, { childList: true, subtree: true, attributes: true });
+      const p3 = M.importData(new W.File([j], 'copia.json', { type: 'application/json' }));
+      await hasta(() => q('.detail:not([hidden])[data-dlg="xfer-confirm"]'), 8000, 'la confirmación del .json'); mo.disconnect();
+      igual(nombre, 'Importar la mesa', '«Importar la mesa» sin nombre');
+      M._in.closeDetail(); await p3;
+    } finally { await cpFin(); }
+  });
+
+  prueba('FX20', 'iPhone (D-365): «Reintentar» que vuelve a fallar lo dice, y el aviso rojo no queda pegado a la conversación', async () => {
+    const key = await tableroMovil();
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key); let falla = false;
+      M.web.conversacion = async () => { if (falla) throw new TypeError('Failed to fetch'); return { porSlot: { r2: fxHilo('pid-fx20', 'un comentario') } }; };
+      M.web.leido = () => {};
+      try {
+        await irMovil(`#pub/${key}/r2`, '#movil .hilo');
+        falla = true; await irMovil(`#mes/${key}/lista`, '#movil .mesnav'); await irMovil(`#pub/${key}/r2`, '#movil [data-a="reconv"]');
+        const av = W.document.querySelector('#movil .resp-err.antes'), hilo = W.document.querySelector('#movil .hilo');
+        ok(av && hilo && hilo.getBoundingClientRect().top - av.getBoundingClientRect().bottom >= 8, 'el aviso, pegado a la conversación');
+        await espera(600); sinAviso();
+        clicCara('#movil [data-a="reconv"]');
+        await hasta(() => /No se pudo releer\./.test(avisoCara()), 4000, 'el aviso del reintento');
+      } finally { await C.fin(); }
+    });
+  });
+
+  prueba('FX21', 'iPhone, en una colab (D-365): contestar y pasar al otro cliente mientras se envía no borra el borrador del otro; y una lectura vieja que llega tarde no quita «Del cliente» de la publicación que se ve', async () => {
+    const keyA = await tableroMovil();
+    const rb = await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(2, 'Carrusel')], past: [], force: true });
+    ok(rb && rb.key, 'el mes del otro cliente'); const keyB = rb.key; await M.flush();
+    await enMovilPagina(async () => {
+      const C = await nubeCara(keyA), enviados = []; let lentoA = false;
+      const claves = ['mesa-movil-resp:pid-fx-a', 'mesa-movil-resp:pid-fx-b'];
+      M.web.leido = () => {};
+      M.web.conversacion = async B => { const deB = B.client === CLIENTE2; if (!deB && lentoA) await espera(1500); return { porSlot: { r2: { ...fxHilo(deB ? 'pid-fx-b' : 'pid-fx-a', deB ? 'hilo del segundo' : 'hilo del primero'), puedeEscribir: true } } }; };
+      M.web.contestar = async (B, slot, t) => { await espera(1200); enviados.push([B.client, t]); return { ok: true }; };
+      const escribe = t => { const x = W.document.querySelector('#movil [data-resp]'); ok(x, 'sin el campo de contestar'); x.value = t; x.dispatchEvent(new W.Event('input', { bubbles: true })); };
+      try {
+        claves.forEach(k => W.localStorage.removeItem(k));
+        await irMovil(`#pub/${keyB}/r2`, '#movil [data-resp]'); escribe('borrador para el segundo');
+        igual(W.localStorage.getItem(claves[1]), 'borrador para el segundo', 'el borrador no se guarda');
+        await irMovil(`#pub/${keyA}/r2`, '#movil [data-resp]'); await hasta(() => /hilo del primero/.test(fxTexto()), 4000, 'su hilo'); escribe('respuesta para el primero');
+        await hasta(() => !W.document.querySelector('#movil [data-a="contestar"]').disabled, 3000, '«Enviar»'); clicCara('#movil [data-a="contestar"]');
+        W.location.hash = `#pub/${keyB}/r2`;
+        await hasta(() => enviados.length === 1, 5000, 'el envío'); await espera(600);
+        igual([W.localStorage.getItem(claves[1]), W.localStorage.getItem(claves[0])], ['borrador para el segundo', null], 'los borradores tras enviar');
+        // la lectura del primero, lenta, llega cuando ya se ve la publicación del segundo
+        lentoA = true; W.location.hash = `#pub/${keyA}/r2`; await espera(250); W.location.hash = `#pub/${keyB}/r2`;
+        await espera(2000); M.movil.pintar(); await espera(150);
+        ok(/hilo del segundo/.test(fxTexto()) && !/hilo del primero/.test(fxTexto()), 'tras llegar la lectura vieja, «Del cliente» no es el de esta publicación');
+      } finally { claves.forEach(k => W.localStorage.removeItem(k)); await C.fin(); }
+    });
   });
 
   prueba('MV31', 'Las versiones de las dos páginas (lote 5, D-269): movil.html pide de lo que comparte con index.html la misma versión, y la de mesa.js es la de la Mesa (M.version), en las dos', async () => {

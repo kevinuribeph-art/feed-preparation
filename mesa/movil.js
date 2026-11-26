@@ -580,7 +580,7 @@
 #movil .resp .enviar:disabled{opacity:.45}
 #movil .resp .nota-r{flex-basis:100%;color:var(--mute);font-size:14px}
 #movil .resp{flex-wrap:wrap}
-#movil .resp-err{margin:8px var(--pad) 0;color:var(--red);font-size:14px}
+#movil .resp-err{margin:8px var(--pad) 0;color:var(--red);font-size:14px}#movil .resp-err.antes{margin-bottom:10px}
 #movil .solo-mac{margin:10px var(--pad) 0;font-size:14px;color:var(--mute)}
 #movil .op-a .btn:disabled{opacity:.5}
 #movil .op .vacia{color:var(--mute)}
@@ -1004,7 +1004,7 @@
     if ((RUTA.p === 'pub' || RUTA.p === 'mes') && RUTA.a === key) pintarSiQuieto();
   }
   const conv = () => (L.conv && L.vista && L.conv.key === L.vista.key ? L.conv : null);   // nunca la de otro tablero
-  async function relerConv() { const key = RUTA.a, B = await aqui(); if (B && B.key === key && RUTA.a === key) leerConv(key); }
+  async function relerConv() { const key = RUTA.a, B = await aqui(); if (B && B.key === key && RUTA.a === key) await leerConv(key); }
 
   // ---------- Hoy (D-180, D-212, D-236) ----------
   const GRUPOS = [['acuerdos', 'Acuerdos'], ['pasado', 'Se ha pasado'], ['hoy', 'Hoy'], ['espera', 'Esperando al cliente'], ['falta', 'Falta programar']];   // «Acuerdos», as the Mac's (D-288)
@@ -1266,7 +1266,7 @@
     const borr = lsG('mesa-movil-resp:' + c.pid) || '';
     const resp = c.puedeEscribir ? `<div class="resp"><textarea rows="1" data-resp="${esc(p.id)}" aria-label="${autor ? 'Contestar a ' + esc(autor) : 'Escribir al cliente'}" placeholder="${autor ? 'Contestar a ' + esc(autor) : 'Escribir al cliente'}" maxlength="2000"${sinRed() ? ' disabled' : ''}>${esc(borr)}</textarea><button type="button" class="enviar" data-a="contestar" aria-label="Enviar"${sinRed() || !borr.trim() ? ' disabled' : ''}>${ic('subir', 2.25)}</button></div>` : `<p class="solo-mac">Envía esta publicación a la web desde el escritorio para poder escribir aquí.</p>`;
     if (!items && !dec && !c.puedeEscribir) return '';
-    return `<section class="sec"><div class="sec-h"><h2>Del cliente${c.sinLeer ? ` <span class="n acc">${c.sinLeer} sin leer</span>` : ''}</h2>${C0.deAntes ? '<button type="button" class="lnk" data-a="reconv">Reintentar</button>' : ''}</div>${C0.deAntes ? '<p class="resp-err">No se pudo releer: esto es de antes.</p>' : ''}${dec}${items ? `<div class="hilo">${items}</div>` : ''}${resp}<p class="resp-err" data-resp-err hidden></p></section>`;
+    return `<section class="sec"><div class="sec-h"><h2>Del cliente${c.sinLeer ? ` <span class="n acc">${c.sinLeer} sin leer</span>` : ''}</h2>${C0.deAntes ? '<button type="button" class="lnk" data-a="reconv">Reintentar</button>' : ''}</div>${C0.deAntes ? '<p class="resp-err antes">No se pudo releer: esto es de antes.</p>' : ''}${dec}${items ? `<div class="hilo">${items}</div>` : ''}${resp}<p class="resp-err" data-resp-err hidden></p></section>`;
   }
 
   // ---------- captions (para leer; elegir y retocar, lote 4) ----------
@@ -1772,7 +1772,8 @@
       case 'filtro': FILTRO = FILTRO === b.dataset.k ? null : b.dataset.k; return pintar();
       case 'vertodo': VER_TODO[b.dataset.k] = true; return pintar();
       case 'reintentar': L.error = {}; L.hoy = L.clientes = L.tareas = null; return pintar();
-      case 'reconv': if (L.vista) relerConv(); return;
+      // a retry that fails again draws the same screen (nothing moves): the notice says it
+      case 'reconv': if (L.vista) relerConv().then(() => { const c = conv(); if (c && (c.deAntes || c.error)) aviso('No se pudo releer.', { error: true }); }); return;
       case 'dia': DIA_CAL = b.dataset.d; return pintar();
       case 'pubs': PUBS.abierta = !PUBS.abierta; return pintar();
       case 'plegar': ABIERTO[b.dataset.k] = !ABIERTO[b.dataset.k]; return pintar();
@@ -2264,8 +2265,9 @@
   C.contestar = async b => {
     const p = pAhora(), t = raiz.querySelector('[data-resp]'); if (!p || !t || !t.value.trim()) return;
     b.disabled = true; const err = raiz.querySelector('[data-resp-err]');
+    const c = comentariosDe(p.id), suyo = c && c.pid;   // whose draft, taken before sending: in a colab the other client's post has the same id
     const B = await aqui(); const r = B ? await M.web.contestar(B, p.id, t.value) : { error: 'Abre la publicación otra vez.' };
-    if (r && r.ok) { const c = comentariosDe(p.id); if (c) lsS('mesa-movil-resp:' + c.pid, null); t.value = ''; await leerConv(L.vista.key); pintar(); aviso('Enviado a su web.', { ok: true }); }
+    if (r && r.ok) { if (suyo) lsS('mesa-movil-resp:' + suyo, null); t.value = ''; await leerConv(L.vista.key); pintar(); aviso('Enviado a su web.', { ok: true }); }
     else { b.disabled = false; if (err) { err.hidden = false; err.textContent = (r && r.error) || 'No se pudo enviar.'; } }
   };
 

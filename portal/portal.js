@@ -824,7 +824,7 @@
     dlg._quitar = quitar;
     velo.addEventListener('click', quitar);
     enviar.addEventListener('click', async () => { const ok = await decidir(p, 'cambios', ta.value.trim(), tog && tog.getAttribute('aria-pressed') === 'true' ? st.abierta.slide : null, enviar); if (ok) { lsSet(clave, null); quitar(); } });
-    document.body.append(velo, dlg); ta.focus();
+    document.body.append(velo, dlg); ta.focus(); ta.scrollIntoView({ block: 'nearest' });   // también con el teclado ya abierto
   }
   // la cuenta, arriba de la columna de la derecha (en el móvil, arriba del todo, con «Volver») (D-295)
   function cuentaDe(cli) {
@@ -886,7 +886,17 @@
     if (st.abierta) cerrar();
   });
   if (S) S.alCambiar(u => { if (!u && st.d) pintarEntrada('correo', lsGet('portal-correo') || ''); });
-  if (window.visualViewport) { const vv = window.visualViewport, kb = () => document.documentElement.style.setProperty('--kb', Math.max(0, Math.round(innerHeight - vv.height - vv.offsetTop)) + 'px'); vv.addEventListener('resize', kb); vv.addEventListener('scroll', kb); }
+  // el teclado: su alto en --kb. Cuando cambia con un diálogo abierto, lo que se escribe se pone a la vista, sobre los botones
+  if (window.visualViewport) {
+    const vv = window.visualViewport; let antes = 0;
+    const kb = () => {
+      const alto = Math.max(0, Math.round(innerHeight - vv.height - vv.offsetTop));
+      document.documentElement.style.setProperty('--kb', alto + 'px');
+      if (alto === antes) return; antes = alto;
+      const a = document.activeElement; if (a && a.closest && a.closest('.dlg')) a.scrollIntoView({ block: 'nearest' });
+    };
+    vv.addEventListener('resize', kb); vv.addEventListener('scroll', kb);
+  }
   window.PORTAL = { version: V, _st: st, refrescar };
   arrancar();
 })();

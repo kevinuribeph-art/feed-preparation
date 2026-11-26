@@ -302,14 +302,14 @@
   }
   const nombreFila = (a, p) => a.nombre + (p && p.n > 1 ? `, parte ${p.i} de ${p.n}` : '');
   const boton = (a, p) => a.estado === 'fallo' ? { t: 'Reintentar', l: 'Preparar otra vez ' + a.nombre, on: true }
-    : { t: frenado(p) ? 'Lanzada' : p && p.hecho ? 'Otra vez' : 'Descargar', l: (p && p.hecho ? 'Descargar otra vez ' : 'Descargar ') + nombreFila(a, p), on: !!(p && p.blob), freno: frenado(p) };
+    : { t: frenado(p) ? 'Lanzada' : p && p.hecho ? 'Otra vez' : 'Descargar', l: (frenado(p) ? 'Lanzada: ' : p && p.hecho ? 'Descargar otra vez ' : 'Descargar ') + nombreFila(a, p), on: !!(p && p.blob), freno: frenado(p) };
   function filaHTML(a, p, j) {
     const e = estadoDe(a, p), b = boton(a, p);
     return `<li class="cp-f" data-a="${j}" data-p="${p.i}"><span class="cp-q"><span class="cp-n"><span class="cp-nm">${esc(a.nombre)}</span>${p.n > 1 ? `<span class="cp-pt">· parte ${p.i} de ${p.n}</span>` : ''}</span><span class="cp-s ${e.k}">${esc(e.t)}</span></span>`
       + `<button type="button" class="btn2${b.freno ? ' cp-freno' : ''}" data-cp="bajar"${b.on ? '' : ' disabled'}${b.freno ? ' aria-disabled="true"' : ''} aria-label="${esc(b.l)}">${b.t}</button></li>`;
   }
   // its rows: its parts once made; before, as many as it will have (previstas)
-  const partesDe = a => a.partes || Array.from({ length: a.previstas || 1 }, (_, i) => ({ i: i + 1, n: a.previstas || 1 }));
+  const partesDe = a => a.partes || (a.estado === 'fallo' ? [{ i: 1, n: 1 }] : Array.from({ length: a.previstas || 1 }, (_, i) => ({ i: i + 1, n: a.previstas || 1 })));
   const filasDe = (a, j) => partesDe(a).map(p => filaHTML(a, p, j)).join('');
   function pie(st) {
     const el = vivo(st) && st.dlg.querySelector('.cp-pie'); if (!el) return;
@@ -325,16 +325,22 @@
   function avance(st) {
     if (!vivo(st)) return;
     const A = st.ambitos || [], falta = !A.length || A.some(a => a.estado === 'cola' || a.estado === 'prep'), a = st.actual || A.find(x => x.estado === 'prep');
-    let t = 'Leyendo la Mesa…', pct = 0;
+    let t = 'Leyendo la Mesa…', cuantos = '', pct = 0;
     if (A.length) {
       const de = x => x.bytes || 1, total = A.reduce((s, x) => s + de(x), 0);
       pct = Math.floor(A.reduce((s, x) => s + (x.estado === 'listo' || x.estado === 'fallo' ? de(x) : x.estado === 'prep' ? de(x) * (x.pct || 0) / 100 : 0), 0) / total * 100);
-      if (falta && a) t = `Preparando ${a.nombre} · ${A.indexOf(a) + 1} de ${A.length}`;
-      else if (!falta) { const mal = A.filter(x => x.estado === 'fallo').length; t = mal ? `Listo, menos ${n_(mal)} que no se ${mal === 1 ? 'ha podido' : 'han podido'} preparar.` : 'Listo: descarga cada archivo.'; pct = 100; }
-      else return;
+      if (falta && a) { t = `Preparando ${a.nombre}`; cuantos = ` · ${A.indexOf(a) + 1} de ${A.length}`; }
+      else if (!falta) {
+        const mal = A.filter(x => x.estado === 'fallo').length;
+        t = mal === A.length ? 'No se ha podido preparar ningún archivo: pulsa «Reintentar».' : mal ? `Listo, menos ${n_(mal)} que no se ${mal === 1 ? 'ha podido' : 'han podido'} preparar.` : 'Listo: descarga cada archivo.';
+        if (st.rev && mal < A.length) t += ' Revisa lo de abajo.';   // what is under the rows may be out of sight, and this line is read out
+        pct = 100;
+      } else return;
     }
     const el = st.dlg.querySelector('.cp-estado'), bar = st.dlg.querySelector('.cp-barra'), can = st.dlg.querySelector('[data-cp="cancelar"]');
-    if (el.textContent !== t) el.textContent = t;
+    if (el.textContent !== t + cuantos) {   // a long name is cut short; «· N de M» never
+      el.replaceChildren(...[['cp-que', t], ['cp-cuantos', cuantos]].filter(x => x[1]).map(([c, x]) => { const s = document.createElement('span'); s.className = c; s.textContent = x; return s; }));
+    }
     bar.firstElementChild.style.transform = `scaleX(${pct / 100})`; bar.setAttribute('aria-valuenow', String(pct));
     const quita = !falta && !can.hidden, foco = quita && document.activeElement === can;
     can.hidden = !falta;
@@ -342,13 +348,13 @@
   }
   const vivo = st => !st.cerrado && st.dlg && st.dlg.isConnected && st.dlg.dataset.dlg === 'copia' && !!st.dlg.querySelector('.cp-l');
   function dibujar(st) {
-    I().showDialog('copia', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Exportar</h3>`
+    I().showDialog('copia', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3 id="cp-exp-t">Exportar</h3>`
       + '<p>Todo a su tamaño original: un .tar por cliente y uno general. Guárdalos juntos en el SSD: «Importar…» los lee a la vez.</p>'
-      + '<div class="cp-av"><p class="cp-estado" aria-live="polite">Leyendo la Mesa…</p><div class="cp-barra" role="progressbar" aria-label="Preparando la copia" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div></div>'
+      + '<div class="cp-av"><div class="cp-top"><p class="cp-estado" aria-live="polite"><span class="cp-que">Leyendo la Mesa…</span></p><button type="button" class="btn2" data-cp="cancelar">Cancelar</button></div><div class="cp-barra" role="progressbar" aria-label="Preparando la copia" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div></div>'
       + '<ul class="cp-l"></ul><p class="cp-pie" aria-live="polite"></p>'
-      + '<div class="cp-acc"><button type="button" class="btn2" data-cp="cancelar">Cancelar</button></div>'
       + '<section class="cp-rev" aria-label="Antes de subir o programar" hidden></section>');
     const d = I().root().querySelector('.detail'); st.dlg = d;
+    d.querySelector('.card').setAttribute('aria-labelledby', 'cp-exp-t');
     // on this dialog's card: the .detail stays for the next dialogs
     d.querySelector('.card').addEventListener('click', ev => {
       if (ev.target.closest('[data-cp="cancelar"]')) { cancelar(st); return; }
@@ -385,10 +391,20 @@
     pie(st); avance(st);
   }
   // «Cancelar» (D-364): stops preparing, lets go of what it had in memory and closes; what was already downloaded stays
+  const lanzado = st => (st.ambitos || []).some(a => (a.partes || []).some(p => p.hecho));
+  const textoCancelada = hubo => hubo ? 'Exportación cancelada. Comprueba en el SSD lo que ya habías lanzado.' : 'Exportación cancelada: no se ha descargado nada.';
   function cancelar(st) {
-    const lanzados = (st.ambitos || []).some(a => (a.partes || []).some(p => p.hecho));
+    const hubo = lanzado(st);
     cerrarExp(st, true); I().closeDetail();
-    I().toast(lanzados ? 'Exportación cancelada. Lo que ya has descargado se queda.' : 'Exportación cancelada: no se ha descargado nada.', { ms: 7000 });
+    tragarSegundoClic();
+    const b = I().root().querySelector('.appbar .brand'); if (b) b.focus({ preventScroll: true });   // where «Exportar…» came from
+    I().toast(textoCancelada(hubo), { ms: 7000 });
+  }
+  // the dialog goes with the first click: the second of a double click must not land on what was under it
+  function tragarSegundoClic() {
+    const traga = ev => { if (ev.detail >= 2) { ev.preventDefault(); ev.stopPropagation(); } }, T = ['mousedown', 'click', 'dblclick'];   // the press too: it would take the focus away
+    T.forEach(t => window.addEventListener(t, traga, true));
+    setTimeout(() => T.forEach(t => window.removeEventListener(t, traga, true)), 600);
   }
   function cerrarExp(st, sinAviso) {
     if (st.cerrado) return; st.cerrado = true; st.parar = true;
@@ -396,11 +412,14 @@
     if (EXP === st) EXP = null;
     const urls = st.urls.slice(); setTimeout(() => urls.forEach(u => URL.revokeObjectURL(u)), 30 * 60000);   // a download the app's dialog still holds keeps its file
     if (!st.suelto) { st.suelto = true; X().acabar(); }
-    // closed with files ready that never went: said, not lost in silence (they are made again in a moment)
+    // closed (×, Esc, a click outside) while still preparing: said as «Cancelar» says it; with everything made and files
+    // that never went, how many: not lost in silence (they are made again in a moment)
+    const aMedias = !st.ambitos || st.ambitos.some(a => a.estado === 'cola' || a.estado === 'prep'), hubo = lanzado(st);
     const faltan = (st.ambitos || []).flatMap(a => a.partes || []).filter(p => !p.hecho).length;
     (st.ambitos || []).forEach(a => (a.partes || []).forEach(p => { if (!p.hecho) p.blob = null; }));   // what never went is let go (D-364)
     st.ambitos = null; st.cache = null;
-    if (!sinAviso && faltan) I().toast(`${faltan === 1 ? 'Ha quedado 1 archivo' : `Han quedado ${n_(faltan)} archivos`} de la copia sin descargar: «Exportar…» los vuelve a preparar.`, { ms: 9000 });
+    if (!sinAviso && aMedias) I().toast(textoCancelada(hubo), { ms: 7000 });
+    else if (!sinAviso && faltan) I().toast(`${faltan === 1 ? 'Ha quedado 1 archivo' : `Han quedado ${n_(faltan)} archivos`} de la copia sin descargar: «Exportar…» los vuelve a preparar.`, { ms: 9000 });
   }
   // once made, what the light copy said after it (D-364): the review of the month open here (D-040) and the empty photo holes
   // of every other month (D-037). Here in the dialog, to read: opening a point would close the copy and it would be made again
@@ -425,8 +444,9 @@
       html += `<h4>${esc(nom(S.client))}, ${esc(I_.monthLabel(S.month).toLowerCase())}: ${cuenta}</h4><ul class="cp-rl">${grupos.map(g => `<li><b>${esc(g.post)}</b><ul>${g.ps.map(p => `<li${p.bloquea ? ' class="cp-bl"' : ''}>${p.diapositiva ? `Diapositiva ${p.diapositiva}: ` : ''}${esc(p.texto)}${p.bloquea ? ' <i>(bloquea)</i>' : ''}</li>`).join('')}</ul></li>`).join('')}</ul>`;
     }
     if (otros.length) html += `<h4>${otros.length === 1 ? 'Un hueco de foto vacío' : `Huecos de foto vacíos en ${n_(otros.length)} publicaciones`}${puntos.length ? ', en otros meses' : ''}</h4><ul class="cp-rl">${otros.map(h => `<li><b>${esc(h.post)}</b>: ${dia(h)} <span>· ${esc(nom(h.client))}, ${esc(I_.monthLabel(h.month).toLowerCase())}</span></li>`).join('')}</ul>`;
-    html += `<p class="cp-rvpie">La copia lleva todo tal cual. ${puntos.length ? 'Lo del mes abierto se abre con «Revisar» cuando acabes de descargar.' : 'Llénalos en el editor antes de subir o programar esas publicaciones.'}</p>`;
+    html += `<p class="cp-rvpie">La copia lleva todo tal cual. ${puntos.length ? 'Lo del mes abierto se abre con «Revisar» cuando acabes de descargar.' : otros.length === 1 ? 'Rellénalo en el editor antes de subir o programar esa publicación.' : 'Llénalos en el editor antes de subir o programar esas publicaciones.'}</p>`;
     const sec = st.dlg.querySelector('.cp-rev'); sec.innerHTML = html; sec.hidden = false;
+    st.rev = true; avance(st);
   }
 
   // ---------- «Importar…» of a copy ----------
@@ -443,7 +463,7 @@
   const nomAmb = m => m.ambito && m.ambito.tipo === 'general' ? 'General' : (m.ambito && (m.ambito.nombre || m.ambito.id)) || 'un cliente';
   let IMP = null;
   async function importar(files, opts = {}) {
-    if (IMP) return { error: 'Espera: ya se está importando una copia.' };
+    if (IMP) { const m = 'Espera: ya se está importando una copia.'; I().toast(m, { ms: 7000 }); return { error: m }; }
     const e = X().empezar('import'); if (e) { avisoImp(null, e); return { error: e }; }
     const st = IMP = { parar: false, suelto: false };
     const soltar = () => { if (!st.suelto) { st.suelto = true; X().acabar(); } };
@@ -618,10 +638,11 @@
 #mesa .cp-f .btn2.cp-freno,#mesa .cp-f .btn2.cp-freno:hover:not(:disabled):not(.on){border-color:var(--line);background:var(--panel-2);color:var(--mute);cursor:default;transform:none}
 #mesa .cp-f .btn2.cp-freno::before{content:'';flex:none;width:13px;height:13px;background:var(--ok);-webkit-mask:var(--i-check) center/contain no-repeat;mask:var(--i-check) center/contain no-repeat}
 #mesa .cp-av{margin:2px 0 8px}
-#mesa .card .cp-av>p.cp-estado{margin:0 0 6px;font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#mesa .cp-barra{height:4px;border-radius:var(--r-pill);background:var(--bg-2);overflow:hidden}
+#mesa .cp-top{display:flex;align-items:center;gap:12px;min-height:36px;margin-bottom:4px}#mesa .cp-top>.btn2{flex:none}#mesa .cp-top>[hidden]{display:none}
+#mesa .card .cp-top>p.cp-estado{flex:1;min-width:0;display:flex;margin:0;font-size:13px;font-weight:600;color:var(--ink);white-space:pre}
+#mesa .cp-que{min-width:0;overflow:hidden;text-overflow:ellipsis}#mesa .cp-cuantos{flex:none}
+#mesa .cp-barra{height:4px;border-radius:var(--r-pill);background:var(--line);overflow:hidden}
 #mesa .cp-barra>i{display:block;height:100%;border-radius:inherit;background:var(--acc);transform-origin:left center;transform:scaleX(0);transition:transform var(--d2) ease-out}
-#mesa .cp-acc{display:flex;justify-content:flex-end;margin-top:10px}#mesa .cp-acc>[hidden]{display:none}
 #mesa .cp-rev{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);font-size:13px;line-height:1.45;color:var(--ink-2)}#mesa .cp-rev[hidden]{display:none}
 #mesa .cp-rev h4{margin:0 0 6px;font-size:13px;font-weight:600;color:var(--ink)}
 #mesa .cp-rl{list-style:none;margin:0 0 10px;padding:0;max-height:min(22vh,180px);overflow:auto}#mesa .cp-rl>li{margin:0 0 4px}#mesa .cp-rl b{font-weight:600;color:var(--ink)}

@@ -284,6 +284,10 @@
   // and in the iPhone's «Hoy»: one of today, as it is); a note, none
   const marcaT = (k, hoy) => k.hecha || !k.fecha ? '' : k.tipo === 'sesion' ? (ultDia(k) < hoy ? 'pasado' : '') : k.tipo !== 'tarea' ? '' : k.fecha < hoy ? 'pasado' : k.fecha === hoy ? 'hoy' : k.fecha === addD(hoy, 1) ? 'man' : '';
   const mkCls = m => m ? ' pp-mk-' + m : '';
+  // a task's group (D-371), the same on the Mac's Lista and on the iPhone: gone past (not done, or done another day, as «Todas»
+  // shows it: struck in the group of its date) · today (a session going on today, and one done today) · tomorrow · later; a
+  // note or one without a date, apart
+  const grupoT = (k, hoy) => k.tipo === 'nota' || !k.fecha ? 'sinfecha' : ultDia(k) < hoy && !hechaHoy(k, hoy) ? 'pasado' : k.fecha <= hoy ? 'hoy' : k.fecha === addD(hoy, 1) ? 'man' : 'despues';
   function fila(c, D, Q, V, enV, hoy) {        // a client's block
     const X = I(), bs = D.boards.filter(b => b.client === c.id), cd = +c.cycleDay || 1;
     const m1 = X.cycleOfDay(V.a0, cd) || V.a0.slice(0, 7);
@@ -511,7 +515,14 @@
     // a session: as a task, with the clapperboard and its time (never tabular figures, D-175)
     const ses = k => k.tipo === 'sesion' ? (esReunion(k) ? `<span class="pp-tses" title="Reunión">${ICO.reunion}</span>` : `<span class="pp-tses" title="Sesión">${ICO.sesion}</span>`) : '';
     const hora = k => k.tipo === 'sesion' && k.hora ? ` · ${esc(k.hora)}` : '';
-    const linea = (k, fecha = true) => `<div class="pp-tk${k.hecha ? ' hecha' : ''}${k.tipo === 'sesion' ? ' ses' : ''}${mkCls(marcaT(k, hoy))}" data-tid="${esc(k.id)}">${ck(k)}${ses(k)}${mas(k, `<span class="pp-tt" ${ver(k)}>${esc(k.txt)}</span>`)}${k.tipo === 'sesion' ? '' : fotos(k)}${fecha && k.fecha ? `<span class="pp-tf${venc(k) ? ' rojo' : ''}">${k.tipo === 'sesion' && k.fin ? esc(tramo(k, diaTxt)) : diaTxt(k.fecha) + hora(k)}</span>` : !fecha && k.hora ? `<span class="pp-tf">${esc(k.hora)}</span>` : ''}${av(k)}</div>`;
+    // a row of the Lista as a row of Avisos (D-371): the client (its gap, without one) · its date only in «Se ha pasado» and «Más
+    // adelante», a session's or a meeting's time · the checkbox where the thumbnail goes · the text; «Sin fecha», without its date
+    const cuandoT = (k, g) => {
+      const h = k.tipo === 'sesion' && k.hora ? esc(k.hora) : '';
+      if (g === 'pasado' || g === 'despues') return `<span class="pp-tf${venc(k) ? ' rojo' : ''}">${esc(g === 'pasado' ? corto(ultDia(k)) : diaTxt(k.fecha))}${h ? '<br>' + h : ''}</span>`;
+      return `<span class="pp-tf">${k.fecha === (g === 'man' ? addD(hoy, 1) : hoy) ? h : ''}</span>`;
+    };
+    const linea = (k, g) => `<div class="pp-tk pp-tg${k.hecha ? ' hecha' : ''}${k.tipo === 'sesion' ? ' ses' : ''}${mkCls(marcaT(k, hoy))}" data-tid="${esc(k.id)}"${k.tipo === 'sesion' && k.fin ? ` title="${esc(tramo(k))}"` : ''}><span class="pp-avs"${clis(k).filter(cliOk).length > 1 ? ` title="${clis(k).filter(cliOk).map(nombreC).join(' · ')}"` : ''}>${clis(k).filter(cliOk).slice(0, 2).map(c => avatar(c, 'xs')).join('')}</span>${g ? cuandoT(k, g) : '<span class="pp-tf pp-tfv"></span>'}<span class="pp-tck">${ck(k)}</span><span class="pp-tx">${ses(k)}${mas(k, `<span class="pp-tt" ${ver(k)}>${esc(k.txt)}</span>`)}${k.tipo === 'sesion' ? '' : fotos(k)}</span></div>`;
     let celda = null;                          // the day being drawn (Semana): an overdue task from before says its date
     // a session of several days goes on: square corners where it continues, by its real days (D-231)
     const sigue = (k, d) => k.tipo === 'sesion' && d && enTramo(k, d) && ultDia(k) > k.fecha ? `${k.fecha < d ? ' sigue-i' : ''}${d < ultDia(k) ? ' sigue-d' : ''}` : '';
@@ -533,9 +544,17 @@
       // was done, within the scope. The overdue ones, always (D-180)
       const lf = l.filter(k => k.fecha && (venc(k) || (st.ttodas ? en(k.fecha) : ((!k.hecha && k.fecha <= r1 && ultDia(k) >= hoy) || (hechaHoy(k, hoy) && k.fecha <= r1))))).sort((a, b) => a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : String(a.hora || '').localeCompare(String(b.hora || '')) || String(a.creada).localeCompare(String(b.creada)));
       barra = `<span class="pp-tsw"><div class="seg pp-rg" role="group" aria-label="Hasta dónde">${Object.keys(RANGO).map(k => `<button type="button" class="${st.alcance === k ? 'on' : ''}" data-pp="alcance" data-r="${k}" aria-pressed="${st.alcance === k}" title="${RANGO[k][0]} atrás y adelante">${RANGO[k][1]}</button>`).join('')}</div>${sw}</span>`;
-      izq = lf.length ? `<div class="pp-lista">${lf.map(k => linea(k)).join('')}</div>` : `<p class="pp-orden">${l.some(k => k.fecha) ? 'Nada con fecha aquí' : 'Ninguna con fecha'}</p>`;
+      // in groups as Avisos (D-371): «Se ha pasado» (only if there is), «Hoy» with «Mañana» as its subtitle, «Más adelante» up to the
+      // scope; each says what is left to do. The group is the core's (grupoT), the iPhone's
+      const G = { pasado: [], hoy: [], man: [], despues: [] }; lf.forEach(k => (G[grupoT(k, hoy)] || G.despues).push(k));
+      const sinH = a => a.filter(k => !k.hecha).length, filas = (a, g) => a.map(k => linea(k, g)).join('');
+      const grupo = (c, t, n, cuerpo) => `<section class="pp-tgr" data-tg="${c}"><h3 class="pp-gt pp-tgt">${t}${n == null ? '' : ` <span>${n}</span>`}</h3><div class="pp-lista">${cuerpo}</div></section>`;
+      izq = (G.pasado.length ? grupo('pasado', 'Se ha pasado', sinH(G.pasado), filas(G.pasado, 'pasado')) : '')
+        + (G.hoy.length || G.man.length ? grupo('hoy', 'Hoy', G.hoy.length ? sinH(G.hoy) : null, (G.hoy.length ? filas(G.hoy, 'hoy') : '<p class="pp-nada">Nada para hoy</p>') + (G.man.length ? `<p class="pp-sub pp-tsub">Mañana <span>${sinH(G.man)}</span></p>${filas(G.man, 'man')}` : '')) : '')
+        + (G.despues.length ? grupo('despues', 'Más adelante', sinH(G.despues), filas(G.despues, 'despues')) : '')
+        || `<p class="pp-orden">${l.some(k => k.fecha) ? 'Nada con fecha aquí' : 'Ninguna con fecha'}</p>`;
       const sinV = l.filter(k => !k.fecha && (st.ttodas ? (!k.hecha || en(X.localDay(k.hecha))) : (!k.hecha || hechaHoy(k, hoy))));
-      if (sinV.length) der = `<div class="pp-sinf"><p class="pp-sub">Sin fecha <span>${sinV.filter(k => !k.hecha).length}</span></p><div class="pp-lista">${sinV.map(k => linea(k, false)).join('')}</div></div>`;
+      if (sinV.length) der = `<div class="pp-sinf"><p class="pp-sub">Sin fecha <span>${sinV.filter(k => !k.hecha).length}</span></p><div class="pp-lista">${sinV.map(k => linea(k, null)).join('')}</div></div>`;
     } else {
       const ver = k => st.ttodas || !k.hecha || hechaHoy(k, hoy);
       // today's cell also holds the overdue ones from before what is seen (those seen are on their own day)
@@ -741,11 +760,11 @@
   // What is left to do (also what went past) and what was done today, then what has no date and the notes: each with its group
   // by the same rules as the page's Lista (a session counts to its last day, D-218); the phone only draws it
   function listaMovil() {
-    const X = I(), hoy = X.hoy(), man = addD(hoy, 1), venc = k => !k.hecha && !!k.fecha && ultDia(k) < hoy;
+    const X = I(), hoy = X.hoy(), venc = k => !k.hecha && !!k.fecha && ultDia(k) < hoy;
     const l = [...enLista().filter(k => venc(k) || !k.hecha || hechaHoy(k, hoy)), ...notas()];
     const ORD = { pasado: 0, hoy: 1, man: 2, despues: 3, sinfecha: 4 };
     return l.map(k => {
-      const g = k.tipo === 'nota' || !k.fecha ? 'sinfecha' : venc(k) ? 'pasado' : k.fecha <= hoy ? 'hoy' : k.fecha === man ? 'man' : 'despues';
+      const g = grupoT(k, hoy);   // the core's rule, the Mac's too (D-371)
       const n = (k.subtareas || []).length;
       return { id: k.id, tipo: k.tipo, txt: String(k.txt || ''), fecha: k.fecha || null, hora: k.tipo === 'sesion' ? k.hora || '' : '', fin: k.fecha ? ultDia(k) : null,
         clientes: clis(k).filter(cliOk), hecha: k.hecha || null, venc: venc(k), grupo: g, marca: marcaT(k, hoy), detalles: String(k.detalles || ''), subtareas: n ? { n, hechas: k.subtareas.filter(x => x.hecha).length } : null,
@@ -1581,7 +1600,7 @@
     for (const L of [H.u, H.r]) { for (let i = L.length - 1; i >= 0; i--) { const paso = L[i]; if (sinId) for (let j = paso.length - 1; j >= 0; j--) if (paso[j].id === sinId) paso.splice(j, 1); if (!paso.length) { L.splice(i, 1); continue; } for (const p of paso) { if (p.antes) f(p.antes); if (p.despues) f(p.despues); } } }
   }
   const _p = {
-    EXT, TK, I, esc, ICO, st, avatar, avatarN, cliDe, clis, conCli, cliOk, esps, sesiones, tareas, notas, vivos, opcionesCli, diaHora, tramo, ultDia, marcaT, moverInicio, finOk, finNuevo, corto, fechaLarga, addD, dow, difD, acuerdoCuando, MESL,
+    EXT, TK, I, esc, ICO, st, avatar, avatarN, cliDe, clis, conCli, cliOk, esps, sesiones, tareas, notas, vivos, opcionesCli, diaHora, tramo, ultDia, marcaT, grupoT, moverInicio, finOk, finNuevo, corto, fechaLarga, addD, dow, difD, acuerdoCuando, MESL,
     hacer, cambiar, enmendar, escribir, deshacer, copia, hondo, nuevoId, ahoraISO, puede, borrar, marcar, rebajar, esImagen, verFoto, remapH, guardarCard, ampliar, colocarAmplia,
     pintar, refrescar, cargarTK, abrirCard, cerrarCard, quitarCard, pintarCard, editar, borrador, pedirFecha, comando, menuSesion, menuEsp,
     abrirMenu, cerrarMenu, ES, leerTxt, lsGet, lsSet, enCard, pocoMov, DBL, fotosURL, botonesCard, ponerCard, seleccionando, morfar,
@@ -1689,7 +1708,7 @@
 #mesa .pp-plg.fold .pp-fold::before{transform:rotate(-90deg)}
 #mesa .pp-fold b{font-size:var(--cx-tit-fs);font-weight:var(--cx-tit-fw);letter-spacing:var(--cx-tit-ls)}
 #mesa .pp-fold span{font-size:13px;color:var(--mute)}
-#mesa .pp-fold:hover{background:var(--bg-2)}#mesa .pp-tareas .pp-fold:hover{background:var(--bg-3)}
+#mesa .pp-fold:hover{background:var(--bg-2)}
 #mesa .pp-fold:active{transform:scale(.97)}
 #mesa .pp-pc{animation:pp-dentro var(--d-m) var(--ease-m)}
 @keyframes pp-dentro{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
@@ -1699,7 +1718,7 @@
 #mesa .pp-tabs > .pp-plg .pp-fold{height:39px;border-radius:var(--r-md) var(--r-md) 0 0;padding:0 14px 0 8px}
 #mesa .pp-tabs > .pp-plg .pp-fold:hover{background:var(--panel-2)}
 #mesa .pp-clientes{background:var(--panel);border-radius:var(--r-lg);padding:8px 8px 8px}
-#mesa .pp-tareas{background:var(--bg-2);border-radius:var(--r-lg);padding:8px 10px 10px}
+#mesa .pp-tareas{background:var(--panel);border-radius:var(--r-lg);padding:8px 10px 10px}   /* one tone with Avisos and Clientes (D-371) */
 #mesa .pp-avisos{background:var(--panel);border-radius:var(--r-lg);padding:8px 6px 10px}
 #mesa .pp-avisos .pp-phr{padding:0 4px}
 #mesa .pp-in.solo-rail .pp-grupos{columns:380px 4;column-gap:28px}
@@ -1807,7 +1826,7 @@
 #mesa .pp-tc{flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:32px;height:32px;padding:0;border:0;border-radius:var(--r-pill);background:none;font:inherit;cursor:pointer;transition:box-shadow var(--d1) var(--ease),background var(--d1) var(--ease)}
 #mesa .pp-tc.todos{padding:0 12px;font-size:12.5px;font-weight:600;color:var(--ink-2);background:var(--bg-3)}
 #mesa .pp-tc.todos:hover{color:var(--ink)}
-#mesa .pp-tc.on{box-shadow:0 0 0 2px var(--bg-2),0 0 0 4px var(--acc)}
+#mesa .pp-tc.on{box-shadow:0 0 0 2px var(--panel),0 0 0 4px var(--acc)}
 #mesa .pp-tc.todos.on{background:var(--panel-2);color:var(--ink)}
 #mesa .pp-tc:not(.on):hover .pp-ava{box-shadow:0 0 0 2px var(--line-strong)}
 #mesa .pp-tc:active{transform:scale(.97)}
@@ -1818,7 +1837,12 @@
 #mesa .pp-tv{display:block}
 #mesa .pp-tv.dos{display:grid;grid-template-columns:minmax(0,1fr) 268px;gap:10px;align-items:start}
 #mesa .pp-tk{display:flex;align-items:center;gap:10px;min-height:32px;padding:4px 10px;border-radius:var(--r-sm);font-size:13px}
-#mesa .pp-tk:hover{background:var(--bg-3)}
+#mesa .pp-tk:hover{background:var(--bg-3)}#mesa .pp-tareas .pp-tk:hover{background:var(--bg-2)}
+#mesa .pp-tk.pp-tg{display:grid;grid-template-columns:28px 42px 32px minmax(0,1fr);align-items:center;column-gap:10px;min-height:36px;padding:3px 10px}   /* a row of Avisos (D-371) */
+#mesa .pp-sinf .pp-tk.pp-tg{grid-template-columns:28px 32px minmax(0,1fr)}#mesa .pp-sinf .pp-tfv{display:none}
+#mesa .pp-tg .pp-tf{font-size:12.5px;line-height:1.25}#mesa .pp-tck{display:inline-flex;justify-content:center}
+#mesa .pp-tx{display:flex;align-items:center;gap:8px;min-width:0}#mesa .pp-tx > .pp-tt,#mesa .pp-tx > .pp-col{flex:1;min-width:0}
+#mesa .pp-tgr + .pp-tgr{margin-top:14px}#mesa .pp-tgr .pp-gt{padding:4px 10px 4px}
 #mesa .pp-tk.pp-mk-hoy{background:var(--chg-soft);box-shadow:inset 3px 0 0 var(--chg)}#mesa .pp-tk.pp-mk-hoy .pp-tf{color:var(--chg);font-weight:600}#mesa .pp-tk.pp-mk-man{box-shadow:inset 3px 0 0 var(--chg)}
 #mesa .pp-tk.pp-mk-pasado{background:var(--red-soft);box-shadow:inset 3px 0 0 var(--red)}   /* D-300: a task not done, as a post not scheduled */
 #mesa .pp-tk.pp-mk-hoy:hover{background:var(--chg-soft);box-shadow:inset 3px 0 0 var(--chg),inset 0 0 0 1px var(--chg)}#mesa .pp-tk.pp-mk-pasado:hover{background:var(--red-soft);box-shadow:inset 3px 0 0 var(--red),inset 0 0 0 1px var(--red)}
@@ -1828,9 +1852,8 @@
 #mesa .pp-ck:hover{box-shadow:inset 0 0 0 1.5px var(--ink)}
 #mesa .pp-ck:checked{background:var(--acc);box-shadow:none}
 #mesa .pp-ck:checked::before{content:'';position:absolute;inset:2.5px;background:var(--on-acc);-webkit-mask:var(--i-check) center/100% no-repeat;mask:var(--i-check) center/100% no-repeat}
-#mesa .pp-sinf{background:var(--bg-3);border-radius:var(--r-md);padding:2px 4px 6px}
-#mesa .pp-sinf .pp-sub{padding:8px 8px 2px}#mesa .pp-sinf .pp-sub span{color:var(--mute)}
-#mesa .pp-sinf .pp-tk:hover{background:var(--bg-2)}
+#mesa .pp-sinf{border-left:1px solid var(--line);padding:0 0 6px 10px}   /* its column, by a line (D-371) */
+#mesa .pp-sinf .pp-sub{padding:4px 10px 4px}#mesa .pp-sinf .pp-sub span{color:var(--mute)}
 #mesa .pp-tfo{position:relative;flex:none;display:inline-flex;width:28px;height:28px;padding:0;border:0;border-radius:var(--r-xs);overflow:hidden;background:none;box-shadow:inset 0 0 0 1px var(--line);cursor:zoom-in}
 #mesa .pp-tfo img{width:100%;height:100%;object-fit:cover;display:block}
 #mesa .pp-tfo b{position:absolute;right:1px;bottom:1px;min-width:13px;height:13px;padding:0 3px;border-radius:var(--r-pill);background:var(--photo-chip-2);color:var(--on-photo);font-size:9.5px;font-weight:600;line-height:13px;text-align:center}
@@ -1838,8 +1861,8 @@
 #mesa .pp-nueva .pp-tfo{width:24px;height:24px;cursor:default}
 #mesa .pp-drop{background:var(--acc-soft) !important;box-shadow:inset 0 0 0 1.5px var(--acc) !important}
 #mesa .pp-sem{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
-#mesa .pp-sd{display:flex;flex-direction:column;gap:4px;min-width:0;min-height:120px;padding:6px;border-radius:var(--r-sm);background:var(--panel)}
-#mesa .pp-sd.hoy{box-shadow:var(--cx-hoy)}#mesa .pp-sd.pas{background:var(--bg)}
+#mesa .pp-sd{display:flex;flex-direction:column;gap:4px;min-width:0;min-height:120px;padding:6px;border-radius:var(--r-sm);background:var(--cx-casilla)}
+#mesa .pp-sd.hoy{box-shadow:var(--cx-hoy)}#mesa .pp-sd.pas{background:none}
 #mesa .pp-sh{margin:0 0 2px;font-size:10.5px;color:var(--mute)}#mesa .pp-sh b{font-weight:400}#mesa .pp-sd.hoy .pp-sh{color:var(--ink);font-weight:600}#mesa .pp-sd.hoy .pp-sh b{font-weight:600}
 #mesa .pp-fi{display:flex;align-items:flex-start;gap:6px;padding:6px;border-radius:var(--r-xs);background:var(--panel-2);box-shadow:var(--shadow-xs);font-size:12px;line-height:1.3}
 #mesa .pp-fi.sigue-i,#mesa .pp-mt.sigue-i{border-top-left-radius:0;border-bottom-left-radius:0}#mesa .pp-fi.sigue-d,#mesa .pp-mt.sigue-d{border-top-right-radius:0;border-bottom-right-radius:0}
@@ -1849,10 +1872,10 @@
 #mesa .pp-fi.venc .pp-tt{color:var(--red)}#mesa .pp-fi.pp-mk-hoy{background:var(--chg-soft)}#mesa .pp-fi.pp-mk-pasado{background:var(--red-soft)}   /* D-300: in Semana and Mes, only the tint (the cell already says today) */
 #mesa .pp-mcab,#mesa .pp-mgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--cx-gap)}
 #mesa .pp-mcab span{font-size:10.5px;color:var(--cx-wk-c);padding:0 4px 4px}
-#mesa .pp-md{display:flex;flex-direction:column;gap:2px;min-width:0;min-height:68px;padding:4px;border-radius:var(--cx-r);background:var(--panel)}
+#mesa .pp-md{display:flex;flex-direction:column;gap:2px;min-width:0;min-height:68px;padding:4px;border-radius:var(--cx-r);background:var(--cx-casilla)}
 #mesa .pp-md.hoy{box-shadow:var(--cx-hoy)}#mesa .pp-md.fuera{background:none}
 #mesa .pp-sd:hover,#mesa .pp-md:hover,#mesa .pp-dia:hover{background:var(--cx-hov);transition:background-color var(--d1) var(--ease)}   /* each day under the mouse, as the date's calendar: in --d1, gone at once (D-313, A49-10) */
-#mesa .pp-sd:hover,#mesa .pp-md:hover,#mesa .pp-dia:hover{background:var(--bg-3)}   /* Semana and Mes sit on a card of --bg-2, --cx-hov's tone, and the strip on a block that turns --bg-2 under the mouse: one step deeper, or the day would melt into it (D-313) */
+#mesa .pp-dia:hover{background:var(--bg-3)}   /* the strip on a block that turns --bg-2 under the mouse: one step deeper (D-313); Semana and Mes, on the calendar's tones since D-371 */
 @media (prefers-reduced-motion:reduce){#mesa .pp-sd:hover,#mesa .pp-md:hover,#mesa .pp-dia:hover{transition:none}}
 #mesa .pp-mn{font-size:10.5px;color:var(--mute);line-height:1.2}#mesa .pp-md.hoy .pp-mn{color:var(--ink);font-weight:600}#mesa .pp-md.fuera .pp-mn{color:var(--cx-otro)}
 #mesa .pp-mt{display:block;min-width:0;padding:2px 5px;border-radius:var(--r-xs);background:var(--panel-2);box-shadow:var(--shadow-xs);font-size:11.5px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1982,7 +2005,7 @@
   #mesa .pp-top{flex-direction:column;align-items:stretch;gap:6px}#mesa .pp-periodo{padding:0 8px 6px}
   #mesa .pp-bgrid,#mesa .pp-bcab{grid-template-columns:minmax(0,1fr)}#mesa .pp-bcab > .pp-cab + .pp-cab{display:none}
   #mesa .pp-sem{grid-template-columns:repeat(4,minmax(0,1fr))}#mesa .pp-sd{min-height:84px}
-  #mesa .pp-tv.dos{grid-template-columns:minmax(0,1fr)}#mesa .pp-md{min-height:52px}#mesa .pp-mt{font-size:10.5px}
+  #mesa .pp-tv.dos{grid-template-columns:minmax(0,1fr)}#mesa .pp-sinf{border-left:0;border-top:1px solid var(--line);padding:6px 0 0}#mesa .pp-tk.pp-tg{column-gap:8px}#mesa .pp-sinf .pp-tk.pp-tg{grid-template-columns:28px 42px 32px minmax(0,1fr)}#mesa .pp-sinf .pp-tfv{display:block}#mesa .pp-md{min-height:52px}#mesa .pp-mt{font-size:10.5px}
   #mesa .pp-av{column-gap:8px}
   #mesa .pp-ov.amplia .pp-card{padding:28px 16px 32px}#mesa .pp-ov.amplia .pp-card.nota{padding:56px 20px 32px}#mesa .pp-card.amplia .pp-ch{padding-right:68px}#mesa .pp-card.amplia .pp-ch > .pp-cbs{top:30px;right:8px}
   #mesa .pp-card.amplia:not(.nota){grid-template-columns:minmax(0,1fr)}#mesa .pp-card.amplia > .pp-cs{grid-column:1;margin:14px 0 0 29px}

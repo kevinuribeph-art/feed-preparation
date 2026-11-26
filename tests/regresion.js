@@ -14323,7 +14323,7 @@
       q(`.pp-av[data-tid="${pas.id}"] .pp-ck`).click(); await espera(150); ok((await seRec(pas.id)).hecha, 'la casilla no la marca');
       // Lista, Semana y Mes
       await M.personal.set({ plg: { tareas: false, clientes: true, avisos: false }, vista: 'lista' }); await M.personal.render();
-      ok(q(`.pp-tk[data-tid="${hoy.id}"] .pp-tses`) && /hoy · 17:00/.test(q(`.pp-tk[data-tid="${hoy.id}"] .pp-tf`).textContent), 'Lista: sin icono u hora');
+      ok(q(`.pp-tk[data-tid="${hoy.id}"] .pp-tses`) && q(`.pp-tk[data-tid="${hoy.id}"] .pp-tf`).textContent.trim() === '17:00', 'Lista: sin icono u hora (D-371: en Hoy, la hora sola)');
       await M.personal.set({ vista: 'semana', tsem: 0 }); await M.personal.render();
       ok(q(`.pp-fi[data-tid="${man.id}"] .pp-tses`) && /10:30/.test(q(`.pp-fi[data-tid="${man.id}"]`).textContent), 'Semana: sin icono u hora');
       await M.personal.set({ vista: 'mes', tmes: 0 }); await M.personal.render();
@@ -14813,7 +14813,7 @@
       const av = qa(`.pp-av[data-tid="${s.id}"]`); igual(av.length, 1, 'la sesión no sale una vez en Avisos');
       ok(av[0] && av[0].textContent.includes(nom + ' · Estudio Norte'), 'Avisos sin los dos nombres: ' + (av[0] && av[0].textContent));
       const li = qa(`.pp-tk[data-tid="${s.id}"]`); igual(li.length, 1, 'la sesión no sale una vez en la Lista');
-      ok(li[0] && li[0].querySelector('.pp-avn') && /\+1/.test(li[0].querySelector('.pp-avn').textContent) && li[0].querySelectorAll('.pp-ava').length === 1, 'la Lista sin el avatar del primero con «+1»');
+      ok(li[0] && li[0].querySelectorAll('.pp-avs .pp-ava').length === 2 && li[0].querySelector('.pp-avs').title.includes(nom + ' · Estudio Norte'), 'la Lista, como Avisos (D-371): los dos avatares y sus nombres en el título');
       // el filtro: cada uno la ve; el bloque mensual sigue sin contarla
       ok(q(`.pp-tc[data-c="${CLIENTE}"]`) && q(`.pp-tc[data-c="${e.id}"]`), 'el filtro sin sus dos clientes');
       for (const c of [CLIENTE, e.id]) { await M.personal.set({ tcli: c }); await espera(40); igual(qa(`.pp-tk[data-tid="${s.id}"]`).length, 1, 'el filtro de ' + c + ' no la enseña'); }
@@ -14889,7 +14889,7 @@
       igual(qa(`.pp-fi[data-tid="${s.id}"]`).length, 2, 'Semana: no sale en cada día');
       await M.personal.set({ vista: 'mes', tmes: 0 }); await espera(60); igual(qa(`.pp-mt[data-tid="${s.id}"]`).length, 2, 'Mes: no sale en cada día');
       await M.personal.set({ vista: 'lista' }); await espera(60); const li = qa(`.pp-tk[data-tid="${s.id}"]`);
-      ok(li.length === 1 && /10:30 – .+ · 11:30/.test(li[0].querySelector('.pp-tf').textContent), 'Lista: no sale una vez con el intervalo: ' + (li[0] && li[0].textContent));
+      ok(li.length === 1 && li[0].querySelector('.pp-tf').textContent.trim() === '10:30' && /10:30 – .+ · 11:30/.test(li[0].title), 'Lista: no sale una vez, con su hora y el intervalo en su título (D-371): ' + (li[0] && li[0].textContent));
       // «Nueva sesión»: bajo «Fecha y hora»
       M.personal._p.EXT.sesion.nueva({ ctx: null, campo: 'nueva', desde: null }); await espera(80);
       ok(!q('.pp-ns-fin [data-ns="fin"]'), '«– Fin» sin fecha en «Nueva sesión»');
@@ -15189,6 +15189,113 @@
     if (!v) return null; const p = D.createElement('div'); p.style.setProperty(prop, v); (dentro || q('#mesa')).append(p); const c = W.getComputedStyle(p).getPropertyValue(prop); p.remove(); return c;
   }
   async function enTema(t, fn) { const h = D.documentElement, t0 = h.dataset.theme; if (t === 'dark') h.dataset.theme = 'dark'; else delete h.dataset.theme; try { await espera(400); return await fn(); } finally { if (t0) h.dataset.theme = t0; else delete h.dataset.theme; } }
+
+  // ---------- Ajustes de la 4.55, lote 3: Tareas con el formato de Avisos (D-371) ----------
+  const taSes = (id, o) => { const t = '2026-11-01T09:00:00.000Z'; return M._in.idbPut('tareas', id, { id, tipo: 'sesion', txt: o.txt, creada: t, at: t, clientes: o.clientes || [], fecha: o.fecha, ...(o.hora ? { hora: o.hora } : {}), ...(o.fin ? { fin: o.fin } : {}), sesion: { clase: o.clase || 'foto', visible: o.visible !== false, plantilla: 1, apartados: [] } }); };
+  const taAbrir = async (o = {}) => { await paginaAbierta(); await M.personal.set({ plg: { tareas: false, clientes: false, avisos: false }, vista: 'lista', alcance: '1m', ttodas: false, tcli: null, ...o }); await M.personal.render(); await espera(30); };
+  const taRegla = (re, el) => deRegla(re, 'background-color', el) || deRegla(re, 'background', el);
+  const taFila = id => q(`.pp-tareas .pp-tk[data-tid="${id}"]`);
+  // where a task is on the Mac's Lista: its group, «man» after Hoy's «Mañana», «sinfecha» in its column
+  const taDonde = id => { const r = taFila(id); if (!r) return null; if (r.closest('.pp-sinf')) return 'sinfecha'; const g = r.closest('.pp-tgr'); if (!g) return 'suelta'; const s = g.querySelector('.pp-tsub'); return g.dataset.tg === 'hoy' && s && (s.compareDocumentPosition(r) & 4) ? 'man' : g.dataset.tg; };
+
+  prueba('TA1', 'Tareas con el formato de Avisos (D-371): la Lista en grupos Se ha pasado (solo si hay) · Hoy con «Mañana» de subtítulo · Más adelante; cada fila con las columnas de una fila de Avisos (cliente · hora o fecha · la casilla en el sitio de la miniatura · el texto), fecha solo en Se ha pasado y Más adelante, la hora de una sesión o reunión; «Sin fecha» en su columna; los grupos, con la regla del núcleo que pinta el iPhone', async () => {
+    relojEn('2026-11-10T10:00:00+01:00');
+    try {
+      await tablero([pub(1, 'Foto', 20)]); await sinTareas();
+      const P = M.personal;
+      const pas = await P.tarea({ txt: 'Pasada', fecha: '2026-11-05', cliente: CLIENTE }), hoyT = await P.tarea({ txt: 'De hoy', fecha: '2026-11-10' });
+      const man = await P.tarea({ txt: 'De mañana', fecha: '2026-11-11', cliente: CLIENTE }), luego = await P.tarea({ txt: 'Más tarde', fecha: '2026-11-14' });
+      const sinf = await P.tarea({ txt: 'Sin día', cliente: CLIENTE }), hecha = await P.tarea({ txt: 'Hecha hoy', fecha: '2026-11-08' }); await P.hecha(hecha.id);
+      await taSes('ss-ta1a', { txt: 'Sesión de hoy', fecha: '2026-11-10', hora: '13:00', clientes: [CLIENTE] });
+      await taSes('ss-ta1b', { txt: 'Reunión de mañana', fecha: '2026-11-11', hora: '12:00', clase: 'reunion' });
+      await taSes('ss-ta1c', { txt: 'Sesión del lunes', fecha: '2026-11-16', hora: '09:30' });
+      await taAbrir();
+      const T = q('.pp-tareas'), g = c => T.querySelector(`.pp-tgr[data-tg="${c}"]`), cs = e => W.getComputedStyle(e);
+      igual([...T.querySelectorAll('.pp-tgr')].map(x => x.dataset.tg), ['pasado', 'hoy', 'despues'], 'los grupos de la Lista');
+      igual([...T.querySelectorAll('.pp-tgr .pp-tgt')].map(h => h.firstChild.textContent.trim()), ['Se ha pasado', 'Hoy', 'Más adelante'], 'sus títulos');
+      igual([...T.querySelectorAll('.pp-tgr .pp-tgt span')].map(s => s.textContent), ['1', '2', '2'], 'las cifras: lo que queda por hacer');
+      igual([...g('hoy').querySelectorAll('.pp-tk, .pp-tsub')].map(e => e.matches('.pp-tsub') ? '|' : e.dataset.tid), [hecha.id, hoyT.id, 'ss-ta1a', '|', man.id, 'ss-ta1b'], 'Hoy y, de subtítulo, Mañana');
+      ok(/^Mañana\s*2$/.test(g('hoy').querySelector('.pp-tsub').textContent.trim()), '«Mañana» y su cifra: ' + g('hoy').querySelector('.pp-tsub').textContent);
+      igual([...g('despues').querySelectorAll('.pp-tk')].map(e => e.dataset.tid), [luego.id, 'ss-ta1c'], 'Más adelante');
+      igual([...T.querySelectorAll('.pp-sinf .pp-tk')].map(e => e.dataset.tid), [sinf.id], '«Sin fecha», a la derecha');
+      // the columns of a row of Avisos: client · when · the checkbox where the thumbnail goes · the text
+      for (const id of [pas.id, hoyT.id, 'ss-ta1a', luego.id]) {
+        const f = taFila(id), k = [...f.children];
+        igual(cs(f).display, 'grid', id + ': la fila no es una rejilla');
+        igual(cs(f).gridTemplateColumns.split(' ').slice(0, 3), ['28px', '42px', '32px'], id + ': no son las columnas de Avisos');
+        ok(k.length === 4 && k[0].matches('.pp-avs') && k[1].matches('.pp-tf') && k[2].querySelector('.pp-ck') && k[3].querySelector('.pp-tt'), id + ': cliente · cuándo · casilla · texto: ' + k.map(x => x.className).join(' | '));
+      }
+      ok(taFila(pas.id).querySelector('.pp-avs .pp-ava') && !taFila(hoyT.id).querySelector('.pp-avs .pp-ava') && taFila(hoyT.id).querySelector('.pp-avs'), 'el cliente a la izquierda y, sin cliente, su hueco vacío');
+      const cu = id => taFila(id).querySelector('.pp-tf').textContent.trim();
+      ok(cu(pas.id) && taFila(pas.id).querySelector('.pp-tf.rojo'), 'Se ha pasado lleva su fecha en rojo: ' + cu(pas.id));
+      igual([cu(hoyT.id), cu(man.id), cu('ss-ta1a'), cu('ss-ta1b')], ['', '', '13:00', '12:00'], 'Hoy y Mañana: sin fecha; la sesión y la reunión, su hora');
+      igual(cu(luego.id), 'sáb 14', 'Más adelante lleva su fecha');
+      ok(/^lun 16\s*09:30$/.test(cu('ss-ta1c')), 'una sesión de Más adelante, fecha y hora: ' + cu('ss-ta1c'));
+      ok(taFila('ss-ta1b').querySelector('.pp-tses svg') && taFila('ss-ta1b').querySelector('.pp-tses').title === 'Reunión', 'la reunión, con su icono');
+      ok(taFila(hecha.id).classList.contains('hecha'), 'la hecha hoy, tachada');
+      ok(taFila(hoyT.id).classList.contains('pp-mk-hoy') && taFila(pas.id).classList.contains('pp-mk-pasado') && taFila(man.id).classList.contains('pp-mk-man'), 'las marcas ámbar y roja (D-300) siguen');
+      // the same groups as the iPhone's, from the core's one rule
+      const L = await M.personal.lista();
+      ok(typeof M.personal._p.grupoT === 'function', 'no hay una regla de grupos en el núcleo');
+      L.filter(x => x.tipo !== 'nota').forEach(x => igual(taDonde(x.id), x.grupo, `«${x.txt}»: en el Mac va en otro grupo que en el iPhone`));
+      // «Se ha pasado», only if there is something
+      await P.hecha(pas.id); await M.personal.render();
+      igual([...T.querySelectorAll('.pp-tgr')].map(x => x.dataset.tg), ['hoy', 'despues'], 'hecha la pasada, sin «Se ha pasado»');
+      igual(taDonde(pas.id), 'hoy', 'la pasada hecha hoy, tachada en Hoy (como el iPhone)');
+    } finally { paginaCerrada(); relojVuelve(); await sinTareas(); }
+  });
+
+  prueba('TA2', 'Tareas, un solo tono (D-371): Tareas, Avisos y Clientes con el mismo fondo (--panel) en claro y en oscuro y el de la página igual; «Sin fecha» sin caja de otro tono, separada por una línea; una fila al pasar un paso más honda que su fondo; el campo «Nueva tarea», el filtro y los días de Semana y Mes se distinguen del tono nuevo', async () => {
+    relojEn('2026-11-10T10:00:00+01:00');
+    try {
+      await tablero([pub(1, 'Foto', 20)]); await sinTareas();
+      await M.personal.tarea({ txt: 'De hoy', fecha: '2026-11-10', cliente: CLIENTE }); await M.personal.tarea({ txt: 'Sin día' });
+      await taAbrir();
+      const cs = e => W.getComputedStyle(e), bg = e => rgbDe(cs(e).backgroundColor).join(), T = q('.pp-tareas');
+      for (const t of ['light', 'dark']) await enTema(t, async () => {
+        const fondo = rgbDe(W.getComputedStyle(q('#mesa')).getPropertyValue('--panel').trim()).join();
+        igual([bg(T), bg(q('.pp-avisos')), bg(q('.pp-clientes'))], [fondo, fondo, fondo], `${t}: Tareas, Avisos y Clientes no van en --panel`);
+        igual(cs(q('.pp-sinf')).backgroundColor, 'rgba(0, 0, 0, 0)', `${t}: «Sin fecha» lleva caja`);
+        ok(parseFloat(cs(q('.pp-sinf')).borderLeftWidth) >= 1, `${t}: «Sin fecha» sin su línea`);
+        const hov = taRegla(/\.pp-tareas \.pp-tk:hover/, T);
+        ok(hov && rgbDe(hov).join() !== fondo, `${t}: al pasar, la fila se funde con su fondo: ${hov}`);
+        ok(bg(q('.pp-nueva')) !== fondo || parseFloat(cs(q('.pp-nueva')).borderTopWidth) >= 1, `${t}: «Nueva tarea» se funde`);
+        const anillo = deRegla(/\.pp-tc\.on$/, 'box-shadow', T); ok(anillo && anillo.includes(cs(T).backgroundColor), `${t}: el aro del filtro no deja el hueco del tono nuevo: ${anillo}`);
+      });
+      await M.personal.set({ vista: 'semana' }); await M.personal.render();
+      for (const t of ['light', 'dark']) await enTema(t, async () => {
+        const fondo = bg(T), d = q('.pp-sd:not(.pas)'); ok(d && bg(d) !== fondo, `${t}: los días de Semana se funden con Tareas`);
+        const hov = taRegla(/\.pp-sd:hover/, T); ok(hov && rgbDe(hov).join() !== bg(d) && rgbDe(hov).join() !== fondo, `${t}: el día al pasar: ${hov}`);
+      });
+      await M.personal.set({ vista: 'mes' }); await M.personal.render();
+      for (const t of ['light', 'dark']) await enTema(t, async () => { const d = q('.pp-md:not(.fuera)'); ok(d && bg(d) !== bg(T), `${t}: los días de Mes se funden con Tareas`); });
+    } finally { paginaCerrada(); relojVuelve(); await sinTareas(); }
+  });
+
+  prueba('TA3', 'Tareas, alcance y «Todas» con los grupos (D-371): «Más adelante» llega hasta el alcance; con «Todas», lo hecho sale tachado en el grupo de su fecha; sin nada hoy y algo mañana, «Nada para hoy»; el filtro por cliente deja los grupos', async () => {
+    relojEn('2026-11-10T10:00:00+01:00');
+    try {
+      await tablero([pub(1, 'Foto', 20)]); await sinTareas();
+      const P = M.personal;
+      const man = await P.tarea({ txt: 'Mañana', fecha: '2026-11-11', cliente: CLIENTE }), sem = await P.tarea({ txt: 'Dentro de una semana', fecha: '2026-11-15' });
+      const lejos = await P.tarea({ txt: 'En enero', fecha: '2027-01-05' }), vieja = await P.tarea({ txt: 'Hecha en octubre', fecha: '2026-10-20' });
+      relojEn('2026-10-20T10:00:00+02:00'); await P.hecha(vieja.id); relojEn('2026-11-10T10:00:00+01:00');
+      await taAbrir();
+      const T = q('.pp-tareas');
+      ok(/Nada para hoy/.test(T.querySelector('.pp-tgr[data-tg="hoy"]').textContent), 'sin nada hoy y algo mañana, «Nada para hoy»');
+      igual(taDonde(man.id), 'man', 'mañana, bajo «Mañana»');
+      igual([taDonde(sem.id), taDonde(lejos.id), taDonde(vieja.id)], ['despues', null, null], '1M: lo de enero y lo hecho en octubre no salen');
+      await M.personal.set({ alcance: '3m' }); await M.personal.render();
+      igual(taDonde(lejos.id), 'despues', '3M: «Más adelante» llega a enero');
+      await M.personal.set({ ttodas: true }); await M.personal.render();
+      igual(taDonde(vieja.id), 'pasado', '«Todas»: lo hecho en octubre, en el grupo de su fecha');
+      ok(taFila(vieja.id).classList.contains('hecha') && !taFila(vieja.id).querySelector('.pp-tf.rojo'), 'tachada y sin rojo');
+      igual(T.querySelector('.pp-tgr[data-tg="pasado"] .pp-tgt span').textContent, '0', 'Se ha pasado no cuenta lo hecho');
+      await M.personal.set({ ttodas: false, tcli: CLIENTE }); await M.personal.render();
+      igual([...T.querySelectorAll('.pp-tgr')].map(x => x.dataset.tg), ['hoy'], 'con el filtro de un cliente, sus grupos');
+      igual(taDonde(man.id), 'man', 'filtrado, «Mañana» sigue');
+    } finally { paginaCerrada(); relojVuelve(); await sinTareas(); }
+  });
 
   prueba('AV1', 'Hoy, más marcado (D-222): en Avisos, cada fila de hoy que no está Programada ni Publicada (reels también) va tintada en --chg-soft con su franja de 3 px y la hora y el estado en --chg a 600; al pasar conserva su tinte sin bajar de 4,5:1, en claro y en oscuro (D-300); «Mañana» y lo programado, como estaban (D-190); una tarea de hoy sin hacer, como una publicación (D-300)', async () => {
     relojEn('2026-11-01T10:00:00+01:00');
@@ -22638,7 +22745,7 @@
     // la página personal: la tira de días de cada cliente, Semana y Mes de Tareas
     const rp = reglasDe(/\.pp-(sd|md|dia):hover/), fondo = r => r.style.getPropertyValue('background') || r.style.getPropertyValue('background-color');
     ok(['sd', 'md', 'dia'].every(k => rp.some(r => new RegExp(`\\.pp-${k}:hover`).test(r.selectorText) && /background-color/.test(r.style.getPropertyValue('transition')) && /--d1/.test(r.style.getPropertyValue('transition')))), 'la página personal: un día sin aparecer con --d1');
-    ok(['sd', 'md', 'dia'].every(k => rp.some(r => new RegExp(`\\.pp-${k}:hover`).test(r.selectorText) && /--bg-3/.test(fondo(r)))), 'la página personal: un día sin su tono propio (va sobre un fondo del tono de --cx-hov: la tarjeta de Tareas, el bloque al pasar)');
+    ok(rp.some(r => /\.pp-dia:hover/.test(r.selectorText) && /--bg-3/.test(fondo(r))) && ['sd', 'md'].every(k => rp.some(r => new RegExp(`\\.pp-${k}:hover`).test(r.selectorText) && /--cx-hov/.test(fondo(r))) && !rp.some(r => new RegExp(`\\.pp-${k}:hover`).test(r.selectorText) && /--bg-3/.test(fondo(r)))), 'la página personal: la tira al pasar sobre su bloque, --bg-3; Semana y Mes, sobre Tareas en --panel desde D-371, --cx-hov como el calendario');
     ok(reglasReduce(/\.pp-(sd|md|dia):hover/).some(r => r.style.transition === 'none' && ['sd', 'md', 'dia'].every(k => new RegExp(`\\.pp-${k}:hover`).test(r.selectorText))), 'la página personal con «reducir movimiento» sigue animando');
     await paginaAbierta();
     try {

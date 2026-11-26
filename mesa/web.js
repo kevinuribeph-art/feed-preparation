@@ -5,7 +5,7 @@
 (function webBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
-  const VERSION = '1.10';   // 1.10: «Web al día» / «Web: N cambios» abre la lista de lo que el cliente verá distinto, con «Enviar»; lo enviado se apunta campo a campo y, lo de antes, se toma del servidor (D-355). 1.9: what was read of each month of the open client is kept while the active month changes (feed continuo, D-317); an older board's pinned posts go by their date (D-327). 1.8: un cliente de solo contenido se envía por cliente, desde su página: todas sus sesiones y su huella por cliente (D-312). 1.7: el acuerdo de hoy de cuándo a cuándo, si se renueva, su paquete y lo que incluye (D-308). 1.6: el enlace de métricas (D-294); el acuerdo, el tramo de cada factura, la reunión con el ojo abierto y las entregas de un cliente de solo contenido (D-297); M.web.hilo, lo ya leído de una publicación para su ventana en la «Vista cliente» (D-295). 1.5: la cuota solo si paga cada mes y cada factura por su primer mes (D-288); una reunión no se envía (D-291). 1.4: en el iPhone (D-267) no arranca solo; conversacion(B), contestar(B, slot, texto) y leido(pid, hora) para su cara, nunca estadoWeb ni lecturas (R2); «desde el escritorio». 1.3: con la entrada de la Mesa (D-262) no hay código por correo aquí: sin sesión, la Mesa vuelve a su entrada
+  const VERSION = '1.11';   // 1.11: its web in the indicator beside «Calendario»: a row per post whose content changes and «El orden del feed» in one line, «Entrar», «Salir» or «Reintentar»; the client's comments and a change of theirs not applied stay until the post is opened; the print of the rest in «enviados» (D-372). 1.10: «Web al día» / «Web: N cambios» abre la lista de lo que el cliente verá distinto, con «Enviar»; lo enviado se apunta campo a campo y, lo de antes, se toma del servidor (D-355). 1.9: what was read of each month of the open client is kept while the active month changes (feed continuo, D-317); an older board's pinned posts go by their date (D-327). 1.8: un cliente de solo contenido se envía por cliente, desde su página: todas sus sesiones y su huella por cliente (D-312). 1.7: el acuerdo de hoy de cuándo a cuándo, si se renueva, su paquete y lo que incluye (D-308). 1.6: el enlace de métricas (D-294); el acuerdo, el tramo de cada factura, la reunión con el ojo abierto y las entregas de un cliente de solo contenido (D-297); M.web.hilo, lo ya leído de una publicación para su ventana en la «Vista cliente» (D-295). 1.5: la cuota solo si paga cada mes y cada factura por su primer mes (D-288); una reunión no se envía (D-291). 1.4: en el iPhone (D-267) no arranca solo; conversacion(B), contestar(B, slot, texto) y leido(pid, hora) para su cara, nunca estadoWeb ni lecturas (R2); «desde el escritorio». 1.3: con la entrada de la Mesa (D-262) no hay código por correo aquí: sin sesión, la Mesa vuelve a su entrada
   const I = () => M._in;
   if (M.web && M.web._off) { try { M.web._off(); } catch (e) { /* una versión anterior ya no está */ } }
   const OFF = [];
@@ -171,16 +171,17 @@
   }
 
   // ---------- Estado de la barra ----------
-  const st = { clave: '', cliente: '', servidor: null, cambios: null, enviando: null, error: '', dueno: null, firma: '', leyendo: null, extra: null, extraT: 0 };
+  const st = { clave: '', cliente: '', servidor: null, cambios: null, lista: null, enviando: null, error: '', dueno: null, firma: '', leyendo: null, extra: null, extraT: 0 };
   // what was counted of each month of the open client in this tab (feed continuo, pieza 2): going back to a month already seen asks
   // the server nothing (its conversation is in conv); another client, the tab coming back into view or a new session read again
   const visto = new Map();
   function aOtroMes(B) {
-    if (st.clave && st.cliente === B.client) visto.set(st.clave, { servidor: st.servidor, cambios: st.cambios, firma: st.firma, extra: st.extra, extraT: st.extraT });
+    if (st.clave && st.cliente === B.client) visto.set(st.clave, { servidor: st.servidor, cambios: st.cambios, lista: st.lista, firma: st.firma, extra: st.extra, extraT: st.extraT });
     if (st.cliente !== B.client) visto.clear();
     const v = visto.get(B.key);
     st.clave = B.key; st.cliente = B.client;
-    if (v && v.servidor) Object.assign(st, v); else { st.servidor = null; st.cambios = null; st.firma = ''; st.extra = null; }
+    if (v && v.servidor) Object.assign(st, v); else { st.servidor = null; st.cambios = null; st.lista = null; st.firma = ''; st.extra = null; }
+    Promise.resolve().then(() => { const X = I(); if (X && X.renderBar) X.renderBar(); });   // the indicator follows the month it comes back to (it kept the other's)
     if (!conv.has(B.key)) leerConversacion().catch(() => null);
   }
   const IMG = new Map();   // «pid|firma de sus fotos» → sus imágenes ya enviadas en esta pestaña: un cambio de caption no las rehace
@@ -202,7 +203,18 @@
   }
   // Lo que no es una publicación (cliente, sesiones, porqué y resumen, cobros) cuenta como un cambio si no es lo último
   // que se envió desde aquí (su huella, por proyecto y tablero).
+  // Since the 4.58 (D-372) it lives in 'enviados', with what was sent: it goes with the cloud and another Mac doesn't count a change
+  // of more. The one of before, in this browser's localStorage, is taken once as it is (and left there).
   const claveHuella = B => { const c = sb(); return 'mesa-web-huella:' + (c ? c._url : '') + ':' + B.key; };
+  // It goes to the store only if it is what there is now (an older one, of a send another Mac made later, would show a change there
+  // that isn't), and with an old date: a real send wins over it in a copy or the cloud (revisión del lote 3)
+  async function huellaVista(B, ahora) {
+    const X = I(), c = sb(), url = c ? c._url : '';
+    if (X.envLeer) await X.envLeer().catch(() => null);
+    let h = X.envHuella ? X.envHuella(B, url) : null;
+    if (h == null) { const v = lsG(claveHuella(B)); if (v && /^[0-9a-f]{64}$/.test(v)) { h = v; if (v === ahora && !X.locked && !MOVIL && X.envHuellaPoner) await X.envHuellaPoner(B, url, v, '2000-01-01T00:00:00.000Z').catch(() => 0); } }
+    return h;
+  }
   const huellaExtra = P => sha(JSON.stringify([P.cliente, P.sesiones, P.meses, P.mesesQuitar, P.pagos, P.entregas || []]));
   async function repaso(todo) {
     const X = I(), B = tablero(), c = sb();
@@ -221,7 +233,7 @@
         st.extraT = Date.now();
         const P = await paquete(B); if (tablero() !== B) return;
         if (P.error) throw new Error(P.error);   // sin poder leer, nunca «al día» (revisión del lote B)
-        const e = (await huellaExtra(P)) === lsG(claveHuella(B)) ? 0 : 1;
+        const hx = await huellaExtra(P), e = hx === (await huellaVista(B, hx)) ? 0 : 1; if (tablero() !== B) return;
         if (e !== st.extra) { st.extra = e; st.firma = ''; }
       }
       const errorAntes = st.error; st.error = '';
@@ -230,8 +242,8 @@
       await aprender(B, pubs, st.servidor); if (tablero() !== B) return;
       linea();   // «Aún no está en la web», ahora que se sabe, después de apuntar lo enviado antes (D-355)
       st.firma = firma;
-      const n = pubs.filter(p => !igual(p, st.servidor.get(p.pid))).length + sobran.length + st.extra;
-      if (n !== st.cambios || errorAntes) { st.cambios = n; X.renderBar(); }
+      const L = listaDe(B, pubs, st.servidor, sobran), n = L.length, h = L.map(x => x.html).join('');
+      if (n !== st.cambios || errorAntes || h !== (st.lista || []).map(x => x.html).join('')) { st.cambios = n; st.lista = L; X.renderBar(); }
     } catch (e) { const m = String(e.message || e); if (m !== st.error) { st.error = m; X.renderBar(); } }
   }
   // Lo enviado antes de la 4.54 no está apuntado aquí: se toma del servidor, que es lo que ve el cliente (sus fotos, solo si la
@@ -248,6 +260,49 @@
         sinHora: !!r.sin_hora, fotos: igual(p, r) ? p.firma.fotos : null, estado: String(r.estado || ''), orden: Number.isInteger(r.orden) ? r.orden : 0, visible: !!r.visible, at: X.webFecha(r.enviada) || new Date().toISOString() };
     });
     if (L.length) await X.envPoner(L).catch(() => 0);
+  }
+  // What the indicator says of its web (D-372): a row for each post whose content changes (what the client will see different),
+  // one «El orden del feed» if others only change their place, those no longer in the board and the rest (sessions, payments, the
+  // why). The count is its rows: a move no longer counts every post it shifts
+  const soloOrden = (p, r) => r && r.visible && p.fila.visible && r.version === p.version && r.estado === p.fila.estado && r.visible === p.fila.visible && r.mes === p.fila.mes && r.orden !== p.fila.orden;
+  function listaDe(B, pubs, serv, sobran) {
+    const X = I(), out = [], cambian = pubs.filter(p => !igual(p, serv.get(p.pid)));
+    cambian.filter(p => !soloOrden(p, serv.get(p.pid))).sort((a, b) => X.ts(a.s.date) - X.ts(b.s.date)).forEach(p => out.push({ k: p.s.id,
+      html: `<li data-k="web|${esc(p.s.id)}"><button type="button" class="vnom" data-cal="av-abrir" data-slot="${esc(p.s.id)}" title="Abrir la publicación"><b>${esc(p.fila.nombre)}</b></button> <span class="vque">· ${esc(p.s.date ? X.fmtDate(p.s.date) : 'sin fecha')} · ${esc(queCambia(p, serv.get(p.pid), X.envDe(p.s, B)))}</span></li>` }));
+    const o = cambian.filter(p => soloOrden(p, serv.get(p.pid))).length;
+    if (o) out.push({ k: 'orden', html: `<li data-k="web|orden"><b>El orden del feed</b> <span class="vque">· ${o === 1 ? 'una publicación cambia' : o + ' publicaciones cambian'} de sitio</span></li>` });
+    (sobran || []).forEach(pid => { const r = serv.get(pid); out.push({ k: 'sobra-' + pid, html: `<li data-k="web|${esc(pid)}"><b>${esc(r ? r.nombre : 'Una publicación')}</b> <span class="vque">· ya no está en el tablero: se oculta en su web</span></li>` }); });
+    if (st.extra) out.push({ k: 'extra', html: '<li data-k="web|extra"><b>Sesiones, pagos o el porqué del mes</b> <span class="vque">· cambiaron desde el envío</span></li>' });
+    return out;
+  }
+  const abrirLista = () => { if (M.calendario && M.calendario.vencidas) M.calendario.vencidas(); };   // «Web: N cambios» had its own window until D-372
+  // «Del cliente» and «Su web» in the indicator beside «Calendario» (mesa.js and calendario.js draw it; nothing on the iPhone)
+  const QUE_NO = { aprobada: 'La aprobó', cambios: 'Pidió cambios', retirada: 'Retiró su decisión' };
+  function avisos() {
+    const X = I(), B = tablero(), c = sb(), out = { cliente: [], web: [], cab: '' };
+    if (MOVIL || !X || !B || !c || X.root().classList.contains('client')) return out;
+    const fila = (s, que) => `<li data-k="cliente|${esc(s.id)}|w"><button type="button" class="vnom" data-cal="av-abrir" data-slot="${esc(s.id)}" title="Abrir la publicación"><b>${esc(X.shortLabel(s.name, s.type))}</b></button> <span class="vque">· ${esc(s.date ? X.fmtDate(s.date) : 'sin fecha')} · ${que}</span></li>`;
+    const C0 = actual();
+    if (C0 && c.usuario() && st.dueno !== false) for (const s of B.slots || []) { const pid = C0.pidDe.get(s.id), n = pid ? sinLeer(C0, pid) : 0; if (n) out.cliente.push(fila(s, n === 1 ? '1 comentario sin leer' : `${n} comentarios sin leer`)); }
+    for (const x of pendientes(B.client)) { const s = (B.slots || []).find(y => y.id === x.slot); if (s) out.cliente.push(fila(s, `${QUE_NO[x.decision] || 'Decidió'} en su web, pero ya la habías movido: no la he cambiado`)); }
+    const una = (k, txt, acc, etq) => out.web.push(`<li data-k="web|${k}"><span class="vque avtx">${txt}</span> <button type="button" class="btn2" data-web="${acc}">${etq}</button></li>`);
+    if (!c.usuario()) { una('entrar', 'Sin sesión en su web: no se sabe qué ve el cliente', 'entrar', 'Entrar'); return out; }
+    if (st.dueno === false) { una('salir', 'Has entrado con una cuenta que no es la de Kevin', 'salir', 'Salir'); return out; }
+    if (st.error) { una('repasar', `No se pudo leer su web: ${esc(st.error)}`, 'repasar', 'Reintentar'); return out; }
+    if (st.enviando) out.cab = `<span class="avprog" aria-live="polite" aria-busy="true">Enviando…${st.enviando.total ? ` ${st.enviando.hechos}/${st.enviando.total}` : ''}</span>`;
+    if (st.clave !== B.key || !st.lista) return out;   // reading: nothing yet
+    st.lista.forEach(x => out.web.push(x.html));
+    if (st.lista.length && !st.enviando) out.cab = '<button type="button" class="btn avenv" data-web="enviar">Enviar</button>';
+    return out;
+  }
+  // a change of the client's that couldn't be applied (Kevin had moved the post): it stays until its post is opened (D-372), in
+  // this browser (before, a notice that went away)
+  const pendClave = cli => 'mesa-web-pend:' + cli;
+  const pendientes = cli => { try { const l = JSON.parse(lsG(pendClave(cli)) || '[]'); return Array.isArray(l) ? l.filter(x => x && typeof x.slot === 'string' && typeof x.id === 'string') : []; } catch (e) { return []; } };
+  function pendPoner(cli, l) { const a = pendientes(cli), ids = new Set(a.map(x => x.id)); l.forEach(x => { if (!ids.has(x.id)) a.push(x); }); lsS(pendClave(cli), JSON.stringify(a.slice(-50))); }
+  function abierta(s) {                         // its post was opened: what it waited for goes
+    const B = tablero(); if (!B || MOVIL || !s) return;
+    const a = pendientes(B.client), b = a.filter(x => x.slot !== s.id); if (b.length !== a.length) { lsS(pendClave(B.client), JSON.stringify(b)); I().renderBar(); }
   }
   let repasoT = 0;
   const pedirRepaso = () => { clearTimeout(repasoT); repasoT = setTimeout(() => { repaso(true).catch(() => { /* lo dice st.error */ }); }, 300); };
@@ -356,10 +411,10 @@
         if (P.entregas.length) await c.insertar('entregas', P.entregas, { upsert: true, conflicto: 'cliente_id,id' });
         await c.borrar(`entregas?cliente_id=eq.${ce}` + (P.entregas.length ? `&id=not.in.(${P.entregas.map(x => `"${x.id}"`).join(',')})` : ''));
       }
-      lsS(claveHuella(B), await huellaExtra(P));
+      if (X.envHuellaPoner) await X.envHuellaPoner(B, c._url, await huellaExtra(P)).catch(() => 0);   // in 'enviados' (D-372); what was sent stays sent if this browser can't write it
       const ahoraIso = new Date().toISOString();   // lo enviado de cada publicación, campo a campo: la marca y la lista cuentan desde aquí (D-355)
       if (X.envPoner) await X.envPoner(P.publicaciones.filter(p => p.firma).map(p => ({ cliente: cli, slot: p.s.id, ...p.firma, estado: p.fila.estado, orden: p.fila.orden, visible: p.fila.visible, at: ahoraIso }))).catch(() => 0);
-      st.servidor = await leerServidor(cli, B); st.clave = B.key; st.cliente = cli; st.firma = ''; st.cambios = null; st.extra = 0; st.extraT = Date.now(); st.error = '';
+      st.servidor = await leerServidor(cli, B); st.clave = B.key; st.cliente = cli; st.firma = ''; st.cambios = null; st.lista = null; st.extra = 0; st.extraT = Date.now(); st.error = '';
       toast(P.contenido ? `Enviado a la web del cliente: ${P.entregas.length} ${P.entregas.length === 1 ? 'entrega' : 'entregas'}` : `Enviado a la web del cliente: ${filasPub.filter(f => f.visible).length} publicaciones`);
       return { ok: true, publicaciones: filasPub.filter(f => f.visible).length, ocultas: sobran.length, imagenes: [...imgs.values()].reduce((n, l) => n + l.length, 0), subidas };
     } catch (e) {
@@ -419,17 +474,16 @@
     e.preventDefault(); e.stopPropagation();
     const a = b.dataset.web;
     if (a === 'entrar') entrar();
-    else if (a === 'enviar') { if (b.closest('.detail[data-dlg="webcambios"]')) I().closeDetail(); enviar(); }
+    else if (a === 'enviar') enviar();   // in the indicator's list its progress shows there (D-372)
     else if (a === 'lista') abrirLista();
     else if (a === 'abrir') { const X = I(), id = b.dataset.slot; X.closeDetail(); if (id && X.slot && X.slot(id)) X.openDetail(id, 0); }
     else if (a === 'salir') M.web.salir();
-    else if (a === 'repasar') { st.error = ''; st.servidor = null; st.firma = ''; st.extra = null; st.cambios = null; I().renderBar(); pedirRepaso(); }
+    else if (a === 'repasar') { st.error = ''; st.servidor = null; st.firma = ''; st.extra = null; st.cambios = null; st.lista = null; I().renderBar(); pedirRepaso(); }
   }
 
-  // ---------- La lista de «Web: N cambios» (D-355) ----------
-  // Lo mismo que cuenta la barra (las publicaciones que no son como en el servidor, las que sobran y lo demás del tablero), cada
-  // una una vez, con lo que el cliente verá distinto. Del servidor, que es lo que ve el cliente; la foto o el encuadre, de lo
-  // apuntado al enviar (o, sin eso, cuando cambió la publicación y nada más). Su nombre abre la publicación. Abajo, «Enviar».
+  // ---------- Lo que el cliente verá distinto (D-355; su lista, la del indicador desde D-372) ----------
+  // Del servidor, que es lo que ve el cliente; la foto o el encuadre, de lo apuntado al enviar (o, sin eso, cuando cambió la
+  // publicación y nada más).
   const ESTADO_TXT = { preparando: 'en preparación', por_aprobar: 'por aprobar', aprobada: 'aprobada', cambios: 'pidió cambios', programada: 'programada', publicada: 'publicada' };
   function queCambia(p, r, e) {
     const X = I(), f = p.fila, l = [];
@@ -445,26 +499,6 @@
     if (r.orden !== f.orden && r.visible) l.push('orden en el feed');
     return l.length ? 'Cambió: ' + X.listaY(l) : 'Cambió';
   }
-  async function abrirLista() {
-    const X = I(), B = tablero(); if (!B) return;
-    const nombre = (X.CL.find(c => c.id === B.client) || {}).name || 'el cliente';
-    const ult = () => { let t = ''; for (const s of B.slots) { const e = X.envDe(s, B); if (e && e.at > t) t = e.at; } return t; };
-    const cab = '<button class="x" data-act="close" aria-label="Cerrar">×</button>';
-    try {
-      const pubs = B.contenido ? [] : await filas(B), serv = st.servidor && st.clave === B.key ? st.servidor : await leerServidor(B.client, B);
-      if (tablero() !== B || !serv) return;
-      const items = pubs.filter(p => !igual(p, serv.get(p.pid))).sort((a, b) => X.ts(a.s.date) - X.ts(b.s.date))
-        .map(p => `<li><button type="button" class="vnom" data-web="abrir" data-slot="${esc(p.s.id)}" title="Abrir la publicación"><b>${esc(p.fila.nombre)}</b></button> <span class="vque">· ${esc(p.s.date ? X.fmtDate(p.s.date) : 'sin fecha')} · ${esc(queCambia(p, serv.get(p.pid), X.envDe(p.s, B)))}</span></li>`);
-      const sob = await sobranDe(B, pubs, serv); if (tablero() !== B) return;
-      sob.forEach(pid => { const r = serv.get(pid); items.push(`<li><b>${esc(r ? r.nombre : 'Una publicación')}</b> <span class="vque">· ya no está en el tablero: se oculta en su web</span></li>`); });
-      if (st.extra) items.push('<li class="webotro"><b>Sesiones, pagos o el porqué del mes</b> <span class="vque">· cambiaron desde el envío</span></li>');
-      const u = ult(), desde = u ? `lo que enviaste el ${esc(X.fmtDate(u))}` : 'lo último que se envió';
-      X.showDialog('webcambios', !items.length
-        ? cab + `<h3>Web al día</h3><p class="cpnota">La web de ${esc(nombre)} enseña lo mismo que este tablero${u ? `. Último envío: ${esc(X.fmtDate(u))}` : ''}.</p><div class="webenv"><button type="button" class="btn2" data-web="enviar">Enviar otra vez</button></div>`
-        : cab + `<h3>${items.length} ${items.length === 1 ? 'cambio' : 'cambios'} sin enviar</h3><p class="cpnota">${esc(nombre)} ve ${desde}. Lo de abajo no lo ve hasta que envíes.</p><ul class="vlist">${items.join('')}</ul><div class="webenv"><button type="button" class="btn" data-web="enviar">Enviar</button></div>`);
-    } catch (e) { toast('No se pudo leer la web del cliente: ' + String(e.message || e), { error: true }); }
-  }
-
   // ---------- Lote 4: lo que contestan los clientes (D-244) ----------
   // Las decisiones del cliente ponen el estado como lo pondría Kevin (Aprobado; No aprobado con su motivo en el servidor;
   // retirada, el de sus datos), sin ser un paso de su ⌘Z (lección 87) y solo si son de la versión de ahora. Los comentarios
@@ -531,6 +565,7 @@
         if (max && max !== C0.visto) { await c.insertar('lecturas', [{ cliente_id: B.client, visto_hasta: max }], { upsert: true, conflicto: 'user_id,cliente_id' }); C0.visto = max; olvidarRespuestas(B.client); }
       }
     } catch (e) { /* se vuelve a intentar en la siguiente lectura; lo ya aplicado no se repite (HECHAS) */ }
+    if (sinTocar.length) pendPoner(B.client, sinTocar.map(x => ({ id: x.a.id, slot: x.s.id, decision: x.a.decision, hora: x.a.hora })));   // in the indicator until opened (D-372)
     const n = cuenta.aprobada + cuenta.cambios + cuenta.retirada;
     if ((n || sinTocar.length) && avisar && !X.root().classList.contains('client')) {
       const nom = (X.CL.find(x => x.id === B.client) || {}).name || B.client, pl = (k, u, p) => (k === 1 ? `1 ${u}` : `${k} ${p}`);
@@ -558,7 +593,8 @@
   }
   const ICO_MSG = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>';
   function detalle(s) {
-    const X = I(), c = sb(); if (!c || !c.usuario() || st.dueno === false || !X.S || X.root().classList.contains('client')) return '';
+    const X = I(), c = sb(); if (s && X && X.S && !X.root().classList.contains('client')) abierta(s);   // opened: a change of the client's not applied leaves the indicator (D-372)
+    if (!c || !c.usuario() || st.dueno === false || !X.S || X.root().classList.contains('client')) return '';
     return `<section class="webdel" data-web-slot="${esc(s.id)}" aria-label="Del cliente"></section>`;
   }
   function nodo(tag, at, ...kids) {
@@ -720,12 +756,13 @@
     version: VERSION, barra, enviar, paquete, listo, marca, detalle, pintarDetalle, leer: leerConversacion, contestado, leerRespuestas, conversacion, contestar, leido, hilo,
     estado: () => { const c = sb(); return { proyecto: !!c, sesion: !!(c && c.usuario()), cambios: st.cambios, enviando: !!st.enviando, error: st.error }; },
     sabe: B => !!(B && st.servidor && st.clave === B.key),   // ya leyó del servidor lo de este tablero: la ventana puede decir «Aún no está en la web» (D-355)
-    lista: () => abrirLista(),
+    lista: () => abrirLista(),   // the indicator's list (D-372)
     _que: queCambia,   // la batería (NF8)
     entrar: () => entrar(),
     salir: async () => { const c = sb(); if (c) await c.salir(); st.servidor = null; st.cambios = null; st.dueno = null; if (I()) I().renderBar(); },
     repasar: () => { st.servidor = null; st.firma = ''; st.extra = null; return repaso(true); },
-    _sb: () => sb(),
+    // tocado: a session or a delivery moved in a calendar, what isn't a post is read again (D-373)
+    _sb: () => sb(), avisos, abierta, tocado: () => { st.extraT = 0; pedirRepaso(); }, _test: { olvidar: () => { st.servidor = null; st.firma = ''; st.extra = null; st.cambios = null; st.lista = null; visto.clear(); } },
     _off: () => { OFF.splice(0).forEach(f => f()); clearInterval(tic); clearInterval(tic2); clearTimeout(repasoT); },
   };
   if (!document.documentElement.hasAttribute('data-movil')) listo().then(() => {   // the iPhone (D-267): no start of its own; it only reads and replies
@@ -740,8 +777,6 @@
   }).catch(() => { (window.MESA_CARGA = window.MESA_CARGA || {}).web = 'fallo'; });
   const ESTILO = `#mesa .webbtn{white-space:nowrap;border-color:var(--line);color:var(--ink);font-weight:600}
 #mesa.client .webbtn,#mesa.client .webmk,#mesa.client .webdel{display:none}
-#mesa .detail[data-dlg="webcambios"] .vlist{list-style:none;margin:8px 0 0;padding:0;max-height:min(60vh,520px);overflow:auto}#mesa .detail[data-dlg="webcambios"] .vlist li{padding:10px 0;border-top:1px solid var(--line2)}
-#mesa .detail[data-dlg="webcambios"] .vnom{border:0;background:none;padding:0;font:inherit;color:var(--ink);cursor:pointer}#mesa .detail[data-dlg="webcambios"] .vnom:hover b{text-decoration:underline}#mesa .detail[data-dlg="webcambios"] .vque{color:var(--ink-2)}
 #mesa .webenv{display:flex;justify-content:flex-end;margin:16px 0 0}
 #mesa .mchip.webbtn.hay{background:var(--acc-soft);color:var(--acc-ink);border-color:transparent}
 #mesa .mchip.webbtn.hay:hover{background:color-mix(in srgb,var(--acc-soft),var(--acc) 12%);border-color:transparent;color:var(--acc-ink)}

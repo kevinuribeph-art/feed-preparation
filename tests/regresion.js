@@ -13,7 +13,7 @@
   }
 
   const CLIENTE = 'prueba-regresion', NOMBRE = 'Cliente de prueba', MES = '2026-11';
-  const V_ARCHIVO = 22, V_IDB = 27;   // IndexedDB 27 y v22 desde la 4.54 (los estilos, lo enviado a la web y los meses provisionales, D-355, D-356, D-358); 26 y v21 desde la 4.51 (los acuerdos y los paquetes, D-305 a D-307); 25 y v20 desde la 4.47 (el acuerdo, el servicio, las entregas y la reunión, D-288 a D-292); 24 desde la 4.33 (la marca «copia» de una foto que bajó como copia de trabajo, D-259); 23 desde la 4.32 (la nube, almacén 'nube', D-253); 22 desde la 4.31 (el diario de cambios, D-250); v19 y 21 desde la 4.27 (el porqué y cómo fue de cada mes, el almacén 'meses', D-238); v18 y 20 desde la 4.26 (cobros y sus facturas en PDF, la cuota de un cliente, D-232); v17 y 19 desde la 4.24 (varios clientes, fin y plantillas de material de una sesión, D-217 a D-220); v16 y 18 desde la 4.22 (sesiones, esporádicos, material y el almacén 'tfotos', D-206 a D-208); la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183); v15 y 17 desde la 4.19 (D-193)
+  const V_ARCHIVO = 23, V_IDB = 28;   // IndexedDB 28 y v23 desde la 4.58 (la huella de lo demás de su web, en «enviados», D-372); 27 y v22 desde la 4.54 (los estilos, lo enviado a la web y los meses provisionales, D-355, D-356, D-358); 26 y v21 desde la 4.51 (los acuerdos y los paquetes, D-305 a D-307); 25 y v20 desde la 4.47 (el acuerdo, el servicio, las entregas y la reunión, D-288 a D-292); 24 desde la 4.33 (la marca «copia» de una foto que bajó como copia de trabajo, D-259); 23 desde la 4.32 (la nube, almacén 'nube', D-253); 22 desde la 4.31 (el diario de cambios, D-250); v19 y 21 desde la 4.27 (el porqué y cómo fue de cada mes, el almacén 'meses', D-238); v18 y 20 desde la 4.26 (cobros y sus facturas en PDF, la cuota de un cliente, D-232); v17 y 19 desde la 4.24 (varios clientes, fin y plantillas de material de una sesión, D-217 a D-220); v16 y 18 desde la 4.22 (sesiones, esporádicos, material y el almacén 'tfotos', D-206 a D-208); la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183); v15 y 17 desde la 4.19 (D-193)
   // la batería va con el reloj de la mesa parado antes de sus fechas (noviembre de 2026): nada vence ni pasa solo a Publicado
   // salvo en las pruebas que lo adelantan (D-120)
   const RELOJ_PRUEBAS = Date.parse('2026-10-01T10:00:00+02:00');
@@ -348,7 +348,7 @@
     ok(!qa('.cell .badges .dot, .cell .badges .mk, .cell .dot, .cell .st, .cell .dchg').length, 'quedan indicadores de antes en las casillas');
     const ancho = sel => q(sel).getBoundingClientRect().width;
     ok(ancho('.cell[data-slot="r2"] .e-publicado') <= ancho('.cell[data-slot="r1"] .e-programado') + 0.5, 'el doble tick ocupa más que el ✓');
-    ok(!q('.bar .stats').textContent.includes('Notion'), 'la barra sigue contando «en Notion»');
+    ok(!q('.bar').textContent.includes('Notion'), 'la barra sigue contando «en Notion»');   // al día a propósito: sin «.stats» desde D-372
     // «Vista cliente»: ninguna marca
     M._in.root().classList.add('client');
     try { ok(qa('.cell .mks').every(e => e.offsetParent === null), 'las marcas salen en «Vista cliente»'); } finally { M._in.root().classList.remove('client'); }
@@ -5909,7 +5909,7 @@
       await M.flush();
       reloj('2026-11-05', '10:00'); await revisarV();
       const cab = await hasta(() => q('.side > .cal .cvenc'), 3000, '«N vencidas» en la cabecera');
-      igual(cab.textContent, '3 vencidas', 'la cuenta de la cabecera');
+      igual([+cab.textContent.trim(), M.calendario.avisos().filas.venc.length], [M.calendario.avisos().n, 3], 'la cuenta de la cabecera');   // al día a propósito: el total de avisos y, en su lista, las tres vencidas (D-372)
       cab.click();
       await hasta(() => ventanaV(), 3000, 'la ventana de las vencidas');
       igual(qa('.detail[data-dlg="venc"] .vlist li').map(li => li.dataset.k.split('|')[1]), ['r1', 'r2', 'r3'], 'la lista no va por fecha');
@@ -5945,7 +5945,7 @@
       enFilaV('r3', 'v-rep-ok');
       igual([M._in.localDay(slot('r3').date), M._in.localDay(histDe(h).date)], ['2026-11-14', '2026-11-14'], `su historia no la siguió (estaba el ${dh})`);
       ok(!vencidasV().length, 'quedan vencidas: ' + json(vencidasV().map(v => v.id)));
-      await hasta(() => !q('.side > .cal .cvenc'), 2000, 'la cabecera sin vencidas');
+      await hasta(() => !M.calendario.avisos() || !M.calendario.avisos().filas.venc.length, 2000, 'la cabecera sin vencidas');   // al día a propósito: el indicador sigue con los demás avisos (D-372)
       M._in.closeDetail();
       // sin días por delante en su tablero, no se reprograma
       reloj('2026-12-01', '09:00');
@@ -10270,7 +10270,7 @@
     await tablero([pub(1), pub(2), pub(3)]);
     await poner('r1', [await foto('j7-r1.jpg')]); subidoViejo('r1');
     M._test.setDate('r1', '2026-11-20T18:00:00.000+01:00'); M._test.setDate('r3', '2026-11-10T18:00:00.000+01:00'); await espera(200);
-    ok(!q('.bar .stats [data-act="cambios"]') && !q('.bar .stats .dates') && !/con fecha nueva|cambiadas/.test(q('.bar .stats').textContent), 'sigue un indicador de Notion');
+    ok(!q('.bar [data-act="cambios"]') && !q('.bar .dates') && !/con fecha nueva|cambiadas/.test(q('.bar').textContent), 'sigue un indicador de Notion');   // al día a propósito: sin «.stats» desde D-372
   });
   prueba('J8', 'Sin «Ajustar»: un doble clic en el porcentaje deja la diapositiva entera, al 100 %, sin seleccionar su texto; ⌘0 sigue (D-145)', async () => {
     await tablero([pub(1, 'Carrusel')]);
@@ -10837,7 +10837,7 @@
     await poner('r1', [await foto('lz4.jpg')]);
     const mes = () => q('.bar .mescab .mescab-mes[aria-current="true"]');
     await hasta(() => mes() && mes().title === 'Noviembre 2026 · 1 de 3 con foto', 3000, 'el título del mes con 1 de 3');
-    ok(!/con foto/.test(q('.bar .stats').textContent), 'sigue «con foto»: ' + q('.bar .stats').textContent);
+    ok(!q('.bar .stats') && !/con foto|con contexto/.test(q('.bar').textContent), 'sigue «con foto» o «con contexto»: ' + q('.bar').textContent);   // al día a propósito: «N con contexto» sale de la barra (D-372)
     ok(!/\d\s*\/\s*\d/.test(q('.bar .mescab').textContent), 'cifras a la vista: ' + q('.bar .mescab').textContent);
     await conCliente(async () => { igual(mes().title, 'Noviembre 2026', 'el título en «Vista cliente»'); });
     igual(mes().title, 'Noviembre 2026 · 1 de 3 con foto', 'el título al quitar la vista');
@@ -14308,7 +14308,7 @@
       const tm = await M.personal.tarea({ txt: 'Tarea mañana', fecha: '2026-10-02' });
       await M.personal.set({ avTareas: true, plg: { tareas: false, clientes: false, avisos: false }, vista: 'lista' }); await M.personal.render();
       igual(ppLineas('hoy'), [hoy.id, man.id], '«Hoy y mañana» (una tarea de mañana no entra)');
-      ok(/17:00/.test(q(`.pp-av[data-tid="${hoy.id}"] .pp-cu`).textContent) && q(`.pp-av[data-tid="${hoy.id}"] .pp-afoto svg`), 'sin la hora o el icono en «Hoy y mañana»');
+      ok(/17:00/.test(q(`.pp-av[data-tid="${hoy.id}"] .pp-cu`).textContent) && q(`.pp-av[data-tid="${hoy.id}"] .pp-nm .pp-tses svg`), 'sin la hora o el icono en «Hoy y mañana»');   // al día a propósito: el icono, delante del nombre, como en Tareas (D-371)
       igual(ppLineas('pasado'), [pas.id], '«Se ha pasado»');
       const rp = q(`.pp-av[data-tid="${pas.id}"] [data-pp="reprog"]`); ok(rp && q(`.pp-av[data-tid="${pas.id}"] .pp-ck`), 'sin casilla o «Reprogramar»');
       igual([ppCifras().pasado, ppCifras().hoy, ppCifras().man], [1, 1, 1], 'las cifras no cuentan las sesiones');   // «Hoy» y «Mañana» aparte desde D-212
@@ -14323,7 +14323,7 @@
       q(`.pp-av[data-tid="${pas.id}"] .pp-ck`).click(); await espera(150); ok((await seRec(pas.id)).hecha, 'la casilla no la marca');
       // Lista, Semana y Mes
       await M.personal.set({ plg: { tareas: false, clientes: true, avisos: false }, vista: 'lista' }); await M.personal.render();
-      ok(q(`.pp-tk[data-tid="${hoy.id}"] .pp-tses`) && /hoy · 17:00/.test(q(`.pp-tk[data-tid="${hoy.id}"] .pp-tf`).textContent), 'Lista: sin icono u hora');
+      ok(q(`.pp-tk[data-tid="${hoy.id}"] .pp-tses`) && q(`.pp-tk[data-tid="${hoy.id}"] .pp-tf`).textContent.trim() === '17:00', 'Lista: sin icono u hora (D-371: en Hoy, la hora sola)');
       await M.personal.set({ vista: 'semana', tsem: 0 }); await M.personal.render();
       ok(q(`.pp-fi[data-tid="${man.id}"] .pp-tses`) && /10:30/.test(q(`.pp-fi[data-tid="${man.id}"]`).textContent), 'Semana: sin icono u hora');
       await M.personal.set({ vista: 'mes', tmes: 0 }); await M.personal.render();
@@ -14813,7 +14813,7 @@
       const av = qa(`.pp-av[data-tid="${s.id}"]`); igual(av.length, 1, 'la sesión no sale una vez en Avisos');
       ok(av[0] && av[0].textContent.includes(nom + ' · Estudio Norte'), 'Avisos sin los dos nombres: ' + (av[0] && av[0].textContent));
       const li = qa(`.pp-tk[data-tid="${s.id}"]`); igual(li.length, 1, 'la sesión no sale una vez en la Lista');
-      ok(li[0] && li[0].querySelector('.pp-avn') && /\+1/.test(li[0].querySelector('.pp-avn').textContent) && li[0].querySelectorAll('.pp-ava').length === 1, 'la Lista sin el avatar del primero con «+1»');
+      ok(li[0] && li[0].querySelectorAll('.pp-avs .pp-ava').length === 2 && li[0].querySelector('.pp-avs').title.includes(nom + ' · Estudio Norte'), 'la Lista, como Avisos (D-371): los dos avatares y sus nombres en el título');
       // el filtro: cada uno la ve; el bloque mensual sigue sin contarla
       ok(q(`.pp-tc[data-c="${CLIENTE}"]`) && q(`.pp-tc[data-c="${e.id}"]`), 'el filtro sin sus dos clientes');
       for (const c of [CLIENTE, e.id]) { await M.personal.set({ tcli: c }); await espera(40); igual(qa(`.pp-tk[data-tid="${s.id}"]`).length, 1, 'el filtro de ' + c + ' no la enseña'); }
@@ -14889,7 +14889,7 @@
       igual(qa(`.pp-fi[data-tid="${s.id}"]`).length, 2, 'Semana: no sale en cada día');
       await M.personal.set({ vista: 'mes', tmes: 0 }); await espera(60); igual(qa(`.pp-mt[data-tid="${s.id}"]`).length, 2, 'Mes: no sale en cada día');
       await M.personal.set({ vista: 'lista' }); await espera(60); const li = qa(`.pp-tk[data-tid="${s.id}"]`);
-      ok(li.length === 1 && /10:30 – .+ · 11:30/.test(li[0].querySelector('.pp-tf').textContent), 'Lista: no sale una vez con el intervalo: ' + (li[0] && li[0].textContent));
+      ok(li.length === 1 && li[0].querySelector('.pp-tf').textContent.trim() === '10:30' && /10:30 – .+ · 11:30/.test(li[0].title), 'Lista: no sale una vez, con su hora y el intervalo en su título (D-371): ' + (li[0] && li[0].textContent));
       // «Nueva sesión»: bajo «Fecha y hora»
       M.personal._p.EXT.sesion.nueva({ ctx: null, campo: 'nueva', desde: null }); await espera(80);
       ok(!q('.pp-ns-fin [data-ns="fin"]'), '«– Fin» sin fecha en «Nueva sesión»');
@@ -15189,6 +15189,475 @@
     if (!v) return null; const p = D.createElement('div'); p.style.setProperty(prop, v); (dentro || q('#mesa')).append(p); const c = W.getComputedStyle(p).getPropertyValue(prop); p.remove(); return c;
   }
   async function enTema(t, fn) { const h = D.documentElement, t0 = h.dataset.theme; if (t === 'dark') h.dataset.theme = 'dark'; else delete h.dataset.theme; try { await espera(400); return await fn(); } finally { if (t0) h.dataset.theme = t0; else delete h.dataset.theme; } }
+
+  // ---------- Ajustes de la 4.55, lote 3: un solo indicador junto a «Calendario» (D-372) ----------
+  const inPill = () => q('.side > .cal .calhead .cvenc');
+  const inSecs = () => qa('.detail[data-dlg="venc"] .avsec').map(x => x.dataset.sec);
+  const inFilas = sec => qa(`.detail[data-dlg="venc"] .avsec[data-sec="${sec}"] li`);
+  const inAbrir = async () => { const b = inPill(); ok(b, 'no hay pastilla'); b.click(); await espera(80); ok(q('.detail[data-dlg="venc"]:not([hidden])'), 'la pastilla no abre su lista'); };
+
+  prueba('IN1', 'Un solo indicador junto a «Calendario» (D-372): un punto y un número, el total de avisos del cliente (uno por fila de su lista), rojo si alguno es rojo y su desglose en el título; al pulsarla, la lista en su orden —Sin publicar (Ya se publicó / Reprogramar / Cancelar), Zernio tiene la versión de antes, Del cliente, Sale en 48 h y no está lista—; sin avisos, nada; en «Vista cliente», nada; la barra sin «N con contexto»', async () => {
+    relojEn('2026-11-10T10:00:00+01:00');
+    try {
+      await tablero([pub(1, 'Foto', 5), pub(2, 'Foto', 20), { ...pub(3, 'Foto', 11), date: '2026-11-11T18:00:00.000+01:00' }, pub(4, 'Foto', 25), pub(5, 'Foto', 27)]);
+      await porAprobar(['r1', 'r2', 'r3', 'r4', 'r5'], 'in1');
+      M.setEstado(['r1', 'r2'], 'aprobado'); M.setEstado('r2', 'programado'); M.setEstado('r4', 'noaprobado'); await M.flush();
+      M._test.setSlot('r2', { caption: { ...slot('r2').caption, text: ['1 bis', '2', '3'] } }); await M.flush(); M._in.render(); await espera(80);
+      const b = inPill(); ok(b, 'no sale la pastilla');
+      igual(b.textContent.trim(), '4', 'la pastilla dice algo más que el número: ' + b.title);
+      ok(b.querySelector('.cdot') && b.classList.contains('rojo'), 'sin su punto o no va en rojo');
+      ok(b.getBoundingClientRect().height >= 24, 'la pastilla, por debajo de 24 px de alto: ' + b.getBoundingClientRect().height);
+      ok(/1 sin publicar/.test(b.title) && /Zernio/.test(b.title) && /del cliente/i.test(b.title) && /48 h/.test(b.title), 'el título sin el desglose: ' + b.title);
+      ok(!/vencida/.test(q('.side > .cal .calhead').textContent), 'sigue «N vencidas»');
+      ok(!q('.bar .stats') && !/con contexto/.test(q('.bar').textContent), 'la barra sigue con «N con contexto»');
+      await inAbrir();
+      igual(inSecs(), ['venc', 'zernio', 'cliente', 'pronto'], 'el orden de la lista');
+      igual([inFilas('venc').length, inFilas('zernio').length, inFilas('cliente').length, inFilas('pronto').length], [1, 1, 1, 1], 'una fila por aviso');
+      ok(inFilas('venc')[0].querySelector('[data-cal="v-pub"]') && inFilas('venc')[0].querySelector('[data-cal="v-rep"]') && inFilas('venc')[0].querySelector('[data-cal="v-can"]'), 'las vencidas sin sus acciones de hoy');
+      ok(/caption/.test(inFilas('zernio')[0].textContent) && inFilas('zernio')[0].querySelector('[data-cal="av-abrir"]'), 'Zernio: no dice qué cambió o no abre la publicación');
+      ok(/No aprobado/.test(inFilas('cliente')[0].textContent), 'Del cliente sin «No aprobado»');
+      ok(/sin programar/.test(inFilas('pronto')[0].textContent), '48 h sin «sin programar»');
+      ok(q('.detail[data-dlg="venc"] .avsec[data-sec="venc"] .avtag.rojo') && q('.detail[data-dlg="venc"] .avsec[data-sec="pronto"] .avtag.ambar'), 'los colores de cada aviso');
+      const tg = q('.detail[data-dlg="venc"] .avtag'); igual(W.getComputedStyle(tg).backgroundColor, 'rgba(0, 0, 0, 0)', 'el título de un apartado parece un botón (Kevin, 26/11/2026: un punto y el texto)'); ok(W.getComputedStyle(tg, '::before').width === '7px', 'el título sin su punto');
+      inFilas('zernio')[0].querySelector('[data-cal="av-abrir"]').click(); await espera(80);
+      ok(q('.detail:not([hidden])') && q('.detail').dataset.slot === 'r2', 'no abre la publicación');
+      M._in.closeDetail();
+      // only amber: amber
+      M.setEstado('r1', 'publicado'); M.setEstado('r2', 'programado'); await M.flush(); M._in.render(); await espera(60);
+      ok(inPill() && inPill().textContent.trim() === '2' && inPill().classList.contains('ambar') && !inPill().classList.contains('rojo'), 'solo ámbar: ' + (inPill() && inPill().className));
+      await vistaCliente(true); M._in.render(); await espera(40); ok(!inPill(), 'en «Vista cliente» sale la pastilla'); await vistaCliente(false);
+      M.setEstado('r4', 'aprobado'); M.setEstado(['r3', 'r4'], 'aprobado'); M.setEstado(['r3', 'r4'], 'programado'); await M.flush(); M._in.render(); await espera(60);
+      ok(!inPill(), 'sin avisos sale la pastilla');
+    } finally { M._in.closeDetail(); relojVuelve(); }
+  });
+
+  prueba('IN2', '«Zernio tiene la versión de antes» (D-372): la firma de una Programada guarda también su ubicación, sus etiquetas y sus colaboradores, y su ventana y la lista dicen si cambiaron; una Programada firmada antes, sin esos campos, no sale como cambiada; marcada Programado otra vez, se quita', async () => {
+    await tablero([pub(1), pub(2)]);
+    await porAprobar(['r1', 'r2'], 'in2');
+    M.setEstado(['r1', 'r2'], 'aprobado'); M.setEstado(['r1', 'r2'], 'programado'); await M.flush();
+    const f = slot('r1').estado.firma; ok(f && 'ubi' in f && 'etq' in f && 'col' in f, 'la firma sin ubicación, etiquetas o colaboradores: ' + json(f));
+    const zer = id => (M._in.pnotHTML(slot(id)).match(/Zernio sigue con lo de antes: ([^<]*)/) || [])[1] || '';
+    M._test.setSlot('r1', { ubicacion: 'lug-in2' }); await M.flush(); ok(/ubicación/.test(zer('r1')), 'la ubicación cambiada no sale: ' + zer('r1'));
+    M._test.setSlot('r1', { etiquetas: ['cuenta.in2'] }); await M.flush(); ok(/etiquetas/.test(zer('r1')), 'las etiquetas no salen: ' + zer('r1'));
+    M._test.setSlot('r1', { colaboradores: ['colab.in2'] }); await M.flush(); ok(/colaboradores/.test(zer('r1')), 'los colaboradores no salen: ' + zer('r1'));
+    ok(M._in.cambiosProg(slot('r1')).length === 3, 'cambiosProg: ' + json(M._in.cambiosProg(slot('r1'))));
+    // signed before the 4.58: without those fields, nothing changed
+    const viejo = { ...slot('r2').estado, firma: { foto: slot('r2').estado.firma.foto, cap: slot('r2').estado.firma.cap } };
+    M._test.setSlot('r2', { estado: viejo, ubicacion: 'lug-in2', etiquetas: ['x.in2'] }); await M.flush();
+    igual(zer('r2'), '', 'una firma vieja sale como cambiada');
+    M.setEstado('r1', 'programado'); await M.flush(); igual(zer('r1'), '', 'marcada Programado otra vez no se quita');
+  });
+
+  prueba('IN3', 'Su web en la lista (D-372): sin sesión, «Entrar» y cuenta 1; con otra cuenta, «Salir»; leyendo, nada; con cambios, una fila por publicación cuyo contenido cambia y «Enviar»; si solo cambió el orden del feed, una línea «El orden del feed» que cuenta 1; «Web: …» y «Web al día» ya no salen en la barra', async () => {
+    await tablero([pub(1), pub(2), pub(3)]);
+    await porAprobar(['r1', 'r2', 'r3'], 'in3');
+    await conWeb(async sv => {
+      M._in.render(); await espera(60);
+      ok(!q('.bar [data-web]'), 'la barra sigue con el botón de la web');
+      ok(inPill() && inPill().textContent.trim() === '1', 'sin sesión no cuenta 1: ' + (inPill() && inPill().textContent));
+      await inAbrir(); ok(inFilas('web').length === 1 && inFilas('web')[0].querySelector('[data-web="entrar"]'), 'sin sesión, sin «Entrar»');
+      igual(W.getComputedStyle(inFilas('web')[0]).display, 'flex', 'la fila de «Entrar», sin maquetar'); M._in.closeDetail();
+      wbSesion(); M._in.render(); ok(!inPill() || !inFilas('web').length, 'leyendo, su web cuenta algo');
+      await M.web.repasar(); M._in.render(); await espera(60);
+      const n0 = M.web.estado().cambios; ok(n0 >= 3, 'al empezar, sin cambios: ' + n0);
+      ok(inPill() && +inPill().textContent.trim() === n0, 'la pastilla no cuenta lo de su web');
+      await inAbrir(); ok(inFilas('web').length === n0 && q('.detail[data-dlg="venc"] .avsec[data-sec="web"] .avpie [data-web="enviar"]'), 'su web: una fila por cambio y «Enviar» debajo'); M._in.closeDetail();
+      ok((await M.web.enviar()).ok, 'no se envió'); await M.web.repasar(); M._in.render(); await espera(60);
+      igual(M.web.estado().cambios, 0, 'tras enviar'); ok(!inPill(), 'al día, sale la pastilla');
+      ok(!/Web al día/.test(q('.bar').textContent), '«Web al día» sigue en la barra');
+      // only the order (the oldest pinned first, the others shift): one line that counts 1
+      M._in.S.pins = ['r1']; M._in.save(); await M.flush(); await M.web.repasar(); M._in.render(); await espera(60);
+      igual(M.web.estado().cambios, 1, 'solo el orden cuenta 1: ' + json(sv.db.publicaciones.map(r => [r.nombre, r.orden])) + json(M._in.fijadasFeed ? M._in.fijadasFeed() : '?'));
+      await inAbrir(); let filas = inFilas('web').map(li => li.textContent);
+      ok(filas.length === 1 && /El orden del feed/.test(filas[0]), 'una sola línea del orden: ' + json(filas)); M._in.closeDetail();
+      M._test.setSlot('r2', { caption: { ...slot('r2').caption, pick: 1 } }); await M.flush(); await M.web.repasar(); M._in.render(); await espera(60);
+      igual(M.web.estado().cambios, 2, 'el contenido de r2 y el orden de las demás');
+      await inAbrir(); filas = inFilas('web').map(li => li.textContent);
+      ok(filas.some(t => /Foto 1\.2/.test(t) && /caption/.test(t)) && filas.filter(t => /El orden del feed/.test(t)).length === 1, 'r2 y una sola línea del orden: ' + json(filas));
+      M._in.closeDetail();
+    });
+  });
+
+  prueba('IN4', 'La huella de lo demás de su web (D-372): la que no es de una publicación (cliente, sesiones, porqué, pagos, entregas) se guarda en «enviados», que viaja por la nube, y no en este navegador; la que ya estaba aquí se toma sin contar un cambio de más; otro Mac, con lo bajado, no enseña ese cambio', async () => {
+    await tablero([pub(1)]);
+    await porAprobar(['r1'], 'in4');
+    await conWeb(async sv => {
+      wbSesion(); await M.web.repasar();
+      ok((await M.web.enviar()).ok, 'no se envió'); await M.web.repasar();
+      igual(M.web.estado().cambios, 0, 'tras enviar');
+      const hu = ((await M._in.idbAll('enviados')) || []).filter(r => r.cliente === CLIENTE && /^~huella:/.test(r.slot));
+      ok(hu.length === 1 && /^[0-9a-f]{64}$/.test(hu[0].huella), 'la huella no está en «enviados»: ' + json(hu));
+      ok(!Object.keys(W.localStorage).some(k => /^mesa-web-huella:/.test(k)), 'la huella se escribe aún en este navegador');
+      // another Mac: nothing in its localStorage, the store as it came down
+      Object.keys(W.localStorage).filter(k => /^mesa-web-(huella|leido):/.test(k)).forEach(k => W.localStorage.removeItem(k));
+      M.web._test.olvidar(); await M.web.repasar(); igual(M.web.estado().cambios, 0, 'otro Mac enseña un cambio de más');
+      // a print of before (in this browser) is taken as it is
+      await M._in.idbDel('enviados', hu[0].cliente + '|' + hu[0].slot); await M._in.envLeer();
+      W.localStorage.setItem('mesa-web-huella:' + WB_URL + ':' + M._in.S.key, hu[0].huella);
+      M.web._test.olvidar(); await M.web.repasar(); igual(M.web.estado().cambios, 0, 'la huella de antes cuenta un cambio');
+      const hu2 = ((await M._in.idbAll('enviados')) || []).filter(r => r.cliente === CLIENTE && /^~huella:/.test(r.slot));
+      igual(hu2.length && hu2[0].huella, hu[0].huella, 'la huella de antes no pasa al almacén');
+    });
+  });
+
+  prueba('IN5', 'Del cliente, en la lista (D-372): los comentarios sin leer de una publicación y un cambio suyo que no se pudo aplicar (antes, un aviso que desaparecía) se quedan en la lista hasta abrirla', async () => {
+    await tablero([pub(1), pub(2)]);
+    await porAprobar(['r1', 'r2'], 'in5');
+    await conWeb(async sv => {
+      wbSesion(); await M.web.repasar(); ok((await M.web.enviar()).ok, 'no se envió'); await M.web.repasar();
+      const de = id => sv.db.publicaciones.find(r => r.nombre === M._in.shortLabel(slot(id).name, slot(id).type)), p1 = de('r1'), p2 = de('r2');
+      ok(p1 && p2, 'no están en el servidor');
+      M.setEstado('r2', 'aprobado'); await M.flush();   // moved by Kevin after sending: the client's «cambios» can't be applied
+      const h = new Date(Date.now() + 1000).toISOString();
+      sv.db.comentarios.push({ id: 'c-in5', cliente_id: CLIENTE, pid: p1.pid, version: p1.version, diapositiva: null, texto: 'Me gusta', autor_nombre: 'Cliente', de_kevin: false, hora: h, resuelto: null });
+      sv.db.aprobaciones.push({ id: 'a-in5', cliente_id: CLIENTE, pid: p2.pid, version: p2.version, decision: 'cambios', motivo: 'Otra', diapositiva: null, autor_nombre: 'Cliente', hora: h });
+      await M.web.leer(); M._in.render(); await espera(80);
+      await inAbrir();
+      const t = inFilas('cliente').map(li => li.textContent);
+      ok(t.some(x => /comentario/.test(x)) && t.some(x => /idió cambios/.test(x)), 'Del cliente sin el comentario o el cambio no aplicado: ' + json(t));
+      M._in.closeDetail(); await M.web.leer(); M._in.render(); await espera(60);
+      await inAbrir(); ok(inFilas('cliente').some(li => /idió cambios/.test(li.textContent)), 'el cambio no aplicado desaparece al leer otra vez');
+      const li = inFilas('cliente').find(x => /idió cambios/.test(x.textContent)); li.querySelector('[data-cal="av-abrir"]').click(); await espera(80); M._in.closeDetail();
+      M._in.render(); await espera(40); await inAbrir();
+      ok(!inFilas('cliente').some(x => /idió cambios/.test(x.textContent)), 'abierta la publicación, sigue en la lista');
+      M._in.closeDetail();
+    });
+  });
+
+  prueba('IN6', 'La página de un cliente de solo contenido (D-372): la misma pastilla donde estaba su aviso de la web, con las filas de su web; sin proyecto de la web, no sale', async () => {
+    await tableroContenido();
+    await conWeb(async () => {
+      M._in.renderBar(); await espera(40);
+      ok(!q('.bar [data-web]'), 'sigue el botón de la web en la barra');
+      const b = q('.bar .cvenc'); ok(b && b.textContent.trim() === '1', 'sin la pastilla en su sitio: ' + (b && b.textContent));
+      b.click(); await espera(80); ok(q('.detail[data-dlg="venc"] .avsec[data-sec="web"] [data-web="entrar"]'), 'su lista sin «Entrar»'); M._in.closeDetail();
+    });
+    M._in.renderBar(); await espera(40); ok(!q('.bar .cvenc'), 'sin proyecto sale la pastilla');
+  });
+
+  prueba('IN7', 'Datos nuevos de su web (D-372): IndexedDB 28 y archivo v23; la huella viaja en «Exportar» y vuelve al importar; un archivo v22 se sigue importando', async () => {
+    await tablero([pub(1)]);
+    igual([M._in.xfer.IDB, V_IDB, V_ARCHIVO], [28, 28, 23], 'las versiones');
+    const k = '~huella:' + M._in.S.key;
+    igual(await M._in.envPoner([{ cliente: CLIENTE, slot: k, huella: 'a'.repeat(64), url: 'https://in7.test', at: '2026-11-20T10:00:00.000Z' }]), 1, 'la huella no se guarda');
+    ok(!M._in.xfer.envRecValido({ cliente: CLIENTE, slot: k, huella: 'no', url: '', at: '2026-11-20T10:00:00.000Z' }), 'entra una huella mal formada');
+    const blob = await M.exportAll({ returnBlob: true }), d = JSON.parse(await blob.text());
+    igual(d.v, V_ARCHIVO, 'la versión del archivo'); ok((d.enviados || []).some(r => r.slot === k && r.huella === 'a'.repeat(64)), 'el archivo no lleva la huella');
+    await M._in.idbDel('enviados', CLIENTE + '|' + k); await M._in.envLeer();
+    let r = await M.importData(blob, { confirm: false }); ok(r && !r.error, 'importar: ' + json(r)); await M._in.envLeer();
+    ok(((await M._in.idbAll('enviados')) || []).some(x => x.slot === k), 'la huella no vuelve al importar');
+    const v22 = { ...d, v: 22, enviados: (d.enviados || []).filter(x => !/^~huella:/.test(x.slot)) };
+    r = await M.importData(new W.Blob([JSON.stringify(v22)], { type: 'application/json' }), { confirm: false }); ok(r && !r.error, 'un archivo v22 no entra: ' + json(r));
+    await M._in.idbDel('enviados', CLIENTE + '|' + k); await M._in.envLeer();
+  });
+
+  // ---------- Ajustes de la 4.55, lote 3: Tareas con el formato de Avisos (D-371) ----------
+  const taSes = (id, o) => { const t = '2026-11-01T09:00:00.000Z'; return M._in.idbPut('tareas', id, { id, tipo: 'sesion', txt: o.txt, creada: t, at: t, clientes: o.clientes || [], fecha: o.fecha, ...(o.hora ? { hora: o.hora } : {}), ...(o.fin ? { fin: o.fin } : {}), sesion: { clase: o.clase || 'foto', visible: o.visible !== false, plantilla: 1, apartados: [] } }); };
+  const taAbrir = async (o = {}) => { await paginaAbierta(); await M.personal.set({ plg: { tareas: false, clientes: false, avisos: false }, vista: 'lista', alcance: '1m', ttodas: false, tcli: null, ...o }); await M.personal.render(); await espera(30); };
+  const taRegla = (re, el) => deRegla(re, 'background-color', el) || deRegla(re, 'background', el);
+  const taFila = id => q(`.pp-tareas .pp-tk[data-tid="${id}"]`);
+  // where a task is on the Mac's Lista: its group, «man» after Hoy's «Mañana», «sinfecha» in its column
+  const taDonde = id => { const r = taFila(id); if (!r) return null; if (r.closest('.pp-sinf')) return 'sinfecha'; const g = r.closest('.pp-tgr'); if (!g) return 'suelta'; const s = g.querySelector('.pp-tsub'); return g.dataset.tg === 'hoy' && s && (s.compareDocumentPosition(r) & 4) ? 'man' : g.dataset.tg; };
+
+  prueba('TA1', 'Tareas con el formato de Avisos (D-371): la Lista en grupos Se ha pasado (solo si hay) · Hoy con «Mañana» de subtítulo · Más adelante; cada fila con las columnas de una fila de Avisos (cliente · hora o fecha · la casilla en el sitio de la miniatura · el texto), fecha solo en Se ha pasado y Más adelante, la hora de una sesión o reunión; «Sin fecha» en su columna; los grupos, con la regla del núcleo que pinta el iPhone', async () => {
+    relojEn('2026-11-10T10:00:00+01:00');
+    try {
+      await tablero([pub(1, 'Foto', 20)]); await sinTareas();
+      const P = M.personal;
+      const pas = await P.tarea({ txt: 'Pasada', fecha: '2026-11-05', cliente: CLIENTE }), hoyT = await P.tarea({ txt: 'De hoy', fecha: '2026-11-10' });
+      const man = await P.tarea({ txt: 'De mañana', fecha: '2026-11-11', cliente: CLIENTE }), luego = await P.tarea({ txt: 'Más tarde', fecha: '2026-11-14' });
+      const sinf = await P.tarea({ txt: 'Sin día', cliente: CLIENTE }), hecha = await P.tarea({ txt: 'Hecha hoy', fecha: '2026-11-08' }); await P.hecha(hecha.id);
+      await taSes('ss-ta1a', { txt: 'Sesión de hoy', fecha: '2026-11-10', hora: '13:00', clientes: [CLIENTE] });
+      await taSes('ss-ta1b', { txt: 'Reunión de mañana', fecha: '2026-11-11', hora: '12:00', clase: 'reunion' });
+      await taSes('ss-ta1c', { txt: 'Sesión del lunes', fecha: '2026-11-16', hora: '09:30' });
+      await taAbrir();
+      const T = q('.pp-tareas'), g = c => T.querySelector(`.pp-tgr[data-tg="${c}"]`), cs = e => W.getComputedStyle(e);
+      igual([...T.querySelectorAll('.pp-tgr')].map(x => x.dataset.tg), ['pasado', 'hoy', 'despues'], 'los grupos de la Lista');
+      igual([...T.querySelectorAll('.pp-tgr .pp-tgt')].map(h => h.firstChild.textContent.trim()), ['Se ha pasado', 'Hoy', 'Más adelante'], 'sus títulos');
+      igual([...T.querySelectorAll('.pp-tgr .pp-tgt span')].map(s => s.textContent), ['1', '2', '2'], 'las cifras: lo que queda por hacer');
+      igual([...g('hoy').querySelectorAll('.pp-tk, .pp-tsub')].map(e => e.matches('.pp-tsub') ? '|' : e.dataset.tid), [hecha.id, hoyT.id, 'ss-ta1a', '|', man.id, 'ss-ta1b'], 'Hoy y, de subtítulo, Mañana');
+      ok(/^Mañana\s*2$/.test(g('hoy').querySelector('.pp-tsub').textContent.trim()), '«Mañana» y su cifra: ' + g('hoy').querySelector('.pp-tsub').textContent);
+      igual([...g('despues').querySelectorAll('.pp-tk')].map(e => e.dataset.tid), [luego.id, 'ss-ta1c'], 'Más adelante');
+      igual([...T.querySelectorAll('.pp-sinf .pp-tk')].map(e => e.dataset.tid), [sinf.id], '«Sin fecha», a la derecha');
+      // the columns of a row of Avisos: client · when · the checkbox where the thumbnail goes · the text
+      for (const id of [pas.id, hoyT.id, 'ss-ta1a', luego.id]) {
+        const f = taFila(id), k = [...f.children];
+        igual(cs(f).display, 'grid', id + ': la fila no es una rejilla');
+        igual(cs(f).gridTemplateColumns.split(' ').slice(0, 3), ['28px', '42px', '32px'], id + ': no son las columnas de Avisos');
+        ok(k.length === 4 && k[0].matches('.pp-avs') && k[1].matches('.pp-tf') && k[2].querySelector('.pp-ck') && k[3].querySelector('.pp-tt'), id + ': cliente · cuándo · casilla · texto: ' + k.map(x => x.className).join(' | '));
+      }
+      ok(taFila(pas.id).querySelector('.pp-avs .pp-ava') && !taFila(hoyT.id).querySelector('.pp-avs .pp-ava') && taFila(hoyT.id).querySelector('.pp-avs'), 'el cliente a la izquierda y, sin cliente, su hueco vacío');
+      const cu = id => taFila(id).querySelector('.pp-tf').textContent.trim();
+      ok(cu(pas.id) && taFila(pas.id).querySelector('.pp-tf.rojo'), 'Se ha pasado lleva su fecha en rojo: ' + cu(pas.id));
+      igual([cu(hoyT.id), cu(man.id), cu('ss-ta1a'), cu('ss-ta1b')], ['', '', '13:00', '12:00'], 'Hoy y Mañana: sin fecha; la sesión y la reunión, su hora');
+      igual(cu(luego.id), 'sáb 14', 'Más adelante lleva su fecha');
+      ok(/^lun 16\s*09:30$/.test(cu('ss-ta1c')), 'una sesión de Más adelante, fecha y hora: ' + cu('ss-ta1c'));
+      ok(taFila('ss-ta1b').querySelector('.pp-tses svg') && taFila('ss-ta1b').querySelector('.pp-tses').title === 'Reunión', 'la reunión, con su icono');
+      ok(taFila(hecha.id).classList.contains('hecha'), 'la hecha hoy, tachada');
+      ok(taFila(hoyT.id).classList.contains('pp-mk-hoy') && taFila(pas.id).classList.contains('pp-mk-pasado') && taFila(man.id).classList.contains('pp-mk-man'), 'las marcas ámbar y roja (D-300) siguen');
+      // the same groups as the iPhone's, from the core's one rule
+      const L = await M.personal.lista();
+      ok(typeof M.personal._p.grupoT === 'function', 'no hay una regla de grupos en el núcleo');
+      L.filter(x => x.tipo !== 'nota').forEach(x => igual(taDonde(x.id), x.grupo, `«${x.txt}»: en el Mac va en otro grupo que en el iPhone`));
+      // «Se ha pasado», only if there is something
+      await P.hecha(pas.id); await M.personal.render();
+      igual([...T.querySelectorAll('.pp-tgr')].map(x => x.dataset.tg), ['hoy', 'despues'], 'hecha la pasada, sin «Se ha pasado»');
+      igual(taDonde(pas.id), 'hoy', 'la pasada hecha hoy, tachada en Hoy (como el iPhone)');
+    } finally { paginaCerrada(); relojVuelve(); await sinTareas(); }
+  });
+
+  prueba('TA2', 'Tareas, un solo tono (D-371): Tareas, Avisos y Clientes con el mismo fondo (--panel) en claro y en oscuro y el de la página igual; «Sin fecha» sin caja de otro tono, separada por una línea; una fila al pasar un paso más honda que su fondo; el campo «Nueva tarea», el filtro y los días de Semana y Mes se distinguen del tono nuevo', async () => {
+    relojEn('2026-11-10T10:00:00+01:00');
+    try {
+      await tablero([pub(1, 'Foto', 20)]); await sinTareas();
+      await M.personal.tarea({ txt: 'De hoy', fecha: '2026-11-10', cliente: CLIENTE }); await M.personal.tarea({ txt: 'Sin día' });
+      await taAbrir();
+      const cs = e => W.getComputedStyle(e), bg = e => rgbDe(cs(e).backgroundColor).join(), T = q('.pp-tareas');
+      for (const t of ['light', 'dark']) await enTema(t, async () => {
+        const fondo = rgbDe(W.getComputedStyle(q('#mesa')).getPropertyValue('--panel').trim()).join();
+        igual([bg(T), bg(q('.pp-avisos')), bg(q('.pp-clientes'))], [fondo, fondo, fondo], `${t}: Tareas, Avisos y Clientes no van en --panel`);
+        igual(cs(q('.pp-sinf')).backgroundColor, 'rgba(0, 0, 0, 0)', `${t}: «Sin fecha» lleva caja`);
+        ok(parseFloat(cs(q('.pp-sinf')).borderLeftWidth) >= 1, `${t}: «Sin fecha» sin su línea`);
+        const hov = taRegla(/\.pp-tareas \.pp-tk:hover/, T);
+        ok(hov && rgbDe(hov).join() !== fondo, `${t}: al pasar, la fila se funde con su fondo: ${hov}`);
+        ok(bg(q('.pp-nueva')) !== fondo || parseFloat(cs(q('.pp-nueva')).borderTopWidth) >= 1, `${t}: «Nueva tarea» se funde`);
+        const anillo = deRegla(/\.pp-tc\.on$/, 'box-shadow', T); ok(anillo && anillo.includes(cs(T).backgroundColor), `${t}: el aro del filtro no deja el hueco del tono nuevo: ${anillo}`);
+      });
+      await M.personal.set({ vista: 'semana' }); await M.personal.render();
+      for (const t of ['light', 'dark']) await enTema(t, async () => {
+        const fondo = bg(T), d = q('.pp-sd:not(.pas)'); ok(d && bg(d) !== fondo, `${t}: los días de Semana se funden con Tareas`);
+        const hov = taRegla(/\.pp-sd:hover/, T); ok(hov && rgbDe(hov).join() !== bg(d) && rgbDe(hov).join() !== fondo, `${t}: el día al pasar: ${hov}`);
+      });
+      await M.personal.set({ vista: 'mes' }); await M.personal.render();
+      for (const t of ['light', 'dark']) await enTema(t, async () => { const d = q('.pp-md:not(.fuera)'); ok(d && bg(d) !== bg(T), `${t}: los días de Mes se funden con Tareas`); });
+    } finally { paginaCerrada(); relojVuelve(); await sinTareas(); }
+  });
+
+  prueba('TA3', 'Tareas, alcance y «Todas» con los grupos (D-371): «Más adelante» llega hasta el alcance; con «Todas», lo hecho sale tachado en el grupo de su fecha; sin nada hoy y algo mañana, «Nada para hoy»; el filtro por cliente deja los grupos', async () => {
+    relojEn('2026-11-10T10:00:00+01:00');
+    try {
+      await tablero([pub(1, 'Foto', 20)]); await sinTareas();
+      const P = M.personal;
+      const man = await P.tarea({ txt: 'Mañana', fecha: '2026-11-11', cliente: CLIENTE }), sem = await P.tarea({ txt: 'Dentro de una semana', fecha: '2026-11-15' });
+      const lejos = await P.tarea({ txt: 'En enero', fecha: '2027-01-05' }), vieja = await P.tarea({ txt: 'Hecha en octubre', fecha: '2026-10-20' });
+      relojEn('2026-10-20T10:00:00+02:00'); await P.hecha(vieja.id); relojEn('2026-11-10T10:00:00+01:00');
+      await taAbrir();
+      const T = q('.pp-tareas');
+      ok(/Nada para hoy/.test(T.querySelector('.pp-tgr[data-tg="hoy"]').textContent), 'sin nada hoy y algo mañana, «Nada para hoy»');
+      igual(taDonde(man.id), 'man', 'mañana, bajo «Mañana»');
+      igual([taDonde(sem.id), taDonde(lejos.id), taDonde(vieja.id)], ['despues', null, null], '1M: lo de enero y lo hecho en octubre no salen');
+      await M.personal.set({ alcance: '3m' }); await M.personal.render();
+      igual(taDonde(lejos.id), 'despues', '3M: «Más adelante» llega a enero');
+      await M.personal.set({ ttodas: true }); await M.personal.render();
+      igual(taDonde(vieja.id), 'pasado', '«Todas»: lo hecho en octubre, en el grupo de su fecha');
+      ok(taFila(vieja.id).classList.contains('hecha') && !taFila(vieja.id).querySelector('.pp-tf.rojo'), 'tachada y sin rojo');
+      igual(T.querySelector('.pp-tgr[data-tg="pasado"] .pp-tgt span').textContent, '0', 'Se ha pasado no cuenta lo hecho');
+      await M.personal.set({ ttodas: false, tcli: CLIENTE }); await M.personal.render();
+      igual([...T.querySelectorAll('.pp-tgr')].map(x => x.dataset.tg), ['hoy'], 'con el filtro de un cliente, sus grupos');
+      igual(taDonde(man.id), 'man', 'filtrado, «Mañana» sigue');
+    } finally { paginaCerrada(); relojVuelve(); await sinTareas(); }
+  });
+
+  // ---------- Ajustes de la 4.55, lote 3: arrastrar en los calendarios (D-373) ----------
+  // drags `sel` to the day `dia` (its cell `celda`); o.esc: Esc before letting go; o.fuera: let go over the feed. Gives the class
+  // the day had under the pointer
+  async function caArrastra(sel, celda, o = {}) {
+    const ch = await hasta(() => q(sel), 3000, sel), d = await hasta(() => q(celda), 3000, celda);
+    d.scrollIntoView({ block: 'center' }); await espera(30);
+    const r = ch.getBoundingClientRect(), rd = d.getBoundingClientRect(), x = rd.left + rd.width / 2, y = rd.top + rd.height / 2 + (o.dy || 0);
+    puntero('pointerdown', ch, r.left + 4, r.top + 4); puntero('pointermove', D, (r.left + x) / 2, (r.top + y) / 2); puntero('pointermove', D, x, y);
+    const marca = d.className, g = q('.cghost');
+    caArrastra.ult = { op: W.getComputedStyle(ch).opacity, sombra: g ? W.getComputedStyle(g).boxShadow : '' };   // mid-drag: the original dimmed, the copy lifted
+    if (o.esc) tecla('Escape');
+    if (o.fuera) { const f = q('.feed') || q('.bar'), rf = f.getBoundingClientRect(); puntero('pointermove', D, rf.left + 20, rf.top + 20); puntero('pointerup', D, rf.left + 20, rf.top + 20); }
+    else puntero('pointerup', D, x, y);
+    await espera(150); return marca;
+  }
+  const caRec = id => M._in.idbGet('tareas', id);
+  const caCal = async () => { M._in.render(); await espera(60); if (q('.side > .cal.fold')) { q('.side > .cal [data-cal="fold"]').click(); await espera(80); } };
+
+  prueba('CA1', 'Arrastrar una sesión en el calendario del tablero (D-373): su chip en una línea (nombre a la izquierda, hora a la derecha) y con el aro de una publicación al pasar; se arrastra como una publicación, conserva su hora, una de varios días se mueve entera cogida por cualquier día y puede ir al pasado; ⌘Z la devuelve desde el tablero, en un solo orden con lo del tablero; Esc lo cancela y soltar fuera no deja nada', async () => {
+    relojEn('2026-11-10T10:00:00+01:00');
+    try {
+      await tablero([pub(1, 'Foto', 20), pub(2, 'Foto', 24)]); await sinTareas();
+      await taSes('ss-ca1', { txt: 'Sesión larga de otoño en el estudio', fecha: '2026-11-12', hora: '10:30', fin: { fecha: '2026-11-13', hora: '12:00' }, clientes: [CLIENTE] });
+      W.document.dispatchEvent(new W.CustomEvent('mesa-tareas')); await espera(120); await caCal();
+      const ch = await hasta(() => q('.side > .cal .cday[data-day="2026-11-12"] .chip[data-ses="ss-ca1"]'), 3000, 'el chip de la sesión');
+      const cs = W.getComputedStyle(ch), cn = ch.querySelector('.cn').getBoundingClientRect(), ct = ch.querySelector('.ct').getBoundingClientRect();
+      ok(Math.abs(cn.top - ct.top) < 4 && ct.left > cn.left, 'el chip de la sesión no va en una línea');
+      const aro = deRegla(/\.chip\[data-ses\]:hover/, 'box-shadow', ch.parentNode); ok(aro && /2px/.test(aro), 'sin el aro al pasar: ' + aro);
+      // grabbed by its second day, to the 20th: it moves whole, its time kept
+      const marca = await caArrastra('.side > .cal .cday[data-day="2026-11-13"] .chip[data-ses="ss-ca1"]', '.side > .cal .cday[data-day="2026-11-20"]');
+      ok(/\bcover\b/.test(marca), 'el día no se marcó para soltar: ' + marca);
+      let r = await caRec('ss-ca1'); igual([r.fecha, r.hora, r.fin], ['2026-11-19', '10:30', { fecha: '2026-11-20', hora: '12:00' }], 'no se movió entera con su hora');
+      // to the past
+      await caArrastra('.side > .cal .chip[data-ses="ss-ca1"]', '.side > .cal .cday[data-day="2026-11-05"]');
+      r = await caRec('ss-ca1'); igual(r.fecha, '2026-11-05', 'no va al pasado');
+      // a step of the board after it: ⌘Z in its order
+      M._in.setDate('r1', '2026-11-21T12:00:00.000+01:00'); await espera(60);
+      tecla('z', { meta: true }); await espera(150); igual(M._in.localDay(slot('r1').date), '2026-11-20', '⌘Z no deshizo primero lo del tablero');
+      tecla('z', { meta: true }); await espera(200); igual((await caRec('ss-ca1')).fecha, '2026-11-19', '⌘Z del tablero no devuelve la sesión');
+      tecla('z', { meta: true }); await espera(200); igual((await caRec('ss-ca1')).fecha, '2026-11-12', 'el segundo ⌘Z no la devuelve a su sitio');
+      tecla('z', { meta: true, shift: true }); await espera(200); igual((await caRec('ss-ca1')).fecha, '2026-11-19', '⇧⌘Z no la rehace');
+      // Esc cancels; let go outside, nothing
+      await caCal();
+      await caArrastra('.side > .cal .chip[data-ses="ss-ca1"]', '.side > .cal .cday[data-day="2026-11-25"]', { esc: true });
+      igual((await caRec('ss-ca1')).fecha, '2026-11-19', 'Esc no lo canceló');
+      ok(!q('.cghost') && !q('.side > .cal .cday.cover') && !q('#mesa.calmv'), 'Esc dejó el arrastre a medias');
+      await caArrastra('.side > .cal .chip[data-ses="ss-ca1"]', '.side > .cal .cday[data-day="2026-11-25"]', { fuera: true });
+      igual((await caRec('ss-ca1')).fecha, '2026-11-19', 'soltar fuera la movió');
+      ok(!q('.cghost') && !q('.side > .cal .cday.cover'), 'soltar fuera dejó algo a medias');
+    } finally { relojVuelve(); await sinTareas(); }
+  });
+
+  prueba('CA2', 'Arrastrar en la página de un cliente de solo contenido (D-373): una entrega y una sesión se arrastran a otro día, también al pasado, y ⌘Z las devuelve', async () => {
+    await tableroContenido();
+    relojEn('2026-11-10T10:00:00+01:00');
+    try {
+      q('.side > .cal .cmes').dispatchEvent(new W.MouseEvent('dblclick', { bubbles: true })); await espera(80);
+      const e = await M._in.ent.nueva({ cliente: CLIENTE, fecha: '2026-11-12', que: 'Fotos de la sesión' });
+      await taSes('ss-ca2', { txt: 'Reunión de arranque', fecha: '2026-11-16', hora: '12:00', clase: 'reunion', clientes: [CLIENTE] });
+      W.document.dispatchEvent(new W.CustomEvent('mesa-tareas')); W.document.dispatchEvent(new W.CustomEvent('mesa-entregas')); await espera(150);
+      await caArrastra(`.side > .cal .chip[data-ent="${e.id}"]`, '.side > .cal .cday[data-day="2026-11-03"]');
+      igual(M._in.ent.get(e.id).fecha, '2026-11-03', 'la entrega no se movió (al pasado)');
+      await caArrastra('.side > .cal .chip[data-ses="ss-ca2"]', '.side > .cal .cday[data-day="2026-11-18"]');
+      igual([(await caRec('ss-ca2')).fecha, (await caRec('ss-ca2')).hora], ['2026-11-18', '12:00'], 'la reunión no se movió con su hora');
+      tecla('z', { meta: true }); await espera(200); igual((await caRec('ss-ca2')).fecha, '2026-11-16', '⌘Z no devuelve la reunión');
+      tecla('z', { meta: true }); await espera(200); igual(M._in.ent.get(e.id).fecha, '2026-11-12', '⌘Z no devuelve la entrega');
+    } finally { relojVuelve(); await sinTareas(); }
+  });
+
+  prueba('CA3', 'Arrastrar en Semana y Mes de la página personal (D-373): una tarea y una sesión se mueven a otro día con el aro de una publicación al pasar, la sesión de varios días entera; ⌘Z de la página las devuelve', async () => {
+    relojEn('2026-11-10T10:00:00+01:00');
+    try {
+      await tablero([pub(1)]); await sinTareas();
+      const t = await M.personal.tarea({ txt: 'Llamar al estudio', fecha: '2026-11-11', cliente: CLIENTE });
+      await taSes('ss-ca3', { txt: 'Sesión de dos días', fecha: '2026-11-12', hora: '09:00', fin: { fecha: '2026-11-13', hora: '18:00' }, clientes: [CLIENTE] });
+      await taAbrir({ vista: 'semana', tsem: 0 });
+      const aro = deRegla(/\.pp-fi:hover/, 'box-shadow', q('.pp-tareas')); ok(aro && /2px/.test(aro), 'sin el aro al pasar: ' + aro);
+      const m1 = await caArrastra(`.pp-sd[data-day="2026-11-11"] .pp-fi[data-tid="${t.id}"]`, '.pp-sd[data-day="2026-11-14"]');
+      ok(/pp-dropd/.test(m1), 'el día no se marcó para soltar: ' + m1);
+      igual(caArrastra.ult.op, '0.35', 'la ficha que se arrastra no se apaga en su sitio');
+      const sd = W.getComputedStyle(q('#mesa')).getPropertyValue('--shadow-drag').trim(); ok(sd && caArrastra.ult.sombra && caArrastra.ult.sombra !== W.getComputedStyle(q('.pp-fi')).boxShadow, 'la copia que se arrastra sale plana: ' + caArrastra.ult.sombra);
+      const dr = taRegla(/\.pp-tareas \.pp-sd\.pp-dropd/, q('.pp-tareas')); ok(dr && rgbDe(dr).join() === rgbDe(W.getComputedStyle(q('#mesa')).getPropertyValue('--acc-soft').trim()).join(), 'el día donde cae no gana al día al pasar: ' + dr);
+      igual((await caRec(t.id)).fecha, '2026-11-14', 'Semana: la tarea no se movió');
+      await caArrastra('.pp-sd[data-day="2026-11-13"] .pp-fi[data-tid="ss-ca3"]', '.pp-sd[data-day="2026-11-09"]');
+      let r = await caRec('ss-ca3'); igual([r.fecha, r.hora, r.fin], ['2026-11-08', '09:00', { fecha: '2026-11-09', hora: '18:00' }], 'Semana: la sesión no se movió entera');
+      await M.personal.set({ vista: 'mes', tmes: 0 }); await M.personal.render(); await espera(40);
+      await caArrastra(`.pp-md[data-day="2026-11-14"] .pp-mt[data-tid="${t.id}"]`, '.pp-md[data-day="2026-11-27"]');
+      igual((await caRec(t.id)).fecha, '2026-11-27', 'Mes: la tarea no se movió');
+      M._in.clearToasts(); const fuera = q('.pp-md.fuera[data-day]'); ok(fuera, 'Mes sin días de otro mes');
+      await caArrastra(`.pp-md[data-day="2026-11-27"] .pp-mt[data-tid="${t.id}"]`, `.pp-md[data-day="${fuera.dataset.day}"]`);
+      ok(toastCon(/ya no se ve en este mes/), 'soltar en un día de otro mes no lo dice'); ppTecla('z', { metaKey: true }); await espera(200);
+      ppTecla('z', { metaKey: true }); await espera(200); igual((await caRec(t.id)).fecha, '2026-11-14', '⌘Z de la página no la devuelve');
+      ppTecla('z', { metaKey: true }); await espera(200); igual((await caRec('ss-ca3')).fecha, '2026-11-12', '⌘Z no devuelve la sesión');
+    } finally { paginaCerrada(); relojVuelve(); await sinTareas(); }
+  });
+
+  prueba('CA4', 'Lo que ve el cliente (D-373): mover una sesión que ve el cliente cuenta como cambio sin enviar a su web; soltarla en un día que ese calendario no enseña lo dice; una sesión de dos clientes se mueve para los dos', async () => {
+    relojEn('2026-11-10T10:00:00+01:00');
+    try {
+      await tablero([pub(1, 'Foto', 20)]); await sinTareas();
+      await taSes('ss-ca4', { txt: 'Sesión compartida', fecha: '2026-11-12', hora: '10:00', clientes: [CLIENTE, CLIENTE2] });
+      W.document.dispatchEvent(new W.CustomEvent('mesa-tareas')); await espera(120); await caCal();
+      await conWeb(async () => {
+        wbSesion(); await M.web.repasar(); ok((await M.web.enviar()).ok, 'no se envió'); await M.web.repasar();
+        igual(M.web.estado().cambios, 0, 'tras enviar');
+        await caArrastra('.side > .cal .chip[data-ses="ss-ca4"]', '.side > .cal .cday[data-day="2026-11-18"]');
+        igual((await caRec('ss-ca4')).fecha, '2026-11-18', 'la sesión no se movió');
+        await espera(800); igual(M.web.estado().cambios, 1, 'mover la sesión no cuenta como cambio sin enviar: ' + json(M.web.estado()));
+      });
+      const r = await caRec('ss-ca4'); igual([r.fecha, r.clientes], ['2026-11-18', [CLIENTE, CLIENTE2]], 'la sesión de dos clientes');
+      M._in.clearToasts();
+      const off = q('.side > .cal .cday.off[data-day]'); ok(off, 'el calendario no enseña días fuera del tablero');
+      await caArrastra('.side > .cal .chip[data-ses="ss-ca4"]', `.side > .cal .cday[data-day="${off.dataset.day}"]`);
+      igual((await caRec('ss-ca4')).fecha, off.dataset.day, 'no se soltó en un día a la vista');
+      ok(toastCon(/ya no se ve en este calendario/), 'sin aviso de que deja de verse: ' + qa('.toasts .toast').map(x => x.textContent).join(' | '));
+    } finally { relojVuelve(); await sinTareas(); }
+  });
+
+  prueba('CA5', 'El arrastre de siempre (D-373): una publicación no se marca como válida sobre un día que luego rechaza (fuera del tablero o pasado), Esc lo cancela; nada se arrastra en «Vista cliente» ni con la Mesa en pausa', async () => {
+    relojEn('2026-11-10T10:00:00+01:00');
+    try {
+      await tablero([pub(1, 'Foto', 20)]); await sinTareas();
+      await taSes('ss-ca5', { txt: 'Sesión', fecha: '2026-11-12', hora: '10:00', clientes: [CLIENTE] });
+      W.document.dispatchEvent(new W.CustomEvent('mesa-tareas')); await espera(120); await caCal();
+      const off = [...qa('.side > .cal .cday.off[data-day]')].pop(); ok(off && off.dataset.day > '2026-11-10', 'sin un día futuro fuera del tablero');
+      const m = await caArrastra('.side > .cal .chip[data-slot="r1"]', `.side > .cal .cday[data-day="${off.dataset.day}"]`);
+      ok(/\bcno\b/.test(m) && !/\bcover\b/.test(m), 'un día fuera del tablero se marca válido: ' + m);
+      igual(M._in.localDay(slot('r1').date), '2026-11-20', 'la publicación salió del tablero');
+      await caArrastra('.side > .cal .chip[data-slot="r1"]', '.side > .cal .cday[data-day="2026-11-25"]', { esc: true });
+      igual(M._in.localDay(slot('r1').date), '2026-11-20', 'Esc no canceló el arrastre de la publicación');
+      await vistaCliente(true); await espera(60);
+      const sc = q('.side > .cal .chip[data-ses="ss-ca5"]');
+      if (sc) await caArrastra('.side > .cal .chip[data-ses="ss-ca5"]', '.side > .cal .cday[data-day="2026-11-25"]');
+      igual((await caRec('ss-ca5')).fecha, '2026-11-12', 'se arrastró en «Vista cliente»');
+      await vistaCliente(false);
+    } finally { relojVuelve(); await sinTareas(); }
+  });
+
+  prueba('CA6', '⌘Z del tablero y lo movido (D-373, revisión del lote 3): un paso del editor o del diseñador lleva su número y se deshace antes que una sesión movida antes; solo lo movido en el calendario de este cliente se deshace desde el tablero, no lo hecho en la página personal', async () => {
+    relojEn('2026-11-10T10:00:00+01:00');
+    try {
+      await tablero([pub(1, 'Foto', 20), pub(2, 'Foto', 24)]); await sinTareas();
+      await taSes('ss-ca6', { txt: 'Sesión CA6', fecha: '2026-11-12', hora: '10:30', clientes: [CLIENTE] });
+      W.document.dispatchEvent(new W.CustomEvent('mesa-tareas')); await espera(120); await caCal();
+      await caArrastra('.side > .cal .chip[data-ses="ss-ca6"]', '.side > .cal .cday[data-day="2026-11-18"]');
+      igual((await caRec('ss-ca6')).fecha, '2026-11-18', 'la sesión no se movió');
+      // a step of the editor's kind, merged with histJuntar, after the move: ⌘Z undoes it first
+      const m = M._in.histMarca(); M._test.setSlot('r1', { memo: 'del editor' }); M._in.histJuntar(m); await espera(40);
+      tecla('z', { meta: true }); await espera(200);
+      ok(!slot('r1').memo, '⌘Z no deshizo primero el paso del editor');
+      igual((await caRec('ss-ca6')).fecha, '2026-11-18', '⌘Z deshizo antes la sesión que el editor');
+      // an edit in the session's sheet over the board is of this board: ⌘Z from the board, after closing it, undoes it
+      await M.personal.abrirSesion('ss-ca6', { cli: CLIENTE }); await espera(150); const P = M.personal._p; ok(P.CARD && P.CARD.tablero, 'la hoja no se abre encima del tablero');
+      const r0 = await caRec('ss-ca6'); await P.hacer([{ id: 'ss-ca6', despues: { ...r0, txt: 'Sesión CA6 bis' } }]); P.quitarCard(); await espera(120);
+      tecla('z', { meta: true }); await espera(200); igual((await caRec('ss-ca6')).txt, 'Sesión CA6', '⌘Z del tablero no deshizo lo hecho en su hoja');
+      // a task done on the personal page is not undone from the board
+      const t = await M.personal.tarea({ txt: 'Tarea de la página', fecha: '2026-11-11' }); await M.personal.hecha(t.id);
+      tecla('z', { meta: true }); await espera(200);
+      ok((await caRec(t.id)).hecha, '⌘Z del tablero deshizo una tarea de la página personal');
+    } finally { relojVuelve(); await sinTareas(); }
+  });
+
+  prueba('IN8', 'La huella de su web (D-372, revisión del lote 3): una huella vieja de este navegador que ya no es la de ahora no pasa a «enviados» (otro Mac la tomaría por buena); la que pasa lleva una fecha vieja; un envío cuya huella no se puede guardar sigue siendo un envío bueno', async () => {
+    await tablero([pub(1)]);
+    await porAprobar(['r1'], 'in8');
+    await conWeb(async sv => {
+      wbSesion(); await M.web.repasar(); ok((await M.web.enviar()).ok, 'no se envió'); await M.web.repasar();
+      const k = M._in.S.key, hu = () => M._in.idbAll('enviados').then(l => (l || []).filter(r => r.cliente === CLIENTE && /^~huella:/.test(r.slot)));
+      const h0 = (await hu())[0]; await M._in.idbDel('enviados', CLIENTE + '|~huella:' + k); await M._in.envLeer();
+      W.localStorage.setItem('mesa-web-huella:' + WB_URL + ':' + k, 'b'.repeat(64));   // stale: another send since
+      M.web._test.olvidar(); await M.web.repasar();
+      igual(M.web.estado().cambios, 1, 'la huella vieja no cuenta su cambio aquí');
+      igual((await hu()).length, 0, 'una huella vieja que no es la de ahora pasó a «enviados»');
+      W.localStorage.setItem('mesa-web-huella:' + WB_URL + ':' + k, h0.huella);
+      M.web._test.olvidar(); await M.web.repasar();
+      const h1 = (await hu())[0]; ok(h1 && h1.huella === h0.huella && h1.at < '2001', 'la de ahora no pasa, o pasa con la fecha de hoy: ' + json(h1));
+      const p0 = M._in.envHuellaPoner; M._in.envHuellaPoner = () => Promise.reject(new Error('sin espacio (prueba)'));
+      try { M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 1 } }); const r = await M.web.enviar(); ok(r && r.ok, 'un envío bueno dice que falló: ' + json(r)); }
+      finally { M._in.envHuellaPoner = p0; }
+    });
+  });
+
+  prueba('TA4', 'En Avisos, una tarea o una sesión como una fila de Tareas (Kevin, 26/11/2026, D-371): el cliente a la izquierda, como en cada fila; la casilla donde va la miniatura; el icono de una sesión o una reunión delante de su nombre; la casilla sigue marcándola hecha', async () => {
+    relojEn('2026-11-10T10:00:00+01:00');
+    try {
+      await tablero([pub(1, 'Foto', 20)]); await sinTareas();
+      const t = await M.personal.tarea({ txt: 'Tarea de hoy', fecha: '2026-11-10', cliente: CLIENTE });
+      await taSes('ss-ta4', { txt: 'Reunión de hoy', fecha: '2026-11-10', hora: '13:00', clase: 'reunion', clientes: [CLIENTE] });
+      await paginaAbierta(); await M.personal.set({ plg: { tareas: true, clientes: true, avisos: false }, avTareas: true }); await M.personal.render(); await espera(40);
+      const fila = id => q(`.pp-avisos .pp-av[data-tid="${id}"]`);
+      for (const id of [t.id, 'ss-ta4']) {
+        const f = fila(id), k = f && [...f.children];
+        ok(k && k[0].matches('.pp-avs') && k[0].querySelector('.pp-ava') && !k[0].querySelector('.pp-ck'), id + ': el cliente no va a la izquierda');
+        ok(k && k[2].matches('.pp-afoto') && k[2].querySelector('.pp-ck') && !k[2].querySelector('svg'), id + ': la casilla no va donde la miniatura');
+      }
+      ok(fila('ss-ta4').querySelector('.pp-nm b .pp-tses svg') && fila('ss-ta4').querySelector('.pp-tses').title === 'Reunión', 'la reunión sin su icono delante del nombre');
+      ok(!fila(t.id).querySelector('.pp-nm .pp-tses'), 'una tarea lleva icono de sesión');
+      fila(t.id).querySelector('.pp-ck').click(); await hasta(async () => !!(await M._in.idbGet('tareas', t.id)).hecha, 2000, 'la casilla no la marca hecha');
+    } finally { paginaCerrada(); relojVuelve(); await sinTareas(); }
+  });
 
   prueba('AV1', 'Hoy, más marcado (D-222): en Avisos, cada fila de hoy que no está Programada ni Publicada (reels también) va tintada en --chg-soft con su franja de 3 px y la hora y el estado en --chg a 600; al pasar conserva su tinte sin bajar de 4,5:1, en claro y en oscuro (D-300); «Mañana» y lo programado, como estaban (D-190); una tarea de hoy sin hacer, como una publicación (D-300)', async () => {
     relojEn('2026-11-01T10:00:00+01:00');
@@ -17522,8 +17991,9 @@
     M._in.renderBar(); ok(!q('[data-web]'), 'sin proyecto salió algo en la barra');
     ok(!M.web._sb(), 'en una copia de este Mac sin proyecto de pruebas se usó el real');
     await conWeb(async () => {
-      M._in.renderBar();
-      const b = q('[data-web="entrar"]'); ok(b && b.textContent === 'Web del cliente', 'sin sesión no salió «Web del cliente»');
+      M._in.renderBar(); M._in.render(); await espera(60); ok(!q('.bar [data-web]'), 'la barra sigue con su botón');
+      q('.side > .cal .cvenc').click(); await espera(60);   // al día a propósito: «Entrar» va en la lista del indicador (D-372)
+      const b = q('.detail[data-dlg="venc"] [data-web="entrar"]'); ok(b && b.textContent === 'Entrar', 'sin sesión no salió «Entrar»');
       b.click(); await espera(60); ok(q('.detail [data-webform="correo"]'), 'no se abrió el diálogo de entrar');
       M._in.closeDetail();
       await vistaCliente(true); M._in.renderBar(); ok(!q('[data-web]'), 'en «Vista cliente» salió el botón');
@@ -17581,10 +18051,10 @@
     await conWeb(async sv => {
       wbSesion(); await M.web.repasar();
       igual(M.web.estado().cambios, 3, 'al empezar (las 2 publicaciones y el cliente)');
-      ok(/^Web: 3 cambios$/.test(((q('[data-web="lista"]') || {}).textContent || '').trim()), 'la barra');   // al día a propósito: «Web: N cambios», que abre la lista (D-355)
+      M._in.render(); await espera(40); igual(+((q('.side > .cal .cvenc') || {}).textContent || '0'), 3, 'la pastilla');   // al día a propósito: lo de su web va en el indicador (D-372)
       ok((await M.web.enviar()).ok, 'no se envió'); await M.web.repasar();
       igual(M.web.estado().cambios, 0, 'tras enviar');
-      ok(/Web al día/.test((q('[data-web]') || {}).textContent || ''), 'la barra no dice «Web al día»');
+      M._in.render(); await espera(40); ok(!q('.side > .cal .cvenc'), 'al día, sigue la pastilla');   // al día a propósito (D-372)
       M._test.setSlot('r1', { memo: 'otra nota' }); await M.web.repasar();
       igual(M.web.estado().cambios, 0, 'la Nota contó como cambio');
       M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 1 } }); await M.web.repasar();
@@ -22159,7 +22629,7 @@
       await M.sesiones._test.crear({ txt: 'Rodaje', clase: 'foto', fecha: '2026-11-22', clientes: [CLIENTE] });
       await conWeb(async sv => {
         wbSesion(); M._in.renderBar(); await espera(60);
-        ok(q('.bar .webbtn'), 'sin «Web del cliente» en la barra de un cliente de solo contenido');
+        ok(q('.bar .cavw') && !q('.bar .webbtn'), 'sin el sitio del indicador en la barra de un cliente de solo contenido');   // al día a propósito (D-372)
         const P = await M.web.paquete(M._in.S);
         ok(!P.error, 'el paquete: ' + json(P.error));
         const C = P.cliente || {};
@@ -22368,12 +22838,12 @@
     { const r = (await M.personal.tareas()).find(x => x.txt === 'Sin nombre'), raw = await M._in.idbGet('tareas', r.id); raw.txt = ''; await M._in.idbPut('tareas', r.id, raw); }   // una reunión sin nombre: «Reunión», como la «Vista cliente» (revisión en frío)
     await conWeb(async sv => {
       wbSesion(); M._in.renderBar(); await espera(60);
-      ok(q('.bar .webbtn'), 'sin «Web del cliente» en su página');
+      ok(q('.bar .cavw') && !q('.bar .webbtn'), 'sin el sitio del indicador en su página');   // al día a propósito (D-372)
       const P = await M.web.paquete(); ok(P && !P.error, 'el paquete sin tablero: ' + json(P && P.error));
       igual((P.sesiones || []).map(x => x.nombre).sort(), ['Reunión', 'Sesión de agosto', 'Sesión de marzo'], 'las sesiones de cualquier mes (la reunión sin nombre, «Reunión»)');
       const r = await M.web.enviar(); ok(r.ok, 'no se envió: ' + json(r));
       igual((sv.db.sesiones || []).map(x => x.nombre).sort(), ['Reunión', 'Sesión de agosto', 'Sesión de marzo'], 'las sesiones en la web');
-      ok(Object.keys(W.localStorage).some(k => /^mesa-web-huella:/.test(k) && k.endsWith(':cliente:' + CLIENTE)), 'la huella no es por cliente: ' + Object.keys(W.localStorage).filter(k => /huella/.test(k)).join(' '));
+      ok(((await M._in.idbAll('enviados')) || []).some(x => x.slot === '~huella:cliente:' + CLIENTE), 'la huella no es por cliente');   // al día a propósito: en «enviados» desde D-372
       const ag = (await M.personal.tareas()).find(x => x.txt === 'Sesión de agosto'); await M.personal.borrarSesion(ag.id); await espera(120);
       const r2 = await M.web.enviar(); ok(r2.ok, 'no se envió otra vez: ' + json(r2));
       igual((sv.db.sesiones || []).map(x => x.nombre).sort(), ['Reunión', 'Sesión de marzo'], 'la sesión quitada sigue en la web');
@@ -22638,7 +23108,7 @@
     // la página personal: la tira de días de cada cliente, Semana y Mes de Tareas
     const rp = reglasDe(/\.pp-(sd|md|dia):hover/), fondo = r => r.style.getPropertyValue('background') || r.style.getPropertyValue('background-color');
     ok(['sd', 'md', 'dia'].every(k => rp.some(r => new RegExp(`\\.pp-${k}:hover`).test(r.selectorText) && /background-color/.test(r.style.getPropertyValue('transition')) && /--d1/.test(r.style.getPropertyValue('transition')))), 'la página personal: un día sin aparecer con --d1');
-    ok(['sd', 'md', 'dia'].every(k => rp.some(r => new RegExp(`\\.pp-${k}:hover`).test(r.selectorText) && /--bg-3/.test(fondo(r)))), 'la página personal: un día sin su tono propio (va sobre un fondo del tono de --cx-hov: la tarjeta de Tareas, el bloque al pasar)');
+    ok(rp.some(r => /\.pp-dia:hover/.test(r.selectorText) && /--bg-3/.test(fondo(r))) && ['sd', 'md'].every(k => rp.some(r => new RegExp(`\\.pp-${k}:hover`).test(r.selectorText) && /--cx-hov/.test(fondo(r))) && !rp.some(r => new RegExp(`\\.pp-${k}:hover`).test(r.selectorText) && /--bg-3/.test(fondo(r)))), 'la página personal: la tira al pasar sobre su bloque, --bg-3; Semana y Mes, sobre Tareas en --panel desde D-371, --cx-hov como el calendario');
     ok(reglasReduce(/\.pp-(sd|md|dia):hover/).some(r => r.style.transition === 'none' && ['sd', 'md', 'dia'].every(k => new RegExp(`\\.pp-${k}:hover`).test(r.selectorText))), 'la página personal con «reducir movimiento» sigue animando');
     await paginaAbierta();
     try {
@@ -23992,7 +24462,7 @@
       igual(M._test.hist().undo, u0 + 1, 'las tres, en un solo paso de ⌘Z');
       ok(/3 publicaciones pasan a Publicado/.test(qa('.toasts .toast').map(t => t.textContent).join(' | ')), 'sin el aviso de las tres');
       igual(vencidasV().map(v => [v.id, v.aqui]), [['ff1-s2', false], ['ff1-n2', false], ['ff1-n4', false]], 'las vencidas, con las de noviembre');
-      await hasta(() => /3 vencidas/.test((q('.side > .cal') || { textContent: '' }).textContent), 3000, 'la cifra «3 vencidas» del calendario');
+      await hasta(() => q('.side > .cal .cvenc') && M.calendario.avisos() && M.calendario.avisos().filas.venc.length === 3, 3000, 'las 3 vencidas en el indicador del calendario');   // al día a propósito (D-372)
       abrirV();
       await hasta(() => filaV('ff1-n2'), 3000, 'la fila de la de noviembre');
       ok(/Noviembre 2026, otro tablero/.test(filaV('ff1-n2').textContent), 'la de noviembre no dice su mes');
@@ -25646,17 +26116,17 @@
       ok((await M.web.enviar()).ok, 'no se envió'); await M.web.repasar();
       ok(M._in.envDe(slot('r1')) && M._in.envDe(slot('r2')), 'enviar no apuntó lo enviado');
       igual(M._in.cambiosWeb(slot('r1')), [], 'recién enviada, con cambios');
-      ok(/Web al día/.test((q('[data-web="lista"]') || {}).textContent || ''), 'la barra no dice «Web al día»');
-      M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 1 } }); await M.web.repasar(); M._in.renderFeed(); await espera(60);
-      ok(/^Web: 1 cambio$/.test(((q('[data-web="lista"]') || {}).textContent || '').trim()), 'la barra: ' + ((q('[data-web]') || {}).textContent || ''));
+      M._in.render(); await espera(40); ok(!q('.side > .cal .cvenc'), 'al día, sigue la pastilla');   // al día a propósito: su web va en el indicador (D-372)
+      M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 1 } }); await M.web.repasar(); M._in.renderFeed(); M._in.render(); await espera(60);
+      igual(((q('.side > .cal .cvenc') || {}).textContent || '').trim(), '1', 'la pastilla');
       ok(celda('r1').querySelector('.mk-cambios'), 'la casilla no lleva la marca');
-      q('[data-web="lista"]').click();
-      const d = await hasta(() => q('.detail:not([hidden])[data-dlg="webcambios"]'), 4000, 'la lista');
-      ok(/1 cambio sin enviar/.test(d.querySelector('h3').textContent), 'el título: ' + d.querySelector('h3').textContent);
-      igual(qa('.detail[data-dlg="webcambios"] .vlist li').length, 1, 'la lista');
-      ok(/Cambió: caption/.test(d.querySelector('.vlist li').textContent), 'la fila: ' + d.querySelector('.vlist li').textContent);
+      q('.side > .cal .cvenc').click();
+      const d = await hasta(() => q('.detail:not([hidden])[data-dlg="venc"]'), 4000, 'la lista');
+      ok(/1 aviso/.test(d.querySelector('h3').textContent), 'el título: ' + d.querySelector('h3').textContent);
+      igual(qa('.detail[data-dlg="venc"] .avsec[data-sec="web"] li').length, 1, 'la lista');
+      ok(/Cambió: caption/.test(d.querySelector('.avsec[data-sec="web"] li').textContent), 'la fila: ' + d.querySelector('.avsec[data-sec="web"] li').textContent);
       d.querySelector('[data-web="enviar"]').click();
-      await hasta(() => !q('.detail:not([hidden])[data-dlg="webcambios"]') && M.web.estado().enviando === false, 6000, 'que envíe');
+      await hasta(() => M.web.estado().enviando === false && M.web.estado().cambios === 0, 6000, 'que envíe'); M._in.closeDetail();
       await hasta(() => M._in.cambiosWeb(slot('r1')).length === 0, 4000, 'la marca después de enviar');
       // lo enviado antes de la 4.54: sin nada apuntado, se aprende del servidor al leerlo
       await M._test.estBorrarTodo(); igual(M._in.envDe(slot('r1')), null, 'no se borró lo apuntado');

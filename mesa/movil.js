@@ -869,6 +869,12 @@
     const id = e.detail && e.detail.id; if (!id) return;
     olvidarMini(id); raiz.querySelectorAll(`img.mi[data-id="${CSS.escape(id)}"]`).forEach(i => { i.removeAttribute('src'); llenar(i); });
   });
+  D.addEventListener('mesa-foto-rota', e => {   // una miniatura que ya no carga se hace otra vez desde lo guardado, una vez (D-369); si vuelve a fallar, el gris del núcleo
+    const im = e.detail && e.detail.img; if (!im || !im.classList.contains('mi') || im.dataset.rehecha) return;
+    e.preventDefault(); im.dataset.rehecha = '1'; im.removeAttribute('src');
+    olvidarMini(im.dataset.id || im.dataset.alm + '|' + im.dataset.k + '|' + im.dataset.ruta);   // its drawing, made again from the photo kept
+    llenar(im);
+  });
   D.addEventListener('mesa-archivo-llego', e => {   // una foto de una tarea o de una sesión bajó: donde se ve, se rellena en su sitio
     const d = e.detail || {}; if (!d.a) return;
     raiz.querySelectorAll(`img.mi[data-alm="${CSS.escape(d.a)}"][data-k="${CSS.escape(String(d.k))}"][data-ruta="${CSS.escape(d.ruta)}"]:not([src])`).forEach(llenar);

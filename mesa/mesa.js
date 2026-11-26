@@ -1240,8 +1240,12 @@
   }
   // Each pending photo has its own URL of the placeholder (the same bytes): when its thumbnail arrives (lot 4), every <img> that
   // shows it changes its src in place, without drawing anything again (fotoLlego).
+  // Every blob: URL the Mesa makes to show a photo, with whose it is (D-369): an <img> left with one already let go (Safari keeps
+  // showing it only while it is in its cache, then «?»; Chrome, never) is made again from what is stored (the safety net, below)
+  const URL_DE = new Map();
+  const apuntarUrl = (u, id, k) => { if (u && id != null) URL_DE.set(u, { id: String(id), k }); return u; };
   const URL_HUECO = new Map();
-  const urlHueco = id => { hueco(); if (!id) return HUECO_U; let u = URL_HUECO.get(id); if (!u) { u = URL.createObjectURL(HUECO_B); URL_HUECO.set(id, u); } return u; };
+  const urlHueco = id => { hueco(); if (!id) return HUECO_U; let u = URL_HUECO.get(id); if (!u) { u = apuntarUrl(URL.createObjectURL(HUECO_B), id, 'hueco'); URL_HUECO.set(id, u); } return u; };
   function metaHueco(rec, id) {
     const o = { name: (rec && rec.name) || 'Foto que aún no ha llegado', size: (rec && rec.size) || 0, type: (rec && rec.type) || 'image/jpeg', w: (rec && rec.w) || 1080, h: (rec && rec.h) || 1350, pendiente: true, thumbUrl: urlHueco(id) };
     if (rec && rec.design) o.design = true; if (rec && rec.de) o.de = rec.de; if (rec && rec.reduced) o.reduced = true;
@@ -1252,13 +1256,13 @@
   // What M.files keeps of a stored photo. A tray can hold thousands (D-069): the URL of its thumbnail is made the first time
   // something asks for it, and photos are read in batches, each in one transaction.
   const URLS_MINI = new WeakMap();
-  function metaArchivo(rec, thumb) {
+  function metaArchivo(rec, thumb, id) {
     const o = { name: rec.name, size: rec.size, type: rec.type, w: rec.w, h: rec.h };
     if (rec.reduced) o.reduced = true; if (rec.design) o.design = true; if (rec.de) o.de = rec.de;
     // lot 4: only a working copy here (its real size), or the photo itself still up there (its thumbnail already came down)
     if (rec.copia && rec.copia.w) o.copia = { w: rec.copia.w, h: rec.copia.h };
     else if (esRefNube(rec.blob)) { o.pendiente = true; if (rec.blob.trabajo) o.copia = { w: rec.blob.trabajo.w, h: rec.blob.trabajo.h, falta: true }; }
-    Object.defineProperty(o, 'thumbUrl', { enumerable: true, configurable: true, get() { let u = URLS_MINI.get(o); if (!u) { u = URL.createObjectURL(thumb); URLS_MINI.set(o, u); } return u; }, set(v) { URLS_MINI.set(o, v); } });
+    Object.defineProperty(o, 'thumbUrl', { enumerable: true, configurable: true, get() { let u = URLS_MINI.get(o); if (!u) { u = apuntarUrl(URL.createObjectURL(thumb), id, 'mini'); URLS_MINI.set(o, u); } return u; }, set(v) { URLS_MINI.set(o, v); } });
     return o;
   }
   let sinPedirMini = 0;                 // the feed's other boards read in the background: their thumbnails asked when seen (pieza 3a)
@@ -1271,7 +1275,7 @@
       for (const id of trozo) {
         if (M.files[id]) continue;
         const rec = recs[id];
-        if (rec && rec.thumb && !esRefNube(rec.thumb)) { M.files[id] = metaArchivo(rec, rec.thumb); M.thumbBlobs[id] = rec.thumb; }   // its thumbnail is here (its photo may still be up: lot 4)
+        if (rec && rec.thumb && !esRefNube(rec.thumb)) { M.files[id] = metaArchivo(rec, rec.thumb, id); M.thumbBlobs[id] = rec.thumb; }   // its thumbnail is here (its photo may still be up: lot 4)
         else if (rec && pendienteRec(rec)) { M.files[id] = metaHueco(rec, id); M.thumbBlobs[id] = hueco(); if (NUBE.pedirMini && !sinPedirMini) NUBE.pedirMini(id); }   // came down without its photo yet (D-256); its thumbnail comes now (lot 4)
         else if (NUBE.activa && !fijo(id)) { M.files[id] = metaHueco(null, id); M.thumbBlobs[id] = hueco(); }   // with the cloud, never «missing»: it may not have arrived
         else missing.push(id);
@@ -1285,24 +1289,89 @@
   const LLEGAN = new Map(); let llegaRaf = 0;
   function pastLlego(id, rec) {         // a thumbnail of the previous month (past:) that came down (lot 4)
     if (!rec || !(rec.thumb instanceof Blob) || M.pastThumbs[id]) return;
-    M.pastBlobs[id] = rec.thumb; M.pastThumbs[id] = URL.createObjectURL(rec.thumb);
+    M.pastBlobs[id] = rec.thumb; M.pastThumbs[id] = apuntarUrl(URL.createObjectURL(rec.thumb), id, 'past');
     if (S && (S.past || []).some(p => p.id === id)) { clearTimeout(pastLlego.t); pastLlego.t = setTimeout(() => { try { renderFeed(); } catch (e) { /* */ } }, 300); }
   }
   function fotoLlego(id, rec) {
     if (!rec || !M.files[id]) return;
     const antes = URL_HUECO.get(id);
-    if (antes && rec.thumb && !esRefNube(rec.thumb)) { M.files[id] = metaArchivo(rec, rec.thumb); M.thumbBlobs[id] = rec.thumb; }   // its thumbnail arrived
-    else if (!esRefNube(rec.blob)) { const o = M.files[id]; delete o.pendiente; if (rec.copia && rec.copia.w) o.copia = { w: rec.copia.w, h: rec.copia.h }; else delete o.copia; }   // its photo arrived: the same thumbnail and URL
+    if (antes && rec.thumb && !esRefNube(rec.thumb)) { M.files[id] = metaArchivo(rec, rec.thumb, id); M.thumbBlobs[id] = rec.thumb; }   // its thumbnail arrived
+    else if (!esRefNube(rec.blob) && rec.thumb instanceof Blob && rec.thumb !== M.thumbBlobs[id]) {   // its photo arrived: its record was written again,
+      const u0 = URLS_MINI.get(M.files[id]);   // so what the Mesa keeps of it is read again from it (D-369); each <img> showing it changes in place
+      M.files[id] = metaArchivo(rec, rec.thumb, id); M.thumbBlobs[id] = rec.thumb;
+      if (u0) LLEGAN.set(u0, M.files[id].thumbUrl);
+    }
+    else if (!esRefNube(rec.blob)) { const o = M.files[id]; delete o.pendiente; if (rec.copia && rec.copia.w) o.copia = { w: rec.copia.w, h: rec.copia.h }; else delete o.copia; }   // its photo arrived (the same thumbnail Blob): the same URL
     if (rec.blob && !esRefNube(rec.blob)) { M.blobs[id] = rec.blob; if (M.bigUrls && M.bigUrls[id]) { URL.revokeObjectURL(M.bigUrls[id]); delete M.bigUrls[id]; } }
     if (M.libre && M.libre.miniLlego) { try { M.libre.miniLlego(id); } catch (e) { /* */ } }
     if (antes && M.files[id].thumbUrl !== antes) { LLEGAN.set(antes, M.files[id].thumbUrl); URL_HUECO.delete(id); }
     if (MOVIL) { try { document.dispatchEvent(new CustomEvent('mesa-foto-llego', { detail: { id } })); } catch (e) { /* */ } }   // the phone draws its own minis (D-269)
     if (!llegaRaf && LLEGAN.size) llegaRaf = requestAnimationFrame(() => {
       llegaRaf = 0; const l = new Map(LLEGAN); LLEGAN.clear();
-      if (root) for (const im of root.querySelectorAll('img')) { const n = l.get(im.getAttribute('src')); if (n) im.setAttribute('src', n); }
-      setTimeout(() => l.forEach((n, v) => URL.revokeObjectURL(v)), 2000);
+      for (const im of document.querySelectorAll('img[src^="blob:"]')) { const n = l.get(im.getAttribute('src')); if (n) im.setAttribute('src', n); }   // also what sits outside the root (a card, a menu)
+      setTimeout(() => l.forEach((n, v) => URL.revokeObjectURL(v)), 2000);   // one still named somewhere is made again by the safety net (D-369)
     });
   }
+
+  // ---------- the safety net of the photos (D-369) ----------
+  // An <img> whose blob: URL no longer answers gets, in place (nothing is drawn again), a new one made from what is stored now;
+  // the same dead URL seen again takes that one without reading. If the new one fails too, or nothing stored is left, the grey
+  // placeholder of always: never a loop. An URL the core didn't make is offered first to its module ('mesa-foto-rota').
+  // What happens is counted in this browser, across reloads: MESA.fotosRotas() (true empties it).
+  const ROTAS_K = 'mesa-fotos-rotas', REHECHAS = new Map(), PUESTAS = new WeakMap();
+  function rotaApunta(que, de) {   // que: 'rotas' | 'rehechas' | 'grises'
+    let t = null; try { t = JSON.parse(localStorage.getItem(ROTAS_K)); } catch (e) { /* */ }
+    if (!t || typeof t !== 'object') t = { rotas: 0, rehechas: 0, grises: 0, desde: new Date().toISOString().slice(0, 10), ultimas: [] };
+    t[que] = (+t[que] || 0) + 1;
+    if (que !== 'rotas') t.ultimas = [...(Array.isArray(t.ultimas) ? t.ultimas : []), { t: new Date().toISOString().slice(0, 16), que, de: de ? de.k : 'otra' }].slice(-10);
+    try { localStorage.setItem(ROTAS_K, JSON.stringify(t)); } catch (e) { /* */ }
+  }
+  const urlViva = u => !!u && !REHECHAS.has(u);
+  async function urlDeNuevo(muerta) {
+    const de = URL_DE.get(muerta); if (!de) return null;
+    const { id, k } = de;
+    if (k === 'past') {
+      if (M.pastThumbs[id] !== muerta && urlViva(M.pastThumbs[id])) return M.pastThumbs[id];
+      const r = await idbGet('files', 'past:' + id).catch(() => null); if (!r || !(r.thumb instanceof Blob)) return null;
+      const n = apuntarUrl(URL.createObjectURL(r.thumb), id, 'past'); M.pastBlobs[id] = r.thumb; M.pastThumbs[id] = n; return n;
+    }
+    if (k === 'grande') {
+      const cur = M.bigUrls && M.bigUrls[id]; if (cur !== muerta && urlViva(cur)) return cur;
+      if (cur === muerta) delete M.bigUrls[id];
+      const b = await getBlob(id).catch(() => null); if (!(b instanceof Blob)) return null;
+      const n = apuntarUrl(URL.createObjectURL(b), id, 'grande'); if (M.bigUrls && !M.bigUrls[id] && (M.bigOrder || []).includes(id)) M.bigUrls[id] = n; return n;
+    }
+    if (URL_HUECO.get(id) === muerta) URL_HUECO.delete(id);
+    const f = M.files[id], d = f && Object.getOwnPropertyDescriptor(f, 'thumbUrl'), cur = d ? (d.get ? URLS_MINI.get(f) : d.value) : null;
+    if (f && cur !== muerta && (!cur || urlViva(cur))) return f.thumbUrl;   // what it shows now (made now if it wasn't yet)
+    const r = await idbGet('files', id).catch(() => null);
+    if (M.files[id] !== f) return M.files[id] ? M.files[id].thumbUrl : null;   // it changed meanwhile: what it is now
+    if (r && r.thumb instanceof Blob) { const n = metaArchivo(r, r.thumb, id); if (f) { M.files[id] = n; M.thumbBlobs[id] = r.thumb; } return n.thumbUrl; }
+    if (r && pendienteRec(r)) { if (f) { M.files[id] = metaHueco(r, id); M.thumbBlobs[id] = hueco(); return M.files[id].thumbUrl; } return urlHueco(id); }
+    return null;
+  }
+  function fotoRota(e) {
+    const im = e.target; if (!im || im.tagName !== 'IMG') return;
+    const s = im.getAttribute('src') || ''; if (!/^blob:/.test(s) || s === HUECO_U) return;
+    const de = URL_DE.get(s);
+    rotaApunta('rotas', de);
+    const gris = () => { if (im.getAttribute('src') === s) { hueco(); im.setAttribute('src', HUECO_U); } rotaApunta('grises', de); };
+    if (PUESTAS.get(im) === s) return gris();   // the one made again failed too
+    if (!de) { let suya = false; try { suya = !document.dispatchEvent(new CustomEvent('mesa-foto-rota', { cancelable: true, detail: { img: im, src: s } })); } catch (x) { /* */ } if (!suya) gris(); return; }
+    let p = REHECHAS.get(s); if (!p) { p = urlDeNuevo(s).catch(() => null); REHECHAS.set(s, p); }
+    p.then(n => {
+      if (!n || n === s) { gris(); return; }
+      for (const x of document.querySelectorAll('img[src^="blob:"]')) if (x.getAttribute('src') === s) { PUESTAS.set(x, n); x.setAttribute('src', n); }
+      if (im.getAttribute('src') === s) { PUESTAS.set(im, n); im.setAttribute('src', n); }   // not in the page (a card being moved)
+      rotaApunta('rehechas', de);
+    });
+  }
+  document.addEventListener('error', fotoRota, true);   // an <img>'s error doesn't bubble: it is caught on its way down
+  M.fotosRotas = vaciar => {
+    if (vaciar === true) { try { localStorage.removeItem(ROTAS_K); } catch (e) { /* */ } }
+    let t = null; try { t = JSON.parse(localStorage.getItem(ROTAS_K)); } catch (e) { /* */ }
+    return t && typeof t === 'object' ? t : { rotas: 0, rehechas: 0, grises: 0, ultimas: [] };
+  };
 
   // ---------- the carousel's name against its cover (D-129) ----------
   // The designer's serie is the name its cards and final print in the footer. The words and figures of it that its cover's
@@ -1567,7 +1636,7 @@
     if (!r || !(r.thumb instanceof Blob) || !S || !M.files[f]) return null;
     const id = newId(), c = S.client;
     await idbPut('files', id, { ...r, de: c });
-    M.files[id] = { ...M.files[f], de: c, thumbUrl: URL.createObjectURL(r.thumb) };
+    M.files[id] = { ...M.files[f], de: c, thumbUrl: apuntarUrl(URL.createObjectURL(r.thumb), id, 'mini') };
     M.thumbBlobs[id] = r.thumb;
     delList(l => [...l, id]);          // a dialog closed without placing it: deleted on the next open, only if nothing uses it
     return id;
@@ -1632,7 +1701,7 @@
           if (!dup) delList(l => [...l, id]);   // a reload before it reaches the tray can't leave it behind (D-071): next open, deleted if nothing holds it
           await idbPut('files', id, { name: f.name, size: f.size, type, w, h, lastModified: f.lastModified || 0, blob: f, thumb, de: B.client });   // de: the client it came in for (D-041)
           if (M.files[id]) soltarArchivo(id);   // the same photo again: what pointed at the old copy goes (D-071)
-          M.files[id] = metaArchivo({ name: f.name, size: f.size, type, w, h, de: B.client }, thumb);
+          M.files[id] = metaArchivo({ name: f.name, size: f.size, type, w, h, de: B.client }, thumb, id);
           M.thumbBlobs[id] = thumb;
           delete M.blobs[id];
           fresh.push(id);
@@ -2299,6 +2368,7 @@
   function soltarArchivo(id) {         // lets go of all that points at a deleted file: the browser frees it when the last handle goes
     const f = M.files[id];
     if (f) { const d = Object.getOwnPropertyDescriptor(f, 'thumbUrl'), u = d && (d.get ? URLS_MINI.get(f) : d.value); if (u && u !== HUECO_U) URL.revokeObjectURL(u); }
+    { const u = URL_HUECO.get(String(id)); if (u) { URL.revokeObjectURL(u); URL_HUECO.delete(String(id)); } }   // its placeholder's URL, let go, is never given again (D-369)
     if (M.bigUrls && M.bigUrls[id]) { URL.revokeObjectURL(M.bigUrls[id]); delete M.bigUrls[id]; }
     if (M.bigOrder) M.bigOrder = M.bigOrder.filter(x => x !== id);
     delete M.files[id]; delete M.blobs[id]; delete M.thumbBlobs[id];
@@ -4326,6 +4396,13 @@ ${TK_FUENTES}
       feed._io.observe(im);
     });
   }
+  // a month kept as it was (its HTML didn't change) keeps no URL the Mesa let go: each photo already put takes the one it has now
+  function fotosAlDia(w) {
+    for (const im of w.querySelectorAll('img[data-mini][src], img[data-pmini][src]')) {
+      const u = im.dataset.pmini ? M.pastThumbs[im.dataset.pmini] : (M.files[im.dataset.mini] || {}).thumbUrl;
+      if (u && im.getAttribute('src') !== u) im.setAttribute('src', u);
+    }
+  }
   function ponerMes(w, html, esS) {     // a Nota being edited in its cell keeps that cell (its accent and its own undo)
     const live = esS && memoEdit && w.querySelector(`.pit.edit[data-memo="${cssq(memoEdit)}"]`), keep = live && live.closest('.cell');
     if (keep) {
@@ -4395,6 +4472,7 @@ ${TK_FUENTES}
       prev = w;
       if (r && w._h !== r.html) { const kept = ponerMes(w, r.html, r.esS); w._h = kept ? null : r.html; w._n = r.n; }   // kept: drawn again whole once the Nota's editing ends
       else if (r && r.esS && !w._ya) feedFotos(w, true);
+      else if (r) fotosAlDia(w);   // the same HTML, but a photo's URL may be another now: only that src changes (D-369)
       w._ya = !!(r && r.esS);
     }
     ya.forEach((w, m) => { if (!quedan.has(m)) { w.remove(); FMEM.delete(m); } });
@@ -5310,7 +5388,7 @@ ${TK_FUENTES}
   async function loadBig(fid) {
     try {
       M.bigUrls = M.bigUrls || {}; M.bigOrder = (M.bigOrder || []).filter(x => x !== fid); M.bigOrder.push(fid);
-      if (!M.bigUrls[fid]) { const b = await getBlob(fid); if (!M.files[fid] || !M.bigOrder.includes(fid)) return; if (!M.bigUrls[fid]) M.bigUrls[fid] = URL.createObjectURL(b); }   // one URL per photo, only while it's among the 6 (B10)
+      if (!M.bigUrls[fid]) { const b = await getBlob(fid); if (!M.files[fid] || !M.bigOrder.includes(fid)) return; if (!M.bigUrls[fid]) M.bigUrls[fid] = apuntarUrl(URL.createObjectURL(b), fid, 'grande'); }   // one URL per photo, only while it's among the 6 (B10)
       while (M.bigOrder.length > 6) { const old = M.bigOrder.shift(); if (M.bigUrls[old]) URL.revokeObjectURL(M.bigUrls[old]); delete M.bigUrls[old]; if (!upBusy(M.uploads[old]) && !upBusy(M.zUploads[old])) delete M.blobs[old]; }
       const st = root.querySelector('.detail .stage'); if (st && st.dataset.file === fid) st.querySelector('img.big').src = M.bigUrls[fid];
     } catch (e) { /* keep the thumbnail */ }
@@ -7898,7 +7976,7 @@ ${TK_FUENTES}
     for (const p of t.past || []) {
       if (M.pastThumbs[p.id]) continue;
       const rec = await idbGet('files', 'past:' + p.id);
-      if (rec && rec.thumb instanceof Blob) { M.pastBlobs[p.id] = rec.thumb; M.pastThumbs[p.id] = URL.createObjectURL(rec.thumb); }
+      if (rec && rec.thumb instanceof Blob) { M.pastBlobs[p.id] = rec.thumb; M.pastThumbs[p.id] = apuntarUrl(URL.createObjectURL(rec.thumb), p.id, 'past'); }
     }
   }
   // the globals of one board, from its copy (sync: nothing read nor written here); the board left becomes the copy of its key
@@ -8053,7 +8131,7 @@ ${TK_FUENTES}
     if (!MIRA) for (const p of S.past) {
       if (M.pastThumbs[p.id]) continue;
       const rec = await idbGet('files', 'past:' + p.id);
-      if (rec && rec.thumb instanceof Blob) { M.pastBlobs[p.id] = rec.thumb; M.pastThumbs[p.id] = URL.createObjectURL(rec.thumb); }   // still up there (lot 4): it comes down behind (pastLlego)
+      if (rec && rec.thumb instanceof Blob) { M.pastBlobs[p.id] = rec.thumb; M.pastThumbs[p.id] = apuntarUrl(URL.createObjectURL(rec.thumb), p.id, 'past'); }   // still up there (lot 4): it comes down behind (pastLlego)
     }
     prevOnce = false; pendingUnlock = null;
     SIG = { b: S, m: A.sig, dirty: new Set() };   // the slots' revisions as before this opening: what it changed reaches the other boards
@@ -8465,7 +8543,7 @@ ${TK_FUENTES}
         const w = img.naturalWidth, h = img.naturalHeight;
         const b = await thumbFromBitmap(img, w, h);
         if (M.pastThumbs[id]) URL.revokeObjectURL(M.pastThumbs[id]);
-        M.pastBlobs[id] = b; M.pastThumbs[id] = URL.createObjectURL(b);
+        M.pastBlobs[id] = b; M.pastThumbs[id] = apuntarUrl(URL.createObjectURL(b), id, 'past');
         await idbPut('files', 'past:' + id, { thumb: b, w, h });
       } catch (e) { M.pastErrors[id] = 'draw: ' + String(e); }
       finally { delete M.pastPending[id]; renderFeed(); }
@@ -9760,7 +9838,7 @@ ${TK_FUENTES}
       if (nuevo) st.tray.unshift(id);
       if (cid && !yaEnEsa) { const x = (st.carpetas || []).find(y => y.id === cid); if (x) x.files.push(id); }
     };
-    if (nuevo) { M.files[id] = metaArchivo(nuevo.rec, nuevo.thumb); M.thumbBlobs[id] = nuevo.thumb; }
+    if (nuevo) { M.files[id] = metaArchivo(nuevo.rec, nuevo.thumb, id); M.thumbBlobs[id] = nuevo.thumb; }
     if (abierto) sinPaso(pon);
     const paso = tx(['files', 'bandejas'], 'readwrite', st => {
       if (nuevo) st.files.put(nuevo.rec, id);
@@ -10068,6 +10146,7 @@ ${TK_FUENTES}
     vc: VC,
     // the cloud (lot 3, D-253 to D-257): its switch and state, its store, its pause; what hasn't arrived (D-256)
     NUBE, nubeAlmacen, pausaNube, versionNueva, limpiezasOk, esRefNube, pendienteRec, hueco, supa, proyectoWeb, fotoLlego, pastLlego, refsCon,
+    apuntarUrl,   // a photo's blob: URL with whose it is, for the safety net (D-369)
     // the journal of changes (D-250): what changed since it was emptied, for the server (lot 3). leer() gives its entries
     // [{a, k, t, v}] (k null: the whole store again); quitar(entries) takes out those whose token didn't change since they were
     // read; vaciar() empties it; sinDiario is tx without the journal, only for what comes down from the server

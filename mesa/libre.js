@@ -1377,7 +1377,7 @@
         const thumb = await new Promise((res, rej) => t.toBlob(b => b ? res(b) : rej(new Error('png')), 'image/png'));
         const id = `kit-${cid}-logo-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, name = String(file.name || 'logo').replace(/\.[^.]+$/, '') + '.png';
         await I().idbPut('files', id, { name, size: blob.size, type: 'image/png', w: c.width, h: c.height, lastModified: Date.now(), blob, thumb, logo: true });
-        M.files[id] = { name, size: blob.size, type: 'image/png', w: c.width, h: c.height, thumbUrl: URL.createObjectURL(thumb) }; M.thumbBlobs[id] = thumb;
+        M.files[id] = { name, size: blob.size, type: 'image/png', w: c.width, h: c.height, thumbUrl: I().apuntarUrl(URL.createObjectURL(thumb), id, 'mini') }; M.thumbBlobs[id] = thumb;
         ids.push(id);
       } catch (e) { I().toast(`${file.name}: no se pudo leer la imagen.`); }
     }
@@ -4285,7 +4285,7 @@
   async function guardarImagen(blob, name) {   // a drawn slide into the mesa's files (uploaded as it is): its id
     const { w, h, thumb } = await I().makeThumb(blob), id = I().newId();
     await I().idbPut('files', id, { name, size: blob.size, type: 'image/jpeg', w, h, lastModified: Date.now(), blob, thumb, design: true });
-    M.files[id] = { name, size: blob.size, type: 'image/jpeg', w, h, thumbUrl: URL.createObjectURL(thumb), design: true };
+    M.files[id] = { name, size: blob.size, type: 'image/jpeg', w, h, thumbUrl: I().apuntarUrl(URL.createObjectURL(thumb), id, 'mini'), design: true };
     M.thumbBlobs[id] = thumb;
     return id;
   }

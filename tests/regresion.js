@@ -18342,6 +18342,72 @@
     } finally { await ftFin(ids); }
   });
 
+  // ---------- fotos y logos rotos (D-369) ----------
+  // Una dirección blob: ya soltada: Safari la enseña mientras está en su caché y después sale «?»; Chrome falla al momento.
+  const frCarga = src => new Promise(r => { const n = new W.Image(); n.onload = () => r(n.naturalWidth); n.onerror = () => r(0); n.src = src; setTimeout(() => r(-1), 3000); });
+  // una dirección de esa foto ya soltada y nunca cargada (Safari aún enseñaría la que estuvo en su caché), puesta donde la tenía
+  const frMuerta = async (id, im) => { const d = W.URL.createObjectURL(new W.Blob([await M.thumbBlobs[id].arrayBuffer()], { type: 'image/jpeg' })); W.URL.revokeObjectURL(d); M._in.apuntarUrl(d, id, 'mini'); M.files[id].thumbUrl = d; im.setAttribute('src', d); return d; };
+
+  prueba('FR1', 'El marcador de una foto soltada no vuelve muerto (D-369): la dirección del marcador gris de una foto que aún no ha llegado se suelta con ella y, la próxima vez que se pide, es otra que carga', async () => {
+    await tablero([pub(1)]);
+    const F = ftMundo(), id = 'ffr1';
+    try {
+      await ftBajada(F, id);
+      M._test.setSlot('r1', { photos: [id] }); await M.flush(); M._in.soltarArchivo(id);
+      await M.open(M.board().key);
+      const u1 = M.files[id] && M.files[id].thumbUrl; ok(u1 && M.files[id].pendiente, 'no es el marcador: ' + json(M.files[id]));
+      M._in.soltarArchivo(id); await M.open(M.board().key);
+      const u2 = M.files[id] && M.files[id].thumbUrl;
+      ok(u2 && u2 !== u1, 'el marcador volvió con la dirección soltada');
+      ok((await frCarga(u2)) > 0, 'el marcador nuevo no carga');
+      const im = celda('r1') && celda('r1').querySelector('img'); ok(im && im.getAttribute('src') === u2, 'la casilla no enseña el marcador nuevo: ' + json({ src: im && im.getAttribute('src'), u1, u2, html: celda('r1') && celda('r1').innerHTML.slice(0, 200) }));
+    } finally { M._test.setSlot('r1', { photos: [] }); await M.flush(); await ftFin([id]); }
+  });
+
+  prueba('FR2', 'Al bajar la foto se relee lo que la Mesa guarda de ella (D-369): su registro se reescribe, la miniatura sale del registro nuevo y la casilla la cambia en su sitio, sin redibujarse', async () => {
+    await tablero([pub(1)]);
+    const F = ftMundo(), id = 'ffr2';
+    try {
+      await ftEncender(F);
+      await ftBajada(F, id);
+      M._test.setSlot('r1', { photos: [id] }); await M.flush(); M._in.soltarArchivo(id); await M._in.diario.vaciar();
+      await M.open(M.board().key);
+      await hasta(() => M.thumbBlobs[id] && M.thumbBlobs[id].size > 100 && celda('r1').querySelector('img').getAttribute('src') === M.files[id].thumbUrl, 15000, 'que baje la miniatura');
+      const img0 = celda('r1').querySelector('img'), s0 = img0.getAttribute('src'), tb0 = M.thumbBlobs[id];
+      await M._in.getBlob(id);
+      await hasta(() => M.files[id] && M.files[id].copia && !M.files[id].copia.falta, 10000, 'que baje la copia');
+      ok(M.thumbBlobs[id] !== tb0, 'la miniatura sigue siendo la leída antes de reescribir el registro');
+      await hasta(() => img0.getAttribute('src') === M.files[id].thumbUrl, 3000, 'que la casilla cambie a la miniatura releída');
+      ok(img0.isConnected && celda('r1').querySelector('img') === img0, 'la casilla se volvió a dibujar entera');
+      ok(img0.getAttribute('src') !== s0 && (await frCarga(img0.getAttribute('src'))) > 0, 'la miniatura releída no carga');
+    } finally { M._test.setSlot('r1', { photos: [] }); await M.flush(); await ftFin([id]); }
+  });
+
+  prueba('FR3', 'Red de seguridad (D-369): una imagen cuya dirección ya no carga se rehace sola desde lo guardado, en su sitio y una vez; si la rehecha también falla, el marcador gris, sin bucle; MESA.fotosRotas() lo cuenta', async () => {
+    await tablero([pub(1)]);
+    M.fotosRotas(true);
+    let errores = 0; const cuenta = e => { if (e.target && e.target.tagName === 'IMG') errores++; };
+    D.addEventListener('error', cuenta, true);
+    try {
+      await M.addFiles([await foto('fr3.jpg')], 'r1'); await M.flush();
+      const id = slot('r1').photos[0], im = celda('r1').querySelector('img'), s0 = im.getAttribute('src');
+      ok(s0 === M.files[id].thumbUrl, 'la casilla no enseña su miniatura');
+      const d0 = await frMuerta(id, im);
+      await hasta(() => im.getAttribute('src') !== d0 && im.complete && im.naturalWidth > 4, 5000, 'que se rehaga la imagen');
+      ok(celda('r1').querySelector('img') === im, 'se volvió a dibujar la casilla');
+      igual(M.files[id].thumbUrl, im.getAttribute('src'), 'lo que guarda la Mesa sigue con la dirección muerta');
+      const c1 = M.fotosRotas(); ok(c1.rotas === 1 && c1.rehechas === 1 && c1.grises === 0, 'la cuenta: ' + json(c1));
+      // la guardada tampoco vale: la rehecha falla y queda el gris
+      const r = await M._in.idbGet('files', id); await M._in.idbPut('files', id, { ...r, thumb: new W.Blob(['no es una imagen'], { type: 'image/jpeg' }) });
+      errores = 0; await frMuerta(id, im);
+      await hasta(() => im.complete && im.naturalWidth === 4, 5000, 'el marcador gris');
+      await espera(800);
+      ok(errores <= 2, 'la imagen entró en un bucle: ' + errores + ' errores');
+      const c2 = M.fotosRotas(); ok(c2.rotas === 3 && c2.rehechas === 2 && c2.grises === 1 && c2.ultimas.map(x => x.que).join() === 'rehechas,rehechas,grises', 'la cuenta (la muerta, rehecha; la rehecha, muerta: gris): ' + json(c2));
+      await M._in.idbPut('files', id, r);
+    } finally { D.removeEventListener('error', cuenta, true); M.fotosRotas(true); }
+  });
+
   prueba('CS1', 'La CSP de la Mesa (D-252): un <meta> lo primero del <head>, script-src \'self\' sin \'unsafe-inline\' ni \'unsafe-eval\'; ni un <script> en línea ni un manejador on…= en index.html; tema, arranque y vigilante en archivos, sin async y en su orden; un módulo que no llega sigue siendo «fallo»', async () => {
     const html = await (await W.fetch('index.html?cs=' + Date.now(), { cache: 'no-store' })).text(), sin = html.replace(/<!--[\s\S]*?-->/g, '');
     const head = sin.slice(sin.indexOf('<head>') + 6, sin.indexOf('</head>')).trim();

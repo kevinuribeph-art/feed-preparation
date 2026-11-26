@@ -657,7 +657,7 @@
       const { w, h, thumb } = r.thumb ? r : await I().makeThumb(r.blob);
       const id = I().newId();
       await I().idbPut('files', id, { name, size: r.blob.size, type: 'image/jpeg', w, h, lastModified: Date.now(), blob: r.blob, thumb, design: true });
-      M.files[id] = { name, size: r.blob.size, type: 'image/jpeg', w, h, thumbUrl: URL.createObjectURL(thumb), design: true };
+      M.files[id] = { name, size: r.blob.size, type: 'image/jpeg', w, h, thumbUrl: I().apuntarUrl(URL.createObjectURL(thumb), id, 'mini'), design: true };
       M.thumbBlobs[id] = thumb;
       outs.push(id);
     }

@@ -7545,7 +7545,9 @@ ${TK_FUENTES}
     async ver(cliente) {
       await estLeer();
       if (cliente == null) return [...EST.values()].map(estPlano);
-      const r = EST.get(String(cliente)); return r ? estPlano(r) : estVacio(String(cliente));
+      const r = EST.get(String(cliente)); if (r) return estPlano(r);
+      await loadClients(); if (!CL.some(c => c.id === String(cliente))) return { error: `cliente desconocido «${cliente}» (los ids, en MESA.clients())` };   // not an empty style: a skill would take it for one to fill
+      return estVacio(String(cliente));
     },
     cambiar(cliente, parche, opts = {}) {
       return estPoner(String(cliente || ''), (r, mal) => {
@@ -8572,7 +8574,8 @@ ${TK_FUENTES}
   M.plan = () => S && !esContenido(S.client) ? S.slots.filter(s => vivo(s) && (s.photos.length || noteOf(s) || s.uploaded)).map(s => {   // a cancelled post is never uploaded
     const st = photoStatus(s), pub = publishList(s);   // photos and contexto only: the caption has its own record (M.captions)
     return {
-      slotId: s.id, name: s.name, type: s.type, date: s.date, dateChanged: dateChg(s),
+      slotId: s.id, name: s.name, type: s.type, date: s.date, dateChanged: dateChg(s), estado: estadoDe(s),
+      ...(cambiosProg(s).length ? { cambiosDesdeProgramar: cambiosProg(s) } : {}),   // a Programada changed since it was scheduled: Zernio still has the old one
       status: st === null ? 'nueva' : st === 'ok' ? 'ya subida' : 'cambiada',
       emptied: !pub.length && !!s.uploaded,
       files: pub.map(id => {
@@ -8826,6 +8829,7 @@ ${TK_FUENTES}
     const cd = cdOf(saved ? saved.cycleDay : c.cycleDay), dentro = monthsOf(saved ? saved.month : mes, opts.meses != null ? +opts.meses : saved ? saved.span || 1 : 1);
     const prev = saved ? (saved.slots || []).map(s => ({ id: s.id, name: s.notionName ?? s.name, type: s.notionType ?? s.type, date: s.notionDate ?? s.date })) : [];
     const ya = new Set(prev.map(s => s.id)), problemas = [], nuevos = [];
+    const hay = (nom, d) => ((saved && saved.slots) || []).some(s => (s.name === nom || s.notionName === nom) && (s.date === d || s.notionDate === d));   // a second call with the same posts: refused, not doubled
     if (!Array.isArray(publicaciones) || !publicaciones.length) problemas.push('publicaciones: una lista de {nombre, tipo, fecha}');
     else publicaciones.forEach((p, i) => {
       const nom = p && typeof p.nombre === 'string' ? p.nombre.trim() : '', f = p && typeof p.fecha === 'string' ? p.fecha.trim() : '', m = /^(\d{4}-\d{2}-\d{2})(?:T(\d{2}:\d{2}))?$/.exec(f);
@@ -8837,7 +8841,9 @@ ${TK_FUENTES}
       if (ya.has(id)) problemas.push(`[${i}].id: ${id} ya está en ese mes`);
       ya.add(id);
       if (m && !dentro.includes(cycleOf(m[1], cd))) problemas.push(`[${i}].fecha: ${m[1]} no cae en ${dentro.join(', ')}`);
-      if (m) nuevos.push({ id, name: nom, type: p.tipo, date: m[2] ? madridISO(m[1], m[2]) : m[1] });
+      const fd = m ? (m[2] ? madridISO(m[1], m[2]) : m[1]) : null;
+      if (m && nom && hay(nom, fd)) problemas.push(`[${i}]: «${nom}» ya está en ese mes con esa fecha (¿se repitió crearMes?)`);
+      if (m) nuevos.push({ id, name: nom, type: p.tipo, date: fd });
     });
     if (problemas.length) return { error: 'no se ha creado nada', problemas };
     let r;
@@ -8858,6 +8864,7 @@ ${TK_FUENTES}
         pick: p != null ? p + 1 : null, tone: p != null ? c.tones[p] : null, text: capFinal(s),
         options: c ? [1, 2, 3].map(n => capView(c, n)) : [], loadedAt: c ? c.at : null, writtenFrom: c ? capFrom(c) : null,
         sent: x ? { text: x.text, pick: x.pick + 1, tone: x.tone, at: x.at } : null,
+        estado: estadoDe(s),   // the Mesa's state code (empezar, captions, aprobar, noaprobado, aprobado, programado, publicado, cancelado)
         provisional: esProvisional(s),   // its month is provisional (D-358): no weekday, date nor weekend line in its caption
         web: (() => { const r = envDe(s); return r ? { text: r.caption, at: r.at } : null; })(),   // its caption as its web has it (D-355)
         history: ((s.caption && s.caption.old) || []).map(b => ({ loadedAt: b.at, replacedAt: b.until || null, pick: b.pick != null ? b.pick + 1 : null, options: [1, 2, 3].map(n => capView(b, n)), writtenFrom: capFrom(b) }))

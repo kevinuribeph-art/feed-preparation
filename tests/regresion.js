@@ -24935,6 +24935,29 @@
       ok(M.captions().every(c => c.provisional === false), 'captions() sigue diciendo provisional');
     } finally { await limpiar(); }
   });
+  prueba('NF10', 'Para las skills sin Notion (D-356, D-358): estilo.ver de un cliente que no existe da error; repetir crearMes no duplica; captions() y plan() dicen el estado; plan() dice lo que cambió de una Programada desde que se programó', async () => {
+    try {
+      await tablero([pub(1), pub(2)]);
+      const nadie = await M.estilo.ver('no-existe-nf10'); ok(nadie && nadie.error && /cliente desconocido/.test(nadie.error), 'ver de un cliente que no existe: ' + json(nadie));
+      ok(!(await M.estilo.ver(CLIENTE)).error, 'ver del cliente de prueba da error');
+      const lista = [{ nombre: 'Foto 1.1', tipo: 'Foto', fecha: '2026-12-02T13:00' }, { nombre: 'Reel 1.2', tipo: 'Reel', fecha: '2026-12-03' }];
+      const r = await M.crearMes(CLIENTE, '2026-12', lista); ok(r && r.ok, 'crearMes: ' + json(r));
+      const otra = await M.crearMes(CLIENTE, '2026-12', lista);
+      ok(otra && otra.error && (otra.problemas || []).length === 2 && otra.problemas.every(x => /ya está en ese mes con esa fecha/.test(x)), 'repetirlo no da error: ' + json(otra));
+      igual(M.board().slots.length, 2, 'repetirlo duplicó el mes');
+      const r3 = await M.crearMes(CLIENTE, '2026-12', [{ nombre: 'Foto 1.1', tipo: 'Foto', fecha: '2026-12-05T13:00' }]); ok(r3 && r3.ok, 'mismo nombre y otra fecha no entra: ' + json(r3));
+      await M.open(`${CLIENTE}-${MES}`);
+      await porAprobar(['r1', 'r2'], 'nf10');
+      const est = id => (M.captions([id])[0] || {}).estado, pl = id => M.plan().find(x => x.slotId === id) || {};
+      igual([est('r1'), pl('r1').estado], ['aprobar', 'aprobar'], 'el estado en captions() y plan()');
+      M.setEstado(['r1', 'r2'], 'aprobado'); M.setEstado('r1', 'programado'); await M.flush();
+      igual([est('r1'), est('r2'), pl('r2').estado], ['programado', 'aprobado', 'aprobado'], 'el estado tras programar');
+      ok(!pl('r1').cambiosDesdeProgramar, 'recién programada dice que cambió: ' + json(pl('r1').cambiosDesdeProgramar));
+      M._test.setSlot('r1', { caption: { ...slot('r1').caption, text: ['1 bis', '2', '3'] } }); await M.flush(); await espera(40);
+      igual(pl('r1').cambiosDesdeProgramar, ['caption'], 'lo que cambió desde programarla');
+      ok(!pl('r2').cambiosDesdeProgramar, 'una no programada dice que cambió');
+    } finally { await limpiar(); }
+  });
   prueba('NF7', 'Una carga no quita publicaciones de la Mesa (D-360): MESA.init sin una con fotos o creada en la Mesa da error y no cambia nada; una vacía sí se quita; con force: true, todo', async () => {
     try {
       await tablero([pub(1), pub(2), pub(3)]);

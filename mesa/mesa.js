@@ -209,7 +209,7 @@
   // ---------- IndexedDB ----------
   // the stores of the mesa's data: all of them travel in «Exportar todo» (copia.js, D-249); and the journal of changes, which is
   // this browser's (D-250)
-  const IDB_V = 27, ALMACENES = ['files', 'boards', 'clients', 'bandejas', 'ubicaciones', 'tareas', 'tfotos', 'cobros', 'cfacturas', 'meses', 'entregas', 'acuerdos', 'paquetes', 'estilos', 'enviados'], DIARIO = 'diario', NUBE_ST = 'nube';
+  const IDB_V = 28, ALMACENES = ['files', 'boards', 'clients', 'bandejas', 'ubicaciones', 'tareas', 'tfotos', 'cobros', 'cfacturas', 'meses', 'entregas', 'acuerdos', 'paquetes', 'estilos', 'enviados'], DIARIO = 'diario', NUBE_ST = 'nube';
   let dbp = null, dbConn = null;
   function db() {
     if (!dbp) dbp = new Promise((res, rej) => {
@@ -264,6 +264,9 @@
       // 27 (mesa 4.54): + 'estilos', each client's style, what its page «Skill» in Notion held (D-356); + 'enviados', what «Web del
       // cliente» last sent of each post, field by field (D-355); and a board's provisional months (`provisional`, D-358). An older
       // tab would drop the board's months on a save and count the marks of changes against Notion.
+      // 28 (mesa 4.58): in 'enviados', also the print of what isn't a post that a board last sent to its web (`~huella:<board>`,
+      // D-372; it lived in this browser's localStorage) and, in a Programada's signature, its location, tags and collaborators.
+      // An older tab would not know the print (and would drop it from a copy or the cloud).
       const r = indexedDB.open('mesa-feed', IDB_V);   /* idb-crudo: the only opening */
       r.onupgradeneeded = e => {
         const d = r.result; for (const n of [...ALMACENES, DIARIO, NUBE_ST]) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n);
@@ -3530,10 +3533,6 @@ ${TK_FUENTES}
     const on = nav.querySelector('.tab.on'); if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 
-  function counts(B = S) {
-    const L = B.slots.filter(vivo), n = L.length, filled = L.filter(s => s.photos.length).length, notes = L.filter(s => noteOf(s)).length;   // a cancelled post doesn't count
-    return { n, filled, notes };
-  }
   function renderBar() {
     if (!shellReady()) return;
     const bar = root.querySelector('.bar');
@@ -3543,12 +3542,8 @@ ${TK_FUENTES}
     if (!c) { bar.innerHTML = ''; return; }   // the months' header goes out with it (its node is kept: cabNodo)
     // a client of «Solo contenido» has one page, without months (D-312, replaces D-290's chips): «Web del cliente» and «Vista
     // cliente» alone; its old boards stay kept, unseen
-    if (esContenido(c.id)) { bar.innerHTML = `<div class="spacer"></div>${M.web && M.web.barra ? M.web.barra() : ''}<label class="sw"><input type="checkbox" class="clientToggle"${root.classList.contains('client') ? ' checked' : ''}> Vista cliente</label>`; return; }
-    let stats = '';
-    if (S) {
-      const k = counts();
-      stats = `<div class="stats"><span title="Publicaciones con contexto para el caption"><b>${k.notes}</b> <span class="lg">con </span>contexto</span></div>`;
-    }
+    // its web's notices go in the one indicator, where «Web del cliente» was (D-372)
+    if (esContenido(c.id)) { bar.innerHTML = `<div class="spacer"></div>${M.calendario && M.calendario.pastilla ? M.calendario.pastilla() : ''}<label class="sw"><input type="checkbox" class="clientToggle"${root.classList.contains('client') ? ' checked' : ''}> Vista cliente</label>`; return; }
     // no avatar, name nor @ (D-157: the active tab names the client, «⋯» goes next to it) and no «+ Mes» (D-157:
     // a client without months says how to ask Claude for one)
     // the months' header (D-323, replaces the chips) is its own node: kept in its place, never written again here (a click or an
@@ -3556,12 +3551,14 @@ ${TK_FUENTES}
     const cab = cabNodo();
     if (bar.firstChild !== cab) bar.prepend(cab);
     for (const ch of [...bar.childNodes]) if (ch !== cab) ch.remove();
-    bar.insertAdjacentHTML('beforeend', `<div class="spacer"></div>${S && M.web && M.web.barra ? M.web.barra() : ''}${stats}`
+    // no «Web: …» nor «N con contexto» (D-372): its web goes in the one indicator beside «Calendario», which follows from here
+    bar.insertAdjacentHTML('beforeend', `<div class="spacer"></div>`
       + (S && M.hs && M.hs.barra ? M.hs.barra() : '')
       + (S && M.descargar && M.descargar.barra ? M.descargar.barra() : '')   // «Descargar (n)» with posts chosen with ⌘+click (descargar.js, D-083)
       + (S ? '<button class="mchip ghost rvbtn" data-act="revisar" title="Lo que hay que mirar antes de subir o programar el mes: huecos vacíos, numeración, resolución, márgenes y formato">Revisar</button>' : '')
       + (S ? `<label class="sw"><input type="checkbox" class="clientToggle"${root.classList.contains('client') ? ' checked' : ''}> Vista cliente</label>` : ''));
     cabRender(); cabPedir();
+    if (M.calendario && M.calendario.pastillaPintar) M.calendario.pastillaPintar();
   }
 
   // ---------- the months' header (feed continuo, pieza 4; D-323) ----------
@@ -4003,8 +4000,11 @@ ${TK_FUENTES}
   // what a Programada keeps of itself (D-184): its photos with their crops and its caption (its date is estado.fecha, D-120);
   // marked Programado again, it keeps them again. For a client without Notion, what changed since is its mark of changes
   const progFoto = (s, B = S) => JSON.stringify([publishList(s), cropSig(s, B)]);
-  const progSig = s => ({ foto: progFoto(s), cap: capFinal(s) });
-  const CAMBIOS_PROG = [['caption', (s, f) => (f.cap ?? null) !== capFinal(s)], ['foto o encuadre', (s, f, B) => f.foto !== progFoto(s, B)], ['fecha u hora', s => !programadaAlDia(s)]];
+  // since 4.58 (D-372) it keeps also its location, tags and collaborators; one signed before, without them, didn't change them
+  const progPer = l => (Array.isArray(l) ? l : []).join(',');
+  const progSig = s => ({ foto: progFoto(s), cap: capFinal(s), ubi: s.ubicacion || null, etq: progPer(s.etiquetas), col: progPer(s.colaboradores) });
+  const CAMBIOS_PROG = [['caption', (s, f) => (f.cap ?? null) !== capFinal(s)], ['foto o encuadre', (s, f, B) => f.foto !== progFoto(s, B)], ['fecha u hora', s => !programadaAlDia(s)],
+    ['ubicación', (s, f) => 'ubi' in f && (f.ubi ?? null) !== (s.ubicacion || null)], ['etiquetas', (s, f) => 'etq' in f && f.etq !== progPer(s.etiquetas)], ['colaboradores', (s, f) => 'col' in f && f.col !== progPer(s.colaboradores)]];
   const cambiosProg = (s, B = S) => { const e = s.estado; if (!e || e.v !== 'programado' || !e.firma || estadoDe(s, B) !== 'programado') return []; return CAMBIOS_PROG.filter(([, f]) => f(s, e.firma, B)).map(([l]) => l); };
   const listaY = a => a.length > 1 ? a.slice(0, -1).join(', ') + ' y ' + a[a.length - 1] : a[0] || '';
   // the post's state (3.32), one at a time and the same everywhere. The first three follow from its data: «Por empezar»
@@ -4214,6 +4214,23 @@ ${TK_FUENTES}
     const mias = S.slots.filter(s => vencida(s, t)).map(s => fila(S.key, s, true, { mes: mesDe(s), month: S.month, span: S.span, cd }));
     const fuera = vencDe === S.key ? vencFuera.map(x => ({ x, s: enCopia(x.key, x.s) })).filter(({ s }) => vencida(s, t)).map(({ x, s }) => fila(x.key, s, false, { mes: cycleOf(s.date, x.cd) || x.month, month: x.month, span: x.span, cd: x.cd })) : [];
     return [...mias, ...fuera].sort((a, b) => ts(a.date) - ts(b.date));
+  }
+  // the calendar's one indicator (D-372): what of the open board asks for something, a row each, in its order: red, the vencidas
+  // (of all the client's boards, as before) and the Programadas changed since (Zernio keeps the old one); amber, the client's
+  // («No aprobado»; web.js adds its comments, a change of theirs that couldn't be applied and its web) and what goes out in 48 h
+  // and isn't ready (not scheduled —a reel too: it goes out by hand— or with an empty hole). Only checks that exist and are cheap
+  function avisosCal() {
+    if (!S || MOVIL) return [];
+    const t = ahora(), lim = t + 48 * 36e5, limDia = madParts(lim).day, out = vencidas().map(v => ({ sec: 'venc', rojo: true, v }));
+    const L = S.slots.filter(vivo).sort((a, b) => ts(a.date) - ts(b.date));
+    L.forEach(s => { const z = cambiosProg(s); if (z.length) out.push({ sec: 'zernio', rojo: true, s, que: z }); });
+    L.forEach(s => { if (estadoDe(s) === 'noaprobado') out.push({ sec: 'cliente', s, que: 'noaprobado' }); });
+    L.forEach(s => {
+      if (!s.date || yaPaso(s, t) || !(dOnly(s.date) ? localDay(s.date) <= limDia : ts(s.date) <= lim)) return;
+      const e = estadoDe(s), sin = e !== 'programado' && e !== 'publicado', h = huecosVacios(s).length;
+      if (sin || h) out.push({ sec: 'pronto', s, sin, huecos: h });
+    });
+    return out;
   }
   // on opening a board (abrir) and every minute: B, then the vencidas. No «N vencidas · Ver» notice on opening: «N vencidas» of
   // the calendar's header opens the same window and is always in sight (D-160)
@@ -7533,6 +7550,8 @@ ${TK_FUENTES}
       && Array.isArray(r.aprendizajes) && r.aprendizajes.length <= 1000 && r.aprendizajes.every(estApr);
   }
   function envRecValido(r) {
+    if (r && typeof r === 'object' && typeof r.slot === 'string' && r.slot.startsWith(ENV_HU))   // a board's print of the rest (D-372)
+      return typeof r.cliente === 'string' && !!r.cliente && r.slot.length <= 200 && typeof r.huella === 'string' && /^[0-9a-f]{64}$/.test(r.huella) && typeof r.url === 'string' && r.url.length <= 300 && estAtOk(r.at);
     return !!r && typeof r === 'object' && typeof r.cliente === 'string' && !!r.cliente && typeof r.slot === 'string' && !!r.slot && estAtOk(r.at)
       && typeof r.caption === 'string' && r.caption.length <= 2200 && typeof r.nombre === 'string' && r.nombre.length <= 80 && typeof r.tipo === 'string'
       && (r.fecha == null || estAtOk(r.fecha)) && typeof r.sinHora === 'boolean' && (r.fotos == null || typeof r.fotos === 'string')
@@ -7588,6 +7607,11 @@ ${TK_FUENTES}
     estAvisar(true, true);
     return L.length;
   }
+  // what isn't a post (the client, its sessions, the why, its payments and deliveries) as a board last sent it to its web: its print,
+  // here with what was sent (D-372), so that another Mac doesn't show a change of more (it lived in this browser's localStorage)
+  const ENV_HU = '~huella:';
+  const envHuella = (B, url) => { const r = ENV && B && ENV.get(B.client + '|' + ENV_HU + B.key); return r && r.url === (url || '') ? r.huella : null; };
+  const envHuellaPoner = (B, url, h) => envPoner([{ cliente: B.client, slot: ENV_HU + B.key, huella: h, url: url || '', at: new Date().toISOString() }]);
   function estPlano(r) { return { cliente: r.cliente, tonos: r.tonos.map(t => ({ nombre: t.nombre, como: t.como })), secciones: { ...r.secciones }, aprendizajes: r.aprendizajes.map(a => ({ fecha: a.fecha || null, de: a.de, texto: a.texto })), at: r.at, por: r.por || null }; }
   const estVacio = c => ({ cliente: c, tonos: [], secciones: {}, aprendizajes: [], at: null, por: null });
   const estDe = c => (EST && EST.get(c) ? estPlano(EST.get(c)) : estVacio(c));   // «Editar cliente» → «Estilo» draws with it (read at the start)
@@ -9005,7 +9029,7 @@ ${TK_FUENTES}
       const entregas = ((await idbAll('entregas')) || []).filter(r => r && r.id);   // a «Solo contenido» client's deliveries, their tombstones too (D-290)
       const acuerdos = ((await idbAll('acuerdos')) || []).filter(r => r && r.id), paquetes = ((await idbAll('paquetes')) || []).filter(r => r && r.id);
       const estilos = ((await idbAll('estilos')) || []).filter(estRecValido), enviados = ((await idbAll('enviados')) || []).filter(envRecValido);   // each client's style and what went to its web (D-356, D-355)   // the agreements and the packages, their tombstones too (D-305, D-307)
-      const parts = ['{"format":"mesa-feed","v":22,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())   // v22: + estilos and enviados (D-356, D-355) and a board's provisional months (D-358); v21: + acuerdos and paquetes (with their tombstones), an agreement's «Termina en» and package (D-305 to D-307); v20: + entregas (with their tombstones) and a client's agreement, service, day of deliveries and link of metrics, an invoice's stretch (D-288 to D-292); v19: + meses, each client's month's why and summary (D-238); v18: + cobros (with their tombstones) and cfacturas, their PDFs in base64 (D-232); v3: + bandejas (D-041); v4: the boards may hold stories (D-054), whose images a mesa before 3.53 wouldn't bring; v5: «No aprobado» and the reason of a cancellation (D-082); v6: the month's step of each board (D-084); v7: a post put back by hand (D-085); v8: one step per month of a board (D-119; a file before it has the board's step, which goes to its first month); v9: a Programada keeps the date it was scheduled for (D-120); v10: + ubicaciones, the locations' catalog; the clients carry their lists and the posts the one chosen (D-124); v11: the clients carry their lists of people and the posts their tags and collaborators (D-130); v12: the editor's slides may hold a progress bar, a check or an x (D-179); v13: + tareas, the personal page's tasks and notes with their photos, and since when a post waits for the client (D-180); v14: a task's details and subtasks (D-183); v15: a designed slide's free layers of the editor and slides let go from the kit (D-193); v16: sessions, sporadic clients and the list of material (D-206, D-207); v17: a session's clients, end and template of material, several templates of material (D-217, D-218, D-220)
+      const parts = ['{"format":"mesa-feed","v":23,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())   // v22: + estilos and enviados (D-356, D-355) and a board's provisional months (D-358); v21: + acuerdos and paquetes (with their tombstones), an agreement's «Termina en» and package (D-305 to D-307); v20: + entregas (with their tombstones) and a client's agreement, service, day of deliveries and link of metrics, an invoice's stretch (D-288 to D-292); v19: + meses, each client's month's why and summary (D-238); v18: + cobros (with their tombstones) and cfacturas, their PDFs in base64 (D-232); v3: + bandejas (D-041); v4: the boards may hold stories (D-054), whose images a mesa before 3.53 wouldn't bring; v5: «No aprobado» and the reason of a cancellation (D-082); v6: the month's step of each board (D-084); v7: a post put back by hand (D-085); v8: one step per month of a board (D-119; a file before it has the board's step, which goes to its first month); v9: a Programada keeps the date it was scheduled for (D-120); v10: + ubicaciones, the locations' catalog; the clients carry their lists and the posts the one chosen (D-124); v11: the clients carry their lists of people and the posts their tags and collaborators (D-130); v12: the editor's slides may hold a progress bar, a check or an x (D-179); v13: + tareas, the personal page's tasks and notes with their photos, and since when a post waits for the client (D-180); v14: a task's details and subtasks (D-183); v15: a designed slide's free layers of the editor and slides let go from the kit (D-193); v16: sessions, sporadic clients and the list of material (D-206, D-207); v17: a session's clients, end and template of material, several templates of material (D-217, D-218, D-220)
         + ',"clients":' + JSON.stringify(clients) + ',"ubicaciones":' + JSON.stringify(ubicaciones) + ',"tareas":' + JSON.stringify(tareas) + ',"cobros":' + JSON.stringify(cobros) + ',"cfacturas":' + JSON.stringify(cfacturas) + ',"meses":' + JSON.stringify(meses) + ',"entregas":' + JSON.stringify(entregas) + ',"acuerdos":' + JSON.stringify(acuerdos) + ',"paquetes":' + JSON.stringify(paquetes) + ',"estilos":' + JSON.stringify(estilos) + ',"enviados":' + JSON.stringify(enviados) + ',"bandejas":' + JSON.stringify(bandejas) + ',"boards":' + JSON.stringify(boards) + ',"files":{'];
       let sep = '', n = 0, photos = 0, skipped = 0;
       for (const id of ids) {
@@ -9084,7 +9108,7 @@ ${TK_FUENTES}
   }
   function xferCheck(d) {
     if (!d || typeof d !== 'object' || d.format !== 'mesa-feed') return 'Este archivo no es una exportación de la Mesa de trabajo.';
-    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22].includes(d.v)) return +d.v > 22 ? 'Este archivo viene de una versión más nueva de la mesa: actualízala antes de importarlo.' : 'Versión de archivo desconocida: no se puede importar.';
+    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23].includes(d.v)) return +d.v > 23 ? 'Este archivo viene de una versión más nueva de la mesa: actualízala antes de importarlo.' : 'Versión de archivo desconocida: no se puede importar.';
     const bad = 'El archivo está dañado o incompleto: no se puede importar.';
     if (!Array.isArray(d.clients) || !Array.isArray(d.boards) || !d.files || typeof d.files !== 'object' || (d.past != null && typeof d.past !== 'object')) return bad;
     if (d.clients.some(c => !c || typeof c.id !== 'string' || !c.id)) return bad;
@@ -10238,7 +10262,7 @@ ${TK_FUENTES}
     dateChg, nameChg, typeChg, listaY, sharedWith, envDe, cambiosWeb, webFirma, webFecha, TIPO_WEB, envPoner, estLeer, estDe, igCaption, estRecValido, envRecValido, pnotHTML, MONTHS, hoy: () => madParts(ahora()).day, openIG, openPast, withPrev, setDate, madridISO, estIco, cambiosIco, motivoDe,   // the marks (D-081, mesa ≥ 3.66)
     PASOS, pasoDe, noteOf,   // the month's step bar (D-084, mesa ≥ 3.68)
     mesDe, pasosDe, rangeLabel,   // one step per month (D-119, mesa ≥ 3.91)
-    ahora, yaPaso, vencida, vencidas, vencRefrescar, vencRevisar, fueraEstado, programadaAlDia, cycleOf,   // what is due (D-120, mesa ≥ 3.92)
+    ahora, yaPaso, vencida, vencidas, avisosCal, cambiosProg, huecosVacios, envHuella, envHuellaPoner, envLeer: () => estLeer(), vencRefrescar, vencRevisar, fueraEstado, programadaAlDia, cycleOf,   // what is due (D-120, mesa ≥ 3.92)
     PASO_DE, estadoAuto, retrasada, retenida, capVacio,   // the bar carries the posts (D-085, mesa ≥ 3.69); an empty chosen caption (D-192, mesa ≥ 4.18)
     usoFoto, AVISOS,  // a photo used again (D-022, libre ≥ 1.12)
     rellenoLigero, avisoRelleno,   // only as filling: in without asking, a light notice (D-127, libre ≥ 1.50)

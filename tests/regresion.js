@@ -13,7 +13,7 @@
   }
 
   const CLIENTE = 'prueba-regresion', NOMBRE = 'Cliente de prueba', MES = '2026-11';
-  const V_ARCHIVO = 22, V_IDB = 27;   // IndexedDB 27 y v22 desde la 4.54 (los estilos, lo enviado a la web y los meses provisionales, D-355, D-356, D-358); 26 y v21 desde la 4.51 (los acuerdos y los paquetes, D-305 a D-307); 25 y v20 desde la 4.47 (el acuerdo, el servicio, las entregas y la reunión, D-288 a D-292); 24 desde la 4.33 (la marca «copia» de una foto que bajó como copia de trabajo, D-259); 23 desde la 4.32 (la nube, almacén 'nube', D-253); 22 desde la 4.31 (el diario de cambios, D-250); v19 y 21 desde la 4.27 (el porqué y cómo fue de cada mes, el almacén 'meses', D-238); v18 y 20 desde la 4.26 (cobros y sus facturas en PDF, la cuota de un cliente, D-232); v17 y 19 desde la 4.24 (varios clientes, fin y plantillas de material de una sesión, D-217 a D-220); v16 y 18 desde la 4.22 (sesiones, esporádicos, material y el almacén 'tfotos', D-206 a D-208); la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183); v15 y 17 desde la 4.19 (D-193)
+  const V_ARCHIVO = 23, V_IDB = 28;   // IndexedDB 28 y v23 desde la 4.58 (la huella de lo demás de su web, en «enviados», D-372); 27 y v22 desde la 4.54 (los estilos, lo enviado a la web y los meses provisionales, D-355, D-356, D-358); 26 y v21 desde la 4.51 (los acuerdos y los paquetes, D-305 a D-307); 25 y v20 desde la 4.47 (el acuerdo, el servicio, las entregas y la reunión, D-288 a D-292); 24 desde la 4.33 (la marca «copia» de una foto que bajó como copia de trabajo, D-259); 23 desde la 4.32 (la nube, almacén 'nube', D-253); 22 desde la 4.31 (el diario de cambios, D-250); v19 y 21 desde la 4.27 (el porqué y cómo fue de cada mes, el almacén 'meses', D-238); v18 y 20 desde la 4.26 (cobros y sus facturas en PDF, la cuota de un cliente, D-232); v17 y 19 desde la 4.24 (varios clientes, fin y plantillas de material de una sesión, D-217 a D-220); v16 y 18 desde la 4.22 (sesiones, esporádicos, material y el almacén 'tfotos', D-206 a D-208); la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183); v15 y 17 desde la 4.19 (D-193)
   // la batería va con el reloj de la mesa parado antes de sus fechas (noviembre de 2026): nada vence ni pasa solo a Publicado
   // salvo en las pruebas que lo adelantan (D-120)
   const RELOJ_PRUEBAS = Date.parse('2026-10-01T10:00:00+02:00');
@@ -348,7 +348,7 @@
     ok(!qa('.cell .badges .dot, .cell .badges .mk, .cell .dot, .cell .st, .cell .dchg').length, 'quedan indicadores de antes en las casillas');
     const ancho = sel => q(sel).getBoundingClientRect().width;
     ok(ancho('.cell[data-slot="r2"] .e-publicado') <= ancho('.cell[data-slot="r1"] .e-programado') + 0.5, 'el doble tick ocupa más que el ✓');
-    ok(!q('.bar .stats').textContent.includes('Notion'), 'la barra sigue contando «en Notion»');
+    ok(!q('.bar').textContent.includes('Notion'), 'la barra sigue contando «en Notion»');   // al día a propósito: sin «.stats» desde D-372
     // «Vista cliente»: ninguna marca
     M._in.root().classList.add('client');
     try { ok(qa('.cell .mks').every(e => e.offsetParent === null), 'las marcas salen en «Vista cliente»'); } finally { M._in.root().classList.remove('client'); }
@@ -5909,7 +5909,7 @@
       await M.flush();
       reloj('2026-11-05', '10:00'); await revisarV();
       const cab = await hasta(() => q('.side > .cal .cvenc'), 3000, '«N vencidas» en la cabecera');
-      igual(cab.textContent, '3 vencidas', 'la cuenta de la cabecera');
+      igual([+cab.textContent.trim(), M.calendario.avisos().filas.venc.length], [M.calendario.avisos().n, 3], 'la cuenta de la cabecera');   // al día a propósito: el total de avisos y, en su lista, las tres vencidas (D-372)
       cab.click();
       await hasta(() => ventanaV(), 3000, 'la ventana de las vencidas');
       igual(qa('.detail[data-dlg="venc"] .vlist li').map(li => li.dataset.k.split('|')[1]), ['r1', 'r2', 'r3'], 'la lista no va por fecha');
@@ -5945,7 +5945,7 @@
       enFilaV('r3', 'v-rep-ok');
       igual([M._in.localDay(slot('r3').date), M._in.localDay(histDe(h).date)], ['2026-11-14', '2026-11-14'], `su historia no la siguió (estaba el ${dh})`);
       ok(!vencidasV().length, 'quedan vencidas: ' + json(vencidasV().map(v => v.id)));
-      await hasta(() => !q('.side > .cal .cvenc'), 2000, 'la cabecera sin vencidas');
+      await hasta(() => !M.calendario.avisos() || !M.calendario.avisos().filas.venc.length, 2000, 'la cabecera sin vencidas');   // al día a propósito: el indicador sigue con los demás avisos (D-372)
       M._in.closeDetail();
       // sin días por delante en su tablero, no se reprograma
       reloj('2026-12-01', '09:00');
@@ -10270,7 +10270,7 @@
     await tablero([pub(1), pub(2), pub(3)]);
     await poner('r1', [await foto('j7-r1.jpg')]); subidoViejo('r1');
     M._test.setDate('r1', '2026-11-20T18:00:00.000+01:00'); M._test.setDate('r3', '2026-11-10T18:00:00.000+01:00'); await espera(200);
-    ok(!q('.bar .stats [data-act="cambios"]') && !q('.bar .stats .dates') && !/con fecha nueva|cambiadas/.test(q('.bar .stats').textContent), 'sigue un indicador de Notion');
+    ok(!q('.bar [data-act="cambios"]') && !q('.bar .dates') && !/con fecha nueva|cambiadas/.test(q('.bar').textContent), 'sigue un indicador de Notion');   // al día a propósito: sin «.stats» desde D-372
   });
   prueba('J8', 'Sin «Ajustar»: un doble clic en el porcentaje deja la diapositiva entera, al 100 %, sin seleccionar su texto; ⌘0 sigue (D-145)', async () => {
     await tablero([pub(1, 'Carrusel')]);
@@ -10837,7 +10837,7 @@
     await poner('r1', [await foto('lz4.jpg')]);
     const mes = () => q('.bar .mescab .mescab-mes[aria-current="true"]');
     await hasta(() => mes() && mes().title === 'Noviembre 2026 · 1 de 3 con foto', 3000, 'el título del mes con 1 de 3');
-    ok(!/con foto/.test(q('.bar .stats').textContent), 'sigue «con foto»: ' + q('.bar .stats').textContent);
+    ok(!q('.bar .stats') && !/con foto|con contexto/.test(q('.bar').textContent), 'sigue «con foto» o «con contexto»: ' + q('.bar').textContent);   // al día a propósito: «N con contexto» sale de la barra (D-372)
     ok(!/\d\s*\/\s*\d/.test(q('.bar .mescab').textContent), 'cifras a la vista: ' + q('.bar .mescab').textContent);
     await conCliente(async () => { igual(mes().title, 'Noviembre 2026', 'el título en «Vista cliente»'); });
     igual(mes().title, 'Noviembre 2026 · 1 de 3 con foto', 'el título al quitar la vista');
@@ -15190,6 +15190,164 @@
   }
   async function enTema(t, fn) { const h = D.documentElement, t0 = h.dataset.theme; if (t === 'dark') h.dataset.theme = 'dark'; else delete h.dataset.theme; try { await espera(400); return await fn(); } finally { if (t0) h.dataset.theme = t0; else delete h.dataset.theme; } }
 
+  // ---------- Ajustes de la 4.55, lote 3: un solo indicador junto a «Calendario» (D-372) ----------
+  const inPill = () => q('.side > .cal .calhead .cvenc');
+  const inSecs = () => qa('.detail[data-dlg="venc"] .avsec').map(x => x.dataset.sec);
+  const inFilas = sec => qa(`.detail[data-dlg="venc"] .avsec[data-sec="${sec}"] li`);
+  const inAbrir = async () => { const b = inPill(); ok(b, 'no hay pastilla'); b.click(); await espera(80); ok(q('.detail[data-dlg="venc"]:not([hidden])'), 'la pastilla no abre su lista'); };
+
+  prueba('IN1', 'Un solo indicador junto a «Calendario» (D-372): un punto y un número, el total de avisos del cliente (uno por fila de su lista), rojo si alguno es rojo y su desglose en el título; al pulsarla, la lista en su orden —Sin publicar (Ya se publicó / Reprogramar / Cancelar), Zernio tiene la versión de antes, Del cliente, Sale en 48 h y no está lista—; sin avisos, nada; en «Vista cliente», nada; la barra sin «N con contexto»', async () => {
+    relojEn('2026-11-10T10:00:00+01:00');
+    try {
+      await tablero([pub(1, 'Foto', 5), pub(2, 'Foto', 20), { ...pub(3, 'Foto', 11), date: '2026-11-11T18:00:00.000+01:00' }, pub(4, 'Foto', 25), pub(5, 'Foto', 27)]);
+      await porAprobar(['r1', 'r2', 'r3', 'r4', 'r5'], 'in1');
+      M.setEstado(['r1', 'r2'], 'aprobado'); M.setEstado('r2', 'programado'); M.setEstado('r4', 'noaprobado'); await M.flush();
+      M._test.setSlot('r2', { caption: { ...slot('r2').caption, text: ['1 bis', '2', '3'] } }); await M.flush(); M._in.render(); await espera(80);
+      const b = inPill(); ok(b, 'no sale la pastilla');
+      igual(b.textContent.trim(), '4', 'la pastilla dice algo más que el número: ' + b.title);
+      ok(b.querySelector('.cdot') && b.classList.contains('rojo'), 'sin su punto o no va en rojo');
+      ok(/1 sin publicar/.test(b.title) && /Zernio/.test(b.title) && /del cliente/i.test(b.title) && /48 h/.test(b.title), 'el título sin el desglose: ' + b.title);
+      ok(!/vencida/.test(q('.side > .cal .calhead').textContent), 'sigue «N vencidas»');
+      ok(!q('.bar .stats') && !/con contexto/.test(q('.bar').textContent), 'la barra sigue con «N con contexto»');
+      await inAbrir();
+      igual(inSecs(), ['venc', 'zernio', 'cliente', 'pronto'], 'el orden de la lista');
+      igual([inFilas('venc').length, inFilas('zernio').length, inFilas('cliente').length, inFilas('pronto').length], [1, 1, 1, 1], 'una fila por aviso');
+      ok(inFilas('venc')[0].querySelector('[data-cal="v-pub"]') && inFilas('venc')[0].querySelector('[data-cal="v-rep"]') && inFilas('venc')[0].querySelector('[data-cal="v-can"]'), 'las vencidas sin sus acciones de hoy');
+      ok(/caption/.test(inFilas('zernio')[0].textContent) && inFilas('zernio')[0].querySelector('[data-cal="av-abrir"]'), 'Zernio: no dice qué cambió o no abre la publicación');
+      ok(/No aprobado/.test(inFilas('cliente')[0].textContent), 'Del cliente sin «No aprobado»');
+      ok(/sin programar/.test(inFilas('pronto')[0].textContent), '48 h sin «sin programar»');
+      ok(q('.detail[data-dlg="venc"] .avsec[data-sec="venc"] .avtag.rojo') && q('.detail[data-dlg="venc"] .avsec[data-sec="pronto"] .avtag.ambar'), 'los colores de cada aviso');
+      inFilas('zernio')[0].querySelector('[data-cal="av-abrir"]').click(); await espera(80);
+      ok(q('.detail:not([hidden])') && q('.detail').dataset.slot === 'r2', 'no abre la publicación');
+      M._in.closeDetail();
+      // only amber: amber
+      M.setEstado('r1', 'publicado'); M.setEstado('r2', 'programado'); await M.flush(); M._in.render(); await espera(60);
+      ok(inPill() && inPill().textContent.trim() === '2' && inPill().classList.contains('ambar') && !inPill().classList.contains('rojo'), 'solo ámbar: ' + (inPill() && inPill().className));
+      await vistaCliente(true); M._in.render(); await espera(40); ok(!inPill(), 'en «Vista cliente» sale la pastilla'); await vistaCliente(false);
+      M.setEstado('r4', 'aprobado'); M.setEstado(['r3', 'r4'], 'aprobado'); M.setEstado(['r3', 'r4'], 'programado'); await M.flush(); M._in.render(); await espera(60);
+      ok(!inPill(), 'sin avisos sale la pastilla');
+    } finally { M._in.closeDetail(); relojVuelve(); }
+  });
+
+  prueba('IN2', '«Zernio tiene la versión de antes» (D-372): la firma de una Programada guarda también su ubicación, sus etiquetas y sus colaboradores, y su ventana y la lista dicen si cambiaron; una Programada firmada antes, sin esos campos, no sale como cambiada; marcada Programado otra vez, se quita', async () => {
+    await tablero([pub(1), pub(2)]);
+    await porAprobar(['r1', 'r2'], 'in2');
+    M.setEstado(['r1', 'r2'], 'aprobado'); M.setEstado(['r1', 'r2'], 'programado'); await M.flush();
+    const f = slot('r1').estado.firma; ok(f && 'ubi' in f && 'etq' in f && 'col' in f, 'la firma sin ubicación, etiquetas o colaboradores: ' + json(f));
+    const zer = id => (M._in.pnotHTML(slot(id)).match(/Zernio sigue con lo de antes: ([^<]*)/) || [])[1] || '';
+    M._test.setSlot('r1', { ubicacion: 'lug-in2' }); await M.flush(); ok(/ubicación/.test(zer('r1')), 'la ubicación cambiada no sale: ' + zer('r1'));
+    M._test.setSlot('r1', { etiquetas: ['cuenta.in2'] }); await M.flush(); ok(/etiquetas/.test(zer('r1')), 'las etiquetas no salen: ' + zer('r1'));
+    M._test.setSlot('r1', { colaboradores: ['colab.in2'] }); await M.flush(); ok(/colaboradores/.test(zer('r1')), 'los colaboradores no salen: ' + zer('r1'));
+    ok(M._in.cambiosProg(slot('r1')).length === 3, 'cambiosProg: ' + json(M._in.cambiosProg(slot('r1'))));
+    // signed before the 4.58: without those fields, nothing changed
+    const viejo = { ...slot('r2').estado, firma: { foto: slot('r2').estado.firma.foto, cap: slot('r2').estado.firma.cap } };
+    M._test.setSlot('r2', { estado: viejo, ubicacion: 'lug-in2', etiquetas: ['x.in2'] }); await M.flush();
+    igual(zer('r2'), '', 'una firma vieja sale como cambiada');
+    M.setEstado('r1', 'programado'); await M.flush(); igual(zer('r1'), '', 'marcada Programado otra vez no se quita');
+  });
+
+  prueba('IN3', 'Su web en la lista (D-372): sin sesión, «Entrar» y cuenta 1; con otra cuenta, «Salir»; leyendo, nada; con cambios, una fila por publicación cuyo contenido cambia y «Enviar»; si solo cambió el orden del feed, una línea «El orden del feed» que cuenta 1; «Web: …» y «Web al día» ya no salen en la barra', async () => {
+    await tablero([pub(1), pub(2), pub(3)]);
+    await porAprobar(['r1', 'r2', 'r3'], 'in3');
+    await conWeb(async sv => {
+      M._in.render(); await espera(60);
+      ok(!q('.bar [data-web]'), 'la barra sigue con el botón de la web');
+      ok(inPill() && inPill().textContent.trim() === '1', 'sin sesión no cuenta 1: ' + (inPill() && inPill().textContent));
+      await inAbrir(); ok(inFilas('web').length === 1 && inFilas('web')[0].querySelector('[data-web="entrar"]'), 'sin sesión, sin «Entrar»'); M._in.closeDetail();
+      wbSesion(); M._in.render(); ok(!inPill() || !inFilas('web').length, 'leyendo, su web cuenta algo');
+      await M.web.repasar(); M._in.render(); await espera(60);
+      const n0 = M.web.estado().cambios; ok(n0 >= 3, 'al empezar, sin cambios: ' + n0);
+      ok(inPill() && +inPill().textContent.trim() === n0, 'la pastilla no cuenta lo de su web');
+      await inAbrir(); ok(inFilas('web').length === n0 && q('.detail[data-dlg="venc"] .avsec[data-sec="web"] [data-web="enviar"]'), 'su web: una fila por cambio y «Enviar»'); M._in.closeDetail();
+      ok((await M.web.enviar()).ok, 'no se envió'); await M.web.repasar(); M._in.render(); await espera(60);
+      igual(M.web.estado().cambios, 0, 'tras enviar'); ok(!inPill(), 'al día, sale la pastilla');
+      ok(!/Web al día/.test(q('.bar').textContent), '«Web al día» sigue en la barra');
+      // only the order (the oldest pinned first, the others shift): one line that counts 1
+      M._in.S.pins = ['r1']; M._in.save(); await M.flush(); await M.web.repasar(); M._in.render(); await espera(60);
+      igual(M.web.estado().cambios, 1, 'solo el orden cuenta 1: ' + json(sv.db.publicaciones.map(r => [r.nombre, r.orden])) + json(M._in.fijadasFeed ? M._in.fijadasFeed() : '?'));
+      await inAbrir(); let filas = inFilas('web').map(li => li.textContent);
+      ok(filas.length === 1 && /El orden del feed/.test(filas[0]), 'una sola línea del orden: ' + json(filas)); M._in.closeDetail();
+      M._test.setSlot('r2', { caption: { ...slot('r2').caption, pick: 1 } }); await M.flush(); await M.web.repasar(); M._in.render(); await espera(60);
+      igual(M.web.estado().cambios, 2, 'el contenido de r2 y el orden de las demás');
+      await inAbrir(); filas = inFilas('web').map(li => li.textContent);
+      ok(filas.some(t => /Foto 1\.2/.test(t) && /caption/.test(t)) && filas.filter(t => /El orden del feed/.test(t)).length === 1, 'r2 y una sola línea del orden: ' + json(filas));
+      M._in.closeDetail();
+    });
+  });
+
+  prueba('IN4', 'La huella de lo demás de su web (D-372): la que no es de una publicación (cliente, sesiones, porqué, pagos, entregas) se guarda en «enviados», que viaja por la nube, y no en este navegador; la que ya estaba aquí se toma sin contar un cambio de más; otro Mac, con lo bajado, no enseña ese cambio', async () => {
+    await tablero([pub(1)]);
+    await porAprobar(['r1'], 'in4');
+    await conWeb(async sv => {
+      wbSesion(); await M.web.repasar();
+      ok((await M.web.enviar()).ok, 'no se envió'); await M.web.repasar();
+      igual(M.web.estado().cambios, 0, 'tras enviar');
+      const hu = ((await M._in.idbAll('enviados')) || []).filter(r => r.cliente === CLIENTE && /^~huella:/.test(r.slot));
+      ok(hu.length === 1 && /^[0-9a-f]{64}$/.test(hu[0].huella), 'la huella no está en «enviados»: ' + json(hu));
+      ok(!Object.keys(W.localStorage).some(k => /^mesa-web-huella:/.test(k)), 'la huella se escribe aún en este navegador');
+      // another Mac: nothing in its localStorage, the store as it came down
+      Object.keys(W.localStorage).filter(k => /^mesa-web-(huella|leido):/.test(k)).forEach(k => W.localStorage.removeItem(k));
+      M.web._test.olvidar(); await M.web.repasar(); igual(M.web.estado().cambios, 0, 'otro Mac enseña un cambio de más');
+      // a print of before (in this browser) is taken as it is
+      await M._in.idbDel('enviados', hu[0].cliente + '|' + hu[0].slot); await M._in.envLeer();
+      W.localStorage.setItem('mesa-web-huella:' + WB_URL + ':' + M._in.S.key, hu[0].huella);
+      M.web._test.olvidar(); await M.web.repasar(); igual(M.web.estado().cambios, 0, 'la huella de antes cuenta un cambio');
+      const hu2 = ((await M._in.idbAll('enviados')) || []).filter(r => r.cliente === CLIENTE && /^~huella:/.test(r.slot));
+      igual(hu2.length && hu2[0].huella, hu[0].huella, 'la huella de antes no pasa al almacén');
+    });
+  });
+
+  prueba('IN5', 'Del cliente, en la lista (D-372): los comentarios sin leer de una publicación y un cambio suyo que no se pudo aplicar (antes, un aviso que desaparecía) se quedan en la lista hasta abrirla', async () => {
+    await tablero([pub(1), pub(2)]);
+    await porAprobar(['r1', 'r2'], 'in5');
+    await conWeb(async sv => {
+      wbSesion(); await M.web.repasar(); ok((await M.web.enviar()).ok, 'no se envió'); await M.web.repasar();
+      const de = id => sv.db.publicaciones.find(r => r.nombre === M._in.shortLabel(slot(id).name, slot(id).type)), p1 = de('r1'), p2 = de('r2');
+      ok(p1 && p2, 'no están en el servidor');
+      M.setEstado('r2', 'aprobado'); await M.flush();   // moved by Kevin after sending: the client's «cambios» can't be applied
+      const h = new Date(Date.now() + 1000).toISOString();
+      sv.db.comentarios.push({ id: 'c-in5', cliente_id: CLIENTE, pid: p1.pid, version: p1.version, diapositiva: null, texto: 'Me gusta', autor_nombre: 'Cliente', de_kevin: false, hora: h, resuelto: null });
+      sv.db.aprobaciones.push({ id: 'a-in5', cliente_id: CLIENTE, pid: p2.pid, version: p2.version, decision: 'cambios', motivo: 'Otra', diapositiva: null, autor_nombre: 'Cliente', hora: h });
+      await M.web.leer(); M._in.render(); await espera(80);
+      await inAbrir();
+      const t = inFilas('cliente').map(li => li.textContent);
+      ok(t.some(x => /comentario/.test(x)) && t.some(x => /idió cambios/.test(x)), 'Del cliente sin el comentario o el cambio no aplicado: ' + json(t));
+      M._in.closeDetail(); await M.web.leer(); M._in.render(); await espera(60);
+      await inAbrir(); ok(inFilas('cliente').some(li => /idió cambios/.test(li.textContent)), 'el cambio no aplicado desaparece al leer otra vez');
+      const li = inFilas('cliente').find(x => /idió cambios/.test(x.textContent)); li.querySelector('[data-cal="av-abrir"]').click(); await espera(80); M._in.closeDetail();
+      M._in.render(); await espera(40); await inAbrir();
+      ok(!inFilas('cliente').some(x => /idió cambios/.test(x.textContent)), 'abierta la publicación, sigue en la lista');
+      M._in.closeDetail();
+    });
+  });
+
+  prueba('IN6', 'La página de un cliente de solo contenido (D-372): la misma pastilla donde estaba su aviso de la web, con las filas de su web; sin proyecto de la web, no sale', async () => {
+    await tableroContenido();
+    await conWeb(async () => {
+      M._in.renderBar(); await espera(40);
+      ok(!q('.bar [data-web]'), 'sigue el botón de la web en la barra');
+      const b = q('.bar .cvenc'); ok(b && b.textContent.trim() === '1', 'sin la pastilla en su sitio: ' + (b && b.textContent));
+      b.click(); await espera(80); ok(q('.detail[data-dlg="venc"] .avsec[data-sec="web"] [data-web="entrar"]'), 'su lista sin «Entrar»'); M._in.closeDetail();
+    });
+    M._in.renderBar(); await espera(40); ok(!q('.bar .cvenc'), 'sin proyecto sale la pastilla');
+  });
+
+  prueba('IN7', 'Datos nuevos de su web (D-372): IndexedDB 28 y archivo v23; la huella viaja en «Exportar» y vuelve al importar; un archivo v22 se sigue importando', async () => {
+    await tablero([pub(1)]);
+    igual([M._in.xfer.IDB, V_IDB, V_ARCHIVO], [28, 28, 23], 'las versiones');
+    const k = '~huella:' + M._in.S.key;
+    igual(await M._in.envPoner([{ cliente: CLIENTE, slot: k, huella: 'a'.repeat(64), url: 'https://in7.test', at: '2026-11-20T10:00:00.000Z' }]), 1, 'la huella no se guarda');
+    ok(!M._in.xfer.envRecValido({ cliente: CLIENTE, slot: k, huella: 'no', url: '', at: '2026-11-20T10:00:00.000Z' }), 'entra una huella mal formada');
+    const blob = await M.exportAll({ returnBlob: true }), d = JSON.parse(await blob.text());
+    igual(d.v, V_ARCHIVO, 'la versión del archivo'); ok((d.enviados || []).some(r => r.slot === k && r.huella === 'a'.repeat(64)), 'el archivo no lleva la huella');
+    await M._in.idbDel('enviados', CLIENTE + '|' + k); await M._in.envLeer();
+    let r = await M.importData(blob, { confirm: false }); ok(r && !r.error, 'importar: ' + json(r)); await M._in.envLeer();
+    ok(((await M._in.idbAll('enviados')) || []).some(x => x.slot === k), 'la huella no vuelve al importar');
+    const v22 = { ...d, v: 22, enviados: (d.enviados || []).filter(x => !/^~huella:/.test(x.slot)) };
+    r = await M.importData(new W.Blob([JSON.stringify(v22)], { type: 'application/json' }), { confirm: false }); ok(r && !r.error, 'un archivo v22 no entra: ' + json(r));
+    await M._in.idbDel('enviados', CLIENTE + '|' + k); await M._in.envLeer();
+  });
+
   // ---------- Ajustes de la 4.55, lote 3: Tareas con el formato de Avisos (D-371) ----------
   const taSes = (id, o) => { const t = '2026-11-01T09:00:00.000Z'; return M._in.idbPut('tareas', id, { id, tipo: 'sesion', txt: o.txt, creada: t, at: t, clientes: o.clientes || [], fecha: o.fecha, ...(o.hora ? { hora: o.hora } : {}), ...(o.fin ? { fin: o.fin } : {}), sesion: { clase: o.clase || 'foto', visible: o.visible !== false, plantilla: 1, apartados: [] } }); };
   const taAbrir = async (o = {}) => { await paginaAbierta(); await M.personal.set({ plg: { tareas: false, clientes: false, avisos: false }, vista: 'lista', alcance: '1m', ttodas: false, tcli: null, ...o }); await M.personal.render(); await espera(30); };
@@ -17629,8 +17787,9 @@
     M._in.renderBar(); ok(!q('[data-web]'), 'sin proyecto salió algo en la barra');
     ok(!M.web._sb(), 'en una copia de este Mac sin proyecto de pruebas se usó el real');
     await conWeb(async () => {
-      M._in.renderBar();
-      const b = q('[data-web="entrar"]'); ok(b && b.textContent === 'Web del cliente', 'sin sesión no salió «Web del cliente»');
+      M._in.renderBar(); M._in.render(); await espera(60); ok(!q('.bar [data-web]'), 'la barra sigue con su botón');
+      q('.side > .cal .cvenc').click(); await espera(60);   // al día a propósito: «Entrar» va en la lista del indicador (D-372)
+      const b = q('.detail[data-dlg="venc"] [data-web="entrar"]'); ok(b && b.textContent === 'Entrar', 'sin sesión no salió «Entrar»');
       b.click(); await espera(60); ok(q('.detail [data-webform="correo"]'), 'no se abrió el diálogo de entrar');
       M._in.closeDetail();
       await vistaCliente(true); M._in.renderBar(); ok(!q('[data-web]'), 'en «Vista cliente» salió el botón');
@@ -17688,10 +17847,10 @@
     await conWeb(async sv => {
       wbSesion(); await M.web.repasar();
       igual(M.web.estado().cambios, 3, 'al empezar (las 2 publicaciones y el cliente)');
-      ok(/^Web: 3 cambios$/.test(((q('[data-web="lista"]') || {}).textContent || '').trim()), 'la barra');   // al día a propósito: «Web: N cambios», que abre la lista (D-355)
+      M._in.render(); await espera(40); igual(+((q('.side > .cal .cvenc') || {}).textContent || '0'), 3, 'la pastilla');   // al día a propósito: lo de su web va en el indicador (D-372)
       ok((await M.web.enviar()).ok, 'no se envió'); await M.web.repasar();
       igual(M.web.estado().cambios, 0, 'tras enviar');
-      ok(/Web al día/.test((q('[data-web]') || {}).textContent || ''), 'la barra no dice «Web al día»');
+      M._in.render(); await espera(40); ok(!q('.side > .cal .cvenc'), 'al día, sigue la pastilla');   // al día a propósito (D-372)
       M._test.setSlot('r1', { memo: 'otra nota' }); await M.web.repasar();
       igual(M.web.estado().cambios, 0, 'la Nota contó como cambio');
       M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 1 } }); await M.web.repasar();
@@ -22266,7 +22425,7 @@
       await M.sesiones._test.crear({ txt: 'Rodaje', clase: 'foto', fecha: '2026-11-22', clientes: [CLIENTE] });
       await conWeb(async sv => {
         wbSesion(); M._in.renderBar(); await espera(60);
-        ok(q('.bar .webbtn'), 'sin «Web del cliente» en la barra de un cliente de solo contenido');
+        ok(q('.bar .cavw') && !q('.bar .webbtn'), 'sin el sitio del indicador en la barra de un cliente de solo contenido');   // al día a propósito (D-372)
         const P = await M.web.paquete(M._in.S);
         ok(!P.error, 'el paquete: ' + json(P.error));
         const C = P.cliente || {};
@@ -22475,12 +22634,12 @@
     { const r = (await M.personal.tareas()).find(x => x.txt === 'Sin nombre'), raw = await M._in.idbGet('tareas', r.id); raw.txt = ''; await M._in.idbPut('tareas', r.id, raw); }   // una reunión sin nombre: «Reunión», como la «Vista cliente» (revisión en frío)
     await conWeb(async sv => {
       wbSesion(); M._in.renderBar(); await espera(60);
-      ok(q('.bar .webbtn'), 'sin «Web del cliente» en su página');
+      ok(q('.bar .cavw') && !q('.bar .webbtn'), 'sin el sitio del indicador en su página');   // al día a propósito (D-372)
       const P = await M.web.paquete(); ok(P && !P.error, 'el paquete sin tablero: ' + json(P && P.error));
       igual((P.sesiones || []).map(x => x.nombre).sort(), ['Reunión', 'Sesión de agosto', 'Sesión de marzo'], 'las sesiones de cualquier mes (la reunión sin nombre, «Reunión»)');
       const r = await M.web.enviar(); ok(r.ok, 'no se envió: ' + json(r));
       igual((sv.db.sesiones || []).map(x => x.nombre).sort(), ['Reunión', 'Sesión de agosto', 'Sesión de marzo'], 'las sesiones en la web');
-      ok(Object.keys(W.localStorage).some(k => /^mesa-web-huella:/.test(k) && k.endsWith(':cliente:' + CLIENTE)), 'la huella no es por cliente: ' + Object.keys(W.localStorage).filter(k => /huella/.test(k)).join(' '));
+      ok(((await M._in.idbAll('enviados')) || []).some(x => x.slot === '~huella:cliente:' + CLIENTE), 'la huella no es por cliente');   // al día a propósito: en «enviados» desde D-372
       const ag = (await M.personal.tareas()).find(x => x.txt === 'Sesión de agosto'); await M.personal.borrarSesion(ag.id); await espera(120);
       const r2 = await M.web.enviar(); ok(r2.ok, 'no se envió otra vez: ' + json(r2));
       igual((sv.db.sesiones || []).map(x => x.nombre).sort(), ['Reunión', 'Sesión de marzo'], 'la sesión quitada sigue en la web');
@@ -24099,7 +24258,7 @@
       igual(M._test.hist().undo, u0 + 1, 'las tres, en un solo paso de ⌘Z');
       ok(/3 publicaciones pasan a Publicado/.test(qa('.toasts .toast').map(t => t.textContent).join(' | ')), 'sin el aviso de las tres');
       igual(vencidasV().map(v => [v.id, v.aqui]), [['ff1-s2', false], ['ff1-n2', false], ['ff1-n4', false]], 'las vencidas, con las de noviembre');
-      await hasta(() => /3 vencidas/.test((q('.side > .cal') || { textContent: '' }).textContent), 3000, 'la cifra «3 vencidas» del calendario');
+      await hasta(() => q('.side > .cal .cvenc') && M.calendario.avisos() && M.calendario.avisos().filas.venc.length === 3, 3000, 'las 3 vencidas en el indicador del calendario');   // al día a propósito (D-372)
       abrirV();
       await hasta(() => filaV('ff1-n2'), 3000, 'la fila de la de noviembre');
       ok(/Noviembre 2026, otro tablero/.test(filaV('ff1-n2').textContent), 'la de noviembre no dice su mes');
@@ -25753,17 +25912,17 @@
       ok((await M.web.enviar()).ok, 'no se envió'); await M.web.repasar();
       ok(M._in.envDe(slot('r1')) && M._in.envDe(slot('r2')), 'enviar no apuntó lo enviado');
       igual(M._in.cambiosWeb(slot('r1')), [], 'recién enviada, con cambios');
-      ok(/Web al día/.test((q('[data-web="lista"]') || {}).textContent || ''), 'la barra no dice «Web al día»');
-      M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 1 } }); await M.web.repasar(); M._in.renderFeed(); await espera(60);
-      ok(/^Web: 1 cambio$/.test(((q('[data-web="lista"]') || {}).textContent || '').trim()), 'la barra: ' + ((q('[data-web]') || {}).textContent || ''));
+      M._in.render(); await espera(40); ok(!q('.side > .cal .cvenc'), 'al día, sigue la pastilla');   // al día a propósito: su web va en el indicador (D-372)
+      M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 1 } }); await M.web.repasar(); M._in.renderFeed(); M._in.render(); await espera(60);
+      igual(((q('.side > .cal .cvenc') || {}).textContent || '').trim(), '1', 'la pastilla');
       ok(celda('r1').querySelector('.mk-cambios'), 'la casilla no lleva la marca');
-      q('[data-web="lista"]').click();
-      const d = await hasta(() => q('.detail:not([hidden])[data-dlg="webcambios"]'), 4000, 'la lista');
-      ok(/1 cambio sin enviar/.test(d.querySelector('h3').textContent), 'el título: ' + d.querySelector('h3').textContent);
-      igual(qa('.detail[data-dlg="webcambios"] .vlist li').length, 1, 'la lista');
-      ok(/Cambió: caption/.test(d.querySelector('.vlist li').textContent), 'la fila: ' + d.querySelector('.vlist li').textContent);
+      q('.side > .cal .cvenc').click();
+      const d = await hasta(() => q('.detail:not([hidden])[data-dlg="venc"]'), 4000, 'la lista');
+      ok(/1 aviso/.test(d.querySelector('h3').textContent), 'el título: ' + d.querySelector('h3').textContent);
+      igual(qa('.detail[data-dlg="venc"] .avsec[data-sec="web"] li').length, 1, 'la lista');
+      ok(/Cambió: caption/.test(d.querySelector('.avsec[data-sec="web"] li').textContent), 'la fila: ' + d.querySelector('.avsec[data-sec="web"] li').textContent);
       d.querySelector('[data-web="enviar"]').click();
-      await hasta(() => !q('.detail:not([hidden])[data-dlg="webcambios"]') && M.web.estado().enviando === false, 6000, 'que envíe');
+      await hasta(() => M.web.estado().enviando === false && M.web.estado().cambios === 0, 6000, 'que envíe'); M._in.closeDetail();
       await hasta(() => M._in.cambiosWeb(slot('r1')).length === 0, 4000, 'la marca después de enviar');
       // lo enviado antes de la 4.54: sin nada apuntado, se aprende del servidor al leerlo
       await M._test.estBorrarTodo(); igual(M._in.envDe(slot('r1')), null, 'no se borró lo apuntado');

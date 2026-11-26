@@ -15206,6 +15206,7 @@
       const b = inPill(); ok(b, 'no sale la pastilla');
       igual(b.textContent.trim(), '4', 'la pastilla dice algo más que el número: ' + b.title);
       ok(b.querySelector('.cdot') && b.classList.contains('rojo'), 'sin su punto o no va en rojo');
+      ok(b.getBoundingClientRect().height >= 24, 'la pastilla, por debajo de 24 px de alto: ' + b.getBoundingClientRect().height);
       ok(/1 sin publicar/.test(b.title) && /Zernio/.test(b.title) && /del cliente/i.test(b.title) && /48 h/.test(b.title), 'el título sin el desglose: ' + b.title);
       ok(!/vencida/.test(q('.side > .cal .calhead').textContent), 'sigue «N vencidas»');
       ok(!q('.bar .stats') && !/con contexto/.test(q('.bar').textContent), 'la barra sigue con «N con contexto»');
@@ -15253,12 +15254,13 @@
       M._in.render(); await espera(60);
       ok(!q('.bar [data-web]'), 'la barra sigue con el botón de la web');
       ok(inPill() && inPill().textContent.trim() === '1', 'sin sesión no cuenta 1: ' + (inPill() && inPill().textContent));
-      await inAbrir(); ok(inFilas('web').length === 1 && inFilas('web')[0].querySelector('[data-web="entrar"]'), 'sin sesión, sin «Entrar»'); M._in.closeDetail();
+      await inAbrir(); ok(inFilas('web').length === 1 && inFilas('web')[0].querySelector('[data-web="entrar"]'), 'sin sesión, sin «Entrar»');
+      igual(W.getComputedStyle(inFilas('web')[0]).display, 'flex', 'la fila de «Entrar», sin maquetar'); M._in.closeDetail();
       wbSesion(); M._in.render(); ok(!inPill() || !inFilas('web').length, 'leyendo, su web cuenta algo');
       await M.web.repasar(); M._in.render(); await espera(60);
       const n0 = M.web.estado().cambios; ok(n0 >= 3, 'al empezar, sin cambios: ' + n0);
       ok(inPill() && +inPill().textContent.trim() === n0, 'la pastilla no cuenta lo de su web');
-      await inAbrir(); ok(inFilas('web').length === n0 && q('.detail[data-dlg="venc"] .avsec[data-sec="web"] [data-web="enviar"]'), 'su web: una fila por cambio y «Enviar»'); M._in.closeDetail();
+      await inAbrir(); ok(inFilas('web').length === n0 && q('.detail[data-dlg="venc"] .avsec[data-sec="web"] .avpie [data-web="enviar"]'), 'su web: una fila por cambio y «Enviar» debajo'); M._in.closeDetail();
       ok((await M.web.enviar()).ok, 'no se envió'); await M.web.repasar(); M._in.render(); await espera(60);
       igual(M.web.estado().cambios, 0, 'tras enviar'); ok(!inPill(), 'al día, sale la pastilla');
       ok(!/Web al día/.test(q('.bar').textContent), '«Web al día» sigue en la barra');
@@ -15463,7 +15465,8 @@
     d.scrollIntoView({ block: 'center' }); await espera(30);
     const r = ch.getBoundingClientRect(), rd = d.getBoundingClientRect(), x = rd.left + rd.width / 2, y = rd.top + rd.height / 2 + (o.dy || 0);
     puntero('pointerdown', ch, r.left + 4, r.top + 4); puntero('pointermove', D, (r.left + x) / 2, (r.top + y) / 2); puntero('pointermove', D, x, y);
-    const marca = d.className;
+    const marca = d.className, g = q('.cghost');
+    caArrastra.ult = { op: W.getComputedStyle(ch).opacity, sombra: g ? W.getComputedStyle(g).boxShadow : '' };   // mid-drag: the original dimmed, the copy lifted
     if (o.esc) tecla('Escape');
     if (o.fuera) { const f = q('.feed') || q('.bar'), rf = f.getBoundingClientRect(); puntero('pointermove', D, rf.left + 20, rf.top + 20); puntero('pointerup', D, rf.left + 20, rf.top + 20); }
     else puntero('pointerup', D, x, y);
@@ -15480,7 +15483,7 @@
       W.document.dispatchEvent(new W.CustomEvent('mesa-tareas')); await espera(120); await caCal();
       const ch = await hasta(() => q('.side > .cal .cday[data-day="2026-11-12"] .chip[data-ses="ss-ca1"]'), 3000, 'el chip de la sesión');
       const cs = W.getComputedStyle(ch), cn = ch.querySelector('.cn').getBoundingClientRect(), ct = ch.querySelector('.ct').getBoundingClientRect();
-      ok(cs.flexWrap === 'nowrap' && Math.abs(cn.top - ct.top) < 4 && ct.left > cn.left, 'el chip de la sesión no va en una línea');
+      ok(Math.abs(cn.top - ct.top) < 4 && ct.left > cn.left, 'el chip de la sesión no va en una línea');
       const aro = deRegla(/\.chip\[data-ses\]:hover/, 'box-shadow', ch.parentNode); ok(aro && /2px/.test(aro), 'sin el aro al pasar: ' + aro);
       // grabbed by its second day, to the 20th: it moves whole, its time kept
       const marca = await caArrastra('.side > .cal .cday[data-day="2026-11-13"] .chip[data-ses="ss-ca1"]', '.side > .cal .cday[data-day="2026-11-20"]');
@@ -15533,12 +15536,18 @@
       const aro = deRegla(/\.pp-fi:hover/, 'box-shadow', q('.pp-tareas')); ok(aro && /2px/.test(aro), 'sin el aro al pasar: ' + aro);
       const m1 = await caArrastra(`.pp-sd[data-day="2026-11-11"] .pp-fi[data-tid="${t.id}"]`, '.pp-sd[data-day="2026-11-14"]');
       ok(/pp-dropd/.test(m1), 'el día no se marcó para soltar: ' + m1);
+      igual(caArrastra.ult.op, '0.35', 'la ficha que se arrastra no se apaga en su sitio');
+      const sd = W.getComputedStyle(q('#mesa')).getPropertyValue('--shadow-drag').trim(); ok(sd && caArrastra.ult.sombra && caArrastra.ult.sombra !== W.getComputedStyle(q('.pp-fi')).boxShadow, 'la copia que se arrastra sale plana: ' + caArrastra.ult.sombra);
+      const dr = taRegla(/\.pp-tareas \.pp-sd\.pp-dropd/, q('.pp-tareas')); ok(dr && rgbDe(dr).join() === rgbDe(W.getComputedStyle(q('#mesa')).getPropertyValue('--acc-soft').trim()).join(), 'el día donde cae no gana al día al pasar: ' + dr);
       igual((await caRec(t.id)).fecha, '2026-11-14', 'Semana: la tarea no se movió');
       await caArrastra('.pp-sd[data-day="2026-11-13"] .pp-fi[data-tid="ss-ca3"]', '.pp-sd[data-day="2026-11-09"]');
       let r = await caRec('ss-ca3'); igual([r.fecha, r.hora, r.fin], ['2026-11-08', '09:00', { fecha: '2026-11-09', hora: '18:00' }], 'Semana: la sesión no se movió entera');
       await M.personal.set({ vista: 'mes', tmes: 0 }); await M.personal.render(); await espera(40);
       await caArrastra(`.pp-md[data-day="2026-11-14"] .pp-mt[data-tid="${t.id}"]`, '.pp-md[data-day="2026-11-27"]');
       igual((await caRec(t.id)).fecha, '2026-11-27', 'Mes: la tarea no se movió');
+      M._in.clearToasts(); const fuera = q('.pp-md.fuera[data-day]'); ok(fuera, 'Mes sin días de otro mes');
+      await caArrastra(`.pp-md[data-day="2026-11-27"] .pp-mt[data-tid="${t.id}"]`, `.pp-md[data-day="${fuera.dataset.day}"]`);
+      ok(toastCon(/ya no se ve en este mes/), 'soltar en un día de otro mes no lo dice'); ppTecla('z', { metaKey: true }); await espera(200);
       ppTecla('z', { metaKey: true }); await espera(200); igual((await caRec(t.id)).fecha, '2026-11-14', '⌘Z de la página no la devuelve');
       ppTecla('z', { metaKey: true }); await espera(200); igual((await caRec('ss-ca3')).fecha, '2026-11-12', '⌘Z no devuelve la sesión');
     } finally { paginaCerrada(); relojVuelve(); await sinTareas(); }

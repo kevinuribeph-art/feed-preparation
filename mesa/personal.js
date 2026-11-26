@@ -1877,7 +1877,7 @@
 #mesa .pp-ck:hover{box-shadow:inset 0 0 0 1.5px var(--ink)}
 #mesa .pp-ck:checked{background:var(--acc);box-shadow:none}
 #mesa .pp-ck:checked::before{content:'';position:absolute;inset:2.5px;background:var(--on-acc);-webkit-mask:var(--i-check) center/100% no-repeat;mask:var(--i-check) center/100% no-repeat}
-#mesa .pp-sinf{border-left:1px solid var(--line);padding:0 0 6px 10px}   /* its column, by a line (D-371) */
+#mesa .pp-sinf{border-left:1px solid var(--line);padding:0 0 6px 10px;align-self:stretch}   /* its column, by a line (D-371) */
 #mesa .pp-sinf .pp-sub{padding:4px 10px 4px}#mesa .pp-sinf .pp-sub span{color:var(--mute)}
 #mesa .pp-tfo{position:relative;flex:none;display:inline-flex;width:28px;height:28px;padding:0;border:0;border-radius:var(--r-xs);overflow:hidden;background:none;box-shadow:inset 0 0 0 1px var(--line);cursor:zoom-in}
 #mesa .pp-tfo img{width:100%;height:100%;object-fit:cover;display:block}
@@ -1894,7 +1894,7 @@
 #mesa .pp-fi .pp-tt{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;text-wrap-style:pretty}
 #mesa .pp-fi .pp-tt i{font-style:normal;color:var(--red);font-weight:600}
 #mesa .pp-fi .pp-ck{margin-top:1px;width:13px;height:13px}#mesa .pp-fi .pp-ava.xs{width:16px;height:16px;font-size:9.5px;margin-left:auto}#mesa .pp-fi .pp-avn{margin-left:auto}#mesa .pp-fi .pp-avn .pp-ava.xs{margin-left:0}
-#mesa .pp-fi:hover,#mesa .pp-mt:hover{box-shadow:0 0 0 2px var(--ink)}#mesa .pp-sd.pp-dropd,#mesa .pp-md.pp-dropd{background:var(--acc-soft);box-shadow:inset 0 0 0 2px var(--acc)}   /* a publication's ring; where it lands (D-373) */
+#mesa .pp-fi:hover,#mesa .pp-mt:hover{box-shadow:0 0 0 2px var(--ink)}#mesa .pp-tareas .pp-sd.pp-dropd,#mesa .pp-tareas .pp-md.pp-dropd{background:var(--acc-soft);box-shadow:inset 0 0 0 2px var(--acc);transition:none}   /* a publication's ring; where it lands (D-373) */
 #mesa .pp-fi.venc .pp-tt{color:var(--red)}#mesa .pp-fi.pp-mk-hoy{background:var(--chg-soft)}#mesa .pp-fi.pp-mk-pasado{background:var(--red-soft)}   /* D-300: in Semana and Mes, only the tint (the cell already says today) */
 #mesa .pp-mcab,#mesa .pp-mgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--cx-gap)}
 #mesa .pp-mcab span{font-size:10.5px;color:var(--cx-wk-c);padding:0 4px 4px}

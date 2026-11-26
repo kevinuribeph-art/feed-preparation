@@ -466,7 +466,7 @@
     const sec = ([k, t, r]) => {
       if (!A.filas[k].length) return '';
       const cuerpo = k === 'venc' ? `<p class="cpnota">Cada cambio se deshace con ⌘Z; no toca Zernio.</p><ul class="vlist">${l.map(fila).join('')}</ul>` : `<ul class="avl">${A.filas[k].join('')}</ul>`;   // D-156
-      return `<section class="avsec" data-sec="${k}"><h4><span class="avtag ${r ? 'rojo' : 'ambar'}">${esc(t)}</span>${k === 'web' ? A.webCab : ''}</h4>${cuerpo}</section>`;
+      return `<section class="avsec" data-sec="${k}"><h4><span class="avtag ${r ? 'rojo' : 'ambar'}">${esc(t)}</span></h4>${cuerpo}${k === 'web' && A.webCab ? `<div class="avpie">${A.webCab}</div>` : ''}</section>`;
     };
     return cab + `<div class="avlist">${SEC.map(sec).join('')}</div>`;
   }
@@ -597,15 +597,16 @@
     if (m.over) m.over.classList.remove('cover', 'cno', 'pp-dropd');
     m.ghost.remove(); m.el.classList.remove('cmoving'); I().root().classList.remove('calmv');
     noClick = Date.now();
-    if (day) soltar(m, day.dataset.day);
+    if (day) soltar(m, day.dataset.day, day);
     if (later) { later = false; render(); }
   }
-  async function soltar(m, day) {
+  async function soltar(m, day, el) {
     if (m.k === 'slot') { drop(m.id, day); return; }
     const X = I(), r = m.k === 'ent' ? await M.personal.moverEnt(m.id, day) : await M.personal.mover(m.id, day, m.desde);
     if (!r) return;
     if (M.web && M.web.tocado) M.web.tocado();   // one the client sees counts as a change not sent to its web
     // a session that no longer shows in the board's calendar (only its days, D-219) says so
+    if (m.pp && el && el.classList.contains('fuera')) X.toast(`«${r.txt || 'La tarea'}» pasa al ${X.fmtDate(r.fecha)}: ya no se ve en este mes. ⌘Z la devuelve.`, { ms: 6000 });   // a day of another month in Mes shows nothing
     if (m.k === 'ses' && X && X.S) { const sp = span(X), fin = r.fin && r.fin.fecha > r.fecha ? r.fin.fecha : r.fecha; if (fin < sp.lo || r.fecha > sp.hi) X.toast(`«${r.txt || 'La sesión'}» pasa al ${X.fmtDate(r.fecha)}: ya no se ve en este calendario. ⌘Z la devuelve.`, { ms: 6000 }); }
   }
   function drop(id, day) {
@@ -649,14 +650,16 @@
 #mesa .cpaso.fut{color:var(--faint)}#mesa .cpaso.fut .edot,#mesa .cpaso.fut .eico{opacity:.5}
 #mesa .cpaso.ro{color:var(--mute)}
 #mesa .cavw{display:contents}#mesa .bar .cavw{display:inline-flex;align-items:center}   /* a client of «Solo contenido»: in its bar, after the spacer (D-372) */
-#mesa .cvenc{display:inline-flex;align-items:center;gap:6px;min-height:22px;border:0;border-radius:var(--r-pill);padding:2px 9px 2px 8px;font:inherit;font-size:12px;font-weight:600;line-height:1;cursor:pointer;white-space:nowrap;text-decoration:none;background:var(--chg-soft);color:var(--chg);transition:box-shadow var(--d1) var(--ease)}   /* the one indicator (D-372) */
-#mesa .cvenc.rojo{background:var(--red-soft);color:var(--red)}#mesa .cvenc:hover{box-shadow:inset 0 0 0 1px currentColor}#mesa .cvenc:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+#mesa .cvenc{position:relative;display:inline-flex;align-items:center;gap:6px;min-height:24px;border:0;border-radius:var(--r-pill);padding:3px 10px 3px 9px;font:inherit;font-size:12px;font-weight:600;line-height:1;cursor:pointer;white-space:nowrap;text-decoration:none;background:var(--chg-soft);color:var(--chg)}#mesa .cvenc::after{content:'';position:absolute;inset:-6px -4px}   /* the one indicator (D-372) */
+#mesa .cvenc.rojo{background:var(--red-soft);color:var(--red)}#mesa .cvenc:hover{box-shadow:inset 0 0 0 1px currentColor;transition:box-shadow var(--d1) var(--ease)}#mesa .cvenc:focus-visible{outline:2px solid var(--focus);outline-offset:2px}   /* the transition only in the state on (A49-10) */
 #mesa .cvenc .cdot{width:6px;height:6px;border-radius:50%;background:currentColor}
-@media (prefers-reduced-motion:reduce){#mesa .cvenc{transition:none}}
+@media (prefers-reduced-motion:reduce){#mesa .cvenc:hover{transition:none}}
 #mesa .avlist{margin-top:6px;max-height:min(64vh,560px);overflow:auto}#mesa .avsec + .avsec{margin-top:16px}
 #mesa .avsec h4{display:flex;align-items:center;gap:8px;margin:0 0 2px;font-size:12px;font-weight:600}#mesa .avsec h4 > :not(.avtag){margin-left:auto}
 #mesa .avtag{display:inline-flex;align-items:center;padding:3px 10px;border-radius:var(--r-pill);font-size:12px;font-weight:600}#mesa .avtag.rojo{background:var(--red-soft);color:var(--red)}#mesa .avtag.ambar{background:var(--chg-soft);color:var(--chg)}
 #mesa .avsec .vlist{max-height:none;overflow:visible;margin-top:2px}#mesa .avsec .cpnota{margin:6px 0 0}
+#mesa .avl li:has(> .avtx){display:flex;align-items:center;justify-content:space-between;gap:10px}#mesa .avl li > .btn2{flex:none;font-size:12px;min-height:28px;padding:0 12px}
+#mesa .avpie{display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:8px;font-size:12px;color:var(--mute)}   /* «Enviar» and its progress, under its rows (D-372) */
 #mesa .chip.venc{box-shadow:inset 0 0 0 1.5px var(--red)}#mesa .chip.venc .ct{color:var(--red);font-weight:600}
 #mesa .vlist{list-style:none;margin:8px 0 0;padding:0;max-height:min(60vh,520px);overflow:auto}
 #mesa .vlist li,#mesa .avl li{padding:10px 0;border-top:1px solid var(--line2)}#mesa .avl{list-style:none;margin:2px 0 0;padding:0}
@@ -691,7 +694,7 @@
 #mesa .chip.ty-foto{--cb:var(--ty-foto);--ci:var(--ty-foto-ink)}
 #mesa .chip.ty-carr{--cb:var(--ty-carr);--ci:var(--ty-carr-ink)}
 #mesa .chip.ty-trial{--cb:var(--ty-trial);--ci:var(--ty-trial-ink)}
-#mesa .chip.ty-ses{--cb:var(--ty-ses);--ci:var(--ty-ses-ink);flex-wrap:nowrap}#mesa .chip.ty-ses .ct{margin-left:auto}   /* one line, its name left and its time right, as a post (D-373) */
+#mesa .chip.ty-ses{--cb:var(--ty-ses);--ci:var(--ty-ses-ink)}#mesa .chip.ty-ses .cl{flex:1 1 4.5em}#mesa .chip.ty-ses .ct{margin-left:auto}   /* one line, its name left and its time right, as a post; in a narrow column its time goes under, before the name is cut to a few letters (D-373) */
 #mesa .side>.cal .chip[data-ses]:hover,#mesa .side>.cal .chip[data-ent]:hover{box-shadow:0 0 0 2px var(--ink)}
 #mesa .chip.ty-ent{--cb:var(--acc-soft);--ci:var(--acc-ink)}#mesa .chip.ty-ent.entregada{--cb:var(--ok-soft);--ci:var(--ok)}#mesa .chip.ty-ent.pasada{--cb:var(--red-soft);--ci:var(--red)}
 #mesa .chip .cent{flex:none;width:11px;height:11px;margin-right:3px}
@@ -702,8 +705,8 @@
 #mesa .chip:hover{filter:brightness(.97)}
 #mesa .chip .cmk{display:inline-flex;flex:none;width:9px;height:9px;margin:0 0 0 1px}#mesa .chip .cmk svg{width:100%;height:100%}
 #mesa .side>.cal{user-select:none;-webkit-user-select:none}
-#mesa .chip.cmoving{opacity:.35}
-#mesa .cghost{position:fixed;left:0;top:0;z-index:30;pointer-events:none;box-shadow:var(--shadow-drag);opacity:.95}
+#mesa .chip.cmoving,#mesa .pp-fi.cmoving,#mesa .pp-mt.cmoving{opacity:.35}
+#mesa .cghost{position:fixed;left:0;top:0;z-index:30;pointer-events:none;box-shadow:var(--shadow-drag);opacity:.95}#mesa.calmv .cghost{box-shadow:var(--shadow-drag)}   /* over a card's own shadow too (D-373) */
 #mesa.calmv,#mesa.calmv *{cursor:grabbing !important}
 #mesa .cday.cover{background:var(--acc-soft);box-shadow:inset 0 0 0 2px var(--acc)}
 #mesa .cday.cno{background:var(--red-soft)}#mesa.calmv .cday.cno,#mesa.calmv .cday.cno *{cursor:not-allowed !important}

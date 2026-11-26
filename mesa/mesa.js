@@ -1362,6 +1362,8 @@
       if (!REHECHAS.has(s)) REHECHAS.set(s, Promise.resolve(null));
       const f = de && (de.k === 'mini' || de.k === 'hueco') && M.files[de.id], d = f && Object.getOwnPropertyDescriptor(f, 'thumbUrl');
       if (d && (d.get ? URLS_MINI.get(f) : d.value) === s) f.thumbUrl = GRIS;
+      if (de && de.k === 'past' && M.pastThumbs[de.id] === s) M.pastThumbs[de.id] = GRIS;
+      if (de && de.k === 'grande' && M.bigUrls && M.bigUrls[de.id] === s) delete M.bigUrls[de.id];
       if (im.getAttribute('src') === s) im.setAttribute('src', GRIS);
       rotaApunta('grises', de);
     };
@@ -1369,7 +1371,7 @@
     if (!de) { let suya = false; try { suya = !document.dispatchEvent(new CustomEvent('mesa-foto-rota', { cancelable: true, detail: { img: im, src: s } })); } catch (x) { /* */ } if (!suya) gris(); return; }
     let p = REHECHAS.get(s); if (!p) { p = urlDeNuevo(s).catch(() => null); REHECHAS.set(s, p); }
     p.then(n => {
-      if (!n || n === s) { gris(); return; }
+      if (!n || n === s || /^data:/.test(n)) { gris(); return; }   // only the grey is left
       for (const x of document.querySelectorAll('img[src^="blob:"]')) if (x.getAttribute('src') === s) { PUESTAS.set(x, n); x.setAttribute('src', n); }
       if (im.getAttribute('src') === s) { PUESTAS.set(im, n); im.setAttribute('src', n); }   // not in the page (a card being moved)
       rotaApunta('rehechas', de);
@@ -3371,7 +3373,7 @@ ${TK_FUENTES}
 #mesa .card h3,#mesa .phead h3,#mesa .ecard h3,#mesa .lb-ttl h3{text-wrap-style:balance}#mesa .card p,#mesa .cpnota,#mesa .toast{text-wrap-style:pretty}
 /* every button shrinks a little when pressed, like .btn (D-171) */
 #mesa .mchip:active:not(:disabled),#mesa .ibtn:not(.tema):active:not(:disabled),#mesa .lb-help:active:not(:disabled),#mesa .hv-add:active:not(:disabled),#mesa .dz-more:active:not(:disabled),#mesa .cpvolver:active:not(:disabled),#mesa .lb-trv:active:not(:disabled),#mesa .lb-trb:active:not(:disabled),#mesa .seg button:active:not(:disabled),#mesa button.cpaso:active:not(:disabled),#mesa .x:active:not(:disabled),#mesa .hx:active:not(:disabled),#mesa .cpx:active:not(:disabled){transform:scale(.97)}
-#mesa .pacts button:disabled,#mesa .pacts button[aria-disabled="true"],#mesa .pe-ed[aria-disabled="true"],#mesa .pvacts button[aria-disabled="true"]{opacity:.4;cursor:default}#mesa .seg[aria-disabled="true"] button:not(.on),#mesa .zoom[aria-disabled="true"]{opacity:.4}#mesa .seg[aria-disabled="true"] button{cursor:default}#mesa .seg[aria-disabled="true"] button:not(.on):hover{color:var(--mute)}#mesa .seg[aria-disabled="true"] button:active,#mesa .pvacts button[aria-disabled="true"]:active{transform:none}#mesa .pvacts button[aria-disabled="true"]:hover{border-color:var(--line);background:var(--panel-2)}#mesa .zoom input:disabled{cursor:default}#mesa .pacts button[aria-disabled="true"]:hover{border-color:var(--line);background:var(--panel-2)}#mesa .pe-ed[aria-disabled="true"]:hover,#mesa .pe-ed[aria-disabled="true"]:active{background:var(--acc);transform:none}   /* a Publicada's photo controls (D-339) */
+#mesa .pacts button:disabled,#mesa .pacts button[aria-disabled="true"],#mesa .pe-ed[aria-disabled="true"],#mesa .pvacts button[aria-disabled="true"]{opacity:.4;cursor:default}#mesa .seg[aria-disabled="true"] button:not(.on),#mesa .zoom[aria-disabled="true"]{opacity:.4}#mesa .seg[aria-disabled="true"] button{cursor:default}#mesa .seg[aria-disabled="true"] button:not(.on):hover{color:var(--mute)}#mesa .seg[aria-disabled="true"] button:active,#mesa .pvacts button[aria-disabled="true"]:active{transform:none}#mesa .pvacts .btn2[aria-disabled="true"]:hover:not(.on){border-color:var(--line);background:var(--panel-2)}#mesa .zoom input:disabled{cursor:default}#mesa .pacts button[aria-disabled="true"]:hover{border-color:var(--line);background:var(--panel-2)}#mesa .pe-ed[aria-disabled="true"]:hover,#mesa .pe-ed[aria-disabled="true"]:active{background:var(--acc);transform:none}   /* a Publicada's photo controls (D-339) */
 #mesa .pacts .fname{color:var(--mute);font-size:11.5px;margin-right:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:50%}
 #mesa .pright{grid-area:col;padding:18px 20px;display:flex;flex-direction:column;min-width:0}
 #mesa .avrow{display:flex;align-items:center;gap:10px}
@@ -6296,7 +6298,7 @@ ${TK_FUENTES}
       if (encFija(s)) {                                    // a Publicada's frame doesn't change (D-370): a drag says so, a click alone nothing
         const sx = e.clientX, sy = e.clientY;
         const fin = () => { W0.removeEventListener('pointermove', mv, true); W0.removeEventListener('pointerup', fin, true); W0.removeEventListener('pointercancel', fin, true); };   // let go anywhere: it ends
-        const mv = ev => { if (Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) > 6) { fin(); encuadreNo(s); } };
+        const mv = ev => { if (!(ev.buttons & 1)) { fin(); return; } if (Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) > 6) { fin(); encuadreNo(s); } };   // no button: its end was lost (a menu, ⌘Tab)
         const W0 = st.ownerDocument.defaultView; W0.addEventListener('pointermove', mv, true); W0.addEventListener('pointerup', fin, true); W0.addEventListener('pointercancel', fin, true);
         return;
       }

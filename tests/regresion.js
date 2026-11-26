@@ -25337,11 +25337,13 @@
       seg.querySelector('[data-fmt="h"]').click(); await espera(80); igualC('formato pulsado');
       const z2 = dialogo().querySelector('.zoomr'); z2.disabled = false; z2.value = '2';   // como si su barra siguiera encendida
       z2.dispatchEvent(new W.Event('input', { bubbles: true })); z2.dispatchEvent(new W.Event('change', { bubbles: true })); await espera(60); igualC('zoom');
-      const st = dialogo().querySelector('.stage'), r = st.getBoundingClientRect(), pe = (t, x, y) => st.dispatchEvent(new W.PointerEvent(t, { bubbles: true, pointerId: 7, button: 0, clientX: r.left + x, clientY: r.top + y }));
+      const st = dialogo().querySelector('.stage'), r = st.getBoundingClientRect(), pe = (t, x, y) => st.dispatchEvent(new W.PointerEvent(t, { bubbles: true, pointerId: 7, button: 0, buttons: t === 'pointerup' ? 0 : 1, clientX: r.left + x, clientY: r.top + y }));
       pe('pointerdown', 60, 60); pe('pointermove', 140, 110); pe('pointerup', 140, 110); await espera(60); igualC('arrastrar la foto');
       pe('pointerdown', 60, 60); pe('pointerup', 60, 60); await espera(60); ok(!/Ya está publicada/.test(fnAviso()), 'un clic sin arrastrar avisa');
       pe('pointerdown', 60, 60); D.body.dispatchEvent(new W.PointerEvent('pointerup', { bubbles: true, pointerId: 7, clientX: 5, clientY: 5 })); pe('pointermove', 160, 160); await espera(60);   // soltado fuera de la foto
       ok(!/Ya está publicada/.test(fnAviso()), 'un gesto ya acabado sigue escuchando y avisa al pasar el ratón');
+      pe('pointerdown', 60, 60); st.dispatchEvent(new W.PointerEvent('pointermove', { bubbles: true, pointerId: 7, buttons: 0, clientX: r.left + 70, clientY: r.top + 70 })); pe('pointermove', 200, 200); await espera(60);   // su final se perdió (un menú, ⌘Tab): sin botón, acaba
+      ok(!/Ya está publicada/.test(fnAviso()), 'un gesto sin botón sigue escuchando');
       const b = D.createElement('button'); b.dataset.act = 'center'; dialogo().querySelector('.ptools').appendChild(b); b.click(); await espera(60); igualC('centrar');
       M._test.setType('r1', 'Reel'); await espera(60); igualC('un tipo de otro formato');
       M._test.setType('r1', 'Foto'); await espera(60); igual(slot('r1').type, 'Foto', 'Carrusel → Foto (el mismo formato) no se pudo'); M._test.setType('r1', 'Carrusel'); await espera(60); M._in.clearToasts();

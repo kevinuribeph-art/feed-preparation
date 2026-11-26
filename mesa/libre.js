@@ -143,6 +143,9 @@
   class LbError extends Error {}
   const need = (ok, msg) => { if (!ok) throw new LbError(msg); };
   const LOCKED = 'La mesa está abierta en otra pestaña: pulsa «Usar aquí» antes de editar.';
+  // a Publicada: «Aplicar» writes nothing and says so; what is open stays until it is closed (D-339, D-370)
+  const publicada = s => !!(s && I() && I().S && I().S.slots.includes(s) && I().estadoDe(s) === 'publicado');   // a post (never a story)
+  const PUB = () => (I() && I().PUB_AVISO) || 'Ya está publicada: no se cambia su foto, su encuadre ni su formato.';
   const ESCRIBIENDO = 'Estás escribiendo en un texto: termina (Esc o un clic fuera) y vuelve a soltar la foto.';
 
   // ---------- slot helpers ----------
@@ -4202,6 +4205,7 @@
     try {
       need(s, 'La publicación ya no está en la mesa.');
       need(!I().locked, LOCKED);
+      need(!publicada(s), PUB());
       need(!I().uploadsBusy(), 'Espera a que termine la subida a Zernio.');
       need(I().same(s.photos, E.photos0), 'La publicación cambió mientras editabas: cierra el editor y vuelve a abrirlo.');
       need(!E.car || E.sl.length <= MAX_SLIDES, 'Un carrusel admite como máximo 20 diapositivas (límite de Instagram).');
@@ -4388,7 +4392,7 @@
     const made = [], cola = soloNum ? NUMQ : REDO;
     try {
       const S = I() && I().S, s = S && S.slots.find(x => x.id === slotId);
-      if (!s || s.design || !s.photos.length || I().locked || !(s.libre || (soloNum && s.photos.some(k => compOf(S, k))))) return { ok: true, cambios: 0 };   // its numbered images may be another post's compositions
+      if (!s || s.design || !s.photos.length || I().locked || publicada(s) || !(s.libre || (soloNum && s.photos.some(k => compOf(S, k))))) return { ok: true, cambios: 0 };   // a Publicada's images stay (D-370)   // its numbered images may be another post's compositions
       if ((E && E.busy) || APL) { cola.add(slotId); return { ok: true, pendiente: true }; }
       if (soloNum && ((E && E.board === S && E.slotId === slotId) || I().uploadsBusy() || (M.diseno && M.diseno.aplicando && M.diseno.aplicando()))) { NUM_VISTO.delete(S.key + ':' + slotId); return { ok: true, pendiente: true }; }   // the open editor numbers it; busy: looked at again on the next render
       need(!(M.diseno && M.diseno.aplicando && M.diseno.aplicando()), 'Espera: el diseñador está aplicando un diseño.');

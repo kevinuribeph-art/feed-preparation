@@ -38,6 +38,9 @@
   class DzError extends Error { constructor(m, slide) { super(m); if (slide != null) this.slide = slide; } }   // slide: index of the slide at fault
   const need = (ok, msg, slide) => { if (!ok) throw new DzError(msg, slide); };
   const LOCKED = 'La mesa está abierta en otra pestaña: pulsa «Usar aquí» antes de diseñar.';
+  // a Publicada: its photo, its frame and its format don't change by any way, nor through the designer (D-339, D-370)
+  const publicada = s => !!(s && I() && I().estadoDe && I().estadoDe(s) === 'publicado');
+  const PUB = () => (I() && I().PUB_AVISO) || 'Ya está publicada: no se cambia su foto, su encuadre ni su formato.';
   // a post with images drawn by the free editor (libre.js) is designed there, not here (v1.4)
   const LIBRE = 'Este carrusel tiene diapositivas del editor: quítales la edición en «Editar diapositivas» antes de cargarle un diseño.';
   const libreEn = s => !s.design && (s.photos || []).some(f => (M.files[f] || {}).design && I().S.slots.some(x => x.libre && x.libre.slides && x.libre.slides[f]));
@@ -146,6 +149,7 @@
   // an applied design drawn again after its photos changed outside the editor; repeated requests are coalesced
   const REAP = {};
   function reaplicar(slotId) {
+    { const S0 = I() && I().S, s0 = S0 && S0.slots.find(x => x.id === slotId); if (publicada(s0)) return Promise.resolve(false); }   // a Publicada's images stay (D-370)
     if (REAP[slotId]) { REAP[slotId].again = true; return REAP[slotId].p; }
     const job = REAP[slotId] = { again: true };
     job.p = (async () => {
@@ -253,7 +257,7 @@
   }
   // a designed carousel's format changed from the post view (its text offsets keep their place, as in the editor)
   function formato(slotId, fmt) {
-    const S = I().S, s = S && S.slots.find(x => x.id === slotId); if (!s || !s.design || isReelS(s) || !FMTS[fmt] || s.design.fmt === fmt) return false;
+    const S = I().S, s = S && S.slots.find(x => x.id === slotId); if (!s || !s.design || isReelS(s) || !FMTS[fmt] || s.design.fmt === fmt || publicada(s)) return false;
     const d = s.design, H = VI.slotId === slotId && VI.sz ? VI.sz.H : EXT_H[d.fmt];
     stampOffsets(d, H); d.fmt = fmt; d.at = nowISO(); syncFmt(s); remember(s);
     if (VI.slotId === slotId) vistaLibre();
@@ -525,6 +529,7 @@
   async function cargar(slotId, opts = {}) {
     const s = slotOf(slotId), S = I().S;
     need(!I().locked, LOCKED);
+    need(!publicada(s), PUB());
     need(!libreEn(s), LIBRE);
     opts = opts || {};
     const reel = isReelS(s), list = Array.isArray(opts.slides) ? opts.slides : [];
@@ -625,6 +630,7 @@
   async function aplicarNow(slotId, opts) {
     const s = slotOf(slotId), S = I().S;
     need(!I().locked, LOCKED);
+    need(!publicada(s), PUB());
     need(!I().uploadsBusy(), 'Espera a que termine la subida a Zernio.');
     need(s.design && s.design.slides.length, NO_DESIGN);
     const d = s.design, reel = isReelS(s);
@@ -874,6 +880,7 @@
     try {
       const s = slotOf(slotId), S = I().S;
       need(!I().locked, LOCKED);
+      need(!publicada(s), PUB());
       need(!libreEn(s), LIBRE);
       if (E) cerrar();
       const cid = (s.design && s.design.kit) || S.client;
@@ -1816,7 +1823,7 @@
     const X = I(), S = X && X.S; if (!S || X.locked) return;
     const hechos = [];
     for (const s of S.slots) {
-      const d = s.design, dk = kindOf(d); if (!dk) continue;
+      const d = s.design, dk = kindOf(d); if (!dk || publicada(s)) continue;   // never a Publicada's (D-370)
       const tk = X.isReel(s.type) ? 'r' : X.isCarousel(s.type) ? 'c' : 'f';
       if (dk === tk || (tk === 'f' && !(d.out && d.out.length))) continue;   // another type: dormant once converted
       const x = retipo(s, s.type); if (!x) continue;

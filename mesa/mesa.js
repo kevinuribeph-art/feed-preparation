@@ -678,6 +678,7 @@
   }
   function setFmt(slotId, fmt) {
     const s = slot(slotId); if (!s || isReel(s.type) || !s.photos.length) return;
+    if (encuadreNo(s)) { refreshDetail(); return; }   // a Publicada's format doesn't change (D-370)
     if (isCarousel(s.type) && s.design) {                // one format: the design's, drawn again in the new one
       if (M.diseno && M.diseno.formato && M.diseno.formato(slotId, fmt)) { changed(); rerender(s); openDetail(slotId, cur.idx); }
       return;
@@ -1839,8 +1840,13 @@
     : toast('Una publicación diseñada o editada no pasa a otro mes: cámbiale la portada con «Cambiar portada».', { key: 'mover-disenada', ms: 7000 });
   const slotPublicada = id => { const s = S && S.slots.find(x => x.id === id); return !!s && estadoDe(s) === 'publicado'; };
   // a Publicada's photos don't change by any way (pieza 10, D-339): true (and the notice) when s is one
-  const PUB_AVISO = 'Ya está publicada: no se cambia su foto. Para cambiarla, ponla antes en otro estado.', PUB_TIT = 'Ya está publicada: para cambiar su foto, ponla antes en otro estado';
+  // ... nor its frame nor its format (D-370)
+  const PUB_AVISO = 'Ya está publicada: no se cambia su foto, su encuadre ni su formato. Para cambiarlos, ponla antes en otro estado.', PUB_TIT = 'Ya está publicada: para cambiar su foto, su encuadre o su formato, ponla antes en otro estado';
+  const PREV_AVISO = 'Ya está publicada: no se cambia su encuadre, su formato ni su foto.', PREV_TIT = 'Ya está publicada: no se cambia';
   function publicadaNo(s, B = S) { if (!s || estadoDe(s, B) !== 'publicado') return false; toast(PUB_AVISO, { key: 'mover-publicada' }); return true; }
+  // its frame and its format: a Publicada, and a post of the month before (all published, D-370)
+  const encFija = s => !!s && (isPrev(s) || estadoDe(s) === 'publicado');
+  function encuadreNo(s) { if (!encFija(s)) return false; toast(isPrev(s) ? PREV_AVISO : PUB_AVISO, { key: 'mover-publicada' }); return true; }
   const abrirEditor = (id, k, o) => { if (publicadaNo(slot(id))) return; if (M.libre && M.libre.abrir) M.libre.abrir(id, k, o); else waitLibre(id, k, o); };
   // while dragging: a Publicada (the one carried or the one under it), of another month or of its own (pieza 3c), is not a target (no highlight)
   function moverPublicada(a, b, kb) {
@@ -2553,6 +2559,9 @@
     const has = f => !!M.files[f];
     const enZernio = new Map(hsDe(B).filter(h => h.zernio).map(h => [h.id, h]));   // Zernio's mark is Zernio's, never a step (D-097)
     const by = Object.fromEntries(st.slots.map(s => [s.id, s])), pby = Object.fromEntries(st.prev.map(p => [p.id, p]));
+    // a Publicada before and after the step keeps its photo, its frame and its format; the rest of the step goes (D-370)
+    const fijas = new Map();
+    B.slots.forEach(s => { const o = by[s.id]; if (o && estadoDe(s, B) === 'publicado' && estadoDe(o, B) === 'publicado') fijas.set(s.id, { photos: s.photos.slice(), fmt: s.fmt, design: s.design, libre: s.libre, type: s.type, crops: s.photos.map(f => [f, (B.crops || {})[f]]) }); });
     B.slots.forEach(s => {
       const o = by[s.id]; if (!o) return;
       s.photos = o.photos.filter(has); s.note = o.note; s.date = o.date; if (o.type) s.type = o.type;
@@ -2565,6 +2574,12 @@
       if (o.ubicacion) s.ubicacion = o.ubicacion; else delete s.ubicacion;   // its location: a step of ⌘Z (D-124)
       if (o.etiquetas) s.etiquetas = o.etiquetas.slice(); else delete s.etiquetas;   // its tags and collaborators, too (D-130)
       if (o.colaboradores) s.colaboradores = o.colaboradores.slice(); else delete s.colaboradores;
+      const fj = fijas.get(s.id);
+      if (fj) {
+        s.photos = fj.photos.filter(has);
+        for (const [k, v] of [['fmt', fj.fmt], ['design', fj.design], ['libre', fj.libre]]) { if (v) s[k] = v; else delete s[k]; }
+        if (isReel(s.type) !== isReel(fj.type) || isCarousel(s.type) !== isCarousel(fj.type)) s.type = fj.type;   // a type of another format, too
+      }
     });
     (B.prev || []).forEach(p => {
       const o = pby[p.id]; if (!o) return;
@@ -2572,6 +2587,7 @@
       if (o.fmt) p.fmt = o.fmt; else delete p.fmt;
     });
     B.crops = JSON.parse(JSON.stringify(st.crops));
+    fijas.forEach(fj => fj.crops.forEach(([f, c]) => { if (c) B.crops[f] = c; else delete B.crops[f]; }));
     if (st.previews) B.previews = st.previews.map(f => (f && has(f) ? f : null)); else delete B.previews;
     if (st.fillers) B.fillers = st.fillers; else delete B.fillers;
     if (st.pins) B.pins = st.pins.slice(); else delete B.pins;
@@ -3345,7 +3361,7 @@ ${TK_FUENTES}
 #mesa .card h3,#mesa .phead h3,#mesa .ecard h3,#mesa .lb-ttl h3{text-wrap-style:balance}#mesa .card p,#mesa .cpnota,#mesa .toast{text-wrap-style:pretty}
 /* every button shrinks a little when pressed, like .btn (D-171) */
 #mesa .mchip:active:not(:disabled),#mesa .ibtn:not(.tema):active:not(:disabled),#mesa .lb-help:active:not(:disabled),#mesa .hv-add:active:not(:disabled),#mesa .dz-more:active:not(:disabled),#mesa .cpvolver:active:not(:disabled),#mesa .lb-trv:active:not(:disabled),#mesa .lb-trb:active:not(:disabled),#mesa .seg button:active:not(:disabled),#mesa button.cpaso:active:not(:disabled),#mesa .x:active:not(:disabled),#mesa .hx:active:not(:disabled),#mesa .cpx:active:not(:disabled){transform:scale(.97)}
-#mesa .pacts button:disabled,#mesa .pacts button[aria-disabled="true"],#mesa .pe-ed[aria-disabled="true"]{opacity:.4;cursor:default}#mesa .pacts button[aria-disabled="true"]:hover{border-color:var(--line);background:var(--panel-2)}#mesa .pe-ed[aria-disabled="true"]:hover,#mesa .pe-ed[aria-disabled="true"]:active{background:var(--acc);transform:none}   /* a Publicada's photo controls (D-339) */
+#mesa .pacts button:disabled,#mesa .pacts button[aria-disabled="true"],#mesa .pe-ed[aria-disabled="true"],#mesa .pvacts button[aria-disabled="true"]{opacity:.4;cursor:default}#mesa .seg[aria-disabled="true"],#mesa .zoom[aria-disabled="true"]{opacity:.4}#mesa .seg[aria-disabled="true"] button{cursor:default}#mesa .seg[aria-disabled="true"] button:not(.on):hover{color:var(--mute)}#mesa .zoom input:disabled{cursor:default}#mesa .pacts button[aria-disabled="true"]:hover{border-color:var(--line);background:var(--panel-2)}#mesa .pe-ed[aria-disabled="true"]:hover,#mesa .pe-ed[aria-disabled="true"]:active{background:var(--acc);transform:none}   /* a Publicada's photo controls (D-339) */
 #mesa .pacts .fname{color:var(--mute);font-size:11.5px;margin-right:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:50%}
 #mesa .pright{grid-area:col;padding:18px 20px;display:flex;flex-direction:column;min-width:0}
 #mesa .avrow{display:flex;align-items:center;gap:10px}
@@ -5120,16 +5136,17 @@ ${TK_FUENTES}
     if (!n) left = '<div class="pempty">Sin foto todavía.<br>Arrastra aquí fotos desde tu ordenador o suelta una de la bandeja sobre la casilla.</div>';
     else {
       const c = cropOf(fid, s);
-      const seg = `<div class="seg" role="group" aria-label="Formato">${['v45', 'v34', 'q11', 'h'].map(k => `<button data-act="fmt" data-fmt="${k}" class="${c.fmt === k ? 'on' : ''}" aria-pressed="${c.fmt === k}">${FMT_LABEL[k]}</button>`).join('')}</div>`;
+      const segOff = pub ? ` aria-disabled="true" title="${esc(PUB_TIT)}"` : '';   // a Publicada: its format and its frame, off with why (D-370)
+      const seg = `<div class="seg" role="group" aria-label="Formato"${segOff}>${['v45', 'v34', 'q11', 'h'].map(k => `<button data-act="fmt" data-fmt="${k}" class="${c.fmt === k ? 'on' : ''}" aria-pressed="${c.fmt === k}"${pub ? ' aria-disabled="true"' : ''}>${FMT_LABEL[k]}</button>`).join('')}</div>`;
       const dfmt = car && s.design ? s.design.fmt : null;   // a designed carousel: the design's format
-      const segD = dfmt ? `<div class="seg" role="group" aria-label="Formato">${['v45', 'v34', 'h'].map(k => `<button data-act="fmt" data-fmt="${k}" class="${dfmt === k ? 'on' : ''}" aria-pressed="${dfmt === k}">${FMT_LABEL[k]}</button>`).join('')}</div>` : '';
+      const segD = dfmt ? `<div class="seg" role="group" aria-label="Formato"${segOff}>${['v45', 'v34', 'h'].map(k => `<button data-act="fmt" data-fmt="${k}" class="${dfmt === k ? 'on' : ''}" aria-pressed="${dfmt === k}"${pub ? ' aria-disabled="true"' : ''}>${FMT_LABEL[k]}</button>`).join('')}</div>` : '';
       // no type before the format (D-156: the head's type says it) nor the reel's line under its photo (D-156)
       const fmtCtl = reel ? '' : dfmt ? segD : seg;
       const dsrc = live && M.diseno && M.diseno._srcVista ? M.diseno._srcVista(s, idx) : null, zv = (dsrc ? baseCrop(dsrc, S) : c).z || 1;
       const lo = fd && !s.design && isLib(fid);   // an image drawn by the free editor: its format is changed here (drawn again there)
       const tools = lo ? fmtCtl   // «N páginas editadas · se suben tal cual», under the location, says it (D-156)
         : fd && !live ? `<span class="muted">${designed(s) ? `Diseño con cambios sin aplicar: se aplica en «Editar»` : 'Imagen diseñada: se sube tal cual'}</span>`
-        : `${fmtCtl}${ZOOM_CTL(zv)}<span class="muted phint"></span>`;
+        : `${fmtCtl}${ZOOM_CTL(zv, pub ? PUB_TIT : '')}<span class="muted phint"></span>`;
       // no dots over the photo (D-156): the strip right below marks the same one
       const nav = n > 1 ? `<button class="nav prev" data-act="prev" title="Anterior" aria-label="Foto anterior" ${idx === 0 ? 'hidden' : ''}>${CHEV.l}</button><button class="nav next" data-act="next" title="Siguiente" aria-label="Foto siguiente" ${idx === n - 1 ? 'hidden' : ''}>${CHEV.r}</button>` : '';
       const strip = n > 1 ? `<div class="strip">${s.photos.map((p, k) => `<button class="th ${k === idx ? 'on' : ''}" data-act="pick" data-k="${k}" title="${esc((M.files[p] || {}).name || '')}"><img src="${(M.files[p] || {}).thumbUrl || ''}" alt="">${k === 0 && (foto || car) ? '<span>Portada</span>' : ''}</button>`).join('')}</div>` : '';
@@ -5249,7 +5266,9 @@ ${TK_FUENTES}
   function setType(id, to) {
     const s = S && S.slots.find(x => x.id === id);
     if (!s || !to || s.type === to || locked || !typeOpts(s).includes(to)) { refreshDetail(); return; }
-    if (!isMulti(to) && s.photos.length > 1 && publicadaNo(s)) { refreshDetail(); return; }   // a type that would take photos out of a Publicada (D-339)
+    // a type that would take photos out of a Publicada (D-339), or change its format or its images (D-370): Reel ↔ Collab Reel, or
+    // Foto ↔ Carrusel of a post not designed nor edited, still do
+    if (estadoDe(s) === 'publicado' && (isReel(to) !== isReel(s.type) || isCarousel(to) !== isCarousel(s.type) || s.design || s.libre) && publicadaNo(s)) { refreshDetail(); return; }
     if (s.design && !(M.diseno && M.diseno._retipo)) { toast('El diseñador no está cargado: recarga la página para cambiar el tipo de una publicación diseñada.', { ms: 6000 }); refreshDetail(); return; }
     const from = s.type;
     if (s.notionType == null) s.notionType = from;
@@ -5295,15 +5314,15 @@ ${TK_FUENTES}
     let left;
     if (im && im.f && M.files[im.f]) {
       const c = cropOf(im.f, it, B);
-      const fmtCtl = isReel(it.type) ? '' : `<div class="seg" role="group" aria-label="Formato">${['v45', 'v34', 'q11', 'h'].map(k => `<button data-act="fmt" data-fmt="${k}" class="${c.fmt === k ? 'on' : ''}" aria-pressed="${c.fmt === k}">${FMT_LABEL[k]}</button>`).join('')}</div>`;
+      const fmtCtl = isReel(it.type) ? '' : `<div class="seg" role="group" aria-label="Formato" aria-disabled="true" title="${esc(PREV_TIT)}">${['v45', 'v34', 'q11', 'h'].map(k => `<button data-act="fmt" data-fmt="${k}" class="${c.fmt === k ? 'on' : ''}" aria-pressed="${c.fmt === k}" aria-disabled="true">${FMT_LABEL[k]}</button>`).join('')}</div>`;   // all published: off (D-370)
       left = `<div class="stagewrap"><div class="stage" data-slot="${esc(id)}" data-file="${esc(im.f)}"><img class="big" alt="" src="${M.files[im.f].thumbUrl}"><div class="gguide" hidden><span>Así se ve en el perfil</span></div>${THIRDS}</div></div>
-        <div class="ptools">${fmtCtl}${ZOOM_CTL(c.z || 1)}<span class="muted phint"></span></div>
+        <div class="ptools">${fmtCtl}${ZOOM_CTL(c.z || 1, PREV_TIT)}<span class="muted phint"></span></div>
         <div class="pacts"><span class="fname">${esc(M.files[im.f].name)}</span></div>`;
     } else if (im && im.t && M.pastThumbs[im.t]) left = `<img class="pthumb" src="${M.pastThumbs[im.t]}" alt=""><p class="muted" style="margin:0">Miniatura guardada de ese mes.</p>`;
     else left = '<div class="pempty">Sin foto.<br>Arrastra una foto de la bandeja sobre su casilla.</div>';
     const acts = `<div class="pvacts">`
       + `<button class="btn2" data-act="prevhide" data-id="${esc(id)}">${it.hidden ? 'Volver a mostrar en el feed' : 'Ocultar del feed (borrada o archivada)'}</button>`
-      + (im && im.f ? `<button class="btn2" data-act="prevtotray" data-id="${esc(id)}">Devolver la foto a la bandeja</button>` : '')
+      + (im && im.f ? `<button class="btn2" data-act="prevtotray" data-id="${esc(id)}" aria-disabled="true" title="${esc(PREV_TIT)}">Devolver la foto a la bandeja</button>` : '')
       + (it.own || it.hidden ? `<button class="btn2" data-act="prevrestore" data-id="${esc(id)}">Restaurar como estaba</button>` : '')
       + `</div>`;
     d.innerHTML = `<div class="card post" role="dialog" aria-label="${esc(it.name)}"><button class="x" data-act="close" title="Cerrar" aria-label="Cerrar">×</button>
@@ -5318,11 +5337,13 @@ ${TK_FUENTES}
     markReframe();
   }
   // the zoom of a post's frame: a double click on its bar or on «Zoom» does what «Centrar» did, which is gone (D-159)
-  const ZOOM_CTL = z => `<label class="zoom" title="Zoom · doble clic: sin zoom y centrada">Zoom <input type="range" class="zoomr" min="1" max="3" step="0.01" value="${z}"></label>`;
+  const ZOOM_CTL = (z, off) => off ? `<label class="zoom" aria-disabled="true" title="${esc(off)}">Zoom <input type="range" class="zoomr" min="1" max="3" step="0.01" value="${z}" disabled></label>`   // a Publicada (D-370)
+    : `<label class="zoom" title="Zoom · doble clic: sin zoom y centrada">Zoom <input type="range" class="zoomr" min="1" max="3" step="0.01" value="${z}"></label>`;
   let zoomDownT = 0, zoomDownX = 0, zoomDownY = 0;   // when and where a click started on the zoom: its double click may end beside it
   const cercaDelZoom = e => Date.now() - zoomDownT < 700 && Math.abs(e.clientX - zoomDownX) < 24 && Math.abs(e.clientY - zoomDownY) < 24
     && !!(e.target.closest && e.target.closest('.detail .card.post') && !e.target.closest('button:not(.zoomr), .seg, select, a, textarea, input:not(.zoomr)'));
   function centrarFoto() {             // the default frame: zoom 1 and centred (on a designed slide, its design's), one step of ⌘Z with the click before
+    if (encuadreNo(slot(cur.slot))) return;   // a Publicada's frame doesn't change (D-370)
     flashThirds(); const s = slot(cur.slot); touchPrev(s);
     const st = root.querySelector('.detail .stage');
     if (st && st.dataset.live) {
@@ -5383,7 +5404,7 @@ ${TK_FUENTES}
     }
     const fixed = !st.dataset.live && p.w >= f.w - 1 && p.h >= f.h - 1;
     st.classList.toggle('fixed', fixed);
-    const hint = root.querySelector('.detail .phint'); if (hint) hint.textContent = st.dataset.live ? 'Arrastra la foto para reencuadrar: el texto se queda' : fixed ? 'Se ve entera: usa el zoom para reencuadrar' : '';   // the plain one says nothing new (D-133)
+    const hint = root.querySelector('.detail .phint'); if (hint) hint.textContent = encFija(s) ? '' : st.dataset.live ? 'Arrastra la foto para reencuadrar: el texto se queda' : fixed ? 'Se ve entera: usa el zoom para reencuadrar' : '';   // a Publicada: nothing to reframe (D-370)   // the plain one says nothing new (D-133)
   }
   async function loadBig(fid) {
     try {
@@ -6211,6 +6232,7 @@ ${TK_FUENTES}
       else if (e.target.matches('.esmot')) setMotivo(e.target.dataset.slot, e.target.value);
       else if (e.target.matches('.trayhead .ttam input')) tamCambiar(e.target);
       else if (e.target.matches('.zoomr')) {
+        if (encuadreNo(slot(cur.slot))) { e.target.value = e.target.defaultValue; return; }   // D-370 (its bar is off: only if it was on)
         flashThirds(); const s = slot(cur.slot); if (s) touchPrev(s);
         const st = root.querySelector('.detail .stage'); if (st && st.dataset.live) { if (!(M.diseno && M.diseno.vistaZoom && M.diseno.vistaZoom(+e.target.value))) e.target.value = e.target.defaultValue; return; }   // the view not ready yet: the control stays where the photo is (E12)
         const fid = s && s.photos[cur.idx]; if (fid) { setCrop(fid, s, { z: +e.target.value }); placeBig(); }
@@ -6219,6 +6241,7 @@ ${TK_FUENTES}
     root.addEventListener('change', e => {
       if (!e.target.matches) return;
       if (e.target.matches('.zoomr')) {
+        if (encFija(slot(cur.slot))) { e.target.value = e.target.defaultValue; return; }   // nothing was changed (D-370)
         const st = root.querySelector('.detail .stage');
         if (st && st.dataset.live && M.diseno && M.diseno.vistaSoltar) {   // a designed slide: applied again only if its frame changed
           if (M.diseno.vistaSoltar()) { save(); renderFeed(); renderBar(); rerender(slot(cur.slot)); } else { const cv = st.querySelector('canvas.dzv'); if (cv) cv.hidden = true; }
@@ -6260,6 +6283,13 @@ ${TK_FUENTES}
       const st = e.target.closest && e.target.closest('.detail .stage');
       if (!st || e.target.closest('.nav') || e.button !== 0) return;
       const s = slot(st.dataset.slot), fid = st.dataset.file, f = M.files[fid]; if (!s || !f) return;
+      if (encFija(s)) {                                    // a Publicada's frame doesn't change (D-370): a drag says so, a click alone nothing
+        const sx = e.clientX, sy = e.clientY;
+        const fin = () => { st.removeEventListener('pointermove', mv); st.removeEventListener('pointerup', fin); st.removeEventListener('pointercancel', fin); };
+        const mv = ev => { if (Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) > 6) { fin(); encuadreNo(s); } };
+        st.addEventListener('pointermove', mv); st.addEventListener('pointerup', fin); st.addEventListener('pointercancel', fin);
+        return;
+      }
       if (f.design) {                                      // a designed slide: its photo is reframed, drawn live with the texts
         const g = st.dataset.live && M.diseno && M.diseno.vistaEmpezar ? M.diseno.vistaEmpezar() : null; if (!g) return;
         e.preventDefault();
@@ -6411,7 +6441,7 @@ ${TK_FUENTES}
     }
     else if (act === 'prevlock') { if (S.prevUnlocked || prevOnce) { S.prevUnlocked = false; prevOnce = false; save(); renderFeed(); toast('Mes anterior bloqueado.'); } else withPrev(() => {}, 'none'); }
     else if (act === 'prevhide') { const it = prevItem(a.dataset.id); if (it) { it.hidden = !it.hidden; changed(); openPast(it.id); } }
-    else if (act === 'prevtotray') { prevToTray(a.dataset.id); openPast(a.dataset.id); }
+    else if (act === 'prevtotray') { if (!encuadreNo(prevItem(a.dataset.id))) { prevToTray(a.dataset.id); openPast(a.dataset.id); } }   // off: all published (D-370)
     else if (act === 'prevrestore') { prevRestore(a.dataset.id); openPast(a.dataset.id); }
     else if (act === 'recargar') location.reload();
     else if (act === 'takeover') { const k = S && S.key; S = null; PB = null; memSoltar(); histOlvidar(); await claim(); cobLeer(true).then(() => cobAvisar(false)); mesLeer(true).then(() => mesAvisar(false)); entLeer(true).then(() => entAvisar(false)); estLeer().then(() => estAvisar(false)); if (k && (await idbGet('boards', k))) await M.open(k); else await M.boot(); }
@@ -7824,7 +7854,7 @@ ${TK_FUENTES}
       if (o.etiquetas) r.etiquetas = o.etiquetas;   // nor the tags and collaborators (D-130)
       if (o.colaboradores) r.colaboradores = o.colaboradores;
       if (o.esperaCliente) r.esperaCliente = o.esperaCliente;   // since when it waits for the client (D-180)
-      if (r.design && o.type && o.type !== r.type && M.diseno && M.diseno._retipo) {   // its type changed in Notion: the design converts
+      if (r.design && o.type && o.type !== r.type && !(r.estado && r.estado.v === 'publicado') && M.diseno && M.diseno._retipo) {   // never a Publicada's (D-370)   // its type changed in Notion: the design converts
         const x = M.diseno._retipo(r, r.type);
         if (x) { orphans.push(...x.tray); deadRenders.push(...x.dead); retyped.push(n.name); }
       }
@@ -10147,6 +10177,7 @@ ${TK_FUENTES}
     // the cloud (lot 3, D-253 to D-257): its switch and state, its store, its pause; what hasn't arrived (D-256)
     NUBE, nubeAlmacen, pausaNube, versionNueva, limpiezasOk, esRefNube, pendienteRec, hueco, supa, proyectoWeb, fotoLlego, pastLlego, refsCon,
     apuntarUrl,   // a photo's blob: URL with whose it is, for the safety net (D-369)
+    PUB_AVISO,    // what a Publicada says when its photo, frame or format would change (D-339, D-370)
     // the journal of changes (D-250): what changed since it was emptied, for the server (lot 3). leer() gives its entries
     // [{a, k, t, v}] (k null: the whole store again); quitar(entries) takes out those whose token didn't change since they were
     // read; vaciar() empties it; sinDiario is tx without the journal, only for what comes down from the server

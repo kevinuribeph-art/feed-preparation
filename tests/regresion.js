@@ -25280,7 +25280,7 @@
   prueba('FN2', 'Una Publicada no cambia de foto por ningún camino (feed continuo, pieza 10; D-324, D-330, D-339): archivo soltado del ordenador, «Sustituir/Añadir», quitar una foto, reordenar, poner otra de portada, «Cambiar portada», un tipo de una sola foto y «Editar» no la tocan y avisan cómo salir; en su ventana esos controles salen apagados con su motivo; lo demás de la ventana sigue igual; la que no está publicada cambia por esos caminos como siempre, con ⌘Z', async () => {
     try {
       await fnPub();
-      const f0 = slot('r1').photos.slice(), igualR1 = que => { igual(slot('r1').photos, f0, `${que}: cambió la foto de la Publicada`); ok(/Ya está publicada: no se cambia su foto\. Para cambiarla, ponla antes en otro estado\./.test(fnAviso()), `${que}: sin el aviso que dice cómo salir: ` + fnAviso()); M._in.clearToasts(); };
+      const f0 = slot('r1').photos.slice(), igualR1 = que => { igual(slot('r1').photos, f0, `${que}: cambió la foto de la Publicada`); ok(/Ya está publicada: no se cambia su foto, su encuadre ni su formato\. Para cambiarlos, ponla antes en otro estado\./.test(fnAviso()), `${que}: sin el aviso que dice cómo salir: ` + fnAviso()); M._in.clearToasts(); };
       // la API y los caminos de dentro
       igual(json(await M.addFiles([await foto('fn-nuevo.jpg')], 'r1')), '[]', 'un archivo soltado en la Publicada entró'); igualR1('archivo soltado');
       igual(json(await M.addFiles([await foto('fn-nuevo2.jpg')], null, { aviso: 'r1' })), '[]', '«Sustituir/Añadir» de un archivo entró'); igualR1('Sustituir/Añadir');
@@ -25319,6 +25319,78 @@
       ok(!/Ya está publicada/.test(fnAviso()), 'una sin publicar avisó como Publicada');
     } finally { M._in.closeDetail(); M._in.clearToasts(); await limpiar(); }
   });
+  // ---------- una Publicada tampoco cambia de encuadre ni de formato (D-370) ----------
+  const pbEnc = id => json({ fmt: slot(id).fmt || null, type: slot(id).type, photos: slot(id).photos, crops: slot(id).photos.map(f => M.board().crops[f] || null) });
+  prueba('PB1', 'Una Publicada no cambia de encuadre ni de formato (D-370): el formato (botón y API), el zoom, arrastrar la foto, centrar y un tipo de otro formato no cambian nada y avisan; en su ventana el formato y el zoom salen apagados con su motivo; ver y el contexto siguen; cambiar su estado la desbloquea', async () => {
+    try {
+      await fnPub();
+      const c0 = pbEnc('r1'), igualC = que => { igual(pbEnc('r1'), c0, `${que}: cambió el encuadre o el formato de la Publicada`); ok(/no se cambia su foto, su encuadre ni su formato\. Para cambiarlos, ponla antes en otro estado\./.test(fnAviso()), `${que}: sin el aviso: ` + fnAviso()); M._in.clearToasts(); };
+      M._test.setFmt('r1', 'h'); await espera(60); igualC('formato por la API');
+      M._in.openDetail('r1', 0); await espera(80);
+      const seg = dialogo().querySelector('.seg'), zr = dialogo().querySelector('.zoomr');
+      ok(seg && seg.getAttribute('aria-disabled') === 'true' && /publicada/i.test(seg.title) && [...seg.querySelectorAll('button')].every(b => b.getAttribute('aria-disabled') === 'true'), 'el formato no sale apagado con su motivo');
+      ok(zr && zr.disabled && /publicada/i.test(zr.closest('.zoom').title), 'el zoom no sale apagado con su motivo');
+      ok(W.getComputedStyle(seg).opacity === '0.4' && W.getComputedStyle(zr.closest('.zoom')).opacity === '0.4', 'no tienen el aspecto de lo apagado');
+      seg.querySelector('[data-fmt="h"]').click(); await espera(80); igualC('formato pulsado');
+      const z2 = dialogo().querySelector('.zoomr'); z2.disabled = false; z2.value = '2';   // como si su barra siguiera encendida
+      z2.dispatchEvent(new W.Event('input', { bubbles: true })); z2.dispatchEvent(new W.Event('change', { bubbles: true })); await espera(60); igualC('zoom');
+      const st = dialogo().querySelector('.stage'), r = st.getBoundingClientRect(), pe = (t, x, y) => st.dispatchEvent(new W.PointerEvent(t, { bubbles: true, pointerId: 7, button: 0, clientX: r.left + x, clientY: r.top + y }));
+      pe('pointerdown', 60, 60); pe('pointermove', 140, 110); pe('pointerup', 140, 110); await espera(60); igualC('arrastrar la foto');
+      pe('pointerdown', 60, 60); pe('pointerup', 60, 60); await espera(60); ok(!/Ya está publicada/.test(fnAviso()), 'un clic sin arrastrar avisa');
+      const b = D.createElement('button'); b.dataset.act = 'center'; dialogo().querySelector('.ptools').appendChild(b); b.click(); await espera(60); igualC('centrar');
+      M._test.setType('r1', 'Reel'); await espera(60); igualC('un tipo de otro formato');
+      M._test.setType('r1', 'Foto'); await espera(60); igual(slot('r1').type, 'Foto', 'Carrusel → Foto (el mismo formato) no se pudo'); M._test.setType('r1', 'Carrusel'); await espera(60); M._in.clearToasts();
+      M._in.openDetail('r1', 0); await espera(60);
+      ok(dialogo().querySelector('.stage img.big').getAttribute('src') && !dialogo().querySelector('textarea.note').disabled, 'ver o el contexto dejaron de ir');
+      M._in.closeDetail();
+      M.setEstado('r1', 'programado'); await espera(60);
+      M._test.setFmt('r1', 'h'); await espera(60); igual(slot('r1').fmt, 'h', 'en otro estado el formato no cambia');
+    } finally { M._in.closeDetail(); M._in.clearToasts(); await limpiar(); }
+  });
+
+  prueba('PB2', '⌘Z y ⇧⌘Z (D-370): un paso no cambia la foto, el encuadre ni el formato de una Publicada antes y después del paso, y el resto del paso sí se aplica; uno que deshace su «Publicado» va entero', async () => {
+    try {
+      await tablero([pub(1, 'Carrusel'), pub(2)]);
+      await poner('r1', [await foto('pb2a.jpg', 1600, 1200), await foto('pb2b.jpg', 1600, 1200)]); await M.flush(); await espera(2100);
+      const a0 = pbEnc('r1');
+      M._test.setFmt('r1', 'h'); await M.flush(); await espera(2100);
+      const a1 = pbEnc('r1'); ok(a1 !== a0, 'el formato no cambió');
+      M.setEstado('r1', 'publicado'); await M.flush(); await espera(2100);
+      const n0 = slot('r1').note;
+      // un paso que le cambia el encuadre y el contexto a la vez (como uno que llegó de antes de esta guarda)
+      const L = M._in.S, f0 = L.slots.find(x => x.id === 'r1').photos[0];
+      L.crops[f0] = { ...(L.crops[f0] || { fmt: 'h', cx: 0.5, cy: 0.5 }), z: 2 }; M._test.setNote('r1', 'pb2 nota'); await M.flush(); await espera(2100);
+      const a2 = pbEnc('r1'); ok(a2 !== a1, 'el encuadre de la prueba no cambió');
+      M._test.undo(); await espera(80);
+      igual(pbEnc('r1'), a2, '⌘Z cambió el encuadre de la Publicada'); igual(slot('r1').note, n0, '⌘Z no deshizo el resto del paso');
+      M._test.redo(); await espera(80);
+      igual(pbEnc('r1'), a2, '⇧⌘Z cambió el encuadre de la Publicada'); igual(slot('r1').note, 'pb2 nota', '⇧⌘Z no rehízo el resto del paso');
+      M._test.undo(); await espera(80); M._test.undo(); await espera(80);
+      ok(M._in.estadoDe(slot('r1')) !== 'publicado', 'no se deshizo el «Publicado»');
+      M._test.undo(); await espera(80);
+      igual(pbEnc('r1'), a0, 'el paso del formato, ya sin publicar, no volvió entero');
+    } finally { M._in.clearToasts(); await limpiar(); }
+  });
+
+  prueba('PB3', 'El editor, el diseñador y sus órdenes con una Publicada (D-370): «Aplicar» del editor no escribe, lo dice y el editor sigue abierto si pasó a Publicada con él abierto; MESA.diseno.cargar y aplicar contestan su {error}; MESA.libre.redibujar no la toca', async () => {
+    try {
+      await tablero([pub(1, 'Carrusel'), pub(2)]);
+      await poner('r1', [await foto('pb3a.jpg'), await foto('pb3b.jpg')]); await M.flush();
+      const p0 = json(slot('r1').photos);
+      await M.libre.abrir('r1', 0); await hasta(() => M.libre.abierto(), 6000, 'el editor');
+      M.setEstado('r1', 'publicado'); await espera(60); M._in.clearToasts();
+      accion('aplicar'); await espera(400);
+      ok(M.libre.abierto(), 'el editor se cerró'); igual(json(slot('r1').photos), p0, '«Aplicar» cambió las imágenes de la Publicada');
+      ok(/Ya está publicada: no se cambia su foto, su encuadre ni su formato/.test(fnAviso()), '«Aplicar» no lo dijo: ' + fnAviso());
+      M.libre.cerrar(true); await espera(60);
+      for (const [n, fn] of [['cargar', () => M.diseno.cargar('r1', { slides: [{ tipo: 'portada', titulo: 'x' }] })], ['aplicar', () => M.diseno.aplicar('r1')]]) {
+        const r = await fn(); ok(r && /Ya está publicada/.test(r.error || ''), `MESA.diseno.${n} no contestó su error: ` + json(r));
+      }
+      igual(json(await M.libre.redibujar('r1')), json({ ok: true, cambios: 0 }), 'MESA.libre.redibujar');
+      igual(json(slot('r1').photos), p0, 'cambió algo de la Publicada');
+    } finally { if (M.libre.abierto()) M.libre.cerrar(true); M._in.clearToasts(); await limpiar(); }
+  });
+
   prueba('FN3', 'Un desplazamiento con inercia de más de 2,5 s (feed continuo, pieza 10; D-340): sigue contando como de Kevin mientras dura, no se asienta a mitad y, al parar cerca del punto de un mes, el imán actúa', async () => {
     try {
       await fjSeis(); const P = fjPuntos(), fila = fjMov().filaH, feed = fjFeed();

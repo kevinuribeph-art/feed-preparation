@@ -4,7 +4,7 @@
 // hace: aprobar, pedir cambios con motivo y comentar.
 (function portal() {
   'use strict';
-  const V = '1.12';   // 1.12: al parar lejos del punto de un mes, la tira se centra sola en el mes activo (D-P14, como D-338 de la Mesa). 1.11: lo visto simulando el iPhone: girar no aleja la página, los puntos al cambiar el alto, la inercia larga (D-P11 a D-P13). 1.10: con algo por aprobar y la página deslizando, abre arriba, con el aviso a la vista (D-P10). 1.9: el feed seguido, con todos los meses, la cabecera de meses y su movimiento, como la «Vista cliente» (feed continuo; feed-mov.js 1.0). 1.8: un cliente de solo contenido sin meses: su lista entera y sus sesiones que vienen, sin calendario, como la «Vista cliente» (D-312). 1.7: «Tus pagos» con el acuerdo de cuándo a cuándo, lo que incluye su paquete y la siguiente por su fecha (D-308). 1.6: a pantalla completa (D-293), «Ver más en Zernio» (D-294), la ventana de una publicación como Instagram (D-295), las flechas del carrusel (D-296), «Tus pagos» con su tramo, las entregas de un cliente de solo contenido y la reunión (D-297). 1.5: el aviso de demasiados intentos ya no promete un minuto (D-280). 1.4: la cuenta que solo mira: ve cada cliente como lo ve él, sin aprobar, pedir cambios ni comentar (D-266). 1.3: el monograma a la izquierda de la barra, sin pulsar, y la página con las medidas de la «Vista cliente» (D-264)
+  const V = '1.13';   // 1.13: a pending invoice with only a due date shows, as in «Vista cliente» (D-368); in landscape nothing sits under the notch (portal.css, D-366). 1.12: al parar lejos del punto de un mes, la tira se centra sola en el mes activo (D-P14, como D-338 de la Mesa). 1.11: lo visto simulando el iPhone: girar no aleja la página, los puntos al cambiar el alto, la inercia larga (D-P11 a D-P13). 1.10: con algo por aprobar y la página deslizando, abre arriba, con el aviso a la vista (D-P10). 1.9: el feed seguido, con todos los meses, la cabecera de meses y su movimiento, como la «Vista cliente» (feed continuo; feed-mov.js 1.0). 1.8: un cliente de solo contenido sin meses: su lista entera y sus sesiones que vienen, sin calendario, como la «Vista cliente» (D-312). 1.7: «Tus pagos» con el acuerdo de cuándo a cuándo, lo que incluye su paquete y la siguiente por su fecha (D-308). 1.6: a pantalla completa (D-293), «Ver más en Zernio» (D-294), la ventana de una publicación como Instagram (D-295), las flechas del carrusel (D-296), «Tus pagos» con su tramo, las entregas de un cliente de solo contenido y la reunión (D-297). 1.5: el aviso de demasiados intentos ya no promete un minuto (D-280). 1.4: la cuenta que solo mira: ve cada cliente como lo ve él, sin aprobar, pedir cambios ni comentar (D-266). 1.3: el monograma a la izquierda de la barra, sin pulsar, y la página con las medidas de la «Vista cliente» (D-264)
   const app = document.getElementById('app');
   try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (e) { /* */ }   // el feed se coloca solo en su mes: al recargar, el navegador no lo mueve a donde estaba
   const CFG = window.PORTAL_CONFIG || {};
@@ -583,7 +583,8 @@
   function pintarPagosSolo() { const v = app.querySelector('[data-p="pagos"]'), n = seguro(() => pintarPagos(st.clientes.find(c => c.id === st.cli))); if (!v || !n) return pintar(); scrollCols(); v.replaceWith(n); scrollCols(true); }
   function estadoPago(r, H) {
     if (r.cobrada) return ['Pagada', 'ok', 'check', 'pagada el ' + diaCorto(r.cobrada)];
-    if (!r.emitida || r.emitida > H) return ['Sin emitir', 'sin', 'clock', r.emitida ? 'se emite el ' + diaCorto(r.emitida) : ''];
+    // como la Mesa (cobEstado): sin emisión ni vencimiento, o con la emisión más adelante, sin emitir; con solo «Vence», cuenta como emitida (D-368)
+    if ((!r.emitida && !r.vence) || (r.emitida && r.emitida > H)) return ['Sin emitir', 'sin', 'clock', r.emitida ? 'se emite el ' + diaCorto(r.emitida) : ''];
     if (r.vence && r.vence < H) return ['Pendiente', 'ven', 'alert', 'venció el ' + diaCorto(r.vence)];
     return ['Pendiente', 'pen', 'clock', r.vence ? 'vence el ' + diaCorto(r.vence) : ''];
   }
@@ -599,7 +600,7 @@
   function pintarPagos(cli) {
     const P = st.d.pagos, H = hoy(), clave = r => r.emitida || (/^\d{4}-\d{2}$/.test(r.periodo || '') ? r.periodo + '-01' : '') || r.vence || '';
     const orden = (a, b) => clave(b).localeCompare(clave(a)) || String(b.id).localeCompare(String(a.id));
-    const deber = P.filter(r => !r.cobrada && r.emitida && r.emitida <= H).sort((a, b) => clave(a).localeCompare(clave(b)));
+    const deber = P.filter(r => !r.cobrada && estadoPago(r, H)[1] !== 'sin').sort((a, b) => clave(a).localeCompare(clave(b)));
     const pagadas = P.filter(r => r.cobrada).sort(orden), N = Math.max(0, pagadas.length - 3), ver = st.verAnt === st.cli;
     const prox = cli && /^\d{4}-\d{2}-\d{2}$/.test(cli.proxima_emision || '') ? cli.proxima_emision : '';   // también una que ya tocaba (D-308)
     const tramo = cli && cli.pago && cli.pago !== 'mensual' && cli.pago_cent != null;
@@ -823,7 +824,7 @@
     dlg._quitar = quitar;
     velo.addEventListener('click', quitar);
     enviar.addEventListener('click', async () => { const ok = await decidir(p, 'cambios', ta.value.trim(), tog && tog.getAttribute('aria-pressed') === 'true' ? st.abierta.slide : null, enviar); if (ok) { lsSet(clave, null); quitar(); } });
-    document.body.append(velo, dlg); ta.focus();
+    document.body.append(velo, dlg); ta.focus(); ta.scrollIntoView({ block: 'nearest' });   // también con el teclado ya abierto
   }
   // la cuenta, arriba de la columna de la derecha (en el móvil, arriba del todo, con «Volver») (D-295)
   function cuentaDe(cli) {
@@ -885,7 +886,17 @@
     if (st.abierta) cerrar();
   });
   if (S) S.alCambiar(u => { if (!u && st.d) pintarEntrada('correo', lsGet('portal-correo') || ''); });
-  if (window.visualViewport) { const vv = window.visualViewport, kb = () => document.documentElement.style.setProperty('--kb', Math.max(0, Math.round(innerHeight - vv.height - vv.offsetTop)) + 'px'); vv.addEventListener('resize', kb); vv.addEventListener('scroll', kb); }
+  // el teclado: su alto en --kb. Cuando cambia con un diálogo abierto, lo que se escribe se pone a la vista, sobre los botones
+  if (window.visualViewport) {
+    const vv = window.visualViewport; let antes = 0;
+    const kb = () => {
+      const alto = Math.max(0, Math.round(innerHeight - vv.height - vv.offsetTop));
+      document.documentElement.style.setProperty('--kb', alto + 'px');
+      if (alto === antes) return; antes = alto;
+      const a = document.activeElement; if (a && a.closest && a.closest('.dlg')) a.scrollIntoView({ block: 'nearest' });
+    };
+    vv.addEventListener('resize', kb); vv.addEventListener('scroll', kb);
+  }
   window.PORTAL = { version: V, _st: st, refrescar };
   arrancar();
 })();

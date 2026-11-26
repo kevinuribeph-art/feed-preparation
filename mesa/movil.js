@@ -6,7 +6,7 @@
 // Mesa cogida un momento (lote 4, más abajo).
 (function () {
   'use strict';
-  const VERSION = '1.9';   // 1.9: el aviso del «Cómo fue» del mes pasado, como lo da el núcleo, sin verse pulsado (D-362). 1.8: la marca de cambios del Mac desde el último envío a la web, junto al estado de cada publicación y bajo su título (D-355; D-287 la dejó para este encargo). 1.7: la página de un cliente de solo contenido en #cli/<cliente>; una ruta vieja de su mes lleva a ella (D-312). 1.6: las marcas del Mac en Hoy y en Tareas, leídas del núcleo (D-300); el aviso en terracota, el error con su triángulo rojo en un disco blanco (D-303). 1.5: «Acuerdos» en Hoy, el aviso de renegociar (D-288); un cliente de solo contenido cuenta y lista sus entregas, y una pasada sale en Hoy (D-290). 1.4: «Cancelar · Guardar» tapa las marcas dibujadas al deslizar la hoja (D-286, probado en el iPhone). 1.3: la hoja sigue al teclado (resize y scroll del visualViewport), el campo del ordenador en notas, «Detalles» y textos de una sesión (D-286) y las marcas de estado del Mac (D-287). 1.2: las listas se leen como en el Mac: viñeta y número en terracota y el separador «⸻» como una línea (D-283). 1.1: los ajustes tras probarla en el iPhone (D-271), editar tareas (D-272) y la sesión entera (D-275)
+  const VERSION = '1.10';   // 1.10: «Del cliente» is read again on opening a post and on coming back to the month, never showing another client's thread; the month arrows come computed by the core (D-365). 1.9: el aviso del «Cómo fue» del mes pasado, como lo da el núcleo, sin verse pulsado (D-362). 1.8: la marca de cambios del Mac desde el último envío a la web, junto al estado de cada publicación y bajo su título (D-355; D-287 la dejó para este encargo). 1.7: la página de un cliente de solo contenido en #cli/<cliente>; una ruta vieja de su mes lleva a ella (D-312). 1.6: las marcas del Mac en Hoy y en Tareas, leídas del núcleo (D-300); el aviso en terracota, el error con su triángulo rojo en un disco blanco (D-303). 1.5: «Acuerdos» en Hoy, el aviso de renegociar (D-288); un cliente de solo contenido cuenta y lista sus entregas, y una pasada sale en Hoy (D-290). 1.4: «Cancelar · Guardar» tapa las marcas dibujadas al deslizar la hoja (D-286, probado en el iPhone). 1.3: la hoja sigue al teclado (resize y scroll del visualViewport), el campo del ordenador en notas, «Detalles» y textos de una sesión (D-286) y las marcas de estado del Mac (D-287). 1.2: las listas se leen como en el Mac: viñeta y número en terracota y el separador «⸻» como una línea (D-283). 1.1: los ajustes tras probarla en el iPhone (D-271), editar tareas (D-272) y la sesión entera (D-275)
   const M = window.MESA, D = document, W = window;
   const fallo = t => { (W.MESA_CARGA = W.MESA_CARGA || {}).movil = 'fallo'; const p = D.getElementById('arranque'); if (p) p.textContent = t; };
   if (!M || !M._in || !M._in.movil || !M._in.movil.activo) { fallo('No se pudo cargar la Mesa. Cierra la app y vuelve a abrirla.'); return; }
@@ -580,7 +580,7 @@
 #movil .resp .enviar:disabled{opacity:.45}
 #movil .resp .nota-r{flex-basis:100%;color:var(--mute);font-size:14px}
 #movil .resp{flex-wrap:wrap}
-#movil .resp-err{margin:8px var(--pad) 0;color:var(--red);font-size:14px}
+#movil .resp-err{margin:8px var(--pad) 0;color:var(--red);font-size:14px}#movil .resp-err.antes{margin-bottom:10px}
 #movil .solo-mac{margin:10px var(--pad) 0;font-size:14px;color:var(--mute)}
 #movil .op-a .btn:disabled{opacity:.5}
 #movil .op .vacia{color:var(--mute)}
@@ -987,12 +987,25 @@
     try { const v = await M.sesiones.movil.vista(id); L.ses = v || { id, falta: true }; L.error.ses = ''; }
     catch (e) { L.ses = null; L.error.ses = 'No se pudo leer la sesión.'; }
   }
-  let convDe = '';
-  async function leerConv(key) {   // lo que dijo el cliente (D-244, R2): solo leer
-    convDe = key;
-    try { const c = M.web && M.web.conversacion ? await M.web.conversacion(X().S) : null; if (convDe === key) { L.conv = c; if (RUTA.p === 'pub' || RUTA.p === 'mes') pintarSiQuieto(); } }
-    catch (e) { if (convDe === key) L.conv = { error: 'No se pudo leer lo que dijo el cliente.' }; }
+  // lo que dijo el cliente (D-244, R2): solo leer. Cada lectura lleva su número y su tablero: la que llega tarde, o la de otro
+  // tablero, no se pinta ni se marca leída (en una colab las publicaciones de los dos clientes tienen el mismo id). Se relee al
+  // abrir cada publicación y al volver al mes (D-365); sin red, lo de antes se queda y lo dice
+  let convN = 0;
+  async function leerConv(key) {
+    const n = ++convN, B = X().S;
+    if (!B || B.key !== key) return false;
+    let c = null, mal = false;
+    try { c = M.web && M.web.conversacion ? await M.web.conversacion(B) : null; }
+    catch (e) { mal = true; }
+    if (n !== convN) return false;   // superseded: the newer read says how it went
+    if (!mal) L.conv = c ? { ...c, key } : null;
+    else if (L.conv && L.conv.key === key && L.conv.porSlot) L.conv = { ...L.conv, deAntes: true };
+    else L.conv = { key, error: 'No se pudo leer lo que dijo el cliente.' };
+    if ((RUTA.p === 'pub' || RUTA.p === 'mes') && RUTA.a === key) pintarSiQuieto();
+    return mal;   // true only if this read, the latest one, failed
   }
+  const conv = () => (L.conv && L.vista && L.conv.key === L.vista.key ? L.conv : null);   // nunca la de otro tablero
+  async function relerConv() { const key = RUTA.a, B = await aqui(); return !!(B && B.key === key && RUTA.a === key) && leerConv(key); }
 
   // ---------- Hoy (D-180, D-212, D-236) ----------
   const GRUPOS = [['acuerdos', 'Acuerdos'], ['pasado', 'Se ha pasado'], ['hoy', 'Hoy'], ['espera', 'Esperando al cliente'], ['falta', 'Falta programar']];   // «Acuerdos», as the Mac's (D-288)
@@ -1112,19 +1125,13 @@
     const i = v.meses.findIndex(x => x.m === m), mx = v.meses[i], posts = v.posts.filter(p => p.mes === m && p.estado.k !== 'cancelado');
     const sin = posts.filter(p => !['programado', 'publicado'].includes(p.estado.k)).length, hs = v.historias.filter(h => !h.cancelada && h.fecha.dia && h.fecha.dia.slice(0, 7) === m).length;
     const otro = (d) => { const j = i + d; return j >= 0 && j < v.meses.length ? `data-ir="mes/${esc(v.key)}/${vista}/${esc(v.meses[j].m)}"` : ''; };
-    const ant = otro(-1), sig = otro(1), sigB = !sig && MESES_CLI.sig ? `data-ir="mes/${esc(MESES_CLI.sig)}/${vista}"` : '', antB = !ant && MESES_CLI.ant ? `data-ir="mes/${esc(MESES_CLI.ant)}/${vista}"` : '';
+    const ant = otro(-1), sig = otro(1), V = v.vecinos || {}, sigB = !sig && V.sig ? `data-ir="mes/${esc(V.sig)}/${vista}"` : '', antB = !ant && V.ant ? `data-ir="mes/${esc(V.ant)}/${vista}"` : '';   // los tableros vecinos vienen con la vista, del núcleo (D-365)
     return top({ ...volverMes(), t: nombreCli(v.client) }) + `<main class="main" id="contenido">`
       + `<div class="mesnav"><h1>${esc(mesNombre(m))}</h1><div class="flechas"><button type="button" class="ib" ${ant || antB} ${ant || antB ? '' : 'disabled'} aria-label="Mes anterior">${ic('izq')}</button><button type="button" class="ib" ${sig || sigB} ${sig || sigB ? '' : 'disabled'} aria-label="Mes siguiente">${ic('der')}</button></div></div>`
       + (v.contenido ? '' : `<div class="pasos">${tramos(mx.paso.k)}<p><span class="acc">${esc(mx.paso.txt)}</span> · ${esc(plural(sin, 'sin programar', 'sin programar'))} · ${esc(plural(hs, 'historia', 'historias'))}</p></div>`)
       + (v.contenido ? '' : `<div class="seg" role="tablist" aria-label="Vista del mes">${VISTAS.map(([k, t]) => `<button type="button" role="tab" class="${k === vista ? 'on' : ''}" aria-selected="${k === vista}" data-ir="mes/${esc(v.key)}/${k}/${esc(m)}">${t}</button>`).join('')}</div>`);
   }
-  let MESES_CLI = { ant: null, sig: null };   // los tableros vecinos del cliente (otro tablero, otro mes)
-  async function vecinos(v) {
-    const l = ((await X().idbAll('boards')) || []).filter(b => b.client === v.client && b.month).sort((a, b) => String(a.month).localeCompare(String(b.month)));
-    const i = l.findIndex(b => b.key === v.key);
-    MESES_CLI = { ant: i > 0 ? l[i - 1].key : null, sig: i >= 0 && i < l.length - 1 ? l[i + 1].key : null };
-  }
-  function comentariosDe(id) { const c = L.conv && L.conv.porSlot && L.conv.porSlot[id]; return c ? c : null; }
+  function comentariosDe(id) { const C0 = conv(), c = C0 && C0.porSlot && C0.porSlot[id]; return c ? c : null; }
   function filaPost(v, p) {
     const c = comentariosDe(p.id), n = c ? c.sinLeer : 0;
     const e = p.tocaria ? { k: 'publicado', txt: 'Publicado' } : p.estado;
@@ -1249,8 +1256,8 @@
     return html + '</main>';
   }
   function delCliente(v, p) {
-    if (!L.conv) return '';
-    if (L.conv.error) return `<section class="sec"><div class="sec-h"><h2>Del cliente</h2></div>${mal(L.conv.error, 'reconv')}</section>`;
+    const C0 = conv(); if (!C0 || C0.key !== v.key) return '';
+    if (C0.error) return `<section class="sec"><div class="sec-h"><h2>Del cliente</h2></div>${mal(C0.error, 'reconv')}</section>`;
     const c = comentariosDe(p.id); if (!c) return '';
     if (c.ultima && M.web && M.web.leido) setTimeout(() => M.web.leido(c.pid, c.ultima), 1500);   // leído en este aparato (su marca, nunca la del Mac)
     const d = c.decision, quien = d && d.autor ? esc(d.autor) : 'El cliente';
@@ -1260,7 +1267,7 @@
     const borr = lsG('mesa-movil-resp:' + c.pid) || '';
     const resp = c.puedeEscribir ? `<div class="resp"><textarea rows="1" data-resp="${esc(p.id)}" aria-label="${autor ? 'Contestar a ' + esc(autor) : 'Escribir al cliente'}" placeholder="${autor ? 'Contestar a ' + esc(autor) : 'Escribir al cliente'}" maxlength="2000"${sinRed() ? ' disabled' : ''}>${esc(borr)}</textarea><button type="button" class="enviar" data-a="contestar" aria-label="Enviar"${sinRed() || !borr.trim() ? ' disabled' : ''}>${ic('subir', 2.25)}</button></div>` : `<p class="solo-mac">Envía esta publicación a la web desde el escritorio para poder escribir aquí.</p>`;
     if (!items && !dec && !c.puedeEscribir) return '';
-    return `<section class="sec"><div class="sec-h"><h2>Del cliente${c.sinLeer ? ` <span class="n acc">${c.sinLeer} sin leer</span>` : ''}</h2></div>${dec}${items ? `<div class="hilo">${items}</div>` : ''}${resp}<p class="resp-err" data-resp-err hidden></p></section>`;
+    return `<section class="sec"><div class="sec-h"><h2>Del cliente${c.sinLeer ? ` <span class="n acc">${c.sinLeer} sin leer</span>` : ''}</h2>${C0.deAntes ? '<button type="button" class="lnk" data-a="reconv">Reintentar</button>' : ''}</div>${C0.deAntes ? '<p class="resp-err antes">No se pudo releer: esto es de antes.</p>' : ''}${dec}${items ? `<div class="hilo">${items}</div>` : ''}${resp}<p class="resp-err" data-resp-err hidden></p></section>`;
   }
 
   // ---------- captions (para leer; elegir y retocar, lote 4) ----------
@@ -1343,16 +1350,19 @@
   const esCampo = a => !!a && (/^(TEXTAREA|INPUT)$/.test(a.tagName) || a.isContentEditable);   // también el campo del ordenador (D-286)
   const enUso = () => { const a = D.activeElement; return !!(a && raiz.contains(a) && esCampo(a)) || !!raiz.querySelector('.hoja'); };
   function pintarSiQuieto() { if (enUso()) { PEND_PINTAR = true; return; } pintar(); }   // un campo en uso no se rehace desde fuera (D-112)
-  let ULT_P = '', ULT_A = '';
+  let ULT_P = '', ULT_A = '', ULT_B = '';
   async function pintar() {
     const n = ++pintando, r = RUTA;
     if (r.p === 'mes' && !['mes', 'pub', 'cap', 'ret', 'his'].includes(ULT_P)) PUBS.abierta = false;   // «Publicadas» se pliega al entrar en el mes; volver de una publicación la deja como estaba
     const entra = r.p === 'ses' && (ULT_P !== 'ses' || ULT_A !== r.a);   // una sesión, al entrar en ella: plegada y leída otra vez (D-275)
     const entraCli = r.p === 'cli' && (ULT_P !== 'cli' || ULT_A !== r.a);   // la página de un cliente de solo contenido, leída otra vez al entrar (D-312)
     if (entra) SES.abiertos = new Set();
-    ULT_P = r.p; ULT_A = r.a;
+    // al abrir una publicación, o al volver al mes, lo que dijo el cliente se lee otra vez (D-365); al cambiar de tablero, lo lee leerMes
+    const entraConv = (r.p === 'mes' && (ULT_P !== 'mes' || ULT_A !== r.a)) || (r.p === 'pub' && (ULT_P !== 'pub' || ULT_A !== r.a || ULT_B !== r.b));
+    ULT_P = r.p; ULT_A = r.a; ULT_B = r.b;
     if (r.p === 'mes' || r.p === 'pub' || r.p === 'cap' || r.p === 'ret' || r.p === 'his') {
-      if (!L.vista || L.vista.key !== r.a) { raiz.querySelector('.pant') ? 0 : 0; dibujar((PANT[r.p] || pantMes)()); await leerMes(r.a); if (n !== pintando) return; if (L.vista) await vecinos(L.vista); if (n !== pintando) return; }
+      if (!L.vista || L.vista.key !== r.a) { dibujar((PANT[r.p] || pantMes)()); await leerMes(r.a); if (n !== pintando) return; }
+      else if (entraConv) relerConv();
     } else if (r.p === 'hoy' && !L.hoy && !L.error.hoy) { dibujar(pantHoy()); await leerHoy(); if (n !== pintando) return; }
     else if (r.p === 'clientes' && !L.clientes && !L.error.clientes) { dibujar(pantClientes()); await leerClientes(); if (n !== pintando) return; }
     else if (r.p === 'tareas' && !L.tareas && !L.error.tareas) { dibujar(pantTareas()); await leerTareas(); if (n !== pintando) return; }
@@ -1763,7 +1773,8 @@
       case 'filtro': FILTRO = FILTRO === b.dataset.k ? null : b.dataset.k; return pintar();
       case 'vertodo': VER_TODO[b.dataset.k] = true; return pintar();
       case 'reintentar': L.error = {}; L.hoy = L.clientes = L.tareas = null; return pintar();
-      case 'reconv': if (L.vista) leerConv(L.vista.key); return;
+      // a retry that fails again draws the same screen (nothing moves): the notice says it
+      case 'reconv': if (L.vista) relerConv().then(mal => { if (mal) aviso('No se pudo releer.', { error: true }); }); return;
       case 'dia': DIA_CAL = b.dataset.d; return pintar();
       case 'pubs': PUBS.abierta = !PUBS.abierta; return pintar();
       case 'plegar': ABIERTO[b.dataset.k] = !ABIERTO[b.dataset.k]; return pintar();
@@ -2255,8 +2266,9 @@
   C.contestar = async b => {
     const p = pAhora(), t = raiz.querySelector('[data-resp]'); if (!p || !t || !t.value.trim()) return;
     b.disabled = true; const err = raiz.querySelector('[data-resp-err]');
+    const c = comentariosDe(p.id), suyo = c && c.pid;   // whose draft, taken before sending: in a colab the other client's post has the same id
     const B = await aqui(); const r = B ? await M.web.contestar(B, p.id, t.value) : { error: 'Abre la publicación otra vez.' };
-    if (r && r.ok) { const c = comentariosDe(p.id); if (c) lsS('mesa-movil-resp:' + c.pid, null); t.value = ''; await leerConv(L.vista.key); pintar(); aviso('Enviado a su web.', { ok: true }); }
+    if (r && r.ok) { if (suyo) lsS('mesa-movil-resp:' + suyo, null); t.value = ''; await leerConv(L.vista.key); pintar(); aviso('Enviado a su web.', { ok: true }); }
     else { b.disabled = false; if (err) { err.hidden = false; err.textContent = (r && r.error) || 'No se pudo enviar.'; } }
   };
 

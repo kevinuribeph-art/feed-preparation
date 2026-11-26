@@ -130,8 +130,6 @@
   const mcCerrar = () => tecla('Escape', { en: D.activeElement || D.body });
   const mcItems = m => [...m.querySelectorAll('[role="menuitem"]')].map(b => b.firstChild.textContent.trim());
   const mcElegir = t => { const m = mcAbrir(); ok(m, 'sin el menú de copias'); const b = [...m.querySelectorAll('[role="menuitem"]')].find(x => x.firstChild.textContent.trim() === t); ok(b, 'el menú de copias no tiene ' + t); b.click(); };
-  // «Exportar…» del símbolo con la copia ligera (.json, fotos a 1080 px; D-284, antes «Exportar», D-263)
-  async function exportarLigera() { mcElegir('Exportar…'); const d = await hasta(() => q('.detail:not([hidden])[data-dlg="exportar"]'), 2000, '«Exportar…»'); d.querySelector('input[value="ligera"]').click(); d.querySelector('form').requestSubmit(); await espera(20); }
   async function nuevoCliente(tipo = 'redes') {   // del menú del símbolo (D-284): primero el tipo en tres tarjetas y después sus datos (D-289)
     mcElegir('Nuevo cliente'); const f = await hasta(() => q('.detail form.nctipos'), 2000, 'las tarjetas de «Nuevo cliente»');
     f.querySelector(`input[value="${tipo}"]`).click(); f.requestSubmit(); await hasta(() => q('.detail [data-form="newclient"]'), 2000, '«Nuevo cliente»'); }   // del menú del símbolo (D-284; antes «+ Cliente»)
@@ -3299,7 +3297,7 @@
     A.click = function () { if (this.download) cap = { name: this.download, href: this.href }; else click.call(this); };
     try {
       W.localStorage.setItem(LS, '1');             // este navegador descarga: sin diálogo de guardar
-      await exportarLigera(); await espera(30);   // «Exportar…» del símbolo, la copia ligera (D-284)
+      M.exportAll(); await espera(30);   // la copia ligera: desde la 4.56 solo por la API (D-364)
       const dl = await hasta(() => q('.detail:not([hidden])[data-dlg="revisar"]'), 15000, 'la revisión con el hueco vacío tras exportar');   // D-040: el aviso de D-037 va en la revisión
       ok(cap, 'con un hueco vacío no se exportó (no hubo descarga)');
       const d = JSON.parse(await (await (await fetch(cap.href)).blob()).text());
@@ -6238,7 +6236,7 @@
       await disenada('r2', [await foto('d6c.jpg', 1080, 1350)], textos('D6', 'Notion'));
       await M.flush();
       await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [{ ...pub(2, 'Carrusel'), type: 'Reel' }], past: [], force: true });
-      await hasta(() => toastCon(/En Notion cambió el tipo de Carrusel 1\.2: su diseño se ha convertido y se aplica en su «Editar …»/), 4000, 'el aviso del tipo cambiado en Notion');
+      await hasta(() => toastCon(/ambió el tipo de Carrusel 1\.2: su diseño se ha convertido y se aplica en su «Editar …»/), 4000, 'el aviso del tipo cambiado al cargar el mes');
       igual(estadoDz('r2'), 'chg', 'el diseño de Notion no quedó pendiente');
     });
   });
@@ -7777,7 +7775,7 @@
       await hasta(() => slot('r2').design.slides[0].tipo === 'reel', 3000, 'el diseño convertido a reel');
       igual(slot('r2').design.slides.length, 1, 'el reel lleva más de una diapositiva');
       igual(estadoDz('r2'), 'chg', 'el diseño convertido no quedó pendiente');
-      ok(toastCon(/En Notion cambió el tipo de .*su diseño se ha convertido/), 'sin aviso del tipo cambiado: ' + qa('.toasts .toast').map(t => t.textContent).join(' | '));
+      ok(toastCon(/ambió el tipo de .*su diseño se ha convertido/) && !toastCon(/Notion/), 'sin aviso del tipo cambiado: ' + qa('.toasts .toast').map(t => t.textContent).join(' | '));
       const antes = json(slot('r2').design); M.diseno.sync(); await espera(50);
       igual(json(slot('r2').design), antes, 'un segundo sync volvió a convertirlo');
     });
@@ -10801,7 +10799,7 @@
     P.forEach(s => ok(seVe(s), 'no vuelve al quitar la vista: ' + s));
   });
 
-  prueba('LZ2', 'Los diálogos que solo informan se cierran con la ×, Esc o un clic fuera: «Revisar» sin «Entendido» y con el foco en la ×; las listas de vencidas y de cambiadas, vacías, sin «Cerrar» (D-155)', async () => {
+  prueba('LZ2', 'Los diálogos que solo informan se cierran con la ×, Esc o un clic fuera: «Revisar» sin «Entendido» y con el foco en la ×; la lista de vencidas, vacía, sin «Cerrar» (D-155; la de «cambiadas» se quitó con los restos de Notion, D-367)', async () => {
     await tablero([pub(1, 'Carrusel')]);
     await poner('r1', [await foto('lz2-a.jpg'), await foto('lz2-b.jpg')]);
     await conHueco('r1');
@@ -10810,8 +10808,6 @@
     tecla('Escape'); await hasta(() => !dialogo(), 2000, 'cerrar con Esc');
     M.calendario.vencidas(); await hasta(() => ventanaV(), 2000, 'la lista de vencidas');
     ok(/No queda ninguna vencida/.test(dialogo().textContent), 'la lista vacía: ' + dialogo().textContent); sinBoton('la lista de vencidas vacía'); M._in.closeDetail();
-    M.calendario.cambios(); await hasta(() => q('.detail:not([hidden])[data-dlg="cambios"]'), 2000, 'la lista de cambiadas');
-    ok(/No queda ninguna/.test(dialogo().textContent), 'la lista vacía: ' + dialogo().textContent); sinBoton('la lista de cambiadas vacía'); M._in.closeDetail();
   });
 
   prueba('LZ3', 'Fuera los textos de ayuda que no dicen nada nuevo: «Nuevo cliente», «Editar cliente», el menú de copias (antes ⇅, D-263), «Nueva carpeta», «Revisar», «Descargar fotos» y vencidas (D-156)', async () => {
@@ -16234,7 +16230,7 @@
         [[CLIENTE, '2026-11', { porque: IF_PQ, otro: 1 }], /no se esperaba «otro»/],
         [[CLIENTE, '2026-11', { porque: { partes: [] } }], /de 1 a 6/],
         [[CLIENTE, '2026-11', { porque: { partes: Array(7).fill({ t: 'Días', x: 'Algo.' }) } }], /de 1 a 6/],
-        [[CLIENTE, '2026-11', { porque: { partes: [{ t: 'Test de horario', x: 'A las 13:00.' }] } }], /etiqueta de Notion.*«Horario»/],
+        [[CLIENTE, '2026-11', { porque: { partes: [{ t: 'Test de horario', x: 'A las 13:00.' }] } }], /etiqueta de trabajo.*«Horario»/],
         [[CLIENTE, '2026-11', { porque: { partes: [{ t: 'Fechas ancla', x: 'El 27.' }] } }], /«Fechas clave»/],
         [[CLIENTE, '2026-11', { porque: { partes: [{ t: 'Horario', x: 'A las **13:00**.' }] } }], /texto plano/],
         [[CLIENTE, '2026-11', { porque: { partes: [{ t: 'Horario', x: 'A las <b>13:00</b>.' }] } }], /texto plano/],
@@ -16906,7 +16902,7 @@
     });
   });
 
-  prueba('MC2', 'El menú de copias hace lo que hacía ⇅: «Exportar…» hace la copia ligera o la completa (D-284), Importar… elige un .json o varios .tar y los importa (D-263)', async () => {
+  prueba('MC2', 'El menú de copias hace lo que hacía ⇅: «Exportar…» hace la copia completa (D-364, antes elegía, D-284), Importar… elige un .json o varios .tar y los importa (D-263)', async () => {
     await tablero([pub(1)]);
     await hasta(() => M.copia && M.copia.exportar, 8000, 'copia.js');
     const ex = M.exportAll, cx = M.copia.exportar, im = M.importData, IP = W.HTMLInputElement.prototype, clk = IP.click;
@@ -16916,15 +16912,14 @@
     M.importData = src => { log.push(['importar', Array.isArray(src) ? src.map(f => f.name) : src.name]); return Promise.resolve({}); };
     IP.click = function () { if (this.type === 'file' && this.classList.contains('xferin')) { inp = this; log.push('elegir'); } else clk.call(this); };
     try {
-      await exportarLigera(); ok(!q('.cp-copias'), 'el menú sigue abierto tras elegir');
-      mcElegir('Exportar…'); { const d = await hasta(() => q('.detail:not([hidden])[data-dlg="exportar"]'), 2000, '«Exportar…»'); d.querySelector('form').requestSubmit(); await espera(20); }   // la completa, de serie (D-284)
+      mcElegir('Exportar…'); await espera(20); ok(!q('.cp-copias'), 'el menú sigue abierto tras elegir');   // la completa, sin preguntar (D-364)
       mcLogo().focus(); mcElegir('Importar…'); await espera(20); ok(D.activeElement === mcLogo(), 'tras elegir, el foco no vuelve al símbolo');
-      igual(log, ['exportar', 'todo', 'elegir'], 'lo que hizo cada opción');
+      igual(log, ['todo', 'elegir'], 'lo que hizo cada opción');
       ok(inp && inp.multiple && /\.json/.test(inp.accept) && /\.tar/.test(inp.accept), 'Importar no acepta un .json o varios .tar');
       const pon = fs => { const dt = new W.DataTransfer(); fs.forEach(f => dt.items.add(f)); inp.files = dt.files; inp.dispatchEvent(new W.Event('change', { bubbles: true })); };
       pon([new W.File(['{}'], 'mesa.json', { type: 'application/json' })]); await espera(20);
       pon([new W.File(['a'], 'mesa-uno.tar'), new W.File(['b'], 'mesa-general.tar')]); await espera(20);
-      igual(log.slice(3), [['importar', 'mesa.json'], ['importar', ['mesa-uno.tar', 'mesa-general.tar']]], 'lo que llegó a importar');
+      igual(log.slice(2), [['importar', 'mesa.json'], ['importar', ['mesa-uno.tar', 'mesa-general.tar']]], 'lo que llegó a importar');
       igual(inp.value, '', 'el campo no se vacía (elegir lo mismo otra vez no haría nada)');
     } finally { M.exportAll = ex; M.copia.exportar = cx; M.importData = im; IP.click = clk; }
   });
@@ -17005,7 +17000,7 @@
       igual(n, 1, 'un doble clic descarga más de una vez');
       // cerrar con archivos listos sin descargar: lo dice
       M._in.closeDetail(); await espera(60);
-      ok(qa('.toasts > *').some(t => /sin descargar: «Exportar todo» los vuelve a preparar/.test(t.textContent)), 'cerrar con archivos sin descargar no lo dice');
+      ok(qa('.toasts > *').some(t => /sin descargar: «Exportar…» los vuelve a preparar/.test(t.textContent)), 'cerrar con archivos sin descargar no lo dice');
       ok(!M._in.xfer.ocupado(), 'la mesa se queda ocupada');
       // cerrar mientras se lee la mesa: sin error, la mesa libre
       M._in.clearToasts && M._in.clearToasts();
@@ -17123,6 +17118,168 @@
       igual(hay, sabe, 'los almacenes de la base de datos');
       ok(!(M._in.xfer.NO_VIAJAN || []).some(n => M._in.xfer.ALMACENES.includes(n)), 'un almacén viaja y no viaja');
     } finally { dbx.close(); }
+  });
+
+  // ---------- «Exportar» con una sola copia y sus botones (ajustes de la 4.55, lote 1; D-364) ----------
+  // la huella, lenta a propósito, para ver el diálogo mientras prepara (y contar lo que pide después de «Cancelar»)
+  function fxLento(ms) {
+    const sub = W.crypto.subtle, dig = sub.digest; const n = { v: 0 };
+    sub.digest = async function (a, b) { n.v++; await espera(ms); return dig.call(sub, a, b); };
+    return { n, vuelve: () => { sub.digest = dig; } };
+  }
+  const fxDlg = () => q('.detail:not([hidden])[data-dlg="copia"]');
+  const fxEstado = () => (q('.detail[data-dlg="copia"] .cp-estado') || {}).textContent || '';
+  const fxToasts = () => qa('.toasts > *').map(t => t.textContent).join(' | ');
+
+  prueba('FX1', '«Exportar…» del símbolo va directo a la única copia (D-364, sustituye en parte D-017 y D-284): un diálogo «Exportar», sin preguntar cuál, sin «Copia ligera» a la vista; MESA.exportAll sigue por la API', async () => {
+    await tablero([pub(1)]); await hasta(() => M.copia && M.copia.exportar, 8000, 'copia.js');
+    try {
+      mcElegir('Exportar…');
+      const d = await hasta(() => fxDlg(), 3000, 'el diálogo de la copia');
+      igual(d.querySelector('h3').textContent, 'Exportar', 'el título');
+      ok(!d.querySelector('input[type="radio"]') && !/ligera/i.test(d.textContent) && !/1080/.test(d.textContent), 'sigue ofreciendo la copia ligera: ' + d.textContent);
+      ok(/tamaño original/.test(d.textContent) && /un \.tar por cliente y uno general/.test(d.textContent), 'no dice qué hace: ' + d.textContent);
+      await hasta(() => qa('.detail[data-dlg="copia"] [data-cp="bajar"]').length && qa('.detail[data-dlg="copia"] [data-cp="bajar"]').every(b => !b.disabled), 15000, 'las filas listas');
+      M._in.closeDetail();
+      const b = await M.exportAll({ returnBlob: true });
+      ok(b && b.size > 100, 'MESA.exportAll ya no da el .json');
+    } finally { M._in.closeDetail(); }
+  });
+
+  prueba('FX2', 'Cada clic en un «Descargar» encendido responde (A55-3): clics seguidos (detail 2 y 3) pasado el freno descargan; el freno va por tiempo y se ve en el botón («Lanzada», sin apagarse el foco) y luego «Otra vez»', async () => {
+    await cpSembrar();
+    try {
+      const r = await M.copia.exportar(); ok(r && r.ok, 'no se preparó: ' + json(r));
+      let n = 0; const A = W.HTMLAnchorElement.prototype, ck = A.click; A.click = function () { if (this.download) n++; else ck.call(this); };
+      try {
+        const b = q('.detail[data-dlg="copia"] [data-cp="bajar"]'); b.focus();
+        const clic = det => b.dispatchEvent(new W.MouseEvent('click', { bubbles: true, detail: det }));
+        clic(1); await espera(20);
+        igual(n, 1, 'el primer clic no descarga');
+        ok(b.getAttribute('aria-disabled') === 'true' && !b.disabled && /Lanzada/.test(b.textContent), 'el freno no se ve en el botón: ' + b.outerHTML);
+        ok(D.activeElement === b, 'el foco se va del botón al frenarlo');
+        clic(2); clic(1); await espera(20); igual(n, 1, 'durante el freno descarga otra vez');
+        await espera(1600);
+        ok(!b.getAttribute('aria-disabled') && b.textContent === 'Otra vez', 'tras el freno no vuelve «Otra vez»: ' + b.outerHTML);
+        clic(2); await espera(20); igual(n, 2, 'un clic seguido (detail 2) tras el freno no hace nada');
+        await espera(1600);
+        clic(3); await espera(20); igual(n, 3, 'el tercero seguido (detail 3) no hace nada');
+      } finally { A.click = ck; }
+    } finally { await cpFin(); }
+  });
+
+  prueba('FX3', 'Mientras prepara se ve cuánto falta (D-364): «Leyendo la Mesa…», «Preparando <cliente> · N de M» con su barra, y las filas (una por parte, desde el principio) no cambian de sitio', async () => {
+    await cpSembrar();
+    const L = fxLento(120);
+    try {
+      M.copia._test.parteMax(60000);       // varias partes: sus filas, desde el principio
+      const vistos = []; let det = null, barras = [], filas0 = null, topes0 = null;
+      const p = M.copia.exportar(); vistos.push(fxEstado());   // dibujado ya, antes de su primer await
+      det = q('.detail'); const mo = new W.MutationObserver(() => {
+        const e = fxEstado(); if (e && vistos[vistos.length - 1] !== e) vistos.push(e);
+        const bar = q('.detail[data-dlg="copia"] .cp-barra'); if (bar) barras.push(+bar.getAttribute('aria-valuenow'));
+        const bs = qa('.detail[data-dlg="copia"] [data-cp="bajar"]'); if (bs.length > 1 && !topes0) { topes0 = bs.map(b => Math.round(b.getBoundingClientRect().top)); filas0 = bs.length; }
+      });
+      mo.observe(det, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['aria-valuenow'] });
+      const r = await p; mo.disconnect(); ok(r && r.ok, 'no se preparó: ' + json(r));
+      ok(vistos[0] && /Leyendo la Mesa…/.test(vistos[0]), 'no dice «Leyendo la Mesa…»: ' + json(vistos));
+      ok(vistos.some(t => new RegExp(`^Preparando ${NOMBRE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} · 1 de 3$`).test(t)) && vistos.some(t => /^Preparando General · 3 de 3$/.test(t)), 'no dice qué prepara y cuántos: ' + json(vistos));
+      ok(barras.length && barras.every((x, i) => !i || x >= barras[i - 1]) && barras[barras.length - 1] === 100, 'la barra no avanza hasta el final: ' + json(barras.slice(-6)));
+      const bs = qa('.detail[data-dlg="copia"] [data-cp="bajar"]');
+      ok(filas0 > 3, 'no había una fila por parte desde el principio: ' + filas0);
+      igual(bs.length, filas0, 'al final hay otro número de filas');
+      igual(bs.map(b => Math.round(b.getBoundingClientRect().top)), topes0, 'las filas cambiaron de sitio mientras preparaba');
+      ok(/Listo|Lista/.test(fxEstado()), 'al acabar no dice que está listo: ' + fxEstado());
+      // con cifras tabulares, la letra de la Mesa separa también los dos puntos y el punto: «Listo : descarga cada archivo .»
+      igual(W.getComputedStyle(q('.detail[data-dlg="copia"] .cp-estado')).fontVariantNumeric, 'normal', 'la línea de estado lleva cifras tabulares');
+    } finally { L.vuelve(); await cpFin(); }
+  });
+
+  prueba('FX4', '«Cancelar» a la vista mientras prepara (D-364): para de preparar (ni una huella más), cierra, suelta la mesa y deja exportar otra vez sin recargar; lo ya descargado se queda; sin nada que preparar, no hay «Cancelar»', async () => {
+    await cpSembrar();
+    const L = fxLento(150);
+    try {
+      const p = M.copia.exportar();
+      const b = await hasta(() => q('.detail[data-dlg="copia"] [data-cp="cancelar"]'), 3000, '«Cancelar» a la vista');
+      ok(b.offsetParent !== null && /Cancelar/.test(b.textContent), '«Cancelar» no se ve');
+      await hasta(() => /Preparando/.test(fxEstado()), 8000, 'que empiece a preparar');
+      b.click(); const quedaba = L.n.v;
+      const r = await p; ok(r && r.cancelled, 'no dice que se canceló: ' + json(r));
+      ok(!fxDlg(), 'el diálogo sigue abierto'); ok(!M._in.xfer.ocupado(), 'la mesa se queda ocupada');
+      ok(/Exportación cancelada/.test(fxToasts()), 'no lo dice: ' + fxToasts());
+      await espera(700); ok(L.n.v <= quedaba + 1, `siguió calculando huellas tras cancelar: ${quedaba} → ${L.n.v}`);
+      L.vuelve();
+      const r2 = await M.copia.exportar(); ok(r2 && r2.ok && fxDlg(), 'no deja exportar otra vez: ' + json(r2));
+      ok(!q('.detail[data-dlg="copia"] [data-cp="cancelar"]:not([hidden])'), 'preparada entera, sigue «Cancelar»');
+    } finally { L.vuelve(); await cpFin(); }
+  });
+
+  prueba('FX5', 'Abrir «Exportar» con uno ya abierto lo dice, en vez de no hacer nada, y no toca el que hay (D-364)', async () => {
+    await cpSembrar();
+    try {
+      await M.copia.exportar(); const d = fxDlg(); ok(d, 'sin el diálogo');
+      M._in.clearToasts && M._in.clearToasts();
+      const r = await M.copia.exportar();
+      ok(r && r.error && fxDlg() === d && qa('.detail[data-dlg="copia"] [data-cp="bajar"]').length, 'se perdió el diálogo: ' + json(r));
+      ok(/«Exportar» ya está abierto/.test(fxToasts()), 'no dice que ya está abierto: ' + fxToasts());
+    } finally { await cpFin(); }
+  });
+
+  prueba('FX6', 'Al terminar la copia completa salen la revisión del mes abierto y los huecos de foto de otros meses (D-364, D-037, D-040), dentro del diálogo y sin quitarle las descargas; sin nada que mirar, nada', async () => {
+    await cpSembrar();
+    try {
+      await M.open(`${CLIENTE}-${MES}`);
+      await abrirEditor('r2'); accion('sl-add'); const p = ed().i; compDe(p).els.push(huecoEl('hx', 0.1, 0.1, 0.8, 0.8)); await aplicarEditor();
+      await hasta(() => (M.plan().find(x => x.slotId === 'r2') || {})['hueco vacío'], 4000, 'el hueco vacío');
+      // un hueco en un mes que no está abierto: el mismo, guardado como el de octubre
+      await M.flush();
+      const mio = (await M._in.idbAll('boards')).find(b => b.key === `${CLIENTE}-${MES}`);
+      await M._in.idbPut('boards', `${CLIENTE}-2026-10`, { ...JSON.parse(JSON.stringify(mio)), key: `${CLIENTE}-2026-10`, month: '2026-10' });
+      const r = await M.copia.exportar(); ok(r && r.ok, 'no se preparó: ' + json(r));
+      const rev = await hasta(() => q('.detail[data-dlg="copia"] .cp-rev:not([hidden])'), 15000, 'la revisión dentro del diálogo');
+      ok(fxDlg() && qa('.detail[data-dlg="copia"] [data-cp="bajar"]').length >= 3, 'se perdieron las descargas');
+      ok(!q('.detail[data-dlg="revisar"]') && !q('.detail[data-dlg="huecos"]'), 'se abrió otro diálogo encima');
+      const t = rev.textContent;
+      ok(/hueco de foto vacío/i.test(t) && /Carrusel 1\.2|Carrusel 1\.1/.test(t), 'no dice el hueco del mes abierto: ' + t);
+      ok(/octubre 2026/i.test(t) && /otros meses/.test(t), 'no dice el hueco del otro mes: ' + t);
+      ok(!rev.querySelector('button, a'), 'los puntos se pulsan y cerrarían la copia');
+    } finally { await cpFin(); }
+  });
+
+  prueba('FX7', 'Importar (D-364): «Cancelar» vale también «preparando la copia» y al leer un .json, sin importar nada; guardando los registros sale apagado y dice por qué', async () => {
+    await cpSembrar();
+    try {
+      const ar = await cpExportar();
+      const json0 = await M.exportAll({ returnBlob: true });
+      await M._test.vaciarTodo();
+      // a) la copia, en «Preparando la copia…» (tras comprobar las huellas)
+      const det = () => q('.detail');
+      const alVer = (fn) => { const mo = new W.MutationObserver(() => { if (fn()) mo.disconnect(); }); mo.observe(det(), { childList: true, subtree: true, characterData: true, attributes: true }); return mo; };
+      let pulsado = false;
+      const mo = alVer(() => { const pr = det().querySelector('.cp-prog'), b = det().querySelector('[data-cp="parar"]'); if (pr && /Preparando la copia/.test(pr.textContent) && b && !b.disabled) { pulsado = true; b.click(); return true; } return false; });
+      const pa = M.importData(cpArchivos(ar));
+      const ra = await Promise.race([pa, hasta(() => q('.detail[data-dlg="xfer-confirm"]'), 15000, 'confirmación').then(() => { M._in.closeDetail(); return { confirmo: true }; })]);
+      mo.disconnect();
+      ok(pulsado, 'no llegó a «Preparando la copia…»');
+      ok(ra && ra.cancelled && !ra.confirmo, '«Cancelar» no hizo nada al preparar: salió la confirmación ' + json(ra));
+      igual((await M._in.idbAll('boards')).length, 0, 'importó algo');
+      // b) un .json: leyendo, con «Cancelar»
+      let pb = null;
+      const mo2 = alVer(() => { const b = det().querySelector('[data-cp="parar"]'); if (b && !b.disabled) { pb = b.textContent; b.click(); return true; } return false; });
+      const pj = M.importData(json0);
+      const rj = await Promise.race([pj, hasta(() => q('.detail[data-dlg="xfer-confirm"]'), 20000, 'confirmación .json').then(() => { M._in.closeDetail(); return { confirmo: true }; })]);
+      mo2.disconnect();
+      ok(pb === 'Cancelar', 'al leer un .json no hay «Cancelar»');
+      ok(rj && rj.cancelled && !rj.confirmo, '«Cancelar» no paró el .json: ' + json(rj));
+      igual((await M._in.idbAll('boards')).length, 0, 'importó algo del .json');
+      ok(!M._in.xfer.ocupado(), 'la mesa se queda ocupada');
+      // c) guardando los registros: apagado y dice por qué
+      let visto = null;
+      const mo3 = alVer(() => { const dd = det(), b = dd.querySelector('.xparar'), por = dd.querySelector('.cp-porque'); if (b && b.disabled && por && por.textContent) { visto = por.textContent; return true; } return false; });
+      const rc = await M.importData(cpArchivos(ar), { confirm: false }); mo3.disconnect();
+      ok(rc && rc.ok, 'no importó: ' + json(rc));
+      ok(visto && /ya no se puede cancelar/.test(visto), 'guardando los registros no dice por qué está apagado: ' + visto);
+    } finally { await cpFin(); }
   });
 
   // ---------- el diario de cambios (D-250) ----------
@@ -19339,6 +19496,408 @@
   });
 
 
+  // ---------- «Del cliente» y las flechas de mes en el iPhone (ajustes de la 4.55, lote 1; D-365) ----------
+  const fxHilo = (pid, texto, extra = []) => ({ pid, version: 1, decision: null, sinLeer: 1, ultima: '2026-11-02T10:00:00Z', puedeEscribir: false,
+    items: [{ id: 'c-' + pid, de: 'cliente', autor: 'Ana', hora: '2026-11-02T10:00:00Z', texto, diapositiva: null, vieja: false, resuelto: false, pidioCambios: false }].concat(extra.map((t, i) => ({ id: 'x' + pid + i, de: 'cliente', autor: 'Ana', hora: '2026-11-03T10:00:00Z', texto: t, diapositiva: null, vieja: false, resuelto: false, pidioCambios: false }))) });
+  const fxTexto = () => W.document.getElementById('movil').textContent;
+
+  prueba('FX8', 'iPhone: «Del cliente» se relee al abrir cada publicación y al volver al mes, sin perder lo de antes ni releer al repintar (D-365)', async () => {
+    const key = await tableroMovil();
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key);
+      let n = 0; const nuevos = [];
+      M.web.conversacion = async () => { n++; return { porSlot: { r1: fxHilo('p1', 'hilo uno'), r2: fxHilo('p2', 'hilo dos', nuevos.slice()) } }; };
+      M.web.leido = () => {};
+      try {
+        await irMovil(`#mes/${key}/lista`, '#movil .mesnav'); await hasta(() => n >= 1, 4000, 'la primera lectura'); await espera(200);
+        const n1 = n;
+        await irMovil(`#pub/${key}/r2`, '#movil .hilo'); await hasta(() => n > n1, 4000, 'la relectura al abrir la publicación');
+        nuevos.push('comentario nuevo'); const n2 = n;
+        await irMovil(`#pub/${key}/r1`, '#movil .hilo'); await hasta(() => n > n2, 4000, 'la relectura al abrir otra');
+        await irMovil(`#pub/${key}/r2`, '#movil .hilo');
+        await hasta(() => /comentario nuevo/.test(fxTexto()), 4000, 'el comentario nuevo al volver a abrirla');
+        const n3 = n;
+        await irMovil(`#mes/${key}/lista`, '#movil .mesnav'); await hasta(() => n > n3, 4000, 'la relectura al volver al mes');
+        const n4 = n; await espera(600); igual(n, n4, 'relee al repintar la misma pantalla');
+        // sin red al releer: lo de antes se queda y lo dice
+        await irMovil(`#pub/${key}/r2`, '#movil .hilo'); await espera(300);
+        M.web.conversacion = async () => { n++; throw new Error('sin red'); };
+        await irMovil(`#mes/${key}/lista`, '#movil .mesnav'); await espera(200);
+        await irMovil(`#pub/${key}/r2`, '#movil .hilo');
+        await hasta(() => /No se pudo releer/.test(fxTexto()), 4000, 'que lo diga');
+        ok(/hilo dos/.test(fxTexto()) && W.document.querySelector('#movil [data-a="reconv"]'), 'se perdió lo de antes o no deja reintentar');
+      } finally { await C.fin(); }
+    });
+  });
+
+  prueba('FX9', 'iPhone: en una colab, al pasar al tablero del otro cliente nunca se ve ni se marca leído el hilo del primero, aunque la lectura tarde (D-365)', async () => {
+    const keyA = await tableroMovil();
+    const rb = await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(2, 'Carrusel')], past: [], force: true });
+    ok(rb && rb.key, 'el mes del otro cliente'); const keyB = rb.key; await M.flush();
+    await enMovilPagina(async () => {
+      const C = await nubeCara(keyA), leidos = [];
+      M.web.conversacion = async B => { if (B.client === CLIENTE2) { await espera(1200); return { porSlot: { r2: fxHilo('pid-de-b', 'hilo del segundo') } }; } return { porSlot: { r2: fxHilo('pid-de-a', 'hilo del primero') } }; };
+      M.web.leido = pid => leidos.push(pid);
+      try {
+        await irMovil(`#pub/${keyA}/r2`, '#movil .hilo'); ok(/hilo del primero/.test(fxTexto()), 'no se ve el hilo del primero');
+        await espera(1700); leidos.length = 0;   // su «leído», ya apuntado
+        W.location.hash = `#pub/${keyB}/r2`;
+        let visto = false; const t0 = Date.now();
+        while (Date.now() - t0 < 900) { if (W.location.hash === `#pub/${keyB}/r2` && /hilo del primero/.test(fxTexto())) visto = true; await espera(30); }
+        ok(!visto, 'se ve el hilo del primer cliente en la publicación del segundo');
+        await hasta(() => /hilo del segundo/.test(fxTexto()), 5000, 'el hilo del segundo');
+        await espera(1700);
+        ok(!leidos.includes('pid-de-a'), 'se marcó leído el hilo del otro cliente: ' + json(leidos));
+        ok(leidos.includes('pid-de-b'), 'no se marcó el suyo: ' + json(leidos));
+      } finally { await C.fin(); }
+    });
+  });
+
+  prueba('FX10', 'iPhone: con un tablero de un mes cada uno, las flechas de mes llevan al anterior y al siguiente desde el primer dibujo, aunque lo del cliente llegue a la vez; los vecinos vienen de la vista del núcleo (D-365)', async () => {
+    const key = await tableroMovil();
+    const base = (await M._in.idbAll('boards')).find(b => b.key === key);
+    for (const m of ['2026-10', '2026-12']) await M._in.idbPut('boards', `${CLIENTE}-${m}`, { ...JSON.parse(JSON.stringify(base)), key: `${CLIENTE}-${m}`, month: m, slots: [] });
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key);
+      M.web.conversacion = async () => ({ porSlot: {} });   // llega enseguida, mientras la pantalla aún se está leyendo
+      try {
+        await irMovil('#clientes', '#movil .titulo');
+        await irMovil(`#mes/${key}/lista`, '#movil .mesnav'); await espera(500);
+        const fl = () => [...W.document.querySelectorAll('#movil .mesnav .flechas button')].map(b => [b.disabled, b.dataset.ir || '']);
+        igual(fl(), [[false, `mes/${CLIENTE}-2026-10/lista`], [false, `mes/${CLIENTE}-2026-12/lista`]], 'las flechas de noviembre');
+        igual(M._in.movil.vista().vecinos, { ant: `${CLIENTE}-2026-10`, sig: `${CLIENTE}-2026-12` }, 'la vista del núcleo no da los vecinos');
+        W.document.querySelector('#movil .mesnav .flechas button:last-child').click();
+        await hasta(() => W.location.hash === `#mes/${CLIENTE}-2026-12/lista` && /diciembre/i.test((W.document.querySelector('#movil .mesnav h1') || {}).textContent || ''), 6000, 'diciembre'); await espera(500);
+        igual(fl(), [[false, `mes/${key}/lista`], [true, '']], 'las flechas de diciembre');
+      } finally { await C.fin(); }
+    });
+  });
+
+  // ---------- el portal con su código de verdad y un servidor falso en la propia prueba (ajustes de la 4.55, lote 1) ----------
+  async function portalFalso({ w = 844, h = 390, tablas = {} }, fn) {
+    const html = await (await fetch('../portal/index.html', { cache: 'no-store' })).text();
+    const cuerpo = html.slice(html.indexOf('<body>') + 6, html.indexOf('</body>'));
+    const f = document.createElement('iframe'); f.style.cssText = `position:fixed;left:0;top:0;width:${w}px;height:${h}px;border:0;z-index:9999;background:#fff`;
+    const x = Date.now();
+    f.srcdoc = `<!doctype html><html lang="es"><meta charset="utf-8"><link rel="stylesheet" href="../portal/portal.css?fx=${x}"><link rel="stylesheet" href="../portal/feed-mov.css?fx=${x}"><body>${cuerpo}</body></html>`;
+    const previas = Object.keys(localStorage).filter(k => k.startsWith('portal-'));
+    await new Promise(r => { f.onload = r; document.body.append(f); });
+    const V = f.contentWindow, d = V.document;
+    V.PORTAL_CONFIG = { url: 'https://portal.invalid', publica: 'publica-de-prueba' };
+    V.Supa = { crear: () => ({ usuario: () => ({ id: 'u-fx', email: 'ana@prueba.test' }), leer: async ruta => (tablas[ruta.split('?')[0]] || []).map(r => ({ ...r })), firmar: async (b, rs) => Object.fromEntries(rs.map(r => [r, 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="8" height="10"/>'])), insertar: async () => {}, alCambiar: () => {}, pedirCodigo: async () => {}, verificarCodigo: async () => {}, salir: async () => {} }) };
+    try {
+      for (const src of ['../portal/feed-mov.js', '../portal/portal.js']) await new Promise((res, rej) => { const sc = d.createElement('script'); sc.src = `${src}?fx=${x}`; sc.async = false; sc.onload = res; sc.onerror = () => rej(new Error('no carga ' + src)); d.body.append(sc); });
+      await hasta(() => d.querySelector('.pv .cols'), 8000, 'el portal pintado');
+      await espera(200);
+      return await fn(V, d);
+    } finally { f.remove(); Object.keys(localStorage).filter(k => k.startsWith('portal-') && !previas.includes(k)).forEach(k => localStorage.removeItem(k)); }
+  }
+  const fxDia = n => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+  const fxPortal = (o = {}) => {
+    const mes = fxDia(0).slice(0, 7), img = n => ({ ruta: `c1/${n}.jpg`, mini: `c1/${n}-m.jpg`, an: 1080, al: 1350 });
+    return {
+      miembros: [{ cliente_id: 'c1', nombre: 'Ana', observa: !!o.observa }],
+      clientes: [{ id: 'c1', nombre: 'Cliente de la prueba', handle: 'cliente.prueba', foto: null, cuota_cent: 10000, proxima_emision: null }],
+      publicaciones: [{ cliente_id: 'c1', pid: 'p1', mes, orden: 1, tipo: 'carrusel', nombre: 'Carrusel 1.1', fecha: new Date(Date.now() + 5 * 864e5).toISOString(), sin_hora: false, caption: 'Un caption de prueba con texto suficiente para ocupar un par de líneas en la ficha.', imagenes: [img(1), img(2), img(3)], estado: 'por_aprobar', version: 'v1', visible: true, enviada: new Date().toISOString() }],
+      pagos: o.pagos || []
+    };
+  };
+  // cada cosa, dentro de la zona segura [izq, ancho − der], sin que el fondo deje de llegar a los lados
+  function fxDentro(V, d, sel, izq = 59, der = 59) {
+    const e = d.querySelector(sel); ok(e, 'falta ' + sel);
+    const r = e.getBoundingClientRect(); ok(r.width > 0, sel + ' no se ve');
+    ok(r.left >= izq - 0.5 && r.right <= V.innerWidth - der + 0.5, `${sel} se mete bajo la muesca: ${Math.round(r.left)}–${Math.round(r.right)} de ${V.innerWidth}`);
+    return r;
+  }
+  const fxASangre = (V, d, sel) => { const r = d.querySelector(sel).getBoundingClientRect(); ok(r.left <= 0.5 && r.right >= V.innerWidth - 0.5, `${sel} no llega a los lados: ${Math.round(r.left)}–${Math.round(r.right)} de ${V.innerWidth}`); };
+
+  prueba('FX11', 'Portal en el iPhone apaisado (D-366): la barra, el aviso de la cuenta que solo mira, la ficha (con «volver»), los diálogos, los avisos de abajo y las flechas del feed y del carrusel quedan dentro de la zona segura a izquierda y derecha, sin perder el fondo a sangre; los diálogos, con alto máximo y deslizables', async () => {
+    const css = await (await fetch('../portal/portal.css', { cache: 'no-store' })).text();
+    ok(/--sa-l:env\(safe-area-inset-left,0px\)/.test(css) && /--sa-r:env\(safe-area-inset-right,0px\)/.test(css), 'portal.css no toma la zona segura de los lados del iPhone');
+    const zona = d => { d.documentElement.style.setProperty('--sa-l', '59px'); d.documentElement.style.setProperty('--sa-r', '59px'); };
+    await portalFalso({ tablas: fxPortal({ observa: true }) }, async (V, d) => {
+      zona(d); await espera(150);
+      fxDentro(V, d, '.pv-obs-t'); fxASangre(V, d, '.pv-obs');
+      fxDentro(V, d, '.pv-top'); fxDentro(V, d, '.pv-marca'); fxDentro(V, d, '.cols'); fxDentro(V, d, '.pie');
+      for (const b of d.querySelectorAll('.fm-fl')) { const r = b.getBoundingClientRect(); if (r.width) ok(r.left >= 58.5 && r.right <= V.innerWidth - 58.5, 'una flecha de mes bajo la muesca'); }
+    });
+    await portalFalso({ tablas: fxPortal() }, async (V, d) => {
+      zona(d); await espera(150);
+      const cas = d.querySelector('.feed button'); ok(cas, 'sin casillas en el feed'); cas.click();
+      await hasta(() => d.querySelector('.hoja .acc .btn'), 4000, 'la ficha');
+      await espera(250);
+      fxASangre(V, d, '.hoja'); fxASangre(V, d, '.hoja>.ig');
+      fxDentro(V, d, '.hoja .bk'); fxDentro(V, d, '.hoja .car-b.sig'); fxDentro(V, d, '.hoja .ig-n'); fxDentro(V, d, '.hoja .dl-h h2'); fxDentro(V, d, '.hoja .cap'); fxDentro(V, d, '.hoja .escr textarea');
+      for (const b of d.querySelectorAll('.hoja .acc .btn')) { const r = b.getBoundingClientRect(); ok(r.left >= 58.5 && r.right <= V.innerWidth - 58.5, 'un botón de la ficha bajo la muesca'); }
+      const acc = d.querySelector('.hoja .acc').getBoundingClientRect(); ok(acc.left <= 0.5 && acc.right >= V.innerWidth - 0.5, 'la barra de aprobar no llega a los lados');
+      // la flecha de atrás, visible al pasar de foto
+      const sig = d.querySelector('.hoja .car-b.sig'); sig.click(); await espera(500); fxDentro(V, d, '.hoja .car-b.ant');
+      // el diálogo «¿Qué cambiarías?», también con el teclado abierto: dentro y deslizable
+      [...d.querySelectorAll('.hoja .acc .btn')].find(b => /Pedir cambios/.test(b.textContent)).click();
+      await hasta(() => d.querySelector('.dlg textarea'), 3000, 'el diálogo');
+      await espera(250);
+      fxASangre(V, d, '.dlg'); fxDentro(V, d, '.dlg textarea'); fxASangre(V, d, '.dlg .fila'); fxDentro(V, d, '.dlg .fila .btn:first-child'); fxDentro(V, d, '.dlg .fila .btn:last-child');
+      d.documentElement.style.setProperty('--kb', '200px'); await espera(150);
+      const dlg = d.querySelector('.dlg'), r = dlg.getBoundingClientRect();
+      ok(r.top >= -0.5 && r.bottom <= V.innerHeight - 200 + 0.5, `con el teclado el diálogo se sale: ${Math.round(r.top)}–${Math.round(r.bottom)} de ${V.innerHeight - 200}`);
+      ok(/auto|scroll/.test(V.getComputedStyle(dlg).overflowY) && dlg.scrollHeight > dlg.clientHeight, 'el diálogo no se desliza cuando no cabe');
+      dlg.scrollTop = dlg.scrollHeight; const env = [...dlg.querySelectorAll('.btn')].pop().getBoundingClientRect(); ok(env.bottom <= r.bottom + 1, 'no se puede llegar a «Enviar»');
+      // un aviso de abajo, largo
+      const t = d.createElement('div'); t.className = 'toast'; t.textContent = 'Un aviso bastante largo que no cabe en una sola línea en un teléfono y se parte en dos o tres líneas para leerlo entero sin problema'; d.body.append(t); await espera(300);
+      fxDentro(V, d, '.toast');
+    });
+  });
+
+  prueba('FX12', 'El portal enseña una factura pendiente que solo tiene fecha de vencimiento, como la «Vista cliente» (D-368): cuenta en «Pendiente de pago», sale «venció el…» (en rojo) o «vence el…»; sin emisión ni vencimiento, o con la emisión más adelante, no sale', async () => {
+    const f = (id, o) => ({ id, cliente_id: 'c1', periodo: '2026-0' + id.slice(1), concepto: null, importe_cent: 10000, factura: 'F-' + id.slice(1), emitida: null, vence: null, cobrada: null, pdf: null, ...o });
+    const pagos = [f('f1', { vence: fxDia(-3) }), f('f2', { vence: fxDia(20) }), f('f3', {}), f('f4', { emitida: fxDia(30), vence: fxDia(45) })];
+    await portalFalso({ w: 1200, h: 900, tablas: fxPortal({ pagos }) }, async (V, d) => {
+      await hasta(() => d.querySelector('[data-p="pagos"]'), 4000, '«Tus pagos»');
+      const sec = d.querySelector('[data-p="pagos"]'), filas = [...sec.querySelectorAll('.fac')].map(b => b.textContent);
+      igual(filas.length, 2, 'las facturas que salen: ' + json(filas));
+      ok(filas[0].includes('F-1') && /venció el/.test(filas[0]) && filas[1].includes('F-2') && /vence el/.test(filas[1]), 'lo que dicen: ' + json(filas));
+      ok(sec.querySelectorAll('.fac .est.ven').length === 1 && sec.querySelectorAll('.fac .est.pen').length === 1 && !sec.querySelector('.fac .est.sin'), 'sus marcas');
+      ok(/Pendiente de pago\s*200\s€/.test(sec.querySelector('.pend-pago').textContent.replace(/ /g, ' ')) && /1 vencida/.test(sec.textContent), 'el total pendiente: ' + sec.textContent);
+      ok(!/F-3|F-4/.test(sec.textContent), 'sale una factura que aún no se debe');
+    });
+  });
+
+  prueba('FX13', 'La tarjeta de un esporádico pinta su próxima reunión con el icono de reunión, y una sesión con el de sesión (D-368)', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await seListo();
+      const P = M.personal._p, now = new Date(M._in.ahora()).toISOString(), hoyP = M._in.hoy();
+      const e = { id: 'esfx13a', tipo: 'esporadico', txt: 'Con reunión', creada: now, at: now }, e2 = { id: 'esfx13b', tipo: 'esporadico', txt: 'Con sesión', creada: now, at: now };
+      await P.hacer([{ id: e.id, despues: e }, { id: e2.id, despues: e2 }]);
+      await M.sesiones._test.crear({ txt: 'Reunión suya', clase: 'reunion', fecha: hoyP, hora: '11:00', cliente: e.id, visible: false });
+      await M.sesiones._test.crear({ txt: 'Sesión suya', clase: 'foto', fecha: hoyP, hora: '12:00', cliente: e2.id });
+      await M.personal.set({ plg: { tareas: true, clientes: false, avisos: false } }); await M.personal.render();
+      q('[data-pp="cvista"][data-v="esporadicos"]').click(); await espera(80);
+      const ico = id => { const x = q(`[data-pp="esp"][data-id="${id}"] .pp-esf svg`); return x ? x.innerHTML : ''; };
+      ok(/M16 21v-2a4 4 0 0 0-4-4H6/.test(ico(e.id)), 'una reunión no lleva el icono de reunión: ' + ico(e.id));
+      ok(ico(e2.id) && !/M16 21v-2a4 4 0 0 0-4-4H6/.test(ico(e2.id)), 'una sesión no lleva su icono: ' + ico(e2.id));
+    } finally { await sinTareas(); paginaCerrada(); }
+  });
+
+  prueba('FX14', '«Editar cliente» → «Datos» de un cliente de solo contenido no pide «Inicio de ciclo», y guardar no le cambia el que tenía; el de redes sigue pidiéndolo (D-368)', async () => {
+    await tableroContenido();
+    try {
+      await M.updateClient(CLIENTE, { cycleDay: 15 });
+      await M._in.cob.dlgCliente(CLIENTE, 'datos');
+      const f = await hasta(() => q('.detail [data-form="editclient"]'), 3000, '«Editar cliente»');
+      ok(!f.querySelector('#ec-cycle') && !/Inicio de ciclo/.test(f.textContent), 'pide «Inicio de ciclo» a un cliente de solo contenido');
+      ok(f.querySelector('#ec-entregas'), 'sin «Entregas antes del día»');
+      f.querySelector('#ec-name').value = NOMBRE; f.requestSubmit();
+      await hasta(() => !q('.detail:not([hidden]) [data-form="editclient"]'), 4000, 'que guarde');
+      igual((M._in.CL.find(c => c.id === CLIENTE) || {}).cycleDay, 15, 'guardar le cambió el inicio de ciclo');
+      await M.updateClient(CLIENTE, { servicio: 'redes' }); await M.open(`${CLIENTE}-${MES}`); await espera(150);
+      await M._in.cob.dlgCliente(CLIENTE, 'datos');
+      const f2 = await hasta(() => q('.detail [data-form="editclient"]'), 3000, '«Editar cliente» de redes');
+      ok(f2.querySelector('#ec-cycle'), 'el de redes ya no pide «Inicio de ciclo»');
+    } finally {
+      M._in.closeDetail();
+      await M.updateClient(CLIENTE, { cycleDay: 1, servicio: 'redes' }).catch(() => {});
+      await M._test.vaciarTodo(); await sinTareas(); await tablero([pub(1)]);
+    }
+  });
+
+  prueba('FX15', 'Restos de Notion fuera (D-367): MESA.calendario ya no tiene «cambios» (la ventana de «cambiadas»); ni la carga que quitaría publicaciones ni el porqué mal escrito nombran Notion; las llamadas de Notion siguen diciendo que está apagado (D-361)', async () => {
+    await tablero([pub(1), pub(2)]);
+    await poner('r2', [await foto('fx15.jpg')]);   // con una foto, quitarla se rechaza (D-360)
+    ok(M.calendario && !('cambios' in M.calendario), 'MESA.calendario.cambios sigue');
+    let err = '';
+    try { const r = await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1)], past: [] }); err = (r && r.error) || ''; } catch (e) { err = e.message; }
+    ok(/quitaría una publicación/.test(err) && !/Notion/.test(err), 'el mensaje de la carga que quitaría: ' + json(err));
+    const i = await M.informe.cargar(CLIENTE, '2026-11', { porque: { partes: [{ t: 'Test de horario', x: 'A las 13:00.' }] } });
+    ok(/etiqueta de trabajo.*«Horario»/.test(json(i)) && !/Notion/.test(json(i)), 'el error del porqué: ' + json(i));
+    ok(/Notion está apagado/.test(json(await M.startUpload({}))), 'startUpload ya no dice que está apagado');
+    ok(!/Notion/.test(q('.appbar').textContent + q('.bar').textContent + q('.side > .cal').textContent), 'la pantalla nombra Notion');
+  });
+
+  // ---------- arreglos de la revisión en frío del lote 1 (D-364, D-365, D-366) ----------
+  const fxSinAvisos = () => qa('.toasts > *').forEach(t => t.remove());
+  const fxBajar = () => qa('.detail[data-dlg="copia"] [data-cp="bajar"]');
+  // el portal, con «¿Qué cambiarías?» abierto sobre el carrusel (el caso más alto: con «Sobre la diapositiva»)
+  async function fxPedir(V, d) {
+    d.querySelector('.feed button').click();
+    await hasta(() => d.querySelector('.hoja .acc .btn'), 4000, 'la ficha'); await espera(250);
+    [...d.querySelectorAll('.hoja .acc .btn')].find(b => /Pedir cambios/.test(b.textContent)).click();
+    await hasta(() => d.querySelector('.dlg textarea'), 3000, 'el diálogo');
+    const ta = d.querySelector('.dlg textarea'); ta.value = 'La foto, un poco más clara'; ta.dispatchEvent(new V.Event('input', { bubbles: true })); await espera(200);
+    return d.querySelector('.dlg');
+  }
+
+  prueba('FX16', 'Portal con el teclado abierto en un iPhone tumbado (D-366): al pedir cambios, «Cancelar» y «Enviar» se ven y se pulsan sin deslizar, y lo que se escribe queda a la vista encima de ellos; de pie, como estaban', async () => {
+    for (const c of [{ w: 844, h: 390, kb: 160 }, { w: 667, h: 375, kb: 170 }]) {
+      await portalFalso({ w: c.w, h: c.h, tablas: fxPortal() }, async (V, d) => {
+        d.documentElement.style.setProperty('--sa-l', '47px'); d.documentElement.style.setProperty('--sa-r', '47px');
+        const dlg = await fxPedir(V, d);
+        // el teclado, como lo cuenta el iPhone: encoge lo que se ve y avisa
+        Object.defineProperty(V.visualViewport, 'height', { configurable: true, get: () => V.innerHeight - c.kb });
+        V.visualViewport.dispatchEvent(new V.Event('resize')); await espera(350);
+        igual(d.documentElement.style.getPropertyValue('--kb'), c.kb + 'px', 'el alto del teclado');
+        const r = dlg.getBoundingClientRect(), tope = V.innerHeight - c.kb, fila = dlg.querySelector('.fila').getBoundingClientRect(), donde = `${c.w}×${c.h}`;
+        for (const b of dlg.querySelectorAll('.fila .btn')) {
+          const x = b.getBoundingClientRect();
+          ok(x.top >= r.top - .5 && x.bottom <= Math.min(r.bottom, tope) + .5, `${donde}: «${b.textContent}» fuera de la vista: ${Math.round(x.top)}–${Math.round(x.bottom)}, el diálogo ${Math.round(r.top)}–${Math.round(r.bottom)}`);
+          const en = d.elementFromPoint(x.left + x.width / 2, x.top + x.height / 2); ok(en === b || b.contains(en), `${donde}: «${b.textContent}» tapado por ${en && en.className}`);
+        }
+        const ta = dlg.querySelector('textarea').getBoundingClientRect(), visto = Math.min(ta.bottom, fila.top) - Math.max(ta.top, r.top);
+        ok(visto >= 48, `${donde}: del campo se ven ${Math.round(visto)} px sobre los botones`);
+        fxDentro(V, d, '.dlg textarea', 47, 47);
+        const f2 = dlg.querySelector('.fila').getBoundingClientRect(); ok(f2.left <= .5 && f2.right >= V.innerWidth - .5, `${donde}: el fondo de los botones no llega a los lados`);
+      });
+    }
+    // con el teclado ya abierto (se venía escribiendo en la ficha): el campo, a la vista desde que sale
+    await portalFalso({ w: 844, h: 390, tablas: fxPortal() }, async (V, d) => {
+      d.documentElement.style.setProperty('--kb', '160px');
+      const dlg = await fxPedir(V, d), r = dlg.getBoundingClientRect(), fila = dlg.querySelector('.fila').getBoundingClientRect(), ta = dlg.querySelector('textarea').getBoundingClientRect();
+      const visto = Math.min(ta.bottom, fila.top) - Math.max(ta.top, r.top); ok(visto >= 48, `con el teclado ya abierto, del campo se ven ${Math.round(visto)} px`);
+    });
+    await portalFalso({ w: 390, h: 844, tablas: fxPortal() }, async (V, d) => {
+      const dlg = await fxPedir(V, d), r = dlg.getBoundingClientRect();
+      const env = [...dlg.querySelectorAll('.fila .btn')].pop().getBoundingClientRect(), ta = dlg.querySelector('textarea').getBoundingClientRect();
+      igual([Math.round(r.bottom - env.bottom), Math.round(env.top - ta.bottom)], [24, 12], 'de pie, los márgenes de abajo cambiaron');
+      ok(dlg.querySelector('.fila').getBoundingClientRect().top - ta.bottom >= 2.5, 'la fila de botones tapa el aro de foco del campo');
+    });
+  });
+
+  prueba('FX17', '«Exportar» (D-364): cerrar a medias (×, Esc o fuera) lo dice como «Cancelar»; «Cancelar» no se mueve, devuelve el foco al símbolo y el segundo clic de un doble clic no cae debajo; el diálogo tiene nombre y «Lanzada» se oye', async () => {
+    await cpSembrar();
+    const L = fxLento(150);
+    try {
+      // 1. cerrado mientras lee
+      fxSinAvisos(); const p0 = M.copia.exportar(); M._in.closeDetail(); await p0; await espera(80);
+      ok(/Exportación cancelada: no se ha descargado nada/.test(fxToasts()), 'cerrado mientras leía, no lo dice: ' + fxToasts());
+      // 2. cerrado a medias: no «ha quedado 1 archivo»
+      fxSinAvisos(); const p1 = M.copia.exportar(); await hasta(() => /Preparando/.test(fxEstado()), 8000, 'que prepare'); M._in.closeDetail(); await p1; await espera(80);
+      ok(/Exportación cancelada/.test(fxToasts()) && !/sin descargar/.test(fxToasts()), 'cerrado a medias: ' + fxToasts());
+      // 3. «Cancelar», quieto desde el primer dibujo, con las filas y con el pie
+      M.copia._test.parteMax(60000);
+      const p2 = M.copia.exportar(), can = () => q('.detail[data-dlg="copia"] [data-cp="cancelar"]'), arriba = () => Math.round(can().getBoundingClientRect().top);
+      const t0 = arriba();
+      igual(q('.detail .card').getAttribute('aria-labelledby'), (q('.detail .card h3') || {}).id || 'sin id', 'el diálogo sin nombre');
+      await hasta(() => fxBajar().length > 3, 8000, 'las filas'); const t1 = arriba();
+      await hasta(() => fxBajar()[0] && !fxBajar()[0].disabled && /Preparando/.test(fxEstado()), 20000, 'una lista con otras preparándose');
+      await conDescarga(async cap => { fxBajar()[0].click(); await hasta(() => cap(), 3000, 'la descarga'); });
+      ok(/^Lanzada: /.test(fxBajar()[0].getAttribute('aria-label')), 'el nombre del botón no dice «Lanzada»: ' + fxBajar()[0].getAttribute('aria-label'));
+      ok(q('.detail .cp-pie').textContent.length > 0, 'sin el pie'); const t2 = arriba();
+      igual([t1, t2], [t0, t0], '«Cancelar» cambia de sitio');
+      fxSinAvisos(); can().click(); await p2; await espera(80);
+      ok(/Comprueba en el SSD lo que ya habías lanzado/.test(fxToasts()), 'el aviso al cancelar con algo lanzado: ' + fxToasts());
+      ok(W.document.activeElement && W.document.activeElement.matches('.appbar .brand'), 'el foco se pierde: ' + (W.document.activeElement || {}).tagName);
+      const frenado2 = tipo => { const ev = new W.MouseEvent(tipo, { bubbles: true, cancelable: true, detail: 2 }); q('.appbar').dispatchEvent(ev); return ev.defaultPrevented; };
+      ok(frenado2('mousedown') && frenado2('click'), 'el segundo clic del doble clic cae en lo de debajo (o se lleva el foco)');
+      await espera(750); ok(!frenado2('mousedown') && !frenado2('click'), 'un rato después, los dobles clics siguen sin pasar');
+    } finally { L.vuelve(); await cpFin(); }
+  });
+
+  prueba('FX18', '«Exportar» al acabar (D-364): si hay algo que revisar, la línea de arriba lo dice; con un solo hueco, en singular; si no sale ningún archivo no dice «Listo»; un cliente que falla tiene una sola fila', async () => {
+    await cpSembrar();
+    const rev = M.revisar, huecos = M._in.huecosVacios;
+    try {
+      const b = await M.init({ client: CLIENTE, clientName: NOMBRE, month: '2026-10', slots: [{ ...pub(1), id: 'x1' }], past: [], force: true }); ok(b && b.key, 'otro mes'); await M.flush();
+      await M.open(`${CLIENTE}-${MES}`); await espera(150);
+      M.revisar = async () => ({ key: M._in.S.key, puntos: [] }); M._in.huecosVacios = s => (s.id === 'x1' ? [1] : []);
+      await M.copia.exportar();
+      igual(fxEstado(), 'Listo: descarga cada archivo. Revisa lo de abajo.', 'la línea de estado');
+      ok(/Rellénalo en el editor antes de subir o programar esa publicación\./.test(q('.detail .cp-rev').textContent), 'un solo hueco, en plural: ' + q('.detail .cp-rev').textContent);
+      M._in.closeDetail(); await espera(80); M.revisar = rev; M._in.huecosVacios = huecos;
+      M.copia._test.parteMax(60000);
+      const sub = W.crypto.subtle, dig = sub.digest;
+      sub.digest = function (al, x) { return ArrayBuffer.isView(x) ? Promise.reject(new W.DOMException('a propósito', 'OperationError')) : dig.call(sub, al, x); };
+      try {
+        const porCliente = () => { const m = {}; qa('.detail[data-dlg="copia"] .cp-f').forEach(li => { m[li.dataset.a] = (m[li.dataset.a] || 0) + 1; }); return m; };
+        let alPrincipio = 0; const det = q('.detail'), mo = new W.MutationObserver(() => { alPrincipio = Math.max(alPrincipio, ...Object.values(porCliente())); });
+        mo.observe(det, { childList: true, subtree: true });
+        await M.copia.exportar(); mo.disconnect();
+        ok(alPrincipio > 1, 'la prueba no vale: ningún cliente iba a tener varias filas');
+        igual(fxEstado(), 'No se ha podido preparar ningún archivo: pulsa «Reintentar».', 'con todo mal');
+        ok(Object.values(porCliente()).length >= 2 && Object.values(porCliente()).every(n => n === 1), 'un cliente que falla repite filas: ' + json(porCliente()));
+        // al reintentar, su fila sigue siendo una mientras prepara
+        sub.digest = function (al, x) { return ArrayBuffer.isView(x) ? new Promise((r, rej) => setTimeout(() => rej(new W.DOMException('a propósito', 'OperationError')), 500)) : dig.call(sub, al, x); };
+        fxBajar()[0].click(); await espera(150);
+        ok(/Preparando/.test((q('.detail .cp-f .cp-s') || {}).textContent || ''), 'no está reintentando: ' + (q('.detail .cp-f .cp-s') || {}).textContent);
+        ok(Object.values(porCliente()).every(n => n === 1), 'al reintentar salen más filas y las de abajo se mueven: ' + json(porCliente()));
+        await hasta(() => /No se pudo preparar/.test((q('.detail .cp-f .cp-s') || {}).textContent || ''), 8000, 'que vuelva a fallar');
+      } finally { sub.digest = dig; }
+    } finally { M.revisar = rev; M._in.huecosVacios = huecos; await cpFin(); }
+  });
+
+  prueba('FX19', 'Importar (D-364): pedir otra copia con una en marcha lo dice; «Importar la mesa» tiene nombre para el lector de pantalla', async () => {
+    await cpSembrar();
+    try {
+      const ar = await cpExportar();
+      const p1 = M.importData(cpArchivos(ar));
+      await hasta(() => q('.detail:not([hidden])[data-dlg="xfer-confirm"]'), 10000, 'la confirmación');
+      fxSinAvisos(); const r2 = await M.importData(cpArchivos(ar), { confirm: false }); await espera(80);
+      ok(r2 && r2.error && /ya se está importando/.test(fxToasts()), 'la segunda no dice nada: ' + json(r2) + ' · ' + fxToasts());
+      M._in.closeDetail(); await p1;
+      const j = await M.exportAll({ returnBlob: true });
+      const det = q('.detail'); let nombre = null;
+      const mo = new W.MutationObserver(() => { const c = det.dataset.dlg === 'xfer-read' && det.querySelector('.card'); if (c && nombre === null) nombre = (W.document.getElementById(c.getAttribute('aria-labelledby')) || {}).textContent || ''; });
+      mo.observe(det, { childList: true, subtree: true, attributes: true });
+      const p3 = M.importData(new W.File([j], 'copia.json', { type: 'application/json' }));
+      await hasta(() => q('.detail:not([hidden])[data-dlg="xfer-confirm"]'), 8000, 'la confirmación del .json'); mo.disconnect();
+      igual(nombre, 'Importar la mesa', '«Importar la mesa» sin nombre');
+      M._in.closeDetail(); await p3;
+    } finally { await cpFin(); }
+  });
+
+  prueba('FX20', 'iPhone (D-365): «Reintentar» que vuelve a fallar lo dice, y el aviso rojo no queda pegado a la conversación', async () => {
+    const key = await tableroMovil();
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key); let falla = false;
+      M.web.conversacion = async () => { if (falla) throw new TypeError('Failed to fetch'); return { porSlot: { r2: fxHilo('pid-fx20', 'un comentario') } }; };
+      M.web.leido = () => {};
+      try {
+        await irMovil(`#pub/${key}/r2`, '#movil .hilo');
+        falla = true; await irMovil(`#mes/${key}/lista`, '#movil .mesnav'); await irMovil(`#pub/${key}/r2`, '#movil [data-a="reconv"]');
+        const av = W.document.querySelector('#movil .resp-err.antes'), hilo = W.document.querySelector('#movil .hilo');
+        ok(av && hilo && hilo.getBoundingClientRect().top - av.getBoundingClientRect().bottom >= 8, 'el aviso, pegado a la conversación');
+        await espera(600); sinAviso();
+        clicCara('#movil [data-a="reconv"]');
+        await hasta(() => /No se pudo releer\./.test(avisoCara()), 4000, 'el aviso del reintento');
+        // dos toques seguidos: la primera lectura falla pero ya es vieja; la segunda va bien
+        sinAviso(); let veces = 0;
+        M.web.conversacion = async () => { const n = ++veces; await espera(n === 1 ? 200 : 600); if (n === 1) throw new TypeError('Failed to fetch'); return { porSlot: { r2: fxHilo('pid-fx20', 'un comentario') } }; };
+        const re = W.document.querySelector('#movil [data-a="reconv"]'); re.click(); re.click();
+        await espera(1200);
+        igual(veces, 2, 'las dos lecturas');
+        ok(!/No se pudo releer/.test(avisoCara()) && !W.document.querySelector('#movil [data-a="reconv"]'), 'dice que no se pudo releer cuando la última fue bien: ' + avisoCara());
+      } finally { await C.fin(); }
+    });
+  });
+
+  prueba('FX21', 'iPhone, en una colab (D-365): contestar y pasar al otro cliente mientras se envía no borra el borrador del otro; y una lectura vieja que llega tarde no quita «Del cliente» de la publicación que se ve', async () => {
+    const keyA = await tableroMovil();
+    const rb = await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(2, 'Carrusel')], past: [], force: true });
+    ok(rb && rb.key, 'el mes del otro cliente'); const keyB = rb.key; await M.flush();
+    await enMovilPagina(async () => {
+      const C = await nubeCara(keyA), enviados = []; let lentoA = false, lentas = 0;
+      const claves = ['mesa-movil-resp:pid-fx-a', 'mesa-movil-resp:pid-fx-b'];
+      M.web.leido = () => {};
+      M.web.conversacion = async B => { const deB = B.client === CLIENTE2; if (!deB && lentoA) { lentas++; await espera(1500); } return { porSlot: { r2: { ...fxHilo(deB ? 'pid-fx-b' : 'pid-fx-a', deB ? 'hilo del segundo' : 'hilo del primero'), puedeEscribir: true } } }; };
+      M.web.contestar = async (B, slot, t) => { await espera(1200); enviados.push([B.client, t]); return { ok: true }; };
+      const escribe = t => { const x = W.document.querySelector('#movil [data-resp]'); ok(x, 'sin el campo de contestar'); x.value = t; x.dispatchEvent(new W.Event('input', { bubbles: true })); };
+      try {
+        claves.forEach(k => W.localStorage.removeItem(k));
+        await irMovil(`#pub/${keyB}/r2`, '#movil [data-resp]'); escribe('borrador para el segundo');
+        igual(W.localStorage.getItem(claves[1]), 'borrador para el segundo', 'el borrador no se guarda');
+        await irMovil(`#pub/${keyA}/r2`, '#movil [data-resp]'); await hasta(() => /hilo del primero/.test(fxTexto()), 4000, 'su hilo'); escribe('respuesta para el primero');
+        await hasta(() => !W.document.querySelector('#movil [data-a="contestar"]').disabled, 3000, '«Enviar»'); clicCara('#movil [data-a="contestar"]');
+        W.location.hash = `#pub/${keyB}/r2`;
+        await hasta(() => enviados.length === 1, 5000, 'el envío'); await espera(600);
+        igual([W.localStorage.getItem(claves[1]), W.localStorage.getItem(claves[0])], ['borrador para el segundo', null], 'los borradores tras enviar');
+        // la lectura del primero, lenta, llega cuando ya se ve la publicación del segundo
+        lentoA = true; W.location.hash = `#pub/${keyA}/r2`; await espera(250); W.location.hash = `#pub/${keyB}/r2`;
+        await espera(2000); M.movil.pintar(); await espera(150);
+        ok(lentas >= 1, 'la prueba no vale: la lectura lenta no llegó a empezar');
+        ok(/hilo del segundo/.test(fxTexto()) && !/hilo del primero/.test(fxTexto()), 'tras llegar la lectura vieja, «Del cliente» no es el de esta publicación');
+      } finally { claves.forEach(k => W.localStorage.removeItem(k)); await C.fin(); }
+    });
+  });
+
   prueba('MV31', 'Las versiones de las dos páginas (lote 5, D-269): movil.html pide de lo que comparte con index.html la misma versión, y la de mesa.js es la de la Mesa (M.version), en las dos', async () => {
     const tx = async u => (await W.fetch(u + '?mv31=' + Date.now(), { cache: 'no-store' })).text();
     const vs = h => Object.fromEntries([...h.matchAll(/<script[^>]*\ssrc="([^"?]+)\?v=([^"]+)"/g)].map(m => [m[1], m[2]]));
@@ -20601,24 +21160,15 @@
     M._in.closeDetail();
   });
 
-  prueba('SB2', '«Exportar…» del símbolo pregunta qué copia (D-284): «Copia completa» de serie (la de «Exportar todo») o «Copia ligera (.json, fotos a 1080 px)»; cada una hace lo de siempre; el aviso del almacenamiento dice «Haz «Exportar…» de vez en cuando»', async () => {
+  prueba('SB2', '«Exportar…» del símbolo hace la copia completa sin preguntar (D-364, antes preguntaba cuál, D-284), sin llamar a la ligera; el aviso del almacenamiento dice «Haz «Exportar…» de vez en cuando»', async () => {
     await tablero([pub(1)]);
     const exp0 = M.exportAll, cop0 = M.copia && M.copia.exportar; let hecho = '';
     M.exportAll = () => { hecho += 'ligera,'; }; if (M.copia) M.copia.exportar = () => { hecho += 'completa,'; };
     try {
-      mcElegir('Exportar…'); await espera(40);
-      const d = dialogo(); ok(d && d.dataset.dlg === 'exportar', '«Exportar…» no pregunta: ' + json(d && d.dataset.dlg));
-      const rs = [...d.querySelectorAll('input[type="radio"][name="exp"]')];
-      igual(rs.map(x => x.value), ['completa', 'ligera'], 'las dos copias'); ok(rs[0].checked, 'la completa no va de serie');
-      ok(/Copia completa/.test(d.textContent) && /Copia ligera/.test(d.textContent) && /1080 px/.test(d.textContent), 'los nombres de las copias');
-      { const op = d.querySelector('.expop'), ri = op.querySelector('input').getBoundingClientRect(), tx = op.querySelector('.expd b').getBoundingClientRect();
-        ok(W.getComputedStyle(op).display === 'flex' && Math.abs(ri.top - tx.top) < 8 && ri.right < tx.left, 'el redondel y su texto no van en la misma fila'); ok(W.getComputedStyle(op.querySelector('input')).appearance === 'none', 'el redondel no es el de la Mesa'); }
-      d.querySelector('form').requestSubmit(); await espera(60);
-      igual(hecho, 'completa,', 'la completa no hace «Exportar todo»');
-      ok(!qa('.toast').some(t => /No se pudo/.test(t.textContent)), 'exportar deja un aviso de fallo: ' + json(qa('.toast').map(t => t.textContent))); ok(!dialogo() || dialogo().dataset.dlg !== 'exportar', 'la ventana sigue abierta');
-      mcElegir('Exportar…'); await espera(40);
-      const d2 = dialogo(); d2.querySelector('input[value="ligera"]').click(); d2.querySelector('form').requestSubmit(); await espera(60);
-      igual(hecho, 'completa,ligera,', 'la ligera no hace el .json');
+      mcElegir('Exportar…'); await espera(60);
+      igual(hecho, 'completa,', '«Exportar…» no hace la completa, o hace la ligera');
+      ok(!dialogo() || dialogo().dataset.dlg !== 'exportar', 'sigue preguntando cuál: ' + json(dialogo() && dialogo().dataset.dlg));
+      ok(!qa('.toast').some(t => /No se pudo/.test(t.textContent)), 'exportar deja un aviso de fallo: ' + json(qa('.toast').map(t => t.textContent)));
     } finally { M.exportAll = exp0; if (M.copia) M.copia.exportar = cop0; M._in.closeDetail(); }
     const st = W.navigator.storage;
     try {

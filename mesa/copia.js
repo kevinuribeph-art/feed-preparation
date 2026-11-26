@@ -1,4 +1,4 @@
-// Copia — Mesa de trabajo · v1.2 (D-249, D-279)
+// Copia — Mesa de trabajo · v1.6 (D-249, D-279, D-364)
 // «Exportar todo» (menú ⇅): the whole mesa at its original size, in one file per client and one «general» (what is no monthly
 // client's: the locations' catalog, tasks and sessions without one, the sporadic clients and their invoices, the list of
 // material). Each file is a .tar (ustar, nothing compressed, any Mac opens it): first «manifiesto.json» (what the part holds,
@@ -15,7 +15,7 @@
 (function copiaBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
-  const VERSION = '1.5';   // 1.5: el estilo de cada cliente y lo enviado a su web van en su archivo (D-356, D-355). 1.4: a client's agreements go with it, the packages in the general file (D-305, D-307). 1.3: the deliveries of a «Solo contenido» client go with it (D-290). 1.2: each file of a copy written with its own bytes, never a piece of the .tar; 200 MB a file at most (D-279)
+  const VERSION = '1.6';   // 1.6: «Exportar» offers only the full copy; every click on an enabled button answers (the double-click brake is by time and shows); progress with its bar and a visible «Cancelar» that frees memory; the D-037 and D-040 notices inside the dialog; importing can be cancelled while nothing is half done (D-364). 1.5: el estilo de cada cliente y lo enviado a su web van en su archivo (D-356, D-355). 1.4: a client's agreements go with it, the packages in the general file (D-305, D-307). 1.3: the deliveries of a «Solo contenido» client go with it (D-290). 1.2: each file of a copy written with its own bytes, never a piece of the .tar; 200 MB a file at most (D-279)
   const I = () => M._in, X = () => M._in.xfer;
   if (M.copia && M.copia._off) { try { M.copia._off(); } catch (e) { /* */ } }
   const FORMATO = 'mesa-copia', V = 1;
@@ -179,36 +179,53 @@
   // a browser's error said in words (its message is in English)
   const errTxt = err => { const n = err && err.name; return n === 'NotReadableError' || n === 'NotFoundError' ? 'un archivo guardado no se pudo leer' : n === 'QuotaExceededError' ? 'el navegador se quedó sin sitio' : 'el navegador dio un error'; };
   async function exportar() {
-    if (EXP) return { error: '«Exportar todo» ya está abierto.' };
+    // already open: it says so, instead of doing nothing (D-364)
+    if (EXP) { const m = '«Exportar» ya está abierto.'; I().toast(m, { ms: 5000 }); const x = vivo(EXP) && EXP.dlg.querySelector('.card > .x'); if (x) x.focus(); return { error: m }; }
     const e = X().empezar('export'); if (e) { I().toast(e, { ms: 7000 }); return { error: e }; }
     if (X().edPendiente && X().edPendiente()) I().toast('El editor tiene cambios sin aplicar: no van en la copia. Aplícalos y vuelve a exportar si los quieres.', { ms: 9000 });
     // lot 4 (D-259): in a computer that only has working copies (or not even them), this copy can't carry those originals: it says so
     if (I().NUBE && I().NUBE.activa) { try { const l = await I().idbAll('files'), n = l.filter(v => v && (v.copia || (I().esRefNube && I().esRefNube(v.blob)))).length; if (n) I().toast(`En este ordenador ${n === 1 ? 'una foto solo tiene' : n.toLocaleString('es-ES') + ' fotos solo tienen'} su copia de 2560 px o aún no ha${n === 1 ? '' : 'n'} llegado: esta copia no lleva ${n === 1 ? 'su original' : 'sus originales'}. La copia completa se hace en el Mac que los tiene.`, { ms: 12000 }); } catch (e) { /* */ } }
-    const st = EXP = { parar: false, urls: [], copia: (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)), at: new Date(), suelto: false, cache: new WeakMap() };
+    const st = EXP = { parar: false, urls: [], copia: (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)), at: new Date(), suelto: false, cache: new WeakMap(), actual: null };
     const soltar = () => { if (!st.suelto) { st.suelto = true; X().acabar(); } };
     try {
       dibujar(st);
       await X().pendientes();
+      if (st.parar) return { cancelled: true };
       const R = await instantanea();
       if (st.parar) return { cancelled: true };
-      st.ambitos = repartir(R);
+      const ambitos = st.ambitos = repartir(R);
       // clients first, in the tabs' order, the general file last
-      st.ambitos.sort((a, b) => (a.tipo === 'general') - (b.tipo === 'general'));
-      st.ambitos.forEach(a => { a.estado = 'cola'; a.bytes = 0; const vistos = new Set(); for (const n of Object.keys(a.recs)) for (const [, v] of a.recs[n]) blobsEn(v, vistos); vistos.forEach(b => { a.bytes += b.size; }); });
+      ambitos.sort((a, b) => (a.tipo === 'general') - (b.tipo === 'general'));
+      ambitos.forEach(a => { a.estado = 'cola'; a.bytes = 0; const vistos = new Set(); for (const n of Object.keys(a.recs)) for (const [, v] of a.recs[n]) blobsEn(v, vistos); vistos.forEach(b => { a.bytes += b.size; }); a.previstas = previstas(a, vistos); });
       if (st.cerrado) return { cancelled: true };
       lista(st);
-      for (const a of st.ambitos) { if (st.parar) break; await prepararUno(st, a); }
-      return st.parar ? { cancelled: true } : { ok: !st.ambitos.some(a => a.estado === 'fallo'), archivos: st.ambitos.flatMap(a => a.partes || []).length };
+      for (const a of ambitos) { if (st.parar) break; st.actual = a; await prepararUno(st, a); }
+      if (st.parar) return { cancelled: true };
+      st.actual = null; avance(st); soltar();   // made: the lock goes now (what follows only reads)
+      const res = { ok: !ambitos.some(a => a.estado === 'fallo'), archivos: ambitos.flatMap(a => a.partes || []).length };
+      await revisarCopia(st, R);
+      return res;
     } catch (err) {
+      if (st.parar) return { cancelled: true };
       const m = `No se pudo preparar la copia: ${errTxt(err)}.`;
       if (EXP === st) { cerrarExp(st, true); I().closeDetail(); } I().toast(m, { ms: 9000 }); return { error: m };
     } finally { soltar(); }
   }
   async function prepararUno(st, a) {
+    a.reintento = a.estado === 'fallo';   // retried, its one row stays until its parts are made: nothing under it moves
     a.estado = 'prep'; a.pct = 0; a.error = null; pintarFila(st, a);
-    try { await preparar(st, a, st.cache); a.estado = 'listo'; }
+    try { await preparar(st, a, st.cache); if (st.parar) return; a.estado = 'listo'; }
     catch (err) { if (st.parar) return; a.estado = 'fallo'; a.error = errTxt(err); }
     pintarFila(st, a);
+  }
+  const siguePreparando = st => { if (st.parar) throw new Error('parada'); };
+  // how many parts a client's file will have, by the sizes of its files and records (the same packing as preparar, without the
+  // hashes): its rows are drawn from the start, so nothing moves under the pointer while it prepares (D-364)
+  function previstas(a, blobs) {
+    let datos = 0; try { datos = JSON.stringify(a.recs, (k, v) => (v instanceof Blob ? 'x'.repeat(150) : v)).length; } catch (e) { /* only an estimate */ }
+    let n = 1, tam = 512 + 8192 + 1024 + 512 + bloques(datos), vacia = true;
+    for (const b of blobs) { const t = 512 + bloques(b.size) + 256; if (!vacia && tam + t > PARTE_MAX) { n++; tam = 512 + 8192 + 1024; vacia = true; } tam += t; vacia = false; }
+    return n;
   }
   // a client (or the general file): its blobs hashed, its records as text, its parts made
   async function preparar(st, a, cache) {
@@ -217,8 +234,9 @@
     const total = [...todos].reduce((s, b) => s + b.size, 0) || 1, malos = new Set();
     let hecho = 0, ult = 0;
     for (const b of todos) {
-      if (st.parar) throw new Error('parada');
+      siguePreparando(st);
       if (!cache.has(b)) { try { cache.set(b, await huella(b)); } catch (err) { malos.add(b); } }
+      siguePreparando(st);   // «Cancelar» while this file was being hashed (D-364)
       hecho += b.size;
       if (Date.now() - ult > 120) { ult = Date.now(); a.pct = Math.min(99, Math.floor(hecho / total * 100)); pintarFila(st, a); }
     }
@@ -237,6 +255,7 @@
     a.fuera = fuera; a.fueraN = sinNombre;
     const datos = enc.encode(JSON.stringify({ format: FORMATO + '-datos', v: V, almacenes }));
     const hDatos = await huellaDe(datos);
+    siguePreparando(st);   // before the parts are made (D-364)
     const entradas = [...porSha].map(([h, b]) => ({ nombre: `archivos/${h}.${EXT[b.type] || 'bin'}`, sha256: h, tam: b.size, blob: b }));
     // the parts: part 1 starts with the records; then the files, in order, a new part when the next one wouldn't fit
     const partes = [], nueva = () => { const p = { entradas: [], tam: 512 + 8192 + 1024 }; partes.push(p); return p; };
@@ -263,49 +282,86 @@
   }
   // each file from its own click (never several downloads at once). The browser only says it took it: whether the save dialog
   // saved it, the page can't know, so the row says «Descarga lanzada» and the foot asks to check the SSD
+  const FRENO = 1500;   // a double click is one download (lesson 57): by time and seen on the button, never by the click's count (A55-3)
+  const frenado = p => !!(p && p.ult && Date.now() - p.ult < FRENO);
   function descargar(st, a, p) {
-    if (!p || !p.blob || Date.now() - p.ult < 1500) return;   // a double click is one download (lesson 57)
+    if (!p || !p.blob || frenado(p)) return;
     if (!p.url) { p.url = URL.createObjectURL(p.blob); st.urls.push(p.url); }
     const el = document.createElement('a'); el.href = p.url; el.download = p.nombre; el.hidden = true; document.body.append(el); el.click(); el.remove();
     p.hecho++; p.ult = Date.now(); pintarFila(st, a); pie(st);
+    setTimeout(() => pintarFila(st, a), FRENO + 20);   // the button back to «Otra vez» (nothing if the dialog went)
   }
 
   // ---------- the dialog ----------
   function estadoDe(a, p) {
     if (a.estado === 'fallo') return { t: `No se pudo preparar: ${a.error}.`, k: 'mal' };
     if (p && p.hecho) return { t: `${peso(p.blob.size)} · Descarga lanzada${p.hecho > 1 ? ` (${n_(p.hecho)} veces)` : ''}`, k: 'ok' };
-    if (p) return { t: `${peso(p.blob.size)} · Listo${a.fuera ? ` · sin ${n_(a.fuera)} ${a.fuera === 1 ? 'archivo que no se pudo leer' : 'archivos que no se pudieron leer'}${(a.fueraN || []).length ? ` (${a.fueraN.slice(0, 3).join(', ')}${a.fueraN.length > 3 ? '…' : ''})` : ''}` : ''}`, k: a.fuera ? 'aviso' : '' };
-    if (a.estado === 'prep') return { t: `${peso(a.bytes)} · Preparando${a.pct ? ` ${a.pct} %` : '…'}`, k: '' };
-    return { t: `${peso(a.bytes)} · En cola`, k: '' };
+    if (p && p.blob) return { t: `${peso(p.blob.size)} · Listo${a.fuera ? ` · sin ${n_(a.fuera)} ${a.fuera === 1 ? 'archivo que no se pudo leer' : 'archivos que no se pudieron leer'}${(a.fueraN || []).length ? ` (${a.fueraN.slice(0, 3).join(', ')}${a.fueraN.length > 3 ? '…' : ''})` : ''}` : ''}`, k: a.fuera ? 'aviso' : '' };
+    const tam = p && p.n > 1 ? '' : `${peso(a.bytes)} · `;
+    if (a.estado === 'prep') return { t: `${tam}Preparando${a.pct ? ` ${a.pct} %` : '…'}`, k: '' };
+    return { t: `${tam}En cola`, k: '' };
   }
   const nombreFila = (a, p) => a.nombre + (p && p.n > 1 ? `, parte ${p.i} de ${p.n}` : '');
-  const boton = (a, p) => a.estado === 'fallo' ? { t: 'Reintentar', l: 'Preparar otra vez ' + a.nombre, on: true } : { t: p && p.hecho ? 'Otra vez' : 'Descargar', l: (p && p.hecho ? 'Descargar otra vez ' : 'Descargar ') + nombreFila(a, p), on: !!p };
+  const boton = (a, p) => a.estado === 'fallo' ? { t: 'Reintentar', l: 'Preparar otra vez ' + a.nombre, on: true }
+    : { t: frenado(p) ? 'Lanzada' : p && p.hecho ? 'Otra vez' : 'Descargar', l: (frenado(p) ? 'Lanzada: ' : p && p.hecho ? 'Descargar otra vez ' : 'Descargar ') + nombreFila(a, p), on: !!(p && p.blob), freno: frenado(p) };
   function filaHTML(a, p, j) {
     const e = estadoDe(a, p), b = boton(a, p);
-    return `<li class="cp-f" data-a="${j}"${p ? ` data-p="${p.i}"` : ''}><span class="cp-q"><span class="cp-n"><span class="cp-nm">${esc(a.nombre)}</span>${p && p.n > 1 ? `<span class="cp-pt">· parte ${p.i} de ${p.n}</span>` : ''}</span><span class="cp-s ${e.k}">${esc(e.t)}</span></span>`
-      + `<button type="button" class="btn2" data-cp="bajar"${b.on ? '' : ' disabled'} aria-label="${esc(b.l)}">${b.t}</button></li>`;
+    return `<li class="cp-f" data-a="${j}" data-p="${p.i}"><span class="cp-q"><span class="cp-n"><span class="cp-nm">${esc(a.nombre)}</span>${p.n > 1 ? `<span class="cp-pt">· parte ${p.i} de ${p.n}</span>` : ''}</span><span class="cp-s ${e.k}">${esc(e.t)}</span></span>`
+      + `<button type="button" class="btn2${b.freno ? ' cp-freno' : ''}" data-cp="bajar"${b.on ? '' : ' disabled'}${b.freno ? ' aria-disabled="true"' : ''} aria-label="${esc(b.l)}">${b.t}</button></li>`;
   }
-  const filasDe = (a, j) => (a.partes ? a.partes.map(p => filaHTML(a, p, j)) : [filaHTML(a, null, j)]).join('');
+  // its rows: its parts once made; before, as many as it will have (previstas)
+  const partesDe = a => a.partes || (a.estado === 'fallo' || a.reintento ? [{ i: 1, n: 1 }] : Array.from({ length: a.previstas || 1 }, (_, i) => ({ i: i + 1, n: a.previstas || 1 })));
+  const filasDe = (a, j) => partesDe(a).map(p => filaHTML(a, p, j)).join('');
   function pie(st) {
     const el = vivo(st) && st.dlg.querySelector('.cp-pie'); if (!el) return;
     const ps = (st.ambitos || []).flatMap(a => a.partes || []), hechos = ps.filter(p => p.hecho).length;
-    const prep = (st.ambitos || []).filter(a => a.estado === 'cola' || a.estado === 'prep').length, filas = ps.length + prep;
-    const t = !st.ambitos ? '' : prep ? `Preparando: ${n_(ps.length)} de ${n_(filas)} listos · ${n_(hechos)} ${hechos === 1 ? 'lanzado' : 'lanzados'}`
+    const prep = (st.ambitos || []).some(a => a.estado === 'cola' || a.estado === 'prep');
+    const t = !st.ambitos ? '' : prep ? (hechos ? `${n_(hechos)} ${hechos === 1 ? 'lanzado' : 'lanzados'}` : '')
       : !hechos ? `${n_(ps.length)} ${ps.length === 1 ? 'archivo' : 'archivos'}`
       : `${n_(hechos)} de ${n_(ps.length)} ${ps.length === 1 ? 'archivo lanzado' : 'archivos lanzados'}: comprueba en el SSD que están${hechos > 1 ? ' todos' : ''} y con su tamaño.`;
     if (el.textContent !== t) el.textContent = t;
   }
+  // the line over the rows (D-364): what is being made, which of how many, and how much is left (by bytes). It keeps its
+  // place from the start to the end; «Cancelar» is there only while something is being made
+  function avance(st) {
+    if (!vivo(st)) return;
+    const A = st.ambitos || [], falta = !A.length || A.some(a => a.estado === 'cola' || a.estado === 'prep'), a = st.actual || A.find(x => x.estado === 'prep');
+    let t = 'Leyendo la Mesa…', cuantos = '', pct = 0;
+    if (A.length) {
+      const de = x => x.bytes || 1, total = A.reduce((s, x) => s + de(x), 0);
+      pct = Math.floor(A.reduce((s, x) => s + (x.estado === 'listo' || x.estado === 'fallo' ? de(x) : x.estado === 'prep' ? de(x) * (x.pct || 0) / 100 : 0), 0) / total * 100);
+      if (falta && a) { t = `Preparando ${a.nombre}`; cuantos = ` · ${A.indexOf(a) + 1} de ${A.length}`; }
+      else if (!falta) {
+        const mal = A.filter(x => x.estado === 'fallo').length;
+        t = mal === A.length ? 'No se ha podido preparar ningún archivo: pulsa «Reintentar».' : mal ? `Listo, menos ${n_(mal)} que no se ${mal === 1 ? 'ha podido' : 'han podido'} preparar.` : 'Listo: descarga cada archivo.';
+        if (st.rev && mal < A.length) t += ' Revisa lo de abajo.';   // what is under the rows may be out of sight, and this line is read out
+        pct = 100;
+      } else return;
+    }
+    const el = st.dlg.querySelector('.cp-estado'), bar = st.dlg.querySelector('.cp-barra'), can = st.dlg.querySelector('[data-cp="cancelar"]');
+    if (el.textContent !== t + cuantos) {   // a long name is cut short; «· N de M» never
+      el.replaceChildren(...[['cp-que', t], ['cp-cuantos', cuantos]].filter(x => x[1]).map(([c, x]) => { const s = document.createElement('span'); s.className = c; s.textContent = x; return s; }));
+    }
+    bar.firstElementChild.style.transform = `scaleX(${pct / 100})`; bar.setAttribute('aria-valuenow', String(pct));
+    const quita = !falta && !can.hidden, foco = quita && document.activeElement === can;
+    can.hidden = !falta;
+    if (foco) { const x = st.dlg.querySelector('.card > .x'); if (x) x.focus(); }
+  }
   const vivo = st => !st.cerrado && st.dlg && st.dlg.isConnected && st.dlg.dataset.dlg === 'copia' && !!st.dlg.querySelector('.cp-l');
   function dibujar(st) {
-    I().showDialog('copia', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Exportar todo</h3>`
-      + '<p>Guarda todos los archivos juntos en el SSD: «Importar…» los lee a la vez.</p>'
-      + '<ul class="cp-l"><li class="cp-f"><span class="cp-q"><span class="cp-s">Leyendo la mesa…</span></span></li></ul><p class="cp-pie" aria-live="polite"></p>');
+    I().showDialog('copia', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3 id="cp-exp-t">Exportar</h3>`
+      + '<p>Todo a su tamaño original: un .tar por cliente y uno general. Guárdalos juntos en el SSD: «Importar…» los lee a la vez.</p>'
+      + '<div class="cp-av"><div class="cp-top"><p class="cp-estado" aria-live="polite"><span class="cp-que">Leyendo la Mesa…</span></p><button type="button" class="btn2" data-cp="cancelar">Cancelar</button></div><div class="cp-barra" role="progressbar" aria-label="Preparando la copia" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div></div>'
+      + '<ul class="cp-l"></ul><p class="cp-pie" aria-live="polite"></p>'
+      + '<section class="cp-rev" aria-label="Antes de subir o programar" hidden></section>');
     const d = I().root().querySelector('.detail'); st.dlg = d;
+    d.querySelector('.card').setAttribute('aria-labelledby', 'cp-exp-t');
     // on this dialog's card: the .detail stays for the next dialogs
     d.querySelector('.card').addEventListener('click', ev => {
-      const b = ev.target.closest('[data-cp="bajar"]'); if (!b || b.disabled || ev.detail > 1) return;
+      if (ev.target.closest('[data-cp="cancelar"]')) { cancelar(st); return; }
+      const b = ev.target.closest('[data-cp="bajar"]'); if (!b || b.disabled || b.getAttribute('aria-disabled') === 'true') return;
       const li = b.closest('.cp-f'), a = st.ambitos && st.ambitos[+li.dataset.a]; if (!a) return;
-      if (a.estado === 'fallo') { prepararUno(st, a); return; }
+      if (a.estado === 'fallo') { prepararUno(st, a).then(() => avance(st)); return; }
       descargar(st, a, (a.partes || []).find(p => p.i === +li.dataset.p));
     });
     st.mo = new MutationObserver(() => { if (d.hidden || d.dataset.dlg !== 'copia') cerrarExp(st); });
@@ -315,23 +371,41 @@
   function lista(st) {
     if (!vivo(st)) return;
     st.dlg.querySelector('.cp-l').innerHTML = st.ambitos.map(filasDe).join('');
-    pie(st);
+    pie(st); avance(st);
   }
-  // only what changed: a row's line of state and its button; a client that split in parts, only its rows (nothing else moves)
+  // only what changed: a row's line of state and its button; a client whose parts are not the ones foreseen, only its rows
   function pintarFila(st, a) {
     if (!vivo(st) || !st.ambitos) return;
-    const j = st.ambitos.indexOf(a), filas = [...st.dlg.querySelectorAll(`.cp-f[data-a="${j}"]`)];
+    const j = st.ambitos.indexOf(a), filas = [...st.dlg.querySelectorAll(`.cp-f[data-a="${j}"]`)], ps = partesDe(a);
     if (!filas.length) return;
-    if ((a.partes ? a.partes.length : 1) !== filas.length || (!!a.partes !== !!filas[0].dataset.p)) {   // its parts made (or another number of them): its rows anew
+    if (ps.length !== filas.length || ps.some((p, k) => filas[k].dataset.p !== String(p.i)) || ps.some((p, k) => (p.n > 1) !== !!filas[k].querySelector('.cp-pt'))) {   // another number of parts than foreseen: its rows anew
       const foco = filas.some(li => li.contains(document.activeElement));
       filas[0].insertAdjacentHTML('beforebegin', filasDe(a, j)); filas.forEach(li => li.remove());
       if (foco) { const b = st.dlg.querySelector(`.cp-f[data-a="${j}"] button`); if (b) b.focus(); }
-    } else filas.forEach(li => {
-      const p = a.partes && a.partes.find(x => x.i === +li.dataset.p), e = estadoDe(a, p), s = li.querySelector('.cp-s'), bt = li.querySelector('button'), b = boton(a, p);
+    } else filas.forEach((li, k) => {
+      const p = ps[k], e = estadoDe(a, p), s = li.querySelector('.cp-s'), bt = li.querySelector('button'), b = boton(a, p);
+      const pt = li.querySelector('.cp-pt'), tpt = `· parte ${p.i} de ${p.n}`; if (pt && pt.textContent !== tpt) pt.textContent = tpt;
       if (s.textContent !== e.t) s.textContent = e.t; if (s.className !== 'cp-s ' + e.k) s.className = 'cp-s ' + e.k;
       bt.disabled = !b.on; if (bt.textContent !== b.t) bt.textContent = b.t; bt.setAttribute('aria-label', b.l);
+      bt.classList.toggle('cp-freno', !!b.freno); if (b.freno) bt.setAttribute('aria-disabled', 'true'); else bt.removeAttribute('aria-disabled');
     });
-    pie(st);
+    pie(st); avance(st);
+  }
+  // «Cancelar» (D-364): stops preparing, lets go of what it had in memory and closes; what was already downloaded stays
+  const lanzado = st => (st.ambitos || []).some(a => (a.partes || []).some(p => p.hecho));
+  const textoCancelada = hubo => hubo ? 'Exportación cancelada. Comprueba en el SSD lo que ya habías lanzado.' : 'Exportación cancelada: no se ha descargado nada.';
+  function cancelar(st) {
+    const hubo = lanzado(st);
+    cerrarExp(st, true); I().closeDetail();
+    tragarSegundoClic();
+    const b = I().root().querySelector('.appbar .brand'); if (b) b.focus({ preventScroll: true });   // where «Exportar…» came from
+    I().toast(textoCancelada(hubo), { ms: 7000 });
+  }
+  // the dialog goes with the first click: the second of a double click must not land on what was under it
+  function tragarSegundoClic() {
+    const traga = ev => { if (ev.detail >= 2) { ev.preventDefault(); ev.stopPropagation(); } }, T = ['mousedown', 'click', 'dblclick'];   // the press too: it would take the focus away
+    T.forEach(t => window.addEventListener(t, traga, true));
+    setTimeout(() => T.forEach(t => window.removeEventListener(t, traga, true)), 600);
   }
   function cerrarExp(st, sinAviso) {
     if (st.cerrado) return; st.cerrado = true; st.parar = true;
@@ -339,9 +413,41 @@
     if (EXP === st) EXP = null;
     const urls = st.urls.slice(); setTimeout(() => urls.forEach(u => URL.revokeObjectURL(u)), 30 * 60000);   // a download the app's dialog still holds keeps its file
     if (!st.suelto) { st.suelto = true; X().acabar(); }
-    // closed with files ready that never went: said, not lost in silence (they are made again in a moment)
+    // closed (×, Esc, a click outside) while still preparing: said as «Cancelar» says it; with everything made and files
+    // that never went, how many: not lost in silence (they are made again in a moment)
+    const aMedias = !st.ambitos || st.ambitos.some(a => a.estado === 'cola' || a.estado === 'prep'), hubo = lanzado(st);
     const faltan = (st.ambitos || []).flatMap(a => a.partes || []).filter(p => !p.hecho).length;
-    if (!sinAviso && faltan) I().toast(`${faltan === 1 ? 'Ha quedado 1 archivo' : `Han quedado ${n_(faltan)} archivos`} de la copia sin descargar: «Exportar todo» los vuelve a preparar.`, { ms: 9000 });
+    (st.ambitos || []).forEach(a => (a.partes || []).forEach(p => { if (!p.hecho) p.blob = null; }));   // what never went is let go (D-364)
+    st.ambitos = null; st.cache = null;
+    if (!sinAviso && aMedias) I().toast(textoCancelada(hubo), { ms: 7000 });
+    else if (!sinAviso && faltan) I().toast(`${faltan === 1 ? 'Ha quedado 1 archivo' : `Han quedado ${n_(faltan)} archivos`} de la copia sin descargar: «Exportar…» los vuelve a preparar.`, { ms: 9000 });
+  }
+  // once made, what the light copy said after it (D-364): the review of the month open here (D-040) and the empty photo holes
+  // of every other month (D-037). Here in the dialog, to read: opening a point would close the copy and it would be made again
+  async function revisarCopia(st, R) {
+    if (!vivo(st)) return;
+    const I_ = I(), boards = R.boards.map(([, b]) => b).filter(Boolean), nombres = new Map(R.clients.map(([, c]) => c).filter(Boolean).map(c => [c.id, c.name || c.id]));
+    let huecos = [];
+    try { huecos = boards.flatMap(b => (b.slots || []).filter(I_.vivo).flatMap(s => { const d = I_.huecosVacios(s, b.slots); return d.length ? [{ key: b.key, client: X().boardClient(b), month: b.month, post: I_.shortLabel(s.name, s.type), diapositivas: d }] : []; })); }
+    catch (e) { console.warn('huecos:', e); }
+    let res = null;
+    try { if (M.revisar) res = await M.revisar(); } catch (e) { console.warn('revisión:', e); res = null; }   // without the review, its holes below: D-037's notice is never lost
+    if (!vivo(st)) return;
+    const S = I().S, abierto = res && S && res.key === S.key && !res.sinFeed ? S.key : null;
+    const puntos = abierto ? res.puntos : [], otros = huecos.filter(h => h.key !== abierto);
+    if (!puntos.length && !otros.length) return;
+    const nom = id => nombres.get(id) || id, dia = h => `${h.diapositivas.length === 1 ? 'diapositiva' : 'diapositivas'} ${h.diapositivas.join(', ')}`;
+    let html = '';
+    if (puntos.length) {
+      const bl = puntos.filter(p => p.bloquea).length, av = puntos.length - bl;
+      const cuenta = [bl && (bl === 1 ? '1 punto bloquea' : `${n_(bl)} puntos bloquean`), av && (av === 1 ? '1 aviso' : `${n_(av)} avisos`)].filter(Boolean).join(' y ');
+      const grupos = []; for (const p of puntos) { const g = grupos[grupos.length - 1], id = p.historiaId || p.slotId; if (g && g.id === id) g.ps.push(p); else grupos.push({ id, post: p.post, ps: [p] }); }
+      html += `<h4>${esc(nom(S.client))}, ${esc(I_.monthLabel(S.month).toLowerCase())}: ${cuenta}</h4><ul class="cp-rl">${grupos.map(g => `<li><b>${esc(g.post)}</b><ul>${g.ps.map(p => `<li${p.bloquea ? ' class="cp-bl"' : ''}>${p.diapositiva ? `Diapositiva ${p.diapositiva}: ` : ''}${esc(p.texto)}${p.bloquea ? ' <i>(bloquea)</i>' : ''}</li>`).join('')}</ul></li>`).join('')}</ul>`;
+    }
+    if (otros.length) html += `<h4>${otros.length === 1 ? 'Un hueco de foto vacío' : `Huecos de foto vacíos en ${n_(otros.length)} publicaciones`}${puntos.length ? ', en otros meses' : ''}</h4><ul class="cp-rl">${otros.map(h => `<li><b>${esc(h.post)}</b>: ${dia(h)} <span>· ${esc(nom(h.client))}, ${esc(I_.monthLabel(h.month).toLowerCase())}</span></li>`).join('')}</ul>`;
+    html += `<p class="cp-rvpie">La copia lleva todo tal cual. ${puntos.length ? 'Lo del mes abierto se abre con «Revisar» cuando acabes de descargar.' : otros.length === 1 ? 'Rellénalo en el editor antes de subir o programar esa publicación.' : 'Llénalos en el editor antes de subir o programar esas publicaciones.'}</p>`;
+    const sec = st.dlg.querySelector('.cp-rev'); sec.innerHTML = html; sec.hidden = false;
+    st.rev = true; avance(st);
   }
 
   // ---------- «Importar…» of a copy ----------
@@ -358,7 +464,7 @@
   const nomAmb = m => m.ambito && m.ambito.tipo === 'general' ? 'General' : (m.ambito && (m.ambito.nombre || m.ambito.id)) || 'un cliente';
   let IMP = null;
   async function importar(files, opts = {}) {
-    if (IMP) return { error: 'Espera: ya se está importando una copia.' };
+    if (IMP) { const m = 'Espera: ya se está importando una copia.'; I().toast(m, { ms: 7000 }); return { error: m }; }
     const e = X().empezar('import'); if (e) { avisoImp(null, e); return { error: e }; }
     const st = IMP = { parar: false, suelto: false };
     const soltar = () => { if (!st.suelto) { st.suelto = true; X().acabar(); } };
@@ -369,11 +475,12 @@
       // 1. what each file is
       const leidos = [];
       for (const f of files) {
+        if (st.parar) return parada(st);
         const r = await leerManifiesto(f);
         if (r.mal === 'nueva') return fallo(`«${f.name || 'archivo'}» viene de una versión más nueva de la Mesa: recarga la página para tener la última y vuelve a importarla.`);
         if (r.mal === 'cortado') return fallo(`«${f.name || 'archivo'}» está cortado: ¿terminó de copiarse?`);
         if (r.mal === 'danado') return fallo(`«${f.name || 'archivo'}» está dañado: no se puede leer su manifiesto.`);
-        if (r.mal) return fallo(`«${f.name || 'archivo'}» no es una copia de «Exportar todo».${/\.json$/i.test(f.name || '') ? ' Un archivo .json se importa solo, sin los .tar.' : ''}`);
+        if (r.mal) return fallo(`«${f.name || 'archivo'}» no es una copia de «Exportar…».${/\.json$/i.test(f.name || '') ? ' Un archivo .json se importa solo, sin los .tar.' : ''}`);
         const lim = I().limiteArchivo(), g = r.m.archivos.find(a => a && a.tam > lim);   // D-279: before a byte is written
         if (g) return fallo(`«${f.name || 'archivo'}» trae un archivo de ${peso(g.tam)}: la Mesa no guarda archivos de más de ${peso(lim)}. No se ha importado nada.`);
         leidos.push({ f, ...r });
@@ -472,9 +579,10 @@
         copia: { raw, info }
       };
       if (st.parar) return parada(st);
-      // 6. mesa.js merges it (its confirmation, its writing with «Cancelar», its notices)
-      st.cerrado = true; if (st.mo) st.mo.disconnect(); soltar(); IMP = null;
-      return await M.importData(d, opts);
+      // 6. mesa.js merges it (its confirmation, its writing with «Cancelar», its notices). Until its confirmation, this
+      // «Cancelar» keeps working: nothing is written yet (D-364)
+      soltar();
+      return await M.importData(d, { ...opts, parar: { pedido: () => st.parar, antes: () => { st.cerrado = true; if (st.mo) st.mo.disconnect(); }, parada: () => parada(st) } });
     } catch (err) {
       const q = err && (err.name === 'NotReadableError' || err.name === 'NotFoundError');
       return fallo(q ? 'No se pudo leer un archivo de la copia: ¿sigue donde estaba (el SSD conectado)?' : `No se pudo leer la copia: ${errTxt(err)}.`);
@@ -489,7 +597,7 @@
     if (at(a) !== at(b)) return at(a) > at(b);
     return mayor(a.orden, b.orden);
   }
-  function parada(st) { cerrarImp(st); I().toast('Importación cancelada mientras se comprobaba la copia: no se ha importado nada.', { ms: 7000 }); return { cancelled: true }; }
+  function parada(st) { cerrarImp(st); I().toast('Importación cancelada: no se ha importado nada.', { ms: 7000 }); return { cancelled: true }; }
   function dibujarImp(st) {
     I().showDialog('copia-leer', '<h3>Importar la copia</h3><p class="cp-prog" aria-live="polite">Leyendo los archivos…</p><div class="form"><div class="row"><button type="button" class="btn2" data-cp="parar">Cancelar</button></div></div>');
     const d = I().root().querySelector('.detail'); st.dlg = d;
@@ -527,7 +635,21 @@
 #mesa .cp-s.ok{color:var(--ink-2)}
 #mesa .cp-s.ok::before{content:'';flex:none;width:13px;height:13px;background:var(--ok);-webkit-mask:var(--i-check) center/contain no-repeat;mask:var(--i-check) center/contain no-repeat}
 #mesa .cp-s.aviso{color:var(--chg)}#mesa .cp-s.mal{color:var(--red)}
-#mesa .cp-f .btn2{flex:none;min-width:96px}
+#mesa .cp-f .btn2{flex:none;min-width:104px}
+#mesa .cp-f .btn2.cp-freno,#mesa .cp-f .btn2.cp-freno:hover:not(:disabled):not(.on){border-color:var(--line);background:var(--panel-2);color:var(--mute);cursor:default;transform:none}
+#mesa .cp-f .btn2.cp-freno::before{content:'';flex:none;width:13px;height:13px;background:var(--ok);-webkit-mask:var(--i-check) center/contain no-repeat;mask:var(--i-check) center/contain no-repeat}
+#mesa .cp-av{margin:2px 0 8px}
+#mesa .cp-top{display:flex;align-items:center;gap:12px;min-height:36px;margin-bottom:4px}#mesa .cp-top>.btn2{flex:none}#mesa .cp-top>[hidden]{display:none}
+#mesa .card .cp-top>p.cp-estado{flex:1;min-width:0;display:flex;margin:0;font-size:13px;font-weight:600;color:var(--ink);white-space:pre}
+#mesa .cp-que{min-width:0;overflow:hidden;text-overflow:ellipsis}#mesa .cp-cuantos{flex:none}
+#mesa .cp-barra{height:4px;border-radius:var(--r-pill);background:var(--line);overflow:hidden}
+#mesa .cp-barra>i{display:block;height:100%;border-radius:inherit;background:var(--acc);transform-origin:left center;transform:scaleX(0);transition:transform var(--d2) ease-out}
+#mesa .cp-rev{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);font-size:13px;line-height:1.45;color:var(--ink-2)}#mesa .cp-rev[hidden]{display:none}
+#mesa .cp-rev h4{margin:0 0 6px;font-size:13px;font-weight:600;color:var(--ink)}
+#mesa .cp-rl{list-style:none;margin:0 0 10px;padding:0;max-height:min(22vh,180px);overflow:auto}#mesa .cp-rl>li{margin:0 0 4px}#mesa .cp-rl b{font-weight:600;color:var(--ink)}
+#mesa .cp-rl ul{list-style:none;margin:1px 0 0;padding:0 0 0 10px}#mesa .cp-rl span{color:var(--mute)}#mesa .cp-rl li.cp-bl{color:var(--red)}#mesa .cp-rl i{font-style:normal;font-weight:600}
+#mesa .card .cp-rev>p.cp-rvpie{margin:0;font-size:12px;color:var(--mute)}
+#mesa .cp-f .cp-s:empty{display:none}
 #mesa .card>p.cp-pie{margin:0;font-size:12px;color:var(--mute)}#mesa .card>p.cp-pie:empty{display:none}
 #mesa .card>p.cp-prog{font-variant-numeric:tabular-nums}
 #mesa .card>p.cp-err{color:var(--ink-2)}

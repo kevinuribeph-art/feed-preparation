@@ -8217,7 +8217,11 @@ ${TK_FUENTES}
       };
     });
     const historias = hsDe(S).map((h, j) => ({ id: (h && h.id) || S.key + '|' + j, nombre: h.name || '', fecha: fecha(h.date), img: (h.photos || [])[0] || null, programada: !!h.zernio, cancelada: !!h.cancelada, post: h.slotId || null }));
-    return { key: S.key, client: S.client, month: S.month, span: S.span || 1, hoy: madParts(t).day,
+    // the client's boards on each side of this one, by their month: where the phone's «‹ ›» go when this board has no other
+    // month (D-365). From the months' list the view was read with, so they come with it, never a step behind
+    const deLado = MB.filter(b => b.month).sort((a, b) => String(a.month).localeCompare(String(b.month))), iAqui = deLado.findIndex(b => b.key === S.key);
+    const vecinos = { ant: iAqui > 0 ? deLado[iAqui - 1].key : null, sig: iAqui >= 0 && iAqui < deLado.length - 1 ? deLado[iAqui + 1].key : null };
+    return { key: S.key, client: S.client, month: S.month, span: S.span || 1, hoy: madParts(t).day, vecinos,
       meses: mesesDe(S).map(m => { const p = pasoDe(S, m); return { m, etiqueta: rangeLabel(m, 1, false, curCd()), paso: { k: p, txt: (PASOS.find(x => x[0] === p) || [p, p])[1] } }; }),
       posts, historias,
       // a client of «Solo contenido» (D-290): its deliveries with their state today, for its month on the phone (only to look at)

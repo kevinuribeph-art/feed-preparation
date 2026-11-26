@@ -19496,6 +19496,83 @@
   });
 
 
+  // ---------- «Del cliente» y las flechas de mes en el iPhone (ajustes de la 4.55, lote 1; D-365) ----------
+  const fxHilo = (pid, texto, extra = []) => ({ pid, version: 1, decision: null, sinLeer: 1, ultima: '2026-11-02T10:00:00Z', puedeEscribir: false,
+    items: [{ id: 'c-' + pid, de: 'cliente', autor: 'Ana', hora: '2026-11-02T10:00:00Z', texto, diapositiva: null, vieja: false, resuelto: false, pidioCambios: false }].concat(extra.map((t, i) => ({ id: 'x' + pid + i, de: 'cliente', autor: 'Ana', hora: '2026-11-03T10:00:00Z', texto: t, diapositiva: null, vieja: false, resuelto: false, pidioCambios: false }))) });
+  const fxTexto = () => W.document.getElementById('movil').textContent;
+
+  prueba('FX8', 'iPhone: «Del cliente» se relee al abrir cada publicación y al volver al mes, sin perder lo de antes ni releer al repintar (D-365)', async () => {
+    const key = await tableroMovil();
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key);
+      let n = 0; const nuevos = [];
+      M.web.conversacion = async () => { n++; return { porSlot: { r1: fxHilo('p1', 'hilo uno'), r2: fxHilo('p2', 'hilo dos', nuevos.slice()) } }; };
+      M.web.leido = () => {};
+      try {
+        await irMovil(`#mes/${key}/lista`, '#movil .mesnav'); await hasta(() => n >= 1, 4000, 'la primera lectura'); await espera(200);
+        const n1 = n;
+        await irMovil(`#pub/${key}/r2`, '#movil .hilo'); await hasta(() => n > n1, 4000, 'la relectura al abrir la publicación');
+        nuevos.push('comentario nuevo'); const n2 = n;
+        await irMovil(`#pub/${key}/r1`, '#movil .hilo'); await hasta(() => n > n2, 4000, 'la relectura al abrir otra');
+        await irMovil(`#pub/${key}/r2`, '#movil .hilo');
+        await hasta(() => /comentario nuevo/.test(fxTexto()), 4000, 'el comentario nuevo al volver a abrirla');
+        const n3 = n;
+        await irMovil(`#mes/${key}/lista`, '#movil .mesnav'); await hasta(() => n > n3, 4000, 'la relectura al volver al mes');
+        const n4 = n; await espera(600); igual(n, n4, 'relee al repintar la misma pantalla');
+        // sin red al releer: lo de antes se queda y lo dice
+        await irMovil(`#pub/${key}/r2`, '#movil .hilo'); await espera(300);
+        M.web.conversacion = async () => { n++; throw new Error('sin red'); };
+        await irMovil(`#mes/${key}/lista`, '#movil .mesnav'); await espera(200);
+        await irMovil(`#pub/${key}/r2`, '#movil .hilo');
+        await hasta(() => /No se pudo releer/.test(fxTexto()), 4000, 'que lo diga');
+        ok(/hilo dos/.test(fxTexto()) && W.document.querySelector('#movil [data-a="reconv"]'), 'se perdió lo de antes o no deja reintentar');
+      } finally { await C.fin(); }
+    });
+  });
+
+  prueba('FX9', 'iPhone: en una colab, al pasar al tablero del otro cliente nunca se ve ni se marca leído el hilo del primero, aunque la lectura tarde (D-365)', async () => {
+    const keyA = await tableroMovil();
+    const rb = await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(2, 'Carrusel')], past: [], force: true });
+    ok(rb && rb.key, 'el mes del otro cliente'); const keyB = rb.key; await M.flush();
+    await enMovilPagina(async () => {
+      const C = await nubeCara(keyA), leidos = [];
+      M.web.conversacion = async B => { if (B.client === CLIENTE2) { await espera(1200); return { porSlot: { r2: fxHilo('pid-de-b', 'hilo del segundo') } }; } return { porSlot: { r2: fxHilo('pid-de-a', 'hilo del primero') } }; };
+      M.web.leido = pid => leidos.push(pid);
+      try {
+        await irMovil(`#pub/${keyA}/r2`, '#movil .hilo'); ok(/hilo del primero/.test(fxTexto()), 'no se ve el hilo del primero');
+        await espera(1700); leidos.length = 0;   // su «leído», ya apuntado
+        W.location.hash = `#pub/${keyB}/r2`;
+        let visto = false; const t0 = Date.now();
+        while (Date.now() - t0 < 900) { if (W.location.hash === `#pub/${keyB}/r2` && /hilo del primero/.test(fxTexto())) visto = true; await espera(30); }
+        ok(!visto, 'se ve el hilo del primer cliente en la publicación del segundo');
+        await hasta(() => /hilo del segundo/.test(fxTexto()), 5000, 'el hilo del segundo');
+        await espera(1700);
+        ok(!leidos.includes('pid-de-a'), 'se marcó leído el hilo del otro cliente: ' + json(leidos));
+        ok(leidos.includes('pid-de-b'), 'no se marcó el suyo: ' + json(leidos));
+      } finally { await C.fin(); }
+    });
+  });
+
+  prueba('FX10', 'iPhone: con un tablero de un mes cada uno, las flechas de mes llevan al anterior y al siguiente desde el primer dibujo, aunque lo del cliente llegue a la vez; los vecinos vienen de la vista del núcleo (D-365)', async () => {
+    const key = await tableroMovil();
+    const base = (await M._in.idbAll('boards')).find(b => b.key === key);
+    for (const m of ['2026-10', '2026-12']) await M._in.idbPut('boards', `${CLIENTE}-${m}`, { ...JSON.parse(JSON.stringify(base)), key: `${CLIENTE}-${m}`, month: m, slots: [] });
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key);
+      M.web.conversacion = async () => ({ porSlot: {} });   // llega enseguida, mientras la pantalla aún se está leyendo
+      try {
+        await irMovil('#clientes', '#movil .titulo');
+        await irMovil(`#mes/${key}/lista`, '#movil .mesnav'); await espera(500);
+        const fl = () => [...W.document.querySelectorAll('#movil .mesnav .flechas button')].map(b => [b.disabled, b.dataset.ir || '']);
+        igual(fl(), [[false, `mes/${CLIENTE}-2026-10/lista`], [false, `mes/${CLIENTE}-2026-12/lista`]], 'las flechas de noviembre');
+        igual(M._in.movil.vista().vecinos, { ant: `${CLIENTE}-2026-10`, sig: `${CLIENTE}-2026-12` }, 'la vista del núcleo no da los vecinos');
+        W.document.querySelector('#movil .mesnav .flechas button:last-child').click();
+        await hasta(() => W.location.hash === `#mes/${CLIENTE}-2026-12/lista` && /diciembre/i.test((W.document.querySelector('#movil .mesnav h1') || {}).textContent || ''), 6000, 'diciembre'); await espera(500);
+        igual(fl(), [[false, `mes/${key}/lista`], [true, '']], 'las flechas de diciembre');
+      } finally { await C.fin(); }
+    });
+  });
+
   prueba('MV31', 'Las versiones de las dos páginas (lote 5, D-269): movil.html pide de lo que comparte con index.html la misma versión, y la de mesa.js es la de la Mesa (M.version), en las dos', async () => {
     const tx = async u => (await W.fetch(u + '?mv31=' + Date.now(), { cache: 'no-store' })).text();
     const vs = h => Object.fromEntries([...h.matchAll(/<script[^>]*\ssrc="([^"?]+)\?v=([^"]+)"/g)].map(m => [m[1], m[2]]));

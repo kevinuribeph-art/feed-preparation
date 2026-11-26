@@ -618,7 +618,7 @@
 #mesa .cp-f .btn2.cp-freno,#mesa .cp-f .btn2.cp-freno:hover:not(:disabled):not(.on){border-color:var(--line);background:var(--panel-2);color:var(--mute);cursor:default;transform:none}
 #mesa .cp-f .btn2.cp-freno::before{content:'';flex:none;width:13px;height:13px;background:var(--ok);-webkit-mask:var(--i-check) center/contain no-repeat;mask:var(--i-check) center/contain no-repeat}
 #mesa .cp-av{margin:2px 0 8px}
-#mesa .card .cp-av>p.cp-estado{margin:0 0 6px;font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+#mesa .card .cp-av>p.cp-estado{margin:0 0 6px;font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #mesa .cp-barra{height:4px;border-radius:var(--r-pill);background:var(--bg-2);overflow:hidden}
 #mesa .cp-barra>i{display:block;height:100%;border-radius:inherit;background:var(--acc);transform-origin:left center;transform:scaleX(0);transition:transform var(--d2) ease-out}
 #mesa .cp-acc{display:flex;justify-content:flex-end;margin-top:10px}#mesa .cp-acc>[hidden]{display:none}

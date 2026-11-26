@@ -17190,6 +17190,8 @@
       igual(bs.length, filas0, 'al final hay otro número de filas');
       igual(bs.map(b => Math.round(b.getBoundingClientRect().top)), topes0, 'las filas cambiaron de sitio mientras preparaba');
       ok(/Listo|Lista/.test(fxEstado()), 'al acabar no dice que está listo: ' + fxEstado());
+      // con cifras tabulares, la letra de la Mesa separa también los dos puntos y el punto: «Listo : descarga cada archivo .»
+      igual(W.getComputedStyle(q('.detail[data-dlg="copia"] .cp-estado')).fontVariantNumeric, 'normal', 'la línea de estado lleva cifras tabulares');
     } finally { L.vuelve(); await cpFin(); }
   });
 

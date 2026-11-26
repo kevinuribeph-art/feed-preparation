@@ -122,7 +122,7 @@
   function derHTML(cli) {
     const c = I().CL.find(x => x.id === cli), h = hoy(), a = C().acuerdo(c);
     if (C().mal && C().mal()) return `<h2 class="en-h">Acuerdo y pagos</h2><p class="en-vacio">No se pudieron leer sus acuerdos o sus facturas: recarga la página.</p>`;   // never «Sin acuerdo» over a failed reading (lesson 94)
-    const linea = [a && a.importe != null ? `${C().impTxt ? C().impTxt(a) : C().eur(a.importe)} ${PAGO[a.pago] || ''}`.trim() : 'Sin acuerdo: ponlo en «Cobros»', c && c.entregasDia ? `entregas antes del día ${c.entregasDia}` : ''].filter(Boolean).join(' · ');
+    const linea = [a && a.importe != null ? (C().impTxt ? C().impTxt(a, null, PAGO[a.pago] ? ' ' + PAGO[a.pago] : '') : `${C().eur(a.importe)} ${PAGO[a.pago] || ''}`.trim()) : 'Sin acuerdo: ponlo en «Cobros»', c && c.entregasDia ? `entregas antes del día ${c.entregasDia}` : ''].filter(Boolean).join(' · ');
     const l = C().vivos(cli).sort(C().orden), prox = C().proxima(cli, h), filas = [];
     if (prox && prox.virtual) filas.push({ t: `${C().nombre({ periodo: prox.mes, hasta: prox.hasta }, h)} · ${eurJ(prox.importe)}`, s: prox.tarde ? `con retraso: tocaba el ${corto(prox.emitida, h)}` : `se emite el ${corto(prox.emitida, h)}`, e: 'Sin emitir', k: 'sin' });   // D-304
     for (const r of l.slice(0, 6)) {

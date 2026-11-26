@@ -211,6 +211,7 @@ async function main() {
     ['lo que incluye con un hueco', CA, 'PATCH', { incluye: ['12 fotos', null] }],
     ['lo del mes sin su IVA', CA, 'PATCH', { iva: null }],   // D-376
     ['un IVA que no es 21 ni 0', CA, 'PATCH', { iva: 10 }],
+    ['el IVA sin lo del mes', CA, 'PATCH', { plan_mes_cent: null }],
     ['lo del mes negativo', CA, 'PATCH', { plan_mes_cent: -1 }],
     ['más de 20 cosas en lo que no incluye', CA, 'PATCH', { no_incluye: Array.from({ length: 21 }, (x, i) => 'cosa ' + i) }],
     ['las condiciones con un hueco', CA, 'PATCH', { condiciones: ['Permanencia', null] }],

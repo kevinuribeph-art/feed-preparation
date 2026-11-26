@@ -467,11 +467,13 @@
     const C = I().cob, u = C && C.urgente(cid); if (!u) return hueco ? '<span class="pp-cob vacia" aria-hidden="true"></span>' : '';
     const { r, e } = u, imp = C.impTxt(r),   // with its IVA (D-374)
       d = x => C.corto(x) + (x && x.slice(0, 4) !== I().hoy().slice(0, 4) ? ' ' + x.slice(0, 4) : '');
+    // with its IVA (D-374) the line is longer: what matters (when it's due, late) before the amount, and all of it in its title
+    const sep = !!(C.ivaSep && C.ivaSep(r)), y = (a, b) => sep ? `${b}${a ? ' · ' + a : ''}` : `${a}${b ? ' · ' + b : ''}`;
     const [cls, ico, txt] = e.k === 'retrasada' ? ['tarde', ICO.alerta, `Retrasada ${e.dias} ${e.dias === 1 ? 'día' : 'días'} · ${imp}`]
-      : e.k === 'pendiente' ? ['pend', ICO.reloj, `Pendiente · ${imp}${r.vence ? ' · vence el ' + d(r.vence) : ''}`]
-      : e.k === 'sinemitir' ? ['sin', ICO.libre, `Factura sin emitir · ${imp}${r.tarde ? ' · con retraso' : ''}`]   // its day passed (D-304)
-      : ['ok', ICO.hecho, `Cobrada · ${imp} · ${d(r.cobrada)}`];
-    return `<button type="button" class="pp-cob ${cls}" data-pp="cobro" data-c="${esc(cid)}" title="Cobros de ${esc(nombre)}">${ico}<span>${esc(txt)}</span></button>`;
+      : e.k === 'pendiente' ? ['pend', ICO.reloj, `Pendiente · ${y(imp, r.vence ? 'vence el ' + d(r.vence) : '')}`]
+      : e.k === 'sinemitir' ? ['sin', ICO.libre, `Factura sin emitir · ${y(imp, r.tarde ? 'con retraso' : '')}`]   // its day passed (D-304)
+      : ['ok', ICO.hecho, `Cobrada · ${y(imp, d(r.cobrada))}`];
+    return `<button type="button" class="pp-cob ${cls}" data-pp="cobro" data-c="${esc(cid)}" title="Cobros de ${esc(nombre)}${sep ? ' · ' + esc(txt) : ''}">${ico}<span>${esc(txt)}</span></button>`;
   }
   const conCob = l => { const C = I().cob; return !!(C && l.some(id => C.urgente(id))); };
   // Kevin's sums in the header of Clientes, monthly and sporadic whatever the selector says: paid this month, pending of any

@@ -6715,9 +6715,10 @@ ${TK_FUENTES}
   // converted by itself, only with «Separar el IVA…» (or MESA.cobros.separar), which asks what it is.
   const IVA_TIPOS = [21, 0], ivaOk = v => v === 21 || v === 0, r2 = n => Math.round(n * 100) / 100;
   const ivaTotal = (base, iva) => r2(base + base * iva / 100);
-  const ivaSep = r => r && +r.base > 0 && ivaOk(r.iva) ? { base: r2(+r.base), iva: r.iva, cuota: r2((+r.importe || 0) - r2(+r.base)) } : null;
+  const ivaSep = r => r && +r.base > 0 && ivaOk(r.iva) && Math.abs((+r.importe || 0) - ivaTotal(+r.base, r.iva)) <= .02 ? { base: r2(+r.base), iva: r.iva, cuota: r2((+r.importe || 0) - r2(+r.base)) } : null;   // only with a total that matches it
   // «640 € + 134,40 € IVA», «300 € · sin IVA», or the total as before («500 €»)
-  const cobImpTxt = (r, imp) => { const s = ivaSep(r); return s ? (s.iva ? `${cobEur(s.base)} + ${cobEur(s.cuota)} IVA` : `${cobEur(s.base)} · sin IVA`) : cobEur(imp != null ? imp : r && r.importe); };
+  // (suf: what goes after the amount, «al mes», before «· sin IVA»: «300 € al mes · sin IVA»)
+  const cobImpTxt = (r, imp, suf = '') => { const s = ivaSep(r); return s ? (s.iva ? `${cobEur(s.base)} + ${cobEur(s.cuota)} IVA${suf}` : `${cobEur(s.base)}${suf} · sin IVA`) : cobEur(imp != null ? imp : r && r.importe) + suf; };
   // both or none (a new invoice without an amount yet may carry its IVA: what's typed will be its base), the base not over the total and the total its base and its IVA (within two cents of rounding)
   const ivaValido = r => (r.base == null && (r.iva == null || (ivaOk(r.iva) && !(+r.importe > 0)))) || (typeof r.base === 'number' && isFinite(r.base) && r.base > 0 && r.base <= 1e9 && ivaOk(r.iva) && typeof r.importe === 'number' && isFinite(r.importe) && Math.abs(r.importe - ivaTotal(r.base, r.iva)) <= .02);
   // what an amount of before is: con IVA incluido (the same total, its base inside), más IVA (the amount is the base: a new
@@ -6877,7 +6878,7 @@ ${TK_FUENTES}
         const k = Math.floor(mm / n), r = mm % n, ult = r ? acuParte(a, { de: a.desde, hasta: addMonths(a.desde, r - 1) }) : null;
         out.push([k ? `${ACU_N[k] || k} ${k === 1 ? 'pago' : 'pagos'} de ${imp}` : '', r ? `${k ? 'y ' : ''}un pago de ${cobImpTxt(ult, ult.importe)}` : ''].filter(Boolean).join(' '));
       }
-      else out.push(`${imp} ${a.pago === 'mensual' ? 'al mes' : (ACU_PAGOS.find(x => x[0] === a.pago) || [, ''])[1].toLowerCase()}`);
+      else out.push(cobImpTxt(a, null, ' ' + (a.pago === 'mensual' ? 'al mes' : (ACU_PAGOS.find(x => x[0] === a.pago) || [, ''])[1].toLowerCase())));
     }
     if (a.dia != null) { const una = a.pago === 'unico' || (fin && a.meses && mm <= n); out.push(`${una ? 'se factura' : 'se facturan'} el día ${a.dia} ${a.adelanto ? 'del mes anterior' : a.pago === 'mensual' ? 'de cada mes' : una ? 'de su primer mes' : 'del primer mes de cada pago'}`); }   // D-309
     if (fin && a.pago !== 'unico' && (!a.renueva || a.cubreHasta === fin)) out.push(`acaba en ${acuMes(fin)}`);
@@ -7036,7 +7037,7 @@ ${TK_FUENTES}
     return { ok: true, rec: n, antes };
   }
   const cobId = () => 'co-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-  const cuotaTxt = q => q ? `${cobImpTxt(q)} al mes` : '';   // with its IVA (D-374)
+  const cuotaTxt = q => q ? cobImpTxt(q, null, ' al mes') : '';   // with its IVA (D-374)
   const cuotaGuardar = (cid, q) => acuGuardar(cid, q ? { pago: 'mensual', ...q } : null);   // a fee is a monthly agreement now (D-288)
   // the agreement of today, as «Editar cliente · Cobros» and MESA.cobros.acuerdo leave it (D-288): its fields as given (its «Termina
   // en» and its package stay, unless given); null takes it away. With a list of agreements (D-305) it's the one that covers today
@@ -7047,7 +7048,8 @@ ${TK_FUENTES}
     const hoy = acuerdoDe(c);
     if (!a) { if (hoy) await acuBorrar(hoy.id); return CL.find(x => x.id === cid); }
     const id = hoy ? hoy.id : acuIdNuevo(cid);
-    await acuPoner(cid, id, prev => ({ ...acuLimpio({ ...a, termina: 'termina' in a ? a.termina : prev && prev.termina, paquete: 'paquete' in a ? a.paquete : prev && prev.paquete, adelanto: 'adelanto' in a ? a.adelanto : prev && prev.adelanto }), id, cliente: cid }));
+    const conIva = prev => !('base' in a) && !('iva' in a) && prev && prev.base != null && +a.importe === +prev.importe ? { base: prev.base, iva: prev.iva } : {};   // the same amount keeps its IVA (D-374)
+    await acuPoner(cid, id, prev => ({ ...acuLimpio({ ...a, ...conIva(prev), termina: 'termina' in a ? a.termina : prev && prev.termina, paquete: 'paquete' in a ? a.paquete : prev && prev.paquete, adelanto: 'adelanto' in a ? a.adelanto : prev && prev.adelanto }), id, cliente: cid }));
     return CL.find(x => x.id === cid);
   }
   // only the fields it knows, each valid or out (an import, MESA.cobros.acuerdo and the dialog keep the same shape)
@@ -7141,7 +7143,8 @@ ${TK_FUENTES}
     const c = CL.find(x => x.id === cli); if (!c) throw new Error(`cliente desconocido «${cli}»`);
     const h = madParts(ahora()).day.slice(0, 7), de = COB_MES.test(desde || '') ? desde : addMonths(h, 1), b = base || acuerdoDe(c) || { pago: 'mensual' };
     const id = acuId();
-    return acuPoner(cli, id, () => ({ ...acuLimpio({ pago: b.pago, importe: b.importe, base: b.base, iva: b.iva, dia: b.dia, plazo: b.plazo, desde: de, meses: b.meses, renueva: b.renueva, paquete: b.paquete, adelanto: b.adelanto }), id, cliente: cli }));   // with its IVA (D-374)
+    const sp = ivaSep(b), iva = sp ? ivaCliente(cli) : null;   // separated: the client's IVA of now, its total from its base
+    return acuPoner(cli, id, () => ({ ...acuLimpio({ pago: b.pago, importe: sp ? ivaTotal(sp.base, iva) : b.importe, base: sp ? sp.base : null, iva, dia: b.dia, plazo: b.plazo, desde: de, meses: b.meses, renueva: b.renueva, paquete: b.paquete, adelanto: b.adelanto }), id, cliente: cli }));   // with its IVA (D-374)
   }
   async function acuBorrar(id) {
     await acuLeer(); const r0 = ACU && ACU.get(id);
@@ -7186,8 +7189,6 @@ ${TK_FUENTES}
     await acuLeer(); acuNoMal();
     const c0 = CL.find(x => x.id === cli); if (!c0) throw new Error(`cliente desconocido «${cli}»`);
     const antes = c0.sinIva === true, at = new Date().toISOString();
-    await editarCliente(cli, o => { const n = { ...o, sinIvaAt: o.sinIvaAt && o.sinIvaAt >= at ? new Date(Date.parse(o.sinIvaAt) + 1).toISOString() : at }; if (si) n.sinIva = true; else delete n.sinIva; return n; });
-    await loadClients();
     const hoyM = madParts(ahora()).day.slice(0, 7), iva = si ? 0 : 21, cambiados = [];
     for (const a of acuerdosDe(cli)) {
       const sp = ivaSep(a); if (!sp || sp.iva === iva || (a.cubreHasta && a.cubreHasta < hoyM)) continue;   // the ended ones keep theirs
@@ -7195,10 +7196,13 @@ ${TK_FUENTES}
       const n = await acuCambiar(cli, a.id, { base: sp.base, iva, importe: ivaTotal(sp.base, iva) });
       if (n && prev) cambiados.push(prev);
     }
-    cobGen++; cobAvisar(true);
+    cobNoLocked();   // the option last: with its agreements already written
+    await editarCliente(cli, o => { const n = { ...o, sinIvaAt: o.sinIvaAt && o.sinIvaAt >= at ? new Date(Date.parse(o.sinIvaAt) + 1).toISOString() : at }; if (si) n.sinIva = true; else delete n.sinIva; return n; });
+    await loadClients(); cobGen++; cobAvisar(true);
     return { antes, cambiados };
   }
   async function ivaClienteVolver(cli, r) {
+    cobNoLocked(); await acuLeer(); acuNoMal();
     const at = new Date().toISOString();
     await editarCliente(cli, o => { const n = { ...o, sinIvaAt: o.sinIvaAt && o.sinIvaAt >= at ? new Date(Date.parse(o.sinIvaAt) + 1).toISOString() : at }; if (r.antes) n.sinIva = true; else delete n.sinIva; return n; });
     await loadClients(); for (const p of r.cambiados || []) await acuDevolver(p);
@@ -7272,6 +7276,7 @@ ${TK_FUENTES}
       for (const p of lista) {
         const ya = paqVivos().find(x => x.nombre.toLowerCase() === p.nombre.trim().toLowerCase()), o = { nombre: p.nombre, precio: p.precio, incluye: p.incluye || [] };
         for (const k of ['neto', 'permanencia', 'noIncluye', 'condiciones']) if (p[k] !== undefined) o[k] = p[k];   // what it doesn't give, as it was
+        if (p.precio !== undefined && p.neto === undefined) o.neto = false;   // a price without «neto» carries its IVA inside, as before
         if (ya) await paqCambiar(ya.id, o); else await paqNuevo(o);
       }
       return { ok: true, paquetes: paqVivos().length };
@@ -7283,6 +7288,7 @@ ${TK_FUENTES}
       if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; pulsa «Usar aquí» o vuelve a abrirla' };
       if (!['incluido', 'mas', 'sin'].includes(como)) return { error: "como: 'incluido' (con IVA incluido), 'mas' (más IVA) o 'sin' (sin IVA)" };
       await loadClients(); await cobLeer(true); if (!CL.find(x => x.id === cliente) && !cobVivos(cliente).length) return { error: `cliente desconocido «${cliente}»` };
+      if (cobMal || acuMal) return { error: 'no se pudieron leer las facturas o los acuerdos: recarga la página' };
       try { const r = await ivaSepararDe(cliente, String(id), como); return r.error ? r : { ok: true, ...r }; } catch (e) { return { error: String((e && e.message) || e) }; }
     },
     // sinIva(cliente, si): Kevin's option «Sin IVA» of a monthly client (D-374); it changes the IVA of its agreements already
@@ -8479,7 +8485,7 @@ ${TK_FUENTES}
     const ent = r => ({ id: r.id, fecha: r.fecha, mes: r.fecha.slice(0, 7), que: r.que, cuanto: r.cuanto, enlace: r.enlace, entregada: r.entregada || '', estado: entEstado(r, h) });
     const tareas = await idbAll('tareas'), S2 = sesListas(tareas, cli, h);
     const ses = t => { const k = (t.sesion && t.sesion.clase) || ''; return { id: t.id, nombre: String(t.txt || (k === 'reunion' ? 'Reunión' : 'Sesión')), fecha: t.fecha, hora: /^\d\d:\d\d$/.test(t.hora || '') ? t.hora : '', reunion: k === 'reunion', tipo: SES_CLASE[k] || 'Sesión' }; };
-    return { client: cli, nombre: c.name, hoy: h, linea: ['Solo contenido', q && q.importe != null ? `${cobImpTxt(q)} ${PAGO_TXT[q.pago || 'mensual'] || ''}`.trim() : ''].filter(Boolean).join(' · '),
+    return { client: cli, nombre: c.name, hoy: h, linea: ['Solo contenido', q && q.importe != null ? cobImpTxt(q, null, PAGO_TXT[q.pago || 'mensual'] ? ' ' + PAGO_TXT[q.pago || 'mensual'] : '') : ''].filter(Boolean).join(' · '),
       pendientes: L.pendientes.map(ent), entregadas: L.entregadas.map(g => ({ m: g.m, l: g.l.map(ent) })), sesiones: { proximas: S2.proximas.map(ses), pasadas: S2.pasadas.map(ses) } };
   }
   const SES_CLASE = { foto: 'Foto', video: 'Vídeo', fotovideo: 'Foto y vídeo', libre: 'Libre', reunion: 'Reunión' };   // as sesiones.js names them

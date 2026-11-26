@@ -15337,7 +15337,7 @@
 
   prueba('IN7', 'Datos nuevos de su web (D-372): IndexedDB 28 y archivo v23; la huella viaja en «Exportar» y vuelve al importar; un archivo v22 se sigue importando', async () => {
     await tablero([pub(1)]);
-    igual([M._in.xfer.IDB, V_IDB, V_ARCHIVO], [28, 28, 23], 'las versiones');
+    igual([M._in.xfer.IDB, V_IDB, V_ARCHIVO], [29, 29, 24], 'las versiones');   // 29 y v24 desde la 4.59 (D-374, D-375), a propósito
     const k = '~huella:' + M._in.S.key;
     igual(await M._in.envPoner([{ cliente: CLIENTE, slot: k, huella: 'a'.repeat(64), url: 'https://in7.test', at: '2026-11-20T10:00:00.000Z' }]), 1, 'la huella no se guarda');
     ok(!M._in.xfer.envRecValido({ cliente: CLIENTE, slot: k, huella: 'no', url: '', at: '2026-11-20T10:00:00.000Z' }), 'entra una huella mal formada');
@@ -16234,7 +16234,7 @@
       // «Cobrada»: today; «Sin fecha» gives it back
       await hasta(() => coFila(f1.id).querySelector('[data-co="cobrada"]'), 2000, '«Cobrada»'); coFila(f1.id).querySelector('[data-co="cobrada"]').click();
       await hasta(() => M.cobros.ver(CLIENTE)[0].cobrada === '2026-10-01', 2000, 'cobrada hoy');
-      ok(!coFila(f1.id).querySelector('[data-co="cobrada"]') && /cobrada el 1 oct/.test(coFila(f1.id).textContent), 'la fila no dice cobrada');
+      ok(!coFila(f1.id).querySelector('[data-co="cobrada"]') && /cobrada el 1 oct/.test(coFila(f1.id).textContent.replace(/\u00a0/g, ' ')), 'la fila no dice cobrada');   // su fecha sin partir (D-375), a propósito
       coCambiar(q(`tr.co-det[data-id="${f1.id}"] [data-k="cobrada"]`), ''); await hasta(() => !M.cobros.ver(CLIENTE)[0].cobrada, 2000, 'sin fecha de cobro');
       // the right click: «Borrar factura», with «Deshacer»
       coFila(f1.id).dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 300, clientY: 300 })); await espera(40);
@@ -23472,7 +23472,7 @@
       await M.cobros.cargar([{ id: 'ax-11', cliente: CLIENTE, periodo: '2026-11', importe: 450, factura: 'AX-11', emitida: '2026-10-10', vence: '2026-10-25', cobrada: '2026-10-20' }, { id: 'ax-12', cliente: CLIENTE, periodo: '2026-12', importe: 450, factura: 'AX-12', emitida: '2026-11-10', vence: '2026-11-25' }]);
       await vistaCliente(true); M._in.render(); await espera(120);
       const p = await hasta(() => q('.main > .vc-lado [data-vc="pagos"]'), 3000, '«Tus pagos»');
-      igual(p.querySelector('.co-vh').textContent, 'Tu plan Paquete BQué incluye', 'el título de uno con paquete');   // «Tu plan»: el precio y las fechas, en su ficha (D-376), a propósito
+      igual(p.querySelector('.co-vh').textContent, 'Tu plan Paquete B', 'el título de uno con paquete');   // «Tu plan»: el precio y las fechas, en su ficha (D-376), a propósito
       ok(!/Incluye 12 fotos/.test(p.textContent), 'lo que incluye sigue debajo: ' + p.textContent);   // en su ficha (D-376), a propósito
       igual(p.querySelector('.co-vprox').textContent, 'Próxima factura, el 10 dic', 'la siguiente por su fecha');   // «Próxima factura» (D-311), a propósito
       ok(!/abr 2027 ·|15 abr|renegoci/i.test(p.textContent.replace(/\u00a0/g, ' ').replace('nov 2026 – abr 2027', '')), 'sale la fecha de renegociar: ' + p.textContent);
@@ -23835,6 +23835,82 @@
       igual(CB().impTxt(CB().get('iv2-nov')), '500 €', 'una de antes, como antes');
     } finally { relojVuelve(); if (M.controles) M.controles.cerrar(); M._in.closeDetail(); }
   });
+  prueba('IV3', 'IVA y paquetes, arreglos de la revisión en frío (D-374, D-375): un total que no cuadra con su base no se lee como separado; «300 € al mes · sin IVA», también en la cabecera de la tarjeta; MESA.cobros.acuerdo con el mismo importe conserva su IVA; «Nuevo acuerdo» toma el IVA del cliente de ahora; un precio sin «neto» lleva el IVA dentro, también sobre uno ya sin IVA; separar no actúa sobre lo que no se pudo leer', async () => {
+    await tablero([pub(1)]);
+    relojEn('2026-11-20T10:00:00+01:00');
+    try {
+      ok(!CB().ivaSep({ base: 100, iva: 21, importe: 150 }), 'un total que no cuadra');
+      await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 300, base: 300, iva: 0, dia: 5, plazo: 15, desde: '2026-01' });
+      const a = CB().acuerdos(CLIENTE)[0];
+      ok(/300 € al mes · sin IVA/.test(CB().resumenA(a)), 'su línea: ' + CB().resumenA(a));
+      // el mismo importe por la API: su IVA se queda; otro, se va (es un total)
+      await M.cobros.acuerdo(CLIENTE, { pago: 'mensual', importe: 300, dia: 6, plazo: 15, desde: '2026-01' });
+      ok(CB().ivaSep(CB().acuerdos(CLIENTE)[0]), 'el mismo importe pierde su IVA');
+      await M.cobros.acuerdo(CLIENTE, { pago: 'mensual', importe: 350, dia: 6, plazo: 15, desde: '2026-01' });
+      ok(!CB().ivaSep(CB().acuerdos(CLIENTE)[0]), 'otro importe sigue separado');
+      // «Nuevo acuerdo» con el IVA del cliente de ahora
+      await CB().acuCambiar(CLIENTE, CB().acuerdos(CLIENTE)[0].id, { base: 500, iva: 21, importe: 605 });
+      await M.cobros.sinIva(CLIENTE, true); await CB().acuCambiar(CLIENTE, CB().acuerdos(CLIENTE)[0].id, { termina: '2026-10' });
+      const n = await CB().acuNuevo(CLIENTE, '2026-12'); ok(n.iva === 0 && n.base === 500 && n.importe === 500, 'el nuevo: ' + json(n));
+      await M.cobros.sinIva(CLIENTE, false);
+      // un precio sin «neto»
+      await M.cobros.paquetes([{ nombre: 'Plan Tres', precio: 800, neto: true, incluye: [] }]);
+      await M.cobros.paquetes([{ nombre: 'Plan Tres', precio: 968, incluye: [] }]);
+      const p3 = (await M.cobros.paquetes()).find(p => p.nombre === 'Plan Tres'); ok(p3.neto === false && p3.precio === 968, 'sigue sin IVA: ' + json(p3));
+    } finally { relojVuelve(); }
+  });
+  prueba('IV4', 'IVA, paquetes y «Tu plan», lo que se ve tras la revisión en frío (D-374 a D-376): el precio del desplegable separado de su nombre; «21 %» en el color de un valor; «Separar» apagado hasta elegir, la opción elegida marcada, y Esc cierra solo la pregunta; «Condiciones distintas de la tarifa»; «Volver a la tarifa» deja el foco en su campo y ofrece «Deshacer»; la ficha de «Tu plan» a 480 px con el precio a 14 px, y el foco vuelve a «Qué incluye»; sin listas, el precio en su línea; la línea de cobro de la página personal pone la fecha antes del importe', async () => {
+    await tablero([pub(1)]);
+    await hasta(() => M.cobrosUI && M.controles && M.personal, 8000, 'cobros.js');
+    relojEn('2026-11-20T10:00:00+01:00');
+    try {
+      await M.cobros.paquetes(IV_PAQ); const dos = (await M.cobros.paquetes()).find(p => p.nombre === 'Plan Dos');
+      await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 500, dia: 5, plazo: 15, desde: '2026-03', meses: 12 });
+      await CB().dlgCliente(CLIENTE, 'cobros');
+      const card = () => q('.detail .co-ac[data-acu]'), a = () => CB().acuerdos(CLIENTE)[0];
+      await hasta(() => card(), 4000, 'la tarjeta'); const id0 = card().dataset.acu, aid = () => id0;
+      // «21 %» como un valor, no como un ejemplo
+      const cIva = W.getComputedStyle(q('.detail .co-acu-t .co-ivs + .mx-sel .mx-t')).color, cPago = W.getComputedStyle(card().querySelector('[data-k="pago"] + .mx-sel .mx-t')).color;
+      igual(cIva, cPago, 'el color del IVA');
+      // «Separar el IVA…»: apagado hasta elegir; la elegida, marcada; Esc cierra solo la pregunta
+      card().querySelector('[data-co="sep-abrir"]').click(); const box = await hasta(() => card().querySelector('.co-sep'), 2000, 'la pregunta');
+      ok(box.querySelector('[data-co="sep-ok"]').disabled, '«Separar» se puede pulsar sin elegir');
+      box.querySelector('input[value="incluido"]').click(); await espera(40);
+      ok(!box.querySelector('[data-co="sep-ok"]').disabled && box.querySelector('input[value="incluido"]').closest('label').classList.contains('on'), 'la elegida no se marca');
+      box.querySelector('input[value="incluido"]').dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })); await espera(80);
+      ok(!card().querySelector('.co-sep') && dialogo(), 'Esc no cierra solo la pregunta');
+      // el paquete: su precio separado del nombre
+      coCambiar(card().querySelector('[data-k="paquete"]'), dos.id); await hasta(() => a().paquete && a().base === 1000, 3000, 'el paquete');
+      card().querySelector('[data-k="paquete"] + .mx-sel').click(); const pr = await hasta(() => q('[role="listbox"]:not([hidden]) .mx-precio'), 2000, 'el precio en la lista');
+      igual(W.getComputedStyle(pr).marginLeft, '6px', 'el hueco del precio'); ok(/Plan Uno 600 €/.test(pr.parentElement.textContent), 'el nombre y el precio juntos: ' + pr.parentElement.textContent);
+      M.controles.cerrar(); await espera(60);
+      // «distintas de la tarifa»; «Volver a la tarifa», foco y «Deshacer»
+      await CB().acuCambiar(CLIENTE, aid(), { paquete: { ...a().paquete, condiciones: ['Otra'] }, base: 900, importe: 1089 });
+      await hasta(() => /Condiciones distintas de la tarifa/.test(card().textContent), 3000, '«distintas»');
+      card().querySelector('[data-co="tarifa-imp"]').click();
+      await hasta(() => a().base === 1000 && D.activeElement && D.activeElement.dataset && D.activeElement.dataset.k === 'importe', 3000, 'el foco en el importe');
+      ok(qa('.toasts .toast').some(t => /tarifa/.test(t.textContent) && /Deshacer/.test(t.textContent)), 'sin «Deshacer»');
+      M._in.closeDetail();
+      // «Tu plan»: la ficha a 480 px, el precio a 14 px; el foco vuelve
+      await vistaCliente(true); const pag = () => q('.vc-lado [data-vc="pagos"] .co-pagos');
+      const b = await hasta(() => pag() && pag().querySelector('[data-co="plan"]'), 3000, '«Qué incluye»'); b.click();
+      const d = await hasta(() => q('.detail[data-dlg="plan"]:not([hidden]) .card'), 2000, 'la ficha');
+      ok(Math.round(d.getBoundingClientRect().width) === 480 || W.innerWidth < 520, 'el ancho de la ficha: ' + d.getBoundingClientRect().width);
+      igual(W.getComputedStyle(d.querySelector('.co-plp')).fontSize, '14px', 'el tamaño del precio');
+      M._in.closeDetail(); await hasta(() => D.activeElement && D.activeElement.dataset && D.activeElement.dataset.co === 'plan', 2000, 'el foco de vuelta');
+      // sin listas: el precio en su línea
+      await CB().acuCambiar(CLIENTE, aid(), { paquete: { id: 'personalizado', nombre: 'Personalizado', incluye: [], noIncluye: [], condiciones: [] } });
+      await hasta(() => pag() && pag().querySelector('.co-tpp'), 3000, 'el precio sin listas');
+      ok(/1000 € \+ IVA al mes · pago mensual/.test(pag().querySelector('.co-tpp').textContent), pag().querySelector('.co-tpp').textContent);
+      await vistaCliente(false);
+      // la página personal: la fecha antes del importe
+      await M.cobros.cargar([{ id: 'iv4-f', cliente: CLIENTE, periodo: '2026-11', importe: 1210, base: 1000, iva: 21, emitida: '2026-11-05', vence: '2026-11-25' }]);
+      const t = CB().urgente(CLIENTE); ok(t && t.r.id === 'iv4-f', 'la urgente');
+      M.personal.abrir(); const lin = await hasta(() => q(`.pp-cob[data-c="${CLIENTE}"]`), 3000, 'la línea de cobro');
+      ok(/Pendiente · vence el 25 nov · 1000 € \+ 210 € IVA/.test(lin.textContent) && /vence el 25 nov/.test(lin.title), 'la línea: ' + lin.textContent + ' | ' + lin.title);
+      M.personal.cerrar();
+    } finally { relojVuelve(); await vistaCliente(false); if (M.controles) M.controles.cerrar(); M._in.closeDetail(); }
+  });
   prueba('PQ1', 'Paquetes, datos y catálogo (D-375): MESA.cobros.paquetes guarda y da su precio sin IVA (neto), su permanencia, lo que no incluye y sus condiciones; los de antes, igual; uno con una lista de más no entra; el catálogo enseña «al mes sin IVA» o «con IVA» con «Pasar a sin IVA» (÷ 1,21, con «Deshacer»), la permanencia y las tres listas; uno nuevo nace sin IVA', async () => {
     await tablero([pub(1)]);
     await hasta(() => M.cobrosUI && M.controles, 8000, 'cobros.js');
@@ -23912,7 +23988,7 @@
       await hasta(() => pag() && pag().querySelector('.co-tp'), 3000, '«Tu plan»');
       const h2 = pag().querySelector('.co-tp'); igual([h2.firstChild.textContent.trim(), h2.querySelector('.co-tpn').textContent], ['Tu plan', 'Plan Dos'], 'la línea');
       ok(!pag().querySelector('.co-vinc'), '«Incluye …» sigue debajo');
-      h2.querySelector('[data-co="plan"]').click();
+      pag().querySelector('[data-co="plan"]').click();
       const d = await hasta(() => q('.detail[data-dlg="plan"]:not([hidden])'), 2000, 'la ficha');
       igual(d.querySelector('.co-plp').textContent.replace(/ /g, ' '), '1000 € + IVA al mes · pago semestral · may 2026 – abr 2027', 'el precio');
       igual([...d.querySelectorAll('.co-plg h4')].map(x => x.textContent), ['Incluye', 'No incluye', 'Condiciones'], 'sus listas');

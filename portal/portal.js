@@ -626,8 +626,8 @@
     // «Tu plan» (D-376): con un paquete, una línea —el título, su nombre (ninguno con «Personalizado») y «Qué incluye», que abre su
     // ficha: el precio, cómo se paga y de cuándo a cuándo, y sus tres listas—; sin paquete, «Tus pagos» como antes. Como la Mesa
     const plan = cli && cli.paquete ? cli.paquete : null, listas = plan ? [['incluye', 'Incluye', 'check', 'si'], ['no_incluye', 'No incluye', 'minus', 'no'], ['condiciones', 'Condiciones', null, 'c']].filter(([k]) => Array.isArray(cli[k]) && cli[k].length) : [];
-    const ti = plan ? h('div', { class: 'ti pagos-ti tp' }, h('h2', { id: 'h-pagos', text: 'Tu plan' }), plan !== 'Personalizado' ? h('span', { class: 'tp-n', text: plan }) : null,
-      listas.length ? h('button', { type: 'button', class: 'tp-qi', 'aria-haspopup': 'dialog', onclick: ev => abrirPlan(cli, listas, rg, ev.currentTarget) }, 'Qué incluye', ico('right')) : null)
+    const ti = plan ? h('div', { class: 'ti pagos-ti tplan' }, h('h2', { id: 'h-pagos', text: 'Tu plan' }), plan !== 'Personalizado' ? h('span', { class: 'tp-n', text: plan }) : null,
+      listas.length ? h('button', { type: 'button', class: 'tp-qi', 'aria-haspopup': 'dialog', onclick: ev => abrirPlan(cli, listas, rg, ev.currentTarget) }, 'Qué incluye', ico('right')) : h('span', { class: 'tp-pp', text: precioPlan(cli, rg) }))   // sin listas, su precio (no hay ficha que abrir)
       : h('div', { class: 'ti pagos-ti' }, h('h2', { id: 'h-pagos', text: 'Tus pagos' }), tramo ? h('span', { text: `${PAGO[cli.pago] || 'Pago'} · ${eur(cli.pago_cent)}${rg ? ' · ' + rg + (cli.acuerdo_renueva ? ', se\u00a0renueva' : '') : ''}` }) : cli && cli.cuota_cent ? h('span', { text: eur(cli.cuota_cent) + ' al mes' + (rg ? ' · ' + rg : '') }) : null);
     return h('section', { class: 'card', 'aria-labelledby': 'h-pagos', 'data-p': 'pagos' },
       ti, plan ? null : inc, cubre,
@@ -644,15 +644,19 @@
   function abrirPlan(cli, listas, rg, origen) {
     if (document.querySelector('.dlg')) return;
     const velo = h('div', { class: 'velo alto' });
-    const quitar = () => { velo.remove(); dlg.remove(); if (origen && origen.isConnected) origen.focus(); };
+    const quitar = () => {
+      velo.remove(); dlg.remove();
+      if (st.sucio) { st.sucio = false; pintar(); pintarHoja(); }   // lo que llegó mientras estaba abierta
+      const o = origen && origen.isConnected ? origen : document.querySelector('.tp-qi'); if (o) o.focus();
+    };
     const dlg = h('section', { class: 'dlg plan', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'h-plan' },
       h('button', { type: 'button', class: 'plan-x', 'aria-label': 'Cerrar', onclick: quitar }, ico('x')),
-      h('h2', { id: 'h-plan', text: cli.paquete === 'Personalizado' ? 'Tu plan' : cli.paquete }), h('p', { class: 'plan-pr', text: precioPlan(cli, rg) }),
+      h('h2', { id: 'h-plan', tabindex: '-1', text: cli.paquete === 'Personalizado' ? 'Tu plan' : cli.paquete }), h('p', { class: 'plan-pr', text: precioPlan(cli, rg) }),
       listas.map(([k, t, i, cl]) => h('div', { class: 'plan-g' }, h('h3', { text: t }), h('ul', { class: 'plan-l ' + cl }, cli[k].map(x => h('li', {}, i ? ico(i) : null, h('span', { text: x })))))),
       h('div', { class: 'fila' }, h('button', { type: 'button', class: 'btn s', text: 'Cerrar', onclick: quitar })));
     dlg._quitar = quitar; velo.addEventListener('click', quitar);
     document.body.append(velo, dlg);
-    const x = dlg.querySelector('.plan-x'); (x.offsetParent ? x : dlg.querySelector('.fila .btn')).focus();
+    const x = dlg.querySelector('.plan-x'); (x.offsetParent ? x : dlg.querySelector('#h-plan')).focus({ preventScroll: true });   // en el móvil, el título: la hoja abre arriba
   }
   async function abrirPdf(ruta) {
     const w = window.open('', '_blank');   // abierta ya con el toque: si no, el móvil la bloquea («noopener» la devuelve nula)

@@ -380,7 +380,7 @@
     }
     if (x.tipo === 'cobro') {                   // tinted red as what isn't scheduled (D-190), the euro where the photo goes (D-236)
       const C = I().cob, r = x.r, nf = r.factura ? 'Factura ' + r.factura : 'Factura de ' + C.nombre(r).toLowerCase();
-      return `<button type="button" class="pp-av${mk} pp-avco" data-pp="cobro" data-c="${esc(r.cliente)}" data-id="${esc(r.id)}" title="${esc(nf)} · ${esc(C.eur(r.importe))} · venció el ${esc(corto(r.vence))}">${avs}${cuando(x, R)}<span class="pp-afoto vacia">${ICO.euro}</span><span class="pp-nm"><b>${esc(nf)} · ${esc(C.eur(r.importe))}</b> <i>${quien}</i></span><span class="pp-est">Retrasada ${x.dias} ${x.dias === 1 ? 'día' : 'días'} · sin cobrar</span></button>`;
+      return `<button type="button" class="pp-av${mk} pp-avco" data-pp="cobro" data-c="${esc(r.cliente)}" data-id="${esc(r.id)}" title="${esc(nf)} · ${esc(C.impTxt(r))} · venció el ${esc(corto(r.vence))}">${avs}${cuando(x, R)}<span class="pp-afoto vacia">${ICO.euro}</span><span class="pp-nm"><b>${esc(nf)} · ${esc(C.impTxt(r))}</b> <i>${quien}</i></span><span class="pp-est">Retrasada ${x.dias} ${x.dias === 1 ? 'día' : 'días'} · sin cobrar</span></button>`;
     }
     if (x.tipo === 'historias') {
       const cu = x.dia === R.hoy ? 'hoy' : x.dia === R.man ? 'mañana' : 'el ' + corto(x.dia);
@@ -465,7 +465,8 @@
   // all paid, the last one; a click opens its «Cobros». hueco: another block of the row has one, the same height stays
   function cobLinea(cid, nombre, hueco) {
     const C = I().cob, u = C && C.urgente(cid); if (!u) return hueco ? '<span class="pp-cob vacia" aria-hidden="true"></span>' : '';
-    const { r, e } = u, imp = C.eur(r.importe), d = x => C.corto(x) + (x && x.slice(0, 4) !== I().hoy().slice(0, 4) ? ' ' + x.slice(0, 4) : '');
+    const { r, e } = u, imp = C.impTxt(r),   // with its IVA (D-374)
+      d = x => C.corto(x) + (x && x.slice(0, 4) !== I().hoy().slice(0, 4) ? ' ' + x.slice(0, 4) : '');
     const [cls, ico, txt] = e.k === 'retrasada' ? ['tarde', ICO.alerta, `Retrasada ${e.dias} ${e.dias === 1 ? 'día' : 'días'} · ${imp}`]
       : e.k === 'pendiente' ? ['pend', ICO.reloj, `Pendiente · ${imp}${r.vence ? ' · vence el ' + d(r.vence) : ''}`]
       : e.k === 'sinemitir' ? ['sin', ICO.libre, `Factura sin emitir · ${imp}${r.tarde ? ' · con retraso' : ''}`]   // its day passed (D-304)

@@ -1034,7 +1034,7 @@
     }
     if (x.tipo === 'cobro') {
       const C = X().cob, r = x.r, nf = r.factura ? 'Factura ' + r.factura : 'Factura de ' + C.nombre(r).toLowerCase();
-      return fila({ cls, a: `data-a="cobro"`, izq: icoFila('euro', true), t1: `${esc(nf)} · ${esc(C.eur(r.importe))}`, t2: `${esc(quien)} · <span class="roja">${esc(x.dias === 1 ? 'retrasada 1 día' : `retrasada ${x.dias} días`)}</span>` });
+      return fila({ cls, a: `data-a="cobro"`, izq: icoFila('euro', true), t1: `${esc(nf)} · ${esc(C.impTxt(r))}`, t2: `${esc(quien)} · <span class="roja">${esc(x.dias === 1 ? 'retrasada 1 día' : `retrasada ${x.dias} días`)}</span>` });
     }
     if (x.tipo === 'tarea' || x.tipo === 'sesion') {
       const pas = x.cat === 'pasado';

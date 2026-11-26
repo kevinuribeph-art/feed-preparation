@@ -209,7 +209,7 @@
   // ---------- IndexedDB ----------
   // the stores of the mesa's data: all of them travel in «Exportar todo» (copia.js, D-249); and the journal of changes, which is
   // this browser's (D-250)
-  const IDB_V = 28, ALMACENES = ['files', 'boards', 'clients', 'bandejas', 'ubicaciones', 'tareas', 'tfotos', 'cobros', 'cfacturas', 'meses', 'entregas', 'acuerdos', 'paquetes', 'estilos', 'enviados'], DIARIO = 'diario', NUBE_ST = 'nube';
+  const IDB_V = 29, ALMACENES = ['files', 'boards', 'clients', 'bandejas', 'ubicaciones', 'tareas', 'tfotos', 'cobros', 'cfacturas', 'meses', 'entregas', 'acuerdos', 'paquetes', 'estilos', 'enviados'], DIARIO = 'diario', NUBE_ST = 'nube';
   let dbp = null, dbConn = null;
   function db() {
     if (!dbp) dbp = new Promise((res, rej) => {
@@ -6708,6 +6708,29 @@ ${TK_FUENTES}
     if (r.vence && r.vence < hoy) return { k: 'retrasada', dias: cobDias(r.vence, hoy) };
     return { k: 'pendiente' };
   }
+  // ---------- IVA (D-374) ----------
+  // An amount (an agreement's, an invoice's) may say what Kevin charges and its IVA: base (euros, his) and iva (21, or 0: «sin
+  // IVA»). importe stays the total the client pays, which every sum, the portal and the code of before read; its IVA is
+  // importe − base, so they always add up exactly. Without base, an amount of before: it's seen and works as before and is never
+  // converted by itself, only with «Separar el IVA…» (or MESA.cobros.separar), which asks what it is.
+  const IVA_TIPOS = [21, 0], ivaOk = v => v === 21 || v === 0, r2 = n => Math.round(n * 100) / 100;
+  const ivaTotal = (base, iva) => r2(base + base * iva / 100);
+  const ivaSep = r => r && +r.base > 0 && ivaOk(r.iva) ? { base: r2(+r.base), iva: r.iva, cuota: r2((+r.importe || 0) - r2(+r.base)) } : null;
+  // «640 € + 134,40 € IVA», «300 € · sin IVA», or the total as before («500 €»)
+  const cobImpTxt = (r, imp) => { const s = ivaSep(r); return s ? (s.iva ? `${cobEur(s.base)} + ${cobEur(s.cuota)} IVA` : `${cobEur(s.base)} · sin IVA`) : cobEur(imp != null ? imp : r && r.importe); };
+  // both or none (a new invoice without an amount yet may carry its IVA: what's typed will be its base), the base not over the total and the total its base and its IVA (within two cents of rounding)
+  const ivaValido = r => (r.base == null && (r.iva == null || (ivaOk(r.iva) && !(+r.importe > 0)))) || (typeof r.base === 'number' && isFinite(r.base) && r.base > 0 && r.base <= 1e9 && ivaOk(r.iva) && typeof r.importe === 'number' && isFinite(r.importe) && Math.abs(r.importe - ivaTotal(r.base, r.iva)) <= .02);
+  // what an amount of before is: con IVA incluido (the same total, its base inside), más IVA (the amount is the base: a new
+  // total) or sin IVA; null, not one of them
+  function ivaSeparar(importe, como) {
+    const t = r2(+importe); if (!(t > 0)) return null;
+    if (como === 'incluido') return { base: r2(t / 1.21), iva: 21, importe: t };
+    if (como === 'mas') return { base: t, iva: 21, importe: ivaTotal(t, 21) };
+    if (como === 'sin') return { base: t, iva: 0, importe: t };
+    return null;
+  }
+  // a client's IVA: «Sin IVA» (`sinIva`, Kevin's option in «Editar cliente · Cobros», with its `sinIvaAt`), or 21 %
+  const ivaCliente = cli => { const c = CL.find(x => x.id === cli); return c && c.sinIva === true ? 0 : 21; };
   // ---------- the agreement (D-288) ----------
   // pago: how often it pays — 'mensual', 'trimestral', 'semestral', 'anual' or 'unico' (one payment); importe, each payment's;
   // dia (1-28), the day of the stretch's first month it's issued; plazo, days until it's due; desde (AAAA-MM), the first month
@@ -6718,11 +6741,15 @@ ${TK_FUENTES}
   const acuNum = (v, a, b) => v != null && v !== '' && Number.isInteger(+v) && +v >= a && +v <= b ? +v : null;
   // an agreement's fields as they're read (also an incomplete one: each one by one); termina, its last month set by hand (D-306;
   // '' while it goes on); paquete, a copy of what it included (D-307), or null
-  const acuDe = a => ({ pago: ACU_PAGO.has(a.pago) ? a.pago : 'mensual', importe: +a.importe > 0 ? Math.round(+a.importe * 100) / 100 : null, dia: acuNum(a.dia, 1, 28), plazo: acuNum(a.plazo, 0, 365),
-    desde: COB_MES.test(a.desde || '') ? a.desde : '', meses: acuNum(a.meses, 1, 120), renueva: a.renueva !== false, renegociar: cobDia(a.renegociar), termina: COB_MES.test(a.termina || '') ? a.termina : '', paquete: paqCopia(a.paquete), adelanto: a.adelanto === true });
-  // what a package included, as an agreement keeps it: {id, nombre, incluye[]} (each thing a line, up to 20 of 80 letters)
-  const paqIncluye = l => (Array.isArray(l) ? l : []).filter(x => typeof x === 'string' && x.trim()).map(x => x.trim().replace(/\s+/g, ' ').slice(0, 80)).slice(0, 20);
-  const paqCopia = p => p && typeof p === 'object' && typeof p.nombre === 'string' && p.nombre.trim() ? { id: typeof p.id === 'string' ? p.id.slice(0, 60) : '', nombre: p.nombre.trim().slice(0, 60), incluye: paqIncluye(p.incluye) } : null;
+  const acuDe = a => { const s = +a.importe > 0 && ivaValido({ base: a.base, iva: a.iva, importe: +a.importe }) && a.base != null ? { base: r2(+a.base), iva: a.iva } : { base: null, iva: null };   // its IVA (D-374), or none
+    return { pago: ACU_PAGO.has(a.pago) ? a.pago : 'mensual', importe: +a.importe > 0 ? Math.round(+a.importe * 100) / 100 : null, ...s, dia: acuNum(a.dia, 1, 28), plazo: acuNum(a.plazo, 0, 365),
+      desde: COB_MES.test(a.desde || '') ? a.desde : '', meses: acuNum(a.meses, 1, 120), renueva: a.renueva !== false, renegociar: cobDia(a.renegociar), termina: COB_MES.test(a.termina || '') ? a.termina : '', paquete: paqCopia(a.paquete), adelanto: a.adelanto === true }; };
+  // what a package included, as an agreement keeps it: {id, nombre, incluye[], noIncluye[], condiciones[]} (each thing a line, up
+  // to 20; of 80 letters, a condition of 160, D-375)
+  const paqLista = (l, n) => (Array.isArray(l) ? l : []).filter(x => typeof x === 'string' && x.trim()).map(x => x.trim().replace(/\s+/g, ' ').slice(0, n)).slice(0, 20);
+  const paqIncluye = l => paqLista(l, 80);
+  const PAQ_LISTAS = [['incluye', 80], ['noIncluye', 80], ['condiciones', 160]];
+  const paqCopia = p => p && typeof p === 'object' && typeof p.nombre === 'string' && p.nombre.trim() ? { id: typeof p.id === 'string' ? p.id.slice(0, 60) : '', nombre: p.nombre.trim().slice(0, 60), incluye: paqIncluye(p.incluye), noIncluye: paqLista(p.noIncluye, 80), condiciones: paqLista(p.condiciones, 160) } : null;
   // a client's agreements (D-305): the ones of 'acuerdos' and, until it's changed, its `acuerdo` (or `cuota`) of before as the
   // first one ('<cliente>-a1'); oldest first, each with the last month it covers (cubreHasta, '' with no end): the month before
   // the next one starts, its «Termina en», or the end of a cycle that doesn't renew, whichever comes first
@@ -6799,14 +6826,18 @@ ${TK_FUENTES}
     return de ? { de, hasta } : null;
   }
   // a payment's amount for a part of its stretch: in proportion to its months (all of them, the whole amount)
-  function acuImporte(q, t) {
-    const todo = acuPaso(q), n = mesesEntre(t.de, t.hasta) + 1;
-    return n >= todo ? q.importe : Math.round(q.importe * n / todo * 100) / 100;
+  function acuImporte(q, t) { return acuParte(q, t).importe; }
+  // the same with its IVA (D-374): {importe, base?, iva?}; a part of a stretch, its base in proportion and its total from it
+  function acuParte(q, t) {
+    const todo = acuPaso(q), n = mesesEntre(t.de, t.hasta) + 1, s = ivaSep(q);
+    if (n >= todo) return s ? { importe: q.importe, base: s.base, iva: s.iva } : { importe: q.importe };
+    if (!s) return { importe: Math.round(q.importe * n / todo * 100) / 100 };
+    const base = r2(s.base * n / todo); return { importe: ivaTotal(base, s.iva), base, iva: s.iva };
   }
   // what is left to invoice from a month on: the first stretch (or its part) no invoice covers, within 24 stretches, with its amount
   function acuLibre(q, l, m) {
     let t = acuTramo(q, m) || (q.desde && m < q.desde ? acuTramo(q, q.desde) : null);
-    for (let i = 0; t && i < 24; i++) { const f = acuFalta(l, t); if (f) return { ...f, importe: acuImporte(q, f) }; t = acuTramo(q, addMonths(t.hasta, 1)); }
+    for (let i = 0; t && i < 24; i++) { const f = acuFalta(l, t); if (f) return { ...f, ...acuParte(q, f) }; t = acuTramo(q, addMonths(t.hasta, 1)); }
     return null;
   }
   // what the agreement says in a line, for Kevin: «Cubre may 2026 – abr 2027 · dos pagos de 2700 € · …»
@@ -6839,13 +6870,14 @@ ${TK_FUENTES}
     if (a.desde) out.push(fin ? `${de <= hoyM && hoyM <= fin ? 'Ahora cubre' : 'Cubre'} ${acuMes(de)}${fin !== de ? ' – ' + acuMes(fin) : ''}` : `Cubre desde ${acuMes(a.desde)}`);   // one month, once (revisión del lote B)
     else if (a.cubreHasta) out.push(`Hasta ${acuMes(a.cubreHasta)}`);
     if (a.importe != null) {
-      if (a.pago === 'unico') out.push(`un pago de ${cobEur(a.importe)}`);
+      const imp = cobImpTxt(a);   // with its IVA (D-374)
+      if (a.pago === 'unico') out.push(`un pago de ${imp}`);
       else if (fin && a.meses && a.desde) {   // whole payments and, if its length isn't a multiple, a last one in proportion (as its invoices);
         // the months it really covers, also when the next agreement cuts it (revisión del lote B)
-        const k = Math.floor(mm / n), r = mm % n, ult = Math.round(a.importe * r / n * 100) / 100;
-        out.push([k ? `${ACU_N[k] || k} ${k === 1 ? 'pago' : 'pagos'} de ${cobEur(a.importe)}` : '', r ? `${k ? 'y ' : ''}un pago de ${cobEur(ult)}` : ''].filter(Boolean).join(' '));
+        const k = Math.floor(mm / n), r = mm % n, ult = r ? acuParte(a, { de: a.desde, hasta: addMonths(a.desde, r - 1) }) : null;
+        out.push([k ? `${ACU_N[k] || k} ${k === 1 ? 'pago' : 'pagos'} de ${imp}` : '', r ? `${k ? 'y ' : ''}un pago de ${cobImpTxt(ult, ult.importe)}` : ''].filter(Boolean).join(' '));
       }
-      else out.push(`${cobEur(a.importe)} ${a.pago === 'mensual' ? 'al mes' : (ACU_PAGOS.find(x => x[0] === a.pago) || [, ''])[1].toLowerCase()}`);
+      else out.push(`${imp} ${a.pago === 'mensual' ? 'al mes' : (ACU_PAGOS.find(x => x[0] === a.pago) || [, ''])[1].toLowerCase()}`);
     }
     if (a.dia != null) { const una = a.pago === 'unico' || (fin && a.meses && mm <= n); out.push(`${una ? 'se factura' : 'se facturan'} el día ${a.dia} ${a.adelanto ? 'del mes anterior' : a.pago === 'mensual' ? 'de cada mes' : una ? 'de su primer mes' : 'del primer mes de cada pago'}`); }   // D-309
     if (fin && a.pago !== 'unico' && (!a.renueva || a.cubreHasta === fin)) out.push(`acaba en ${acuMes(fin)}`);
@@ -6870,7 +6902,7 @@ ${TK_FUENTES}
     for (const q of acuerdosDe(cli).filter(acuCompleto)) {   // the first stretch from this month on with no invoice that covers it, agreement by agreement (D-288, D-305)
       if (q.cubreHasta && q.cubreHasta < hoyM) continue;
       const t = acuLibre(q, l, q.desde && q.desde > hoyM ? q.desde : hoyM);
-      if (t) { virt = { mes: t.de, ...(t.hasta !== t.de ? { hasta: t.hasta } : {}), importe: t.importe, ...cobFechas(t.de, q), virtual: true, acuerdo: q.id }; if (virt.emitida < hoy) virt.tarde = true; break; }   // its day passed without it: con retraso (D-304)
+      if (t) { virt = { mes: t.de, ...(t.hasta !== t.de ? { hasta: t.hasta } : {}), importe: t.importe, ...(t.base != null ? { base: t.base, iva: t.iva } : {}), ...cobFechas(t.de, q), virtual: true, acuerdo: q.id }; if (virt.emitida < hoy) virt.tarde = true; break; }   // its day passed without it: con retraso (D-304); with its IVA (D-374)
     }
     if (guard && (!virt || guard.emitida <= virt.emitida)) return { mes: COB_MES.test(guard.periodo || '') ? guard.periodo : guard.emitida.slice(0, 7), ...(COB_MES.test(guard.periodo || '') && cobHasta(guard) !== guard.periodo ? { hasta: cobHasta(guard) } : {}), importe: +guard.importe || 0, emitida: guard.emitida, vence: guard.vence, rec: guard };
     return virt;
@@ -6886,7 +6918,7 @@ ${TK_FUENTES}
     // (D-309), also the one that starts next month, «sin emitir» from the 1st
     // each month with the agreement that covers it (D-305)
     const c = CL.find(x => x.id === cli), mes = hoy.slice(0, 7), sig = addMonths(mes, 1), rs = l.map(x => x.r), qM = cuotaDe(c, mes), qS = cuotaDe(c, sig);
-    const virt = (q, tr, m) => { const fa = tr && !cobCubre(rs, m) ? acuFalta(rs, tr) : null; if (!fa) return null; const r = { cliente: cli, periodo: fa.de, ...(fa.hasta !== fa.de ? { hasta: fa.hasta } : {}), importe: acuImporte(q, fa), ...cobFechas(fa.de, q), virtual: true, acuerdo: q.id }; if (r.emitida < hoy) r.tarde = true; return { r, e: { k: 'sinemitir' } }; };
+    const virt = (q, tr, m) => { const fa = tr && !cobCubre(rs, m) ? acuFalta(rs, tr) : null; if (!fa) return null; const r = { cliente: cli, periodo: fa.de, ...(fa.hasta !== fa.de ? { hasta: fa.hasta } : {}), ...acuParte(q, fa), ...cobFechas(fa.de, q), virtual: true, acuerdo: q.id }; if (r.emitida < hoy) r.tarde = true; return { r, e: { k: 'sinemitir' } }; };
     const trS = qS && qS.adelanto && acuTramo(qS, sig);
     const v = (qM && virt(qM, acuTramo(qM, mes), mes)) || (trS && trS.de === sig ? virt(qS, trS, sig) : null); if (v) return v;
     const s = por('sinemitir').sort(asc)[0]; if (s) return s;
@@ -7004,7 +7036,7 @@ ${TK_FUENTES}
     return { ok: true, rec: n, antes };
   }
   const cobId = () => 'co-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-  const cuotaTxt = q => q ? `${cobEur(q.importe)} al mes` : '';
+  const cuotaTxt = q => q ? `${cobImpTxt(q)} al mes` : '';   // with its IVA (D-374)
   const cuotaGuardar = (cid, q) => acuGuardar(cid, q ? { pago: 'mensual', ...q } : null);   // a fee is a monthly agreement now (D-288)
   // the agreement of today, as «Editar cliente · Cobros» and MESA.cobros.acuerdo leave it (D-288): its fields as given (its «Termina
   // en» and its package stay, unless given); null takes it away. With a list of agreements (D-305) it's the one that covers today
@@ -7022,6 +7054,7 @@ ${TK_FUENTES}
   function acuLimpio(a) {
     const n = { pago: ACU_PAGO.has(a && a.pago) ? a.pago : 'mensual' };   // always in this order (pago, importe, dia, plazo, desde, meses, renueva, renegociar, termina, paquete)
     if (+a.importe > 0 && +a.importe <= 1e9) n.importe = Math.round(+a.importe * 100) / 100;
+    if (n.importe != null && a.base != null && ivaValido({ base: +a.base, iva: a.iva, importe: n.importe })) { n.base = r2(+a.base); n.iva = a.iva; }   // D-374: its IVA, only with a total that matches it
     for (const [k, lo, hi] of [['dia', 1, 28], ['plazo', 0, 365]]) { const v = acuNum(a[k], lo, hi); if (v != null) n[k] = v; }
     if (COB_MES.test(a.desde || '')) n.desde = a.desde;
     { const v = acuNum(a.meses, 1, 120); if (v != null) n.meses = v; }
@@ -7038,6 +7071,7 @@ ${TK_FUENTES}
     if (a.pago != null && !ACU_PAGO.has(a.pago)) return false;
     const n = (v, lo, hi) => v == null || v === '' || (typeof v === 'number' && Number.isInteger(v) && v >= lo && v <= hi);
     if (!(a.importe == null || a.importe === '' || (typeof a.importe === 'number' && isFinite(a.importe) && a.importe >= 0 && a.importe <= 1e9))) return false;
+    if ((a.base != null || a.iva != null) && !ivaValido(a)) return false;   // D-374
     if (!n(a.dia, 1, 28) || !n(a.plazo, 0, 365) || !n(a.meses, 1, 120)) return false;
     if (a.desde != null && a.desde !== '' && !COB_MES.test(a.desde)) return false;
     if (a.renueva != null && typeof a.renueva !== 'boolean') return false;
@@ -7048,8 +7082,9 @@ ${TK_FUENTES}
     return true;
   }
   const paqValido = p => !!p && typeof p === 'object' && !Array.isArray(p) && typeof p.nombre === 'string' && !!p.nombre.trim() && p.nombre.length <= 60 && (p.id == null || (typeof p.id === 'string' && p.id.length <= 60))
-    && (p.incluye == null || (Array.isArray(p.incluye) && p.incluye.length <= 20 && p.incluye.every(x => typeof x === 'string' && x.length <= 80)))
-    && (p.precio == null || p.precio === '' || (typeof p.precio === 'number' && isFinite(p.precio) && p.precio >= 0 && p.precio <= 1e9));
+    && PAQ_LISTAS.every(([k, m]) => p[k] == null || (Array.isArray(p[k]) && p[k].length <= 20 && p[k].every(x => typeof x === 'string' && x.length <= m)))   // D-375: what it doesn't include and its conditions
+    && (p.precio == null || p.precio === '' || (typeof p.precio === 'number' && isFinite(p.precio) && p.precio >= 0 && p.precio <= 1e9))
+    && (p.neto == null || typeof p.neto === 'boolean') && (p.permanencia == null || p.permanencia === '' || (Number.isInteger(p.permanencia) && p.permanencia >= 1 && p.permanencia <= 120));
   // ---------- the agreements, one record each, and the catalog of packages (D-305, D-307) ----------
   // 'acuerdos': {id, cliente, pago, importe, dia, plazo, desde, meses, renueva, renegociar, termina, paquete, at}; a deleted one stays
   // as a tombstone {id, cliente, borrado: true, at}, as an invoice (lesson 21). 'paquetes', Kevin's catalog: {id, nombre, precio
@@ -7106,7 +7141,7 @@ ${TK_FUENTES}
     const c = CL.find(x => x.id === cli); if (!c) throw new Error(`cliente desconocido «${cli}»`);
     const h = madParts(ahora()).day.slice(0, 7), de = COB_MES.test(desde || '') ? desde : addMonths(h, 1), b = base || acuerdoDe(c) || { pago: 'mensual' };
     const id = acuId();
-    return acuPoner(cli, id, () => ({ ...acuLimpio({ pago: b.pago, importe: b.importe, dia: b.dia, plazo: b.plazo, desde: de, meses: b.meses, renueva: b.renueva, paquete: b.paquete, adelanto: b.adelanto }), id, cliente: cli }));
+    return acuPoner(cli, id, () => ({ ...acuLimpio({ pago: b.pago, importe: b.importe, base: b.base, iva: b.iva, dia: b.dia, plazo: b.plazo, desde: de, meses: b.meses, renueva: b.renueva, paquete: b.paquete, adelanto: b.adelanto }), id, cliente: cli }));   // with its IVA (D-374)
   }
   async function acuBorrar(id) {
     await acuLeer(); const r0 = ACU && ACU.get(id);
@@ -7117,10 +7152,71 @@ ${TK_FUENTES}
   }
   const acuDevolver = rec => acuPoner(rec.cliente, rec.id, () => ({ ...acuLimpio(rec), id: rec.id, cliente: rec.cliente }));
   const acuCambiar = (cli, id, cambio) => acuPoner(cli, id, r => r && !r.borrado ? { ...acuLimpio({ ...r, ...cambio }), id, cliente: cli } : null);
+  // «Separar el IVA…» (D-374): an agreement's or an invoice's amount of before, as Kevin says it is; {tipo, id, base, iva, importe,
+  // prev} (prev, for «Deshacer») or {error}
+  async function ivaSepararDe(cli, id, como) {
+    await acuLeer(); await cobLeer();
+    const a = acuerdosDe(cli).find(x => x.id === id);
+    if (a) {
+      if (ivaSep(a)) return { error: 'ese acuerdo ya tiene su IVA separado' };
+      const sp = ivaSeparar(a.importe, como); if (!sp) return { error: 'ese acuerdo no tiene importe' };
+      const prev = ACU && ACU.get(id) && !ACU.get(id).borrado ? { ...ACU.get(id) } : null;
+      const n = await acuCambiar(cli, id, sp); if (!n) return { error: 'ese acuerdo ya no está' };
+      const facturas = [], l = acuerdosDe(cli);   // its invoices not issued yet, the same way (the issued ones keep their total)
+      for (const r of cobVivos(cli)) {
+        const q = COB_MES.test(r.periodo || '') ? acuDelMes(l, r.periodo) : null;
+        if (!q || q.id !== id || ivaSep(r) || cobEstado(r).k !== 'sinemitir') continue;
+        const f = +r.importe > 0 ? ivaSeparar(r.importe, como) : { iva: sp.iva };
+        if (f && await cobParche(r.id, f)) facturas.push(r);
+      }
+      return { tipo: 'acuerdo', id, base: n.base, iva: n.iva, importe: n.importe, prev, facturas };
+    }
+    const r = COB.get(id);
+    if (!r || r.borrado || r.cliente !== cli) return { error: 'ese cliente no tiene un acuerdo ni una factura con ese id' };
+    if (ivaSep(r)) return { error: 'esa factura ya tiene su IVA separado' };
+    if (como === 'mas' && cobEstado(r).k !== 'sinemitir') return { error: 'una factura ya emitida conserva su total: solo «con IVA incluido» o «sin IVA»' };
+    const sp = ivaSeparar(r.importe, como); if (!sp) return { error: 'esa factura no tiene importe' };
+    const n = await cobParche(id, sp);
+    return n ? { tipo: 'factura', id, base: n.base, iva: n.iva, importe: n.importe, prev: r } : { error: 'esa factura ya no está' };
+  }
+  // «Sin IVA» of a client (D-374): the option, and the IVA of its agreements already separated, today's and the ones to come;
+  // {antes, cambiados} for «Deshacer» (ivaClienteVolver)
+  async function ivaClientePoner(cli, si) {
+    cobNoLocked(); if (MOVIL) throw new Error('el IVA se cambia en el ordenador');
+    await acuLeer(); acuNoMal();
+    const c0 = CL.find(x => x.id === cli); if (!c0) throw new Error(`cliente desconocido «${cli}»`);
+    const antes = c0.sinIva === true, at = new Date().toISOString();
+    await editarCliente(cli, o => { const n = { ...o, sinIvaAt: o.sinIvaAt && o.sinIvaAt >= at ? new Date(Date.parse(o.sinIvaAt) + 1).toISOString() : at }; if (si) n.sinIva = true; else delete n.sinIva; return n; });
+    await loadClients();
+    const hoyM = madParts(ahora()).day.slice(0, 7), iva = si ? 0 : 21, cambiados = [];
+    for (const a of acuerdosDe(cli)) {
+      const sp = ivaSep(a); if (!sp || sp.iva === iva || (a.cubreHasta && a.cubreHasta < hoyM)) continue;   // the ended ones keep theirs
+      const prev = ACU && ACU.get(a.id) ? { ...ACU.get(a.id) } : null;
+      const n = await acuCambiar(cli, a.id, { base: sp.base, iva, importe: ivaTotal(sp.base, iva) });
+      if (n && prev) cambiados.push(prev);
+    }
+    cobGen++; cobAvisar(true);
+    return { antes, cambiados };
+  }
+  async function ivaClienteVolver(cli, r) {
+    const at = new Date().toISOString();
+    await editarCliente(cli, o => { const n = { ...o, sinIvaAt: o.sinIvaAt && o.sinIvaAt >= at ? new Date(Date.parse(o.sinIvaAt) + 1).toISOString() : at }; if (r.antes) n.sinIva = true; else delete n.sinIva; return n; });
+    await loadClients(); for (const p of r.cambiados || []) await acuDevolver(p);
+    cobGen++; cobAvisar(true);
+  }
+  // an invoice's IVA while it isn't issued (D-374): 21 % or sin IVA; its total from its base
+  async function cobIvaTipo(id, iva) {
+    await cobLeer(); const r = COB.get(id); if (!r || r.borrado || !ivaOk(iva) || cobEstado(r).k !== 'sinemitir') return null;
+    const sp = ivaSep(r); if (!sp && (r.iva == null || +r.importe > 0)) return null;   // one of before: «Separar el IVA…» first
+    return cobParche(id, sp ? { iva, importe: ivaTotal(sp.base, iva) } : { iva });
+  }
   // a client that goes takes its agreements with it (tombstones, so an older file doesn't bring them back)
   async function acuBorrarCliente(cli) { await acuLeer(); for (const r of ACU ? [...ACU.values()].filter(x => x.cliente === cli && !x.borrado) : []) await acuPoner(cli, r.id, () => ({ id: r.id, cliente: cli, borrado: true })); }
   // the packages (D-307)
-  const paqLimpio = p => ({ id: p.id, nombre: String(p.nombre || '').trim().replace(/\s+/g, ' ').slice(0, 60), precio: +p.precio > 0 && +p.precio <= 1e9 ? Math.round(+p.precio * 100) / 100 : null, incluye: paqIncluye(p.incluye), at: p.at });
+  // D-375: neto, its price is without IVA (the ones of before carry it inside: they don't fill an agreement's amount until they're
+  // passed to without IVA); permanencia, its months at least; noIncluye and condiciones, for the client
+  const paqLimpio = p => ({ id: p.id, nombre: String(p.nombre || '').trim().replace(/\s+/g, ' ').slice(0, 60), precio: +p.precio > 0 && +p.precio <= 1e9 ? Math.round(+p.precio * 100) / 100 : null, ...(p.neto === true ? { neto: true } : {}), permanencia: acuNum(p.permanencia, 1, 120),
+    incluye: paqIncluye(p.incluye), noIncluye: paqLista(p.noIncluye, 80), condiciones: paqLista(p.condiciones, 160), at: p.at });
   const paqVivos = () => PAQ ? [...PAQ.values()].filter(p => !p.borrado).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es') || a.id.localeCompare(b.id)) : [];
   function paqRecValido(r) {
     if (!r || typeof r !== 'object' || typeof r.id !== 'string' || !/^[\w.-]{1,60}$/.test(r.id) || typeof r.at !== 'string' || isNaN(Date.parse(r.at))) return false;
@@ -7135,7 +7231,7 @@ ${TK_FUENTES}
     cobGen++; cobAvisar(true); return out;
   }
   const paqId = () => 'pq-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-  const paqNuevo = (o = {}) => { const id = paqId(); return paqPoner(id, () => paqLimpio({ id, nombre: o.nombre || 'Paquete nuevo', precio: o.precio, incluye: o.incluye || [] })); };
+  const paqNuevo = (o = {}) => { const id = paqId(); return paqPoner(id, () => paqLimpio({ id, nombre: o.nombre || 'Paquete nuevo', precio: o.precio, neto: o.neto, permanencia: o.permanencia, incluye: o.incluye || [], noIncluye: o.noIncluye || [], condiciones: o.condiciones || [] })); };
   const paqCambiar = (id, cambio) => paqPoner(id, r => r && !r.borrado ? { ...paqLimpio({ ...r, ...cambio }), id } : null);
   async function paqBorrar(id) { let prev = null; const n = await paqPoner(id, r => { if (!r || r.borrado) return null; prev = r; return { id, borrado: true }; }); return n && prev ? { rec: prev } : null; }
   const paqDevolver = rec => paqPoner(rec.id, () => ({ ...paqLimpio(rec), id: rec.id }));
@@ -7155,7 +7251,7 @@ ${TK_FUENTES}
       await loadClients(); const c = CL.find(x => x.id === cliente);
       if (!c) return { error: `cliente desconocido «${cliente}» (los ids, en MESA.clients())` };
       if (a === undefined) return { error: 'falta el acuerdo (para quitarlo, null)' };
-      if (a !== null && (!acuValido(a) || !a.pago || (a.importe != null && a.importe !== '' && !(+a.importe > 0)))) return { error: 'acuerdo no válido: {pago (' + ACU_PAGOS.map(x => x[0]).join(', ') + '), importe (> 0), dia (1-28), plazo (0-365), desde (AAAA-MM), meses (1-120), renueva, renegociar (AAAA-MM-DD), termina (AAAA-MM), paquete ({nombre, incluye}), adelanto (true: se factura el mes antes)}' };
+      if (a !== null && (!acuValido(a) || !a.pago || (a.importe != null && a.importe !== '' && !(+a.importe > 0)) || ((a.base != null || a.iva != null) && !(+a.importe > 0)))) return { error: 'acuerdo no válido: {pago (' + ACU_PAGOS.map(x => x[0]).join(', ') + '), importe (> 0, el total), base e iva (21 o 0; los dos o ninguno, y el total su base más su IVA), dia (1-28), plazo (0-365), desde (AAAA-MM), meses (1-120), renueva, renegociar (AAAA-MM-DD), termina (AAAA-MM), paquete ({nombre, incluye, noIncluye, condiciones}), adelanto (true: se factura el mes antes)}' };
       try { await acuGuardar(cliente, a); } catch (e) { return { error: String((e && e.message) || e) }; }
       return { ok: true, acuerdo: acuerdoDe(CL.find(x => x.id === cliente)) };
     },
@@ -7165,15 +7261,37 @@ ${TK_FUENTES}
       await loadClients(); await acuLeer(true); if (!CL.find(x => x.id === cliente)) return { error: `cliente desconocido «${cliente}» (los ids, en MESA.clients())` };
       return acuerdosDe(cliente).map(({ legado, ...a }) => a);
     },
-    // paquetes(lista?): Kevin's catalog of packages (D-307); with [{nombre, precio?, incluye[]}], those are put in it (one with the
-    // same name, changed; with Kevin's OK), all or nothing; never touches the agreements that already have one
+    // paquetes(lista?): Kevin's catalog of packages (D-307); with [{nombre, precio?, neto?, permanencia?, incluye[], noIncluye?[],
+    // condiciones?[]}], those are put in it (one with the same name, changed; with Kevin's OK), all or nothing; never touches the
+    // agreements that already have one. neto: true, its price is without IVA (D-375); without it, as before (IVA inside)
     async paquetes(lista) {
       await acuLeer(true);
-      if (lista === undefined) return paqVivos().map(p => ({ id: p.id, nombre: p.nombre, precio: p.precio, incluye: p.incluye }));
+      if (lista === undefined) return paqVivos().map(p => ({ id: p.id, nombre: p.nombre, precio: p.precio, neto: p.neto === true, permanencia: p.permanencia || null, incluye: p.incluye, noIncluye: p.noIncluye || [], condiciones: p.condiciones || [] }));
       if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; pulsa «Usar aquí» o vuelve a abrirla' };
-      if (!Array.isArray(lista) || lista.some(p => !paqValido(p))) return { error: 'la lista tiene que ser [{nombre (hasta 60), precio? (€ al mes), incluye: [texto, … hasta 20]}]' };
-      for (const p of lista) { const ya = paqVivos().find(x => x.nombre.toLowerCase() === p.nombre.trim().toLowerCase()); if (ya) await paqCambiar(ya.id, { nombre: p.nombre, precio: p.precio, incluye: p.incluye || [] }); else await paqNuevo(p); }
+      if (!Array.isArray(lista) || lista.some(p => !paqValido(p))) return { error: 'la lista tiene que ser [{nombre (hasta 60), precio? (€ al mes), neto? (true: el precio sin IVA), permanencia? (meses, 1-120), incluye: [texto, … hasta 20 de 80], noIncluye?: [ídem], condiciones?: [hasta 20 de 160]}]' };
+      for (const p of lista) {
+        const ya = paqVivos().find(x => x.nombre.toLowerCase() === p.nombre.trim().toLowerCase()), o = { nombre: p.nombre, precio: p.precio, incluye: p.incluye || [] };
+        for (const k of ['neto', 'permanencia', 'noIncluye', 'condiciones']) if (p[k] !== undefined) o[k] = p[k];   // what it doesn't give, as it was
+        if (ya) await paqCambiar(ya.id, o); else await paqNuevo(o);
+      }
       return { ok: true, paquetes: paqVivos().length };
+    },
+    // separar(cliente, id, como): «Separar el IVA…» of an agreement or an invoice of before (D-374): 'incluido' (con IVA incluido:
+    // the same total), 'mas' (más IVA: the amount is the base) or 'sin' (sin IVA). An invoice already issued keeps its total: only
+    // 'incluido' or 'sin'. Any agreement of the client, not only today's
+    async separar(cliente, id, como) {
+      if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; pulsa «Usar aquí» o vuelve a abrirla' };
+      if (!['incluido', 'mas', 'sin'].includes(como)) return { error: "como: 'incluido' (con IVA incluido), 'mas' (más IVA) o 'sin' (sin IVA)" };
+      await loadClients(); await cobLeer(true); if (!CL.find(x => x.id === cliente) && !cobVivos(cliente).length) return { error: `cliente desconocido «${cliente}»` };
+      try { const r = await ivaSepararDe(cliente, String(id), como); return r.error ? r : { ok: true, ...r }; } catch (e) { return { error: String((e && e.message) || e) }; }
+    },
+    // sinIva(cliente, si): Kevin's option «Sin IVA» of a monthly client (D-374); it changes the IVA of its agreements already
+    // separated, today's and the ones to come (the ended ones stay), and of the invoices made from then on
+    async sinIva(cliente, si) {
+      if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; pulsa «Usar aquí» o vuelve a abrirla' };
+      if (typeof si !== 'boolean') return { error: 'si: true (sin IVA) o false (21 %)' };
+      await loadClients(); if (!CL.find(x => x.id === cliente)) return { error: `cliente desconocido «${cliente}» (los ids, en MESA.clients())` };
+      try { const r = await ivaClientePoner(cliente, si); return { ok: true, sinIva: si, acuerdos: r.cambiados.length }; } catch (e) { return { error: String((e && e.message) || e) }; }
     },
     async cargar(lista) {
       if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; pulsa «Usar aquí» o vuelve a abrirla' };
@@ -7193,6 +7311,8 @@ ${TK_FUENTES}
         else if (!clisDe(ses.get(per)).includes(cli)) return mal('esa sesión no es de ese cliente');
         else if (ses.get(per).sesion && ses.get(per).sesion.clase === 'reunion') return mal('una reunión no tiene cobro');   // D-291
         const importe = cobImporte(it.importe); if (isNaN(importe)) return mal('importe no válido (euros: 450, «1.470,50»)');
+        const sep = it.base != null || it.iva != null ? { base: cobImporte(it.base), iva: it.iva } : null;   // D-374: what Kevin charges and its IVA
+        if (sep && !ivaValido({ ...sep, importe })) return mal('base e iva: los dos (iva 21 o 0), y el importe su base más su IVA');
         const f = {}; for (const k of ['emitida', 'vence', 'cobrada']) { const v = it[k] == null ? '' : String(it[k]); if (v && !cobDia(v)) return mal(`${k} no es una fecha AAAA-MM-DD`); f[k] = v; }
         if (f.emitida && f.vence && f.vence < f.emitida) return mal('vence antes de emitirse');
         if (hasta && (!COB_MES.test(per) || !COB_MES.test(hasta) || hasta < per || mesesEntre(per, hasta) > 119)) return mal('hasta: el último mes que cubre (AAAA-MM), de su periodo en adelante, solo en una factura de un mes');   // D-288
@@ -7207,7 +7327,7 @@ ${TK_FUENTES}
         }
         const prev = COB.get(id);
         const concepto = it.concepto != null ? String(it.concepto).slice(0, 120) : prev && !prev.borrado ? prev.concepto || '' : ses.has(per) ? String(ses.get(per).txt || '') : '';
-        plan.push({ id, cliente: cli, periodo: per, ...(hasta && hasta !== per ? { hasta } : {}), concepto, importe, factura, ...f, pdf: prev && !prev.borrado ? prev.pdf || '' : '', at });
+        plan.push({ id, cliente: cli, periodo: per, ...(hasta && hasta !== per ? { hasta } : {}), concepto, importe, ...(sep ? sep : {}), factura, ...f, pdf: prev && !prev.borrado ? prev.pdf || '' : '', at });
       });
       if (problemas.length) return { error: 'no se ha cargado nada: hay facturas con problemas', problemas };
       const r = { ok: true, nuevos: 0, actualizados: 0, masRecientesAqui: 0, ids: plan.map(p => p.id) };
@@ -7247,7 +7367,7 @@ ${TK_FUENTES}
   // management, as every client before). entregasDia (1-28): the day of the month its deliveries are due by («antes del día 5»).
   // metricas: the link of its metrics in Zernio (https, D-292). Each with its own date (…At), to join on an import.
   const SERVICIOS = ['redes', 'contenido'];
-  const CAMPOS_CLI = [['servicio', 'servicioAt'], ['entregasDia', 'entregasDiaAt'], ['metricas', 'metricasAt']];
+  const CAMPOS_CLI = [['servicio', 'servicioAt'], ['entregasDia', 'entregasDiaAt'], ['metricas', 'metricasAt'], ['sinIva', 'sinIvaAt']];   // sinIva: D-374
   const servicioDe = c => c && c.servicio === 'contenido' ? 'contenido' : 'redes';
   const esContenido = cid => servicioDe(CL.find(c => c.id === (cid === undefined ? curClient : cid))) === 'contenido';
   // the client whose page is open (D-312): a client of «Solo contenido» has no months, its tab opens one page with no board
@@ -8359,7 +8479,7 @@ ${TK_FUENTES}
     const ent = r => ({ id: r.id, fecha: r.fecha, mes: r.fecha.slice(0, 7), que: r.que, cuanto: r.cuanto, enlace: r.enlace, entregada: r.entregada || '', estado: entEstado(r, h) });
     const tareas = await idbAll('tareas'), S2 = sesListas(tareas, cli, h);
     const ses = t => { const k = (t.sesion && t.sesion.clase) || ''; return { id: t.id, nombre: String(t.txt || (k === 'reunion' ? 'Reunión' : 'Sesión')), fecha: t.fecha, hora: /^\d\d:\d\d$/.test(t.hora || '') ? t.hora : '', reunion: k === 'reunion', tipo: SES_CLASE[k] || 'Sesión' }; };
-    return { client: cli, nombre: c.name, hoy: h, linea: ['Solo contenido', q && q.importe != null ? `${cobEur(q.importe)} ${PAGO_TXT[q.pago || 'mensual'] || ''}`.trim() : ''].filter(Boolean).join(' · '),
+    return { client: cli, nombre: c.name, hoy: h, linea: ['Solo contenido', q && q.importe != null ? `${cobImpTxt(q)} ${PAGO_TXT[q.pago || 'mensual'] || ''}`.trim() : ''].filter(Boolean).join(' · '),
       pendientes: L.pendientes.map(ent), entregadas: L.entregadas.map(g => ({ m: g.m, l: g.l.map(ent) })), sesiones: { proximas: S2.proximas.map(ses), pasadas: S2.pasadas.map(ses) } };
   }
   const SES_CLASE = { foto: 'Foto', video: 'Vídeo', fotovideo: 'Foto y vídeo', libre: 'Libre', reunion: 'Reunión' };   // as sesiones.js names them
@@ -9044,7 +9164,7 @@ ${TK_FUENTES}
       const entregas = ((await idbAll('entregas')) || []).filter(r => r && r.id);   // a «Solo contenido» client's deliveries, their tombstones too (D-290)
       const acuerdos = ((await idbAll('acuerdos')) || []).filter(r => r && r.id), paquetes = ((await idbAll('paquetes')) || []).filter(r => r && r.id);
       const estilos = ((await idbAll('estilos')) || []).filter(estRecValido), enviados = ((await idbAll('enviados')) || []).filter(envRecValido);   // each client's style and what went to its web (D-356, D-355)   // the agreements and the packages, their tombstones too (D-305, D-307)
-      const parts = ['{"format":"mesa-feed","v":23,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())   // v22: + estilos and enviados (D-356, D-355) and a board's provisional months (D-358); v21: + acuerdos and paquetes (with their tombstones), an agreement's «Termina en» and package (D-305 to D-307); v20: + entregas (with their tombstones) and a client's agreement, service, day of deliveries and link of metrics, an invoice's stretch (D-288 to D-292); v19: + meses, each client's month's why and summary (D-238); v18: + cobros (with their tombstones) and cfacturas, their PDFs in base64 (D-232); v3: + bandejas (D-041); v4: the boards may hold stories (D-054), whose images a mesa before 3.53 wouldn't bring; v5: «No aprobado» and the reason of a cancellation (D-082); v6: the month's step of each board (D-084); v7: a post put back by hand (D-085); v8: one step per month of a board (D-119; a file before it has the board's step, which goes to its first month); v9: a Programada keeps the date it was scheduled for (D-120); v10: + ubicaciones, the locations' catalog; the clients carry their lists and the posts the one chosen (D-124); v11: the clients carry their lists of people and the posts their tags and collaborators (D-130); v12: the editor's slides may hold a progress bar, a check or an x (D-179); v13: + tareas, the personal page's tasks and notes with their photos, and since when a post waits for the client (D-180); v14: a task's details and subtasks (D-183); v15: a designed slide's free layers of the editor and slides let go from the kit (D-193); v16: sessions, sporadic clients and the list of material (D-206, D-207); v17: a session's clients, end and template of material, several templates of material (D-217, D-218, D-220)
+      const parts = ['{"format":"mesa-feed","v":24,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())   // v24: an amount's base and IVA (agreements, invoices), a client's «Sin IVA» and a package's price without IVA, permanence, what it doesn't include and its conditions (D-374, D-375); v23: the print of the rest of a client's web goes in «enviados» (D-372); v22: + estilos and enviados (D-356, D-355) and a board's provisional months (D-358); v21: + acuerdos and paquetes (with their tombstones), an agreement's «Termina en» and package (D-305 to D-307); v20: + entregas (with their tombstones) and a client's agreement, service, day of deliveries and link of metrics, an invoice's stretch (D-288 to D-292); v19: + meses, each client's month's why and summary (D-238); v18: + cobros (with their tombstones) and cfacturas, their PDFs in base64 (D-232); v3: + bandejas (D-041); v4: the boards may hold stories (D-054), whose images a mesa before 3.53 wouldn't bring; v5: «No aprobado» and the reason of a cancellation (D-082); v6: the month's step of each board (D-084); v7: a post put back by hand (D-085); v8: one step per month of a board (D-119; a file before it has the board's step, which goes to its first month); v9: a Programada keeps the date it was scheduled for (D-120); v10: + ubicaciones, the locations' catalog; the clients carry their lists and the posts the one chosen (D-124); v11: the clients carry their lists of people and the posts their tags and collaborators (D-130); v12: the editor's slides may hold a progress bar, a check or an x (D-179); v13: + tareas, the personal page's tasks and notes with their photos, and since when a post waits for the client (D-180); v14: a task's details and subtasks (D-183); v15: a designed slide's free layers of the editor and slides let go from the kit (D-193); v16: sessions, sporadic clients and the list of material (D-206, D-207); v17: a session's clients, end and template of material, several templates of material (D-217, D-218, D-220)
         + ',"clients":' + JSON.stringify(clients) + ',"ubicaciones":' + JSON.stringify(ubicaciones) + ',"tareas":' + JSON.stringify(tareas) + ',"cobros":' + JSON.stringify(cobros) + ',"cfacturas":' + JSON.stringify(cfacturas) + ',"meses":' + JSON.stringify(meses) + ',"entregas":' + JSON.stringify(entregas) + ',"acuerdos":' + JSON.stringify(acuerdos) + ',"paquetes":' + JSON.stringify(paquetes) + ',"estilos":' + JSON.stringify(estilos) + ',"enviados":' + JSON.stringify(enviados) + ',"bandejas":' + JSON.stringify(bandejas) + ',"boards":' + JSON.stringify(boards) + ',"files":{'];
       let sep = '', n = 0, photos = 0, skipped = 0;
       for (const id of ids) {
@@ -9123,7 +9243,7 @@ ${TK_FUENTES}
   }
   function xferCheck(d) {
     if (!d || typeof d !== 'object' || d.format !== 'mesa-feed') return 'Este archivo no es una exportación de la Mesa de trabajo.';
-    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23].includes(d.v)) return +d.v > 23 ? 'Este archivo viene de una versión más nueva de la mesa: actualízala antes de importarlo.' : 'Versión de archivo desconocida: no se puede importar.';
+    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24].includes(d.v)) return +d.v > 24 ? 'Este archivo viene de una versión más nueva de la mesa: actualízala antes de importarlo.' : 'Versión de archivo desconocida: no se puede importar.';
     const bad = 'El archivo está dañado o incompleto: no se puede importar.';
     if (!Array.isArray(d.clients) || !Array.isArray(d.boards) || !d.files || typeof d.files !== 'object' || (d.past != null && typeof d.past !== 'object')) return bad;
     if (d.clients.some(c => !c || typeof c.id !== 'string' || !c.id)) return bad;
@@ -9139,7 +9259,7 @@ ${TK_FUENTES}
     const dOk = v => v == null || v === '' || !!cobDia(v);
     if (d.cobros != null && (!Array.isArray(d.cobros) || d.cobros.some(r => !r || typeof r.id !== 'string' || !r.id || typeof r.cliente !== 'string' || !r.cliente || typeof r.at !== 'string' || isNaN(Date.parse(r.at)) || (/^\d{4}-\d{2}$/.test(r.periodo || '') && !COB_MES.test(r.periodo))
       || (!r.borrado && (typeof r.periodo !== 'string' || !r.periodo || !(typeof r.importe === 'number' && isFinite(r.importe) && r.importe >= 0) || !dOk(r.emitida) || !dOk(r.vence) || !dOk(r.cobrada)
-        || (r.factura != null && typeof r.factura !== 'string') || (r.pdf != null && typeof r.pdf !== 'string') || (r.concepto != null && typeof r.concepto !== 'string')))))) return bad;
+        || (r.factura != null && typeof r.factura !== 'string') || (r.pdf != null && typeof r.pdf !== 'string') || (r.concepto != null && typeof r.concepto !== 'string') || !ivaValido(r)))))) return bad;   // v24: its base and IVA (D-374)
     if (d.cfacturas != null && (!Array.isArray(d.cfacturas) || d.cfacturas.some(f => !f || typeof f.id !== 'string' || !f.id || typeof f.data !== 'string' || !f.data))) return bad;
     const qn = (v, a, b) => v == null || v === '' || (typeof v === 'number' && isFinite(v) && v >= a && v <= b && (b === 1e9 || Number.isInteger(v)));
     if (d.clients.some(c => c.cuota != null && (typeof c.cuota !== 'object' || !qn(c.cuota.importe, 0, 1e9) || !qn(c.cuota.dia, 1, 28) || !qn(c.cuota.plazo, 0, 365)))) return bad;
@@ -9147,7 +9267,7 @@ ${TK_FUENTES}
     // its date; an invoice's last month; the deliveries (a tombstone, its id, client and date)
     const atOk = v => v == null || (typeof v === 'string' && !isNaN(Date.parse(v)));
     if (d.clients.some(c => (c.acuerdo != null && !acuValido(c.acuerdo)) || (c.servicio != null && !SERVICIOS.includes(c.servicio)) || (c.entregasDia != null && !(Number.isInteger(c.entregasDia) && c.entregasDia >= 1 && c.entregasDia <= 28))
-      || (c.metricas != null && !metricasOk(c.metricas)) || ['acuerdoAt', 'servicioAt', 'entregasDiaAt', 'metricasAt', 'cuotaAt'].some(k => !atOk(c[k])))) return bad;
+      || (c.metricas != null && !metricasOk(c.metricas)) || (c.sinIva != null && c.sinIva !== true) || ['acuerdoAt', 'servicioAt', 'entregasDiaAt', 'metricasAt', 'cuotaAt', 'sinIvaAt'].some(k => !atOk(c[k])))) return bad;   // v24: «Sin IVA» (D-374)
     if (d.cobros != null && d.cobros.some(r => r && r.hasta != null && r.hasta !== '' && (!COB_MES.test(r.hasta) || !COB_MES.test(r.periodo || '') || r.hasta < r.periodo))) return bad;
     if (d.entregas != null && (!Array.isArray(d.entregas) || d.entregas.some(r => !entValida(r)))) return bad;
     // v21: the agreements and the packages (a tombstone, its id and date), D-305 to D-307
@@ -10258,6 +10378,7 @@ ${TK_FUENTES}
       dlgCliente: async (cid, tab) => { await loadClientPhotos(); return dlgEditClient(cid, tab); },   // «Editar cliente» of any client, in its tab (D-233)
       guardar: cobGuardar, parche: cobParche, pdfVolver: cobPdfVolver, borrar: cobBorrar, devolver: cobDevolver, pdfPoner: cobPdfPoner, pdfValido: cobPdfValido, pdfLibre: cobPdfLibre, nuevoId: cobId, cuotaGuardar, cuotaTxt, avisar: cobAvisar, MES: COB_MES,
       // the agreement (D-288): as kept, its stretches, its line, its save; an invoice's last month and whether one covers a month
+      ivaSep, impTxt: cobImpTxt, ivaTotal, ivaSeparar, ivaCliente, IVA_TIPOS, separar: ivaSepararDe, ivaPoner: ivaClientePoner, ivaVolver: ivaClienteVolver, ivaTipo: cobIvaTipo, parte: acuParte,   // D-374
       acuerdo: acuerdoDe, tramo: acuTramo, libre: acuLibre, falta: acuFalta, importeDe: acuImporte, resumen: acuResumen, titulo: acuTitulo, rango: acuRango, mal: () => cobMal || acuMal, acuGuardar, acuerdos: acuerdosDe, delMes: (cli, m) => acuDelMes(acuerdosDe(cli), m), resumenA: acuResumenA, tituloA: acuTituloA, completo: acuCompleto, acuLeer, acuNuevo, acuBorrar, acuDevolver, acuCambiar, idLegado: acuIdLegado, paquetes: () => paqVivos(), paqGet: id => PAQ && PAQ.get(id), paqNuevo, paqCambiar, paqBorrar, paqDevolver, paqIncluye, acuLimpio, PAGOS: ACU_PAGOS, paso: acuPaso, fin: acuFin, finCiclo: acuFinCiclo, mesCorto: acuMes, hasta: cobHasta, cubre: cobCubre },
     // a «Solo contenido» client (D-289) and its deliveries (D-290): for entregas.js, personal.js, calendario.js and movil.js
     servicio: servicioDe, esContenido, metricasOk, diaSel, acuRecValido, paqRecValido,

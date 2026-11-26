@@ -130,8 +130,6 @@
   const mcCerrar = () => tecla('Escape', { en: D.activeElement || D.body });
   const mcItems = m => [...m.querySelectorAll('[role="menuitem"]')].map(b => b.firstChild.textContent.trim());
   const mcElegir = t => { const m = mcAbrir(); ok(m, 'sin el menú de copias'); const b = [...m.querySelectorAll('[role="menuitem"]')].find(x => x.firstChild.textContent.trim() === t); ok(b, 'el menú de copias no tiene ' + t); b.click(); };
-  // «Exportar…» del símbolo con la copia ligera (.json, fotos a 1080 px; D-284, antes «Exportar», D-263)
-  async function exportarLigera() { mcElegir('Exportar…'); const d = await hasta(() => q('.detail:not([hidden])[data-dlg="exportar"]'), 2000, '«Exportar…»'); d.querySelector('input[value="ligera"]').click(); d.querySelector('form').requestSubmit(); await espera(20); }
   async function nuevoCliente(tipo = 'redes') {   // del menú del símbolo (D-284): primero el tipo en tres tarjetas y después sus datos (D-289)
     mcElegir('Nuevo cliente'); const f = await hasta(() => q('.detail form.nctipos'), 2000, 'las tarjetas de «Nuevo cliente»');
     f.querySelector(`input[value="${tipo}"]`).click(); f.requestSubmit(); await hasta(() => q('.detail [data-form="newclient"]'), 2000, '«Nuevo cliente»'); }   // del menú del símbolo (D-284; antes «+ Cliente»)
@@ -3299,7 +3297,7 @@
     A.click = function () { if (this.download) cap = { name: this.download, href: this.href }; else click.call(this); };
     try {
       W.localStorage.setItem(LS, '1');             // este navegador descarga: sin diálogo de guardar
-      await exportarLigera(); await espera(30);   // «Exportar…» del símbolo, la copia ligera (D-284)
+      M.exportAll(); await espera(30);   // la copia ligera: desde la 4.56 solo por la API (D-364)
       const dl = await hasta(() => q('.detail:not([hidden])[data-dlg="revisar"]'), 15000, 'la revisión con el hueco vacío tras exportar');   // D-040: el aviso de D-037 va en la revisión
       ok(cap, 'con un hueco vacío no se exportó (no hubo descarga)');
       const d = JSON.parse(await (await (await fetch(cap.href)).blob()).text());
@@ -16906,7 +16904,7 @@
     });
   });
 
-  prueba('MC2', 'El menú de copias hace lo que hacía ⇅: «Exportar…» hace la copia ligera o la completa (D-284), Importar… elige un .json o varios .tar y los importa (D-263)', async () => {
+  prueba('MC2', 'El menú de copias hace lo que hacía ⇅: «Exportar…» hace la copia completa (D-364, antes elegía, D-284), Importar… elige un .json o varios .tar y los importa (D-263)', async () => {
     await tablero([pub(1)]);
     await hasta(() => M.copia && M.copia.exportar, 8000, 'copia.js');
     const ex = M.exportAll, cx = M.copia.exportar, im = M.importData, IP = W.HTMLInputElement.prototype, clk = IP.click;
@@ -16916,15 +16914,14 @@
     M.importData = src => { log.push(['importar', Array.isArray(src) ? src.map(f => f.name) : src.name]); return Promise.resolve({}); };
     IP.click = function () { if (this.type === 'file' && this.classList.contains('xferin')) { inp = this; log.push('elegir'); } else clk.call(this); };
     try {
-      await exportarLigera(); ok(!q('.cp-copias'), 'el menú sigue abierto tras elegir');
-      mcElegir('Exportar…'); { const d = await hasta(() => q('.detail:not([hidden])[data-dlg="exportar"]'), 2000, '«Exportar…»'); d.querySelector('form').requestSubmit(); await espera(20); }   // la completa, de serie (D-284)
+      mcElegir('Exportar…'); await espera(20); ok(!q('.cp-copias'), 'el menú sigue abierto tras elegir');   // la completa, sin preguntar (D-364)
       mcLogo().focus(); mcElegir('Importar…'); await espera(20); ok(D.activeElement === mcLogo(), 'tras elegir, el foco no vuelve al símbolo');
-      igual(log, ['exportar', 'todo', 'elegir'], 'lo que hizo cada opción');
+      igual(log, ['todo', 'elegir'], 'lo que hizo cada opción');
       ok(inp && inp.multiple && /\.json/.test(inp.accept) && /\.tar/.test(inp.accept), 'Importar no acepta un .json o varios .tar');
       const pon = fs => { const dt = new W.DataTransfer(); fs.forEach(f => dt.items.add(f)); inp.files = dt.files; inp.dispatchEvent(new W.Event('change', { bubbles: true })); };
       pon([new W.File(['{}'], 'mesa.json', { type: 'application/json' })]); await espera(20);
       pon([new W.File(['a'], 'mesa-uno.tar'), new W.File(['b'], 'mesa-general.tar')]); await espera(20);
-      igual(log.slice(3), [['importar', 'mesa.json'], ['importar', ['mesa-uno.tar', 'mesa-general.tar']]], 'lo que llegó a importar');
+      igual(log.slice(2), [['importar', 'mesa.json'], ['importar', ['mesa-uno.tar', 'mesa-general.tar']]], 'lo que llegó a importar');
       igual(inp.value, '', 'el campo no se vacía (elegir lo mismo otra vez no haría nada)');
     } finally { M.exportAll = ex; M.copia.exportar = cx; M.importData = im; IP.click = clk; }
   });
@@ -17005,7 +17002,7 @@
       igual(n, 1, 'un doble clic descarga más de una vez');
       // cerrar con archivos listos sin descargar: lo dice
       M._in.closeDetail(); await espera(60);
-      ok(qa('.toasts > *').some(t => /sin descargar: «Exportar todo» los vuelve a preparar/.test(t.textContent)), 'cerrar con archivos sin descargar no lo dice');
+      ok(qa('.toasts > *').some(t => /sin descargar: «Exportar…» los vuelve a preparar/.test(t.textContent)), 'cerrar con archivos sin descargar no lo dice');
       ok(!M._in.xfer.ocupado(), 'la mesa se queda ocupada');
       // cerrar mientras se lee la mesa: sin error, la mesa libre
       M._in.clearToasts && M._in.clearToasts();
@@ -17123,6 +17120,166 @@
       igual(hay, sabe, 'los almacenes de la base de datos');
       ok(!(M._in.xfer.NO_VIAJAN || []).some(n => M._in.xfer.ALMACENES.includes(n)), 'un almacén viaja y no viaja');
     } finally { dbx.close(); }
+  });
+
+  // ---------- «Exportar» con una sola copia y sus botones (ajustes de la 4.55, lote 1; D-364) ----------
+  // la huella, lenta a propósito, para ver el diálogo mientras prepara (y contar lo que pide después de «Cancelar»)
+  function fxLento(ms) {
+    const sub = W.crypto.subtle, dig = sub.digest; const n = { v: 0 };
+    sub.digest = async function (a, b) { n.v++; await espera(ms); return dig.call(sub, a, b); };
+    return { n, vuelve: () => { sub.digest = dig; } };
+  }
+  const fxDlg = () => q('.detail:not([hidden])[data-dlg="copia"]');
+  const fxEstado = () => (q('.detail[data-dlg="copia"] .cp-estado') || {}).textContent || '';
+  const fxToasts = () => qa('.toasts > *').map(t => t.textContent).join(' | ');
+
+  prueba('FX1', '«Exportar…» del símbolo va directo a la única copia (D-364, sustituye en parte D-017 y D-284): un diálogo «Exportar», sin preguntar cuál, sin «Copia ligera» a la vista; MESA.exportAll sigue por la API', async () => {
+    await tablero([pub(1)]); await hasta(() => M.copia && M.copia.exportar, 8000, 'copia.js');
+    try {
+      mcElegir('Exportar…');
+      const d = await hasta(() => fxDlg(), 3000, 'el diálogo de la copia');
+      igual(d.querySelector('h3').textContent, 'Exportar', 'el título');
+      ok(!d.querySelector('input[type="radio"]') && !/ligera/i.test(d.textContent) && !/1080/.test(d.textContent), 'sigue ofreciendo la copia ligera: ' + d.textContent);
+      ok(/tamaño original/.test(d.textContent) && /un \.tar por cliente y uno general/.test(d.textContent), 'no dice qué hace: ' + d.textContent);
+      await hasta(() => qa('.detail[data-dlg="copia"] [data-cp="bajar"]').length && qa('.detail[data-dlg="copia"] [data-cp="bajar"]').every(b => !b.disabled), 15000, 'las filas listas');
+      M._in.closeDetail();
+      const b = await M.exportAll({ returnBlob: true });
+      ok(b && b.size > 100, 'MESA.exportAll ya no da el .json');
+    } finally { M._in.closeDetail(); }
+  });
+
+  prueba('FX2', 'Cada clic en un «Descargar» encendido responde (A55-3): clics seguidos (detail 2 y 3) pasado el freno descargan; el freno va por tiempo y se ve en el botón («Lanzada», sin apagarse el foco) y luego «Otra vez»', async () => {
+    await cpSembrar();
+    try {
+      const r = await M.copia.exportar(); ok(r && r.ok, 'no se preparó: ' + json(r));
+      let n = 0; const A = W.HTMLAnchorElement.prototype, ck = A.click; A.click = function () { if (this.download) n++; else ck.call(this); };
+      try {
+        const b = q('.detail[data-dlg="copia"] [data-cp="bajar"]'); b.focus();
+        const clic = det => b.dispatchEvent(new W.MouseEvent('click', { bubbles: true, detail: det }));
+        clic(1); await espera(20);
+        igual(n, 1, 'el primer clic no descarga');
+        ok(b.getAttribute('aria-disabled') === 'true' && !b.disabled && /Lanzada/.test(b.textContent), 'el freno no se ve en el botón: ' + b.outerHTML);
+        ok(D.activeElement === b, 'el foco se va del botón al frenarlo');
+        clic(2); clic(1); await espera(20); igual(n, 1, 'durante el freno descarga otra vez');
+        await espera(1600);
+        ok(!b.getAttribute('aria-disabled') && b.textContent === 'Otra vez', 'tras el freno no vuelve «Otra vez»: ' + b.outerHTML);
+        clic(2); await espera(20); igual(n, 2, 'un clic seguido (detail 2) tras el freno no hace nada');
+        await espera(1600);
+        clic(3); await espera(20); igual(n, 3, 'el tercero seguido (detail 3) no hace nada');
+      } finally { A.click = ck; }
+    } finally { await cpFin(); }
+  });
+
+  prueba('FX3', 'Mientras prepara se ve cuánto falta (D-364): «Leyendo la Mesa…», «Preparando <cliente> · N de M» con su barra, y las filas (una por parte, desde el principio) no cambian de sitio', async () => {
+    await cpSembrar();
+    const L = fxLento(120);
+    try {
+      M.copia._test.parteMax(60000);       // varias partes: sus filas, desde el principio
+      const vistos = []; let det = null, barras = [], filas0 = null, topes0 = null;
+      const p = M.copia.exportar(); vistos.push(fxEstado());   // dibujado ya, antes de su primer await
+      det = q('.detail'); const mo = new W.MutationObserver(() => {
+        const e = fxEstado(); if (e && vistos[vistos.length - 1] !== e) vistos.push(e);
+        const bar = q('.detail[data-dlg="copia"] .cp-barra'); if (bar) barras.push(+bar.getAttribute('aria-valuenow'));
+        const bs = qa('.detail[data-dlg="copia"] [data-cp="bajar"]'); if (bs.length > 1 && !topes0) { topes0 = bs.map(b => Math.round(b.getBoundingClientRect().top)); filas0 = bs.length; }
+      });
+      mo.observe(det, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['aria-valuenow'] });
+      const r = await p; mo.disconnect(); ok(r && r.ok, 'no se preparó: ' + json(r));
+      ok(vistos[0] && /Leyendo la Mesa…/.test(vistos[0]), 'no dice «Leyendo la Mesa…»: ' + json(vistos));
+      ok(vistos.some(t => new RegExp(`^Preparando ${NOMBRE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} · 1 de 3$`).test(t)) && vistos.some(t => /^Preparando General · 3 de 3$/.test(t)), 'no dice qué prepara y cuántos: ' + json(vistos));
+      ok(barras.length && barras.every((x, i) => !i || x >= barras[i - 1]) && barras[barras.length - 1] === 100, 'la barra no avanza hasta el final: ' + json(barras.slice(-6)));
+      const bs = qa('.detail[data-dlg="copia"] [data-cp="bajar"]');
+      ok(filas0 > 3, 'no había una fila por parte desde el principio: ' + filas0);
+      igual(bs.length, filas0, 'al final hay otro número de filas');
+      igual(bs.map(b => Math.round(b.getBoundingClientRect().top)), topes0, 'las filas cambiaron de sitio mientras preparaba');
+      ok(/Listo|Lista/.test(fxEstado()), 'al acabar no dice que está listo: ' + fxEstado());
+    } finally { L.vuelve(); await cpFin(); }
+  });
+
+  prueba('FX4', '«Cancelar» a la vista mientras prepara (D-364): para de preparar (ni una huella más), cierra, suelta la mesa y deja exportar otra vez sin recargar; lo ya descargado se queda; sin nada que preparar, no hay «Cancelar»', async () => {
+    await cpSembrar();
+    const L = fxLento(150);
+    try {
+      const p = M.copia.exportar();
+      const b = await hasta(() => q('.detail[data-dlg="copia"] [data-cp="cancelar"]'), 3000, '«Cancelar» a la vista');
+      ok(b.offsetParent !== null && /Cancelar/.test(b.textContent), '«Cancelar» no se ve');
+      await hasta(() => /Preparando/.test(fxEstado()), 8000, 'que empiece a preparar');
+      b.click(); const quedaba = L.n.v;
+      const r = await p; ok(r && r.cancelled, 'no dice que se canceló: ' + json(r));
+      ok(!fxDlg(), 'el diálogo sigue abierto'); ok(!M._in.xfer.ocupado(), 'la mesa se queda ocupada');
+      ok(/Exportación cancelada/.test(fxToasts()), 'no lo dice: ' + fxToasts());
+      await espera(700); ok(L.n.v <= quedaba + 1, `siguió calculando huellas tras cancelar: ${quedaba} → ${L.n.v}`);
+      L.vuelve();
+      const r2 = await M.copia.exportar(); ok(r2 && r2.ok && fxDlg(), 'no deja exportar otra vez: ' + json(r2));
+      ok(!q('.detail[data-dlg="copia"] [data-cp="cancelar"]:not([hidden])'), 'preparada entera, sigue «Cancelar»');
+    } finally { L.vuelve(); await cpFin(); }
+  });
+
+  prueba('FX5', 'Abrir «Exportar» con uno ya abierto lo dice, en vez de no hacer nada, y no toca el que hay (D-364)', async () => {
+    await cpSembrar();
+    try {
+      await M.copia.exportar(); const d = fxDlg(); ok(d, 'sin el diálogo');
+      M._in.clearToasts && M._in.clearToasts();
+      const r = await M.copia.exportar();
+      ok(r && r.error && fxDlg() === d && qa('.detail[data-dlg="copia"] [data-cp="bajar"]').length, 'se perdió el diálogo: ' + json(r));
+      ok(/«Exportar» ya está abierto/.test(fxToasts()), 'no dice que ya está abierto: ' + fxToasts());
+    } finally { await cpFin(); }
+  });
+
+  prueba('FX6', 'Al terminar la copia completa salen la revisión del mes abierto y los huecos de foto de otros meses (D-364, D-037, D-040), dentro del diálogo y sin quitarle las descargas; sin nada que mirar, nada', async () => {
+    await cpSembrar();
+    try {
+      await M.open(`${CLIENTE}-${MES}`);
+      await abrirEditor('r2'); accion('sl-add'); const p = ed().i; compDe(p).els.push(huecoEl('hx', 0.1, 0.1, 0.8, 0.8)); await aplicarEditor();
+      await hasta(() => (M.plan().find(x => x.slotId === 'r2') || {})['hueco vacío'], 4000, 'el hueco vacío');
+      // un hueco en un mes que no está abierto: el mismo, guardado como el de octubre
+      await M.flush();
+      const mio = (await M._in.idbAll('boards')).find(b => b.key === `${CLIENTE}-${MES}`);
+      await M._in.idbPut('boards', `${CLIENTE}-2026-10`, { ...JSON.parse(JSON.stringify(mio)), key: `${CLIENTE}-2026-10`, month: '2026-10' });
+      const r = await M.copia.exportar(); ok(r && r.ok, 'no se preparó: ' + json(r));
+      const rev = await hasta(() => q('.detail[data-dlg="copia"] .cp-rev:not([hidden])'), 15000, 'la revisión dentro del diálogo');
+      ok(fxDlg() && qa('.detail[data-dlg="copia"] [data-cp="bajar"]').length >= 3, 'se perdieron las descargas');
+      ok(!q('.detail[data-dlg="revisar"]') && !q('.detail[data-dlg="huecos"]'), 'se abrió otro diálogo encima');
+      const t = rev.textContent;
+      ok(/hueco de foto vacío/i.test(t) && /Carrusel 1\.2|Carrusel 1\.1/.test(t), 'no dice el hueco del mes abierto: ' + t);
+      ok(/octubre 2026/i.test(t) && /otros meses/.test(t), 'no dice el hueco del otro mes: ' + t);
+      ok(!rev.querySelector('button, a'), 'los puntos se pulsan y cerrarían la copia');
+    } finally { await cpFin(); }
+  });
+
+  prueba('FX7', 'Importar (D-364): «Cancelar» vale también «preparando la copia» y al leer un .json, sin importar nada; guardando los registros sale apagado y dice por qué', async () => {
+    await cpSembrar();
+    try {
+      const ar = await cpExportar();
+      const json0 = await M.exportAll({ returnBlob: true });
+      await M._test.vaciarTodo();
+      // a) la copia, en «Preparando la copia…» (tras comprobar las huellas)
+      const det = () => q('.detail');
+      const alVer = (fn) => { const mo = new W.MutationObserver(() => { if (fn()) mo.disconnect(); }); mo.observe(det(), { childList: true, subtree: true, characterData: true, attributes: true }); return mo; };
+      let pulsado = false;
+      const mo = alVer(() => { const pr = det().querySelector('.cp-prog'), b = det().querySelector('[data-cp="parar"]'); if (pr && /Preparando la copia/.test(pr.textContent) && b && !b.disabled) { pulsado = true; b.click(); return true; } return false; });
+      const pa = M.importData(cpArchivos(ar));
+      const ra = await Promise.race([pa, hasta(() => q('.detail[data-dlg="xfer-confirm"]'), 15000, 'confirmación').then(() => { M._in.closeDetail(); return { confirmo: true }; })]);
+      mo.disconnect();
+      ok(pulsado, 'no llegó a «Preparando la copia…»');
+      ok(ra && ra.cancelled && !ra.confirmo, '«Cancelar» no hizo nada al preparar: salió la confirmación ' + json(ra));
+      igual((await M._in.idbAll('boards')).length, 0, 'importó algo');
+      // b) un .json: leyendo, con «Cancelar»
+      let pb = null;
+      const mo2 = alVer(() => { const b = det().querySelector('[data-cp="parar"]'); if (b && !b.disabled) { pb = b.textContent; b.click(); return true; } return false; });
+      const pj = M.importData(json0);
+      const rj = await Promise.race([pj, hasta(() => q('.detail[data-dlg="xfer-confirm"]'), 20000, 'confirmación .json').then(() => { M._in.closeDetail(); return { confirmo: true }; })]);
+      mo2.disconnect();
+      ok(pb === 'Cancelar', 'al leer un .json no hay «Cancelar»');
+      ok(rj && rj.cancelled && !rj.confirmo, '«Cancelar» no paró el .json: ' + json(rj));
+      igual((await M._in.idbAll('boards')).length, 0, 'importó algo del .json');
+      ok(!M._in.xfer.ocupado(), 'la mesa se queda ocupada');
+      // c) guardando los registros: apagado y dice por qué
+      let visto = null;
+      const mo3 = alVer(() => { const dd = det(), b = dd.querySelector('.xparar'), por = dd.querySelector('.cp-porque'); if (b && b.disabled && por && por.textContent) { visto = por.textContent; return true; } return false; });
+      const rc = await M.importData(cpArchivos(ar), { confirm: false }); mo3.disconnect();
+      ok(rc && rc.ok, 'no importó: ' + json(rc));
+      ok(visto && /ya no se puede cancelar/.test(visto), 'guardando los registros no dice por qué está apagado: ' + visto);
+    } finally { await cpFin(); }
   });
 
   // ---------- el diario de cambios (D-250) ----------
@@ -20601,24 +20758,15 @@
     M._in.closeDetail();
   });
 
-  prueba('SB2', '«Exportar…» del símbolo pregunta qué copia (D-284): «Copia completa» de serie (la de «Exportar todo») o «Copia ligera (.json, fotos a 1080 px)»; cada una hace lo de siempre; el aviso del almacenamiento dice «Haz «Exportar…» de vez en cuando»', async () => {
+  prueba('SB2', '«Exportar…» del símbolo hace la copia completa sin preguntar (D-364, antes preguntaba cuál, D-284), sin llamar a la ligera; el aviso del almacenamiento dice «Haz «Exportar…» de vez en cuando»', async () => {
     await tablero([pub(1)]);
     const exp0 = M.exportAll, cop0 = M.copia && M.copia.exportar; let hecho = '';
     M.exportAll = () => { hecho += 'ligera,'; }; if (M.copia) M.copia.exportar = () => { hecho += 'completa,'; };
     try {
-      mcElegir('Exportar…'); await espera(40);
-      const d = dialogo(); ok(d && d.dataset.dlg === 'exportar', '«Exportar…» no pregunta: ' + json(d && d.dataset.dlg));
-      const rs = [...d.querySelectorAll('input[type="radio"][name="exp"]')];
-      igual(rs.map(x => x.value), ['completa', 'ligera'], 'las dos copias'); ok(rs[0].checked, 'la completa no va de serie');
-      ok(/Copia completa/.test(d.textContent) && /Copia ligera/.test(d.textContent) && /1080 px/.test(d.textContent), 'los nombres de las copias');
-      { const op = d.querySelector('.expop'), ri = op.querySelector('input').getBoundingClientRect(), tx = op.querySelector('.expd b').getBoundingClientRect();
-        ok(W.getComputedStyle(op).display === 'flex' && Math.abs(ri.top - tx.top) < 8 && ri.right < tx.left, 'el redondel y su texto no van en la misma fila'); ok(W.getComputedStyle(op.querySelector('input')).appearance === 'none', 'el redondel no es el de la Mesa'); }
-      d.querySelector('form').requestSubmit(); await espera(60);
-      igual(hecho, 'completa,', 'la completa no hace «Exportar todo»');
-      ok(!qa('.toast').some(t => /No se pudo/.test(t.textContent)), 'exportar deja un aviso de fallo: ' + json(qa('.toast').map(t => t.textContent))); ok(!dialogo() || dialogo().dataset.dlg !== 'exportar', 'la ventana sigue abierta');
-      mcElegir('Exportar…'); await espera(40);
-      const d2 = dialogo(); d2.querySelector('input[value="ligera"]').click(); d2.querySelector('form').requestSubmit(); await espera(60);
-      igual(hecho, 'completa,ligera,', 'la ligera no hace el .json');
+      mcElegir('Exportar…'); await espera(60);
+      igual(hecho, 'completa,', '«Exportar…» no hace la completa, o hace la ligera');
+      ok(!dialogo() || dialogo().dataset.dlg !== 'exportar', 'sigue preguntando cuál: ' + json(dialogo() && dialogo().dataset.dlg));
+      ok(!qa('.toast').some(t => /No se pudo/.test(t.textContent)), 'exportar deja un aviso de fallo: ' + json(qa('.toast').map(t => t.textContent)));
     } finally { M.exportAll = exp0; if (M.copia) M.copia.exportar = cop0; M._in.closeDetail(); }
     const st = W.navigator.storage;
     try {

@@ -3370,6 +3370,7 @@ ${TK_FUENTES}
 #mesa .xsum{list-style:none;margin:0 0 12px;padding:0;font-size:12.5px;max-height:38vh;overflow:auto}
 #mesa .xsum li{padding:7px 0;border-top:1px solid var(--line2);line-height:1.5}#mesa .xsum li span{color:var(--mute)}
 #mesa .card>p.xwhat{color:var(--ink);font-size:13px}
+#mesa .card>p.cp-porque{margin:10px 0 0;font-size:12px;color:var(--mute)}#mesa .card>p.cp-porque:empty{display:none}
 #mesa .pdz{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;margin:0 0 14px}
 #mesa .ubsel{max-width:100%;min-width:0;text-overflow:ellipsis}
 #mesa .pper{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px;align-items:start;margin:0 0 16px}#mesa .pper .persel,#mesa .pper .persel+.mx-sel:not(#mx){width:100%}
@@ -9318,6 +9319,25 @@ ${TK_FUENTES}
     return `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>${d.copia ? 'Importar la copia' : 'Importar la mesa'}</h3><p>${info}</p><ul class="xsum">${rows || '<li>Sin meses</li>'}</ul><p class="xwhat">${esc(what)}</p>`
       + (P.nothing ? '' : '<div class="form"><div class="row"><button type="button" class="btn" data-act="xfer-go">Importar</button></div></div>');   // no «Cerrar» nor «Cancelar»: the × (D-155)
   }
+  // «Importar…» of a .json: what it is doing, with «Cancelar» while nothing is written (D-364). Closing it any other way (Esc, a
+  // click outside, another dialog) is «Cancelar». antes(): the confirmation comes, it is no longer ours; parada(): it stops
+  function xferLeyendo() {
+    showDialog('xfer-read', '<h3>Importar la mesa</h3><p class="xprog" aria-live="polite">Leyendo el archivo…</p><div class="form"><div class="row"><button type="button" class="btn2 xleer" data-cp="parar">Cancelar</button></div></div>');
+    const d = root.querySelector('.detail'), b = d.querySelector('.xleer'); let pedido = false, fuera = false, mo = null;
+    const soltar = () => { fuera = true; if (mo) mo.disconnect(); };
+    const pedir = () => { if (fuera) return; pedido = true; if (b.isConnected) { b.disabled = true; b.textContent = 'Parando…'; } };
+    b.addEventListener('click', pedir);
+    mo = new MutationObserver(() => { if (d.hidden || d.dataset.dlg !== 'xfer-read') { pedir(); mo.disconnect(); } });
+    mo.observe(d, { attributes: true, attributeFilter: ['hidden', 'data-dlg'] });
+    b.focus();
+    return {
+      pedido: () => pedido,
+      texto: t => { const p = d.dataset.dlg === 'xfer-read' && d.querySelector('.xprog'); if (p && p.textContent !== t) p.textContent = t; },
+      antes: soltar,
+      parada: () => { soltar(); if (d.dataset.dlg === 'xfer-read') closeDetail(); toast('Importación cancelada: no se ha importado nada.', { ms: 7000 }); }
+    };
+  }
+  const XFER_YA_NO = 'Guardando: ya no se puede cancelar sin dejar la importación a medias.';
   // resolves true on «Importar», false when the dialog goes away any other way (×, Cancelar, Esc, backdrop)
   function xferConfirm(html) {
     return new Promise(res => {
@@ -9365,20 +9385,28 @@ ${TK_FUENTES}
       else if (back.client && CL.some(c => c.id === back.client)) await M.openClient(back.client);
       else await M.boot();
     };
+    // while it reads and prepares, «Cancelar» stops it: nothing is written yet (D-364). A copy brings its own (copia.js); a .json
+    // chosen by hand gets one here
+    let para = opts.parar || null;
+    const cancelado = () => !!(para && para.pedido()), dejar = () => { para.parada(); return { cancelled: true }; };
     try {
       let d = src;
+      if (!para && !(src && src.copia) && opts.confirm !== false && shellReady()) para = xferLeyendo();
       setBusy('imp', 'Leyendo el archivo…');
       try { if (src instanceof Blob) d = await src.text(); if (typeof d === 'string') d = JSON.parse(d); }
       catch (e) { return fail('No se puede leer el archivo: no es una exportación de la mesa o está incompleto (¿terminó de copiarse?).'); }
+      if (cancelado()) return dejar();
       if (d && d.copia && !(d.copia.raw && d.copia.raw.files instanceof Map)) d = { ...d, copia: undefined };   // a .json can't be a copy: it goes by xferCheck
       const why = d && d.copia ? null : xferCheck(d); if (why) return fail(why);   // a copy: copia.js checked every hash and its form
       await addQ; await flushPending();
       let P = await xferPlan(d);
+      if (cancelado()) return dejar();
       // photos and thumbnails decoded before anything is written: a damaged file changes nothing
       const got = {}, gotPast = {}, need = d.copia ? [] : Object.keys(d.files).filter(id => !P.files.has(id) || P.kitFiles.includes(id));   // a copy: its photos go in as they are, after the confirmation
       let i = 0;
       for (const id of need) {
-        setBusy('imp', `Preparando ${++i}/${need.length} fotos…`);
+        if (cancelado()) return dejar();
+        setBusy('imp', `Preparando ${++i}/${need.length} fotos…`); if (para && para.texto) para.texto(`Preparando ${i} de ${need.length} fotos…`);
         const f = d.files[id];
         try {
           const type = OK_TYPES.includes(f.type) ? f.type : 'image/jpeg', blob = blobOf(f.data, type);
@@ -9392,15 +9420,19 @@ ${TK_FUENTES}
       for (const pid of P.newPast) { const p = d.past[pid]; try { gotPast[pid] = { thumb: blobOf(p.thumb, 'image/jpeg'), w: +p.w || 0, h: +p.h || 0 }; } catch (e) { /* only a preview */ } }
       const gotTar = {};                   // the tasks' photos (D-180), read before anything is written
       for (const t of P.tarPut) {
+        if (cancelado()) return dejar();
         try { gotTar[t.id] = d.copia ? await copiaPropio(tareaAl17(t)) : { ...tareaAl17(t), ...(t.fotos ? { fotos: t.fotos.map(f => ({ id: f.id, w: +f.w || 0, h: +f.h || 0, blob: blobOf(f.data, 'image/jpeg'), ...(typeof f.mini === 'string' && f.mini ? { mini: blobOf(f.mini, 'image/jpeg') } : {}) })) } : {}) }; }   // a copy's task as it was, its photos' blobs inside
         catch (e) { return fail('El archivo está dañado: no se puede leer la foto de una tarea. No se ha importado nada.'); }
       }
       const gotPdf = {};                   // the invoices' PDFs (D-232), read before anything is written, with their bytes
       for (const f of P.pdfPut || []) {
+        if (cancelado()) return dejar();
         try { gotPdf[f.id] = { id: f.id, nombre: String(f.nombre || 'factura.pdf').slice(0, 120), tam: 0, tipo: 'application/pdf', blob: await copiaPropio(datoBlob(f.data, 'application/pdf')) }; gotPdf[f.id].tam = gotPdf[f.id].blob.size; }   // a copy's: its own bytes (D-279)
         catch (e) { return fail('El archivo está dañado: no se puede leer el PDF de una factura. No se ha importado nada.'); }
       }
       setBusy('imp', null);
+      if (cancelado()) return dejar();
+      if (para) para.antes();   // from here on, the confirmation and then the writing
       if (opts.confirm !== false && shellReady() && !(await xferConfirm(xferSummaryHTML(d, P)))) return { cancelled: true };
       if (locked) return fail('La mesa está abierta en otra pestaña: no se ha importado nada.');
       await addQ; await flushPending();
@@ -9419,10 +9451,11 @@ ${TK_FUENTES}
         const e = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate().catch(() => ({})) : {}, falta = P.copia.bytes;
         if (e.quota && e.usage != null && e.quota - e.usage < falta + 104857600) return fail(`No hay espacio en el navegador para la copia: necesita ${pesoTxt(falta)} y quedan ${pesoTxt(Math.max(0, e.quota - e.usage))}. Libera espacio en el disco. No se ha importado nada.`);
       }
-      if (shellReady()) showDialog('xfer-busy', d.copia ? '<h3>Importando la copia…</h3><p class="xprog" aria-live="polite">Guardando los archivos…</p><div class="form"><div class="row"><button type="button" class="btn2 xparar">Cancelar</button></div></div>'
-        : '<h3>Importando la mesa…</h3><p>Un momento: se están guardando los meses y las fotos.</p>');
+      if (shellReady()) showDialog('xfer-busy', d.copia ? '<h3>Importando la copia…</h3><p class="xprog" aria-live="polite">Guardando los archivos…</p><div class="form"><div class="row"><button type="button" class="btn2 xparar">Cancelar</button></div></div><p class="cp-porque" aria-live="polite"></p>'
+        : `<h3>Importando la mesa…</h3><p>Un momento: se están guardando los meses y las fotos.</p><div class="form"><div class="row"><button type="button" class="btn2" disabled>Cancelar</button></div></div><p class="cp-porque">${XFER_YA_NO}</p>`);
       const bP = d.copia && shellReady() && root.querySelector('.detail .xparar');
       let enRegistros = false;                    // the files are in: the records go together, nothing stops them now
+      const yaNo = () => { if (!bP || !bP.isConnected) return; bP.disabled = true; const p = root.querySelector('.detail .cp-porque'); if (p && !p.textContent) p.textContent = XFER_YA_NO; };   // «Cancelar» off, saying why (D-364)
       const pararYa = () => { if (enRegistros) return; parar.pedido = true; if (bP && bP.isConnected) { bP.disabled = true; bP.textContent = 'Parando…'; } };
       let moP = null;
       if (bP) {
@@ -9438,7 +9471,7 @@ ${TK_FUENTES}
       if (d.copia) {                               // what isn't here goes in as it was: the files first, one by one, then the records
         const pr = root && root.querySelector('.detail .xprog'); let ultP = 0;
         const c = await copiaCrudo(d, parar, (i, n, esc, prev) => {
-          if (i >= n) { enRegistros = true; if (bP && bP.isConnected) bP.disabled = true; }
+          if (i >= n) { enRegistros = true; yaNo(); }
           if (Date.now() - ultP < 150 && i < n) return; ultP = Date.now();
           const k = Math.min(i + 1, n).toLocaleString('es-ES'), t = n ? `Guardando ${k} de ${n.toLocaleString('es-ES')} ${n === 1 ? 'archivo' : 'archivos'}… · ${pesoTxt(esc || 0)} de ${pesoTxt(prev || 0)}` : 'Guardando los meses y los registros…';   // D-279: how much is written
           if (pr && pr.isConnected) pr.textContent = t; setBusy('imp', t);
@@ -9450,7 +9483,7 @@ ${TK_FUENTES}
           const m = `Importación parada${por}: ${c.hechos === 1 ? 'se guardó 1 archivo entero' : `se guardaron ${c.hechos.toLocaleString('es-ES')} archivos enteros`} de ${c.total.toLocaleString('es-ES')}. No se han importado los meses, los clientes ni las tareas: vuelve a importar la copia para terminar (lo ya guardado no se repite).`;
           res.cancelled = true; res.parada = m; setBusy('imp', null); await reopen(); toast(m, { ms: 12000 }); return res;
         }
-        if (bP && bP.isConnected) bP.disabled = true;   // the records: a moment, and they go together
+        yaNo();                     // the records: a moment, and they go together
         P0 = P; P = await xferPlan(d);             // the rest merges as always, over what is here now
         for (const id of P.kitFiles) { const r = d.copia.raw.files && d.copia.raw.files.get(id); if (r) got[id] = await copiaPropio(r); }   // its own bytes (D-279)
       }
@@ -9631,25 +9664,12 @@ ${TK_FUENTES}
       { t: 'Importar…', sub: 'Un .json o los .tar de una copia', hacer: elegirImportar }
     ], { foco, cls: 'cp-copias', label: 'Nuevo cliente y copias', pie, desc: pie ? 'cp-copias-nota' : '' });
   }
-  // «Exportar…» asks which copy (D-284): the whole one by default (D-249: a .tar per client and a general one, at their original
-  // size, with the folders) or the light one (D-017: one .json with the photos at 1080 px, for tests or to pass something
-  // quickly). «Importar…» takes both. No await before the save picker or the download: they need the click
+  // «Exportar…» (D-364, replaces the choice of D-284): the one copy there is, the whole one (D-249: a .tar per client and a general
+  // one, at their original size, with the folders); copia.js shows it and prepares it at once. The light .json (D-017) stays in
+  // MESA.exportAll, for the tests, and «Importar…» takes both. No await before it: a download needs the click
   function dlgExportar() {
-    const op = (v, t, d, on) => `<label class="expop${on ? ' on' : ''}"><input type="radio" name="exp" value="${v}"${on ? ' checked' : ''}><span class="expd"><b>${t}</b><span>${d}</span></span></label>`;
-    showDialog('exportar', '<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Exportar</h3><form class="form expform" autocomplete="off"><div class="expops" role="radiogroup" aria-label="Qué copia">'
-      + op('completa', 'Copia completa', 'Todo a su tamaño original, con las carpetas: un .tar por cliente y uno general. Para guardarla en el SSD.', true)
-      + op('ligera', 'Copia ligera', 'Un solo .json con las fotos a 1080 px. Para pruebas o para pasar algo rápido.', false)
-      + '</div><div class="row"><button type="submit" class="btn">Exportar</button></div></form>');
-    const f = root.querySelector('.detail form.expform');   // no data-form: submitForm is the clients' (it would fail on it)
-    f.addEventListener('submit', e => {
-      e.preventDefault();
-      const v = (f.querySelector('input[name="exp"]:checked') || {}).value; closeDetail();
-      if (v === 'ligera') M.exportAll();
-      else if (M.copia && M.copia.exportar) M.copia.exportar();
-      else toast((window.MESA_CARGA || {}).copia === 'fallo' ? 'No se pudo cargar la copia completa (copia.js): recarga la página.' : 'La copia completa aún se está cargando: vuelve a intentarlo en un momento.');   // D-249
-    });
-    f.addEventListener('change', () => f.querySelectorAll('.expop').forEach(l => l.classList.toggle('on', l.querySelector('input').checked)));   // a class, not :has() (it costs on every change of the page)
-    const r = f.querySelector('input[name="exp"]:checked'); if (r) r.focus();
+    if (M.copia && M.copia.exportar) M.copia.exportar();
+    else toast((window.MESA_CARGA || {}).copia === 'fallo' ? 'No se pudo cargar la copia completa (copia.js): recarga la página.' : 'La copia completa aún se está cargando: vuelve a intentarlo en un momento.');   // D-249
   }
   function elegirImportar() {          // one .json as always; one or more .tar of «Exportar todo» (clients, general and parts, in any order) together
     let inp = root.querySelector(':scope > .xferin');

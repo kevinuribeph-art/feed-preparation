@@ -152,7 +152,8 @@
     const sp = a && C().ivaSep ? C().ivaSep(a) : null, tf = sp ? tarifa(a) : null;
     const dif = tf && tf.base != null && tf.base !== sp.base ? difHTML(eur(tf.base), 'tarifa-imp') : '';
     const sepB = !sp && a && a.importe != null ? `<button type="button" class="co-lnk co-sepb" data-co="sep-abrir" aria-expanded="${UI.sep === a.id}">Separar el IVA…</button>` : '';
-    return `<div><label for="co-a-importe${sx}">Importe de cada pago</label><div class="co-impw${sp ? (sp.iva ? ' iva' : ' sin') : ''}"><input id="co-a-importe${sx}" type="text" class="co-q" data-co="cuota" data-k="importe" inputmode="decimal" autocomplete="off" value="${esc(acuVal(a, 'importe'))}" placeholder="Importe"${sp ? ` aria-describedby="co-a-iva${sx}"` : ''}>${sp ? `<span class="co-sfx" id="co-a-iva${sx}">${sp.iva ? `+ ${esc(eur(sp.cuota))} IVA` : 'sin IVA'}</span>` : ''}</div>${dif}${sepB}</div>`;
+    const ivaT = sp ? (sp.iva ? `+ ${eur(sp.cuota)} IVA` : 'sin IVA') : '', n = Math.min(18, Math.max(7, ivaT.length));   // the room it leaves the amount, by its length
+    return `<div><label for="co-a-importe${sx}">Importe de cada pago</label><div class="co-impw${sp ? ` iva sx${n}` : ''}"><input id="co-a-importe${sx}" type="text" class="co-q" data-co="cuota" data-k="importe" inputmode="decimal" autocomplete="off" value="${esc(acuVal(a, 'importe'))}" placeholder="Importe"${sp ? ` aria-describedby="co-a-iva${sx}"` : ''}>${sp ? `<span class="co-sfx" id="co-a-iva${sx}">${esc(ivaT)}</span>` : ''}</div>${dif}${sepB}</div>`;
   }
   // a month written as «may 2026», «mayo 2026», «05/2026» or «2026-05»; '' empty; undefined, not a month
   function leerMes(v) {
@@ -914,7 +915,7 @@
 #mesa .co-pq-p{display:inline-flex;align-items:center;gap:6px;flex:none;margin:0;font-size:12.5px;font-weight:400;color:var(--mute)}#mesa .co-pq-p .co-q{width:110px;text-align:right}
 #mesa .co-nota{margin:4px 0 0;font-size:12.5px;line-height:1.45;color:var(--mute)}
 #mesa .co-impw{position:relative}#mesa .co-impw .co-sfx{position:absolute;right:11px;top:50%;transform:translateY(-50%);font-size:12.5px;color:var(--mute);pointer-events:none;white-space:nowrap}
-#mesa .co-impw.iva .co-q{padding-right:calc(14px + 15ch)}#mesa .co-impw.sin .co-q{padding-right:4.8em}
+${Array.from({ length: 12 }, (x, i) => `#mesa .co-impw.sx${i + 7} .co-q{padding-right:${Math.round(18 + (i + 7) * 6.4)}px}`).join('')}
 #mesa .co-dif{margin:5px 0 0;font-size:12px;line-height:1.4;color:var(--mute)}#mesa .co-dif b{font-weight:600;color:var(--ink-2)}
 #mesa .co-lnk{padding:0;border:0;background:none;font:inherit;font-weight:600;color:var(--acc-ink);cursor:pointer}#mesa .co-lnk:hover{text-decoration:underline}
 #mesa .co-lnk:focus-visible,#mesa .co-civb:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:2px}

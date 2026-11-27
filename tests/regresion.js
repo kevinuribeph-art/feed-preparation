@@ -13,7 +13,7 @@
   }
 
   const CLIENTE = 'prueba-regresion', NOMBRE = 'Cliente de prueba', MES = '2026-11';
-  const V_ARCHIVO = 25, V_IDB = 30;   // IndexedDB 30 y v25 desde la 4.60 (el cobro libre de un esporádico, sin sesión, D-377); 29 y v24 desde la 4.59 (el IVA de acuerdos y facturas, «Sin IVA» del cliente y los paquetes con permanencia, lo que no incluyen y sus condiciones, D-374, D-375); 28 y v23 desde la 4.58 (la huella de lo demás de su web, en «enviados», D-372); 27 y v22 desde la 4.54 (los estilos, lo enviado a la web y los meses provisionales, D-355, D-356, D-358); 26 y v21 desde la 4.51 (los acuerdos y los paquetes, D-305 a D-307); 25 y v20 desde la 4.47 (el acuerdo, el servicio, las entregas y la reunión, D-288 a D-292); 24 desde la 4.33 (la marca «copia» de una foto que bajó como copia de trabajo, D-259); 23 desde la 4.32 (la nube, almacén 'nube', D-253); 22 desde la 4.31 (el diario de cambios, D-250); v19 y 21 desde la 4.27 (el porqué y cómo fue de cada mes, el almacén 'meses', D-238); v18 y 20 desde la 4.26 (cobros y sus facturas en PDF, la cuota de un cliente, D-232); v17 y 19 desde la 4.24 (varios clientes, fin y plantillas de material de una sesión, D-217 a D-220); v16 y 18 desde la 4.22 (sesiones, esporádicos, material y el almacén 'tfotos', D-206 a D-208); la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183); v15 y 17 desde la 4.19 (D-193)
+  const V_ARCHIVO = 26, V_IDB = 31;   // IndexedDB 31 y v26 desde la 4.61 (el ojo de las tareas y notas de un esporádico, D-378); 30 y v25 desde la 4.60 (el cobro libre de un esporádico, sin sesión, D-377); 29 y v24 desde la 4.59 (el IVA de acuerdos y facturas, «Sin IVA» del cliente y los paquetes con permanencia, lo que no incluyen y sus condiciones, D-374, D-375); 28 y v23 desde la 4.58 (la huella de lo demás de su web, en «enviados», D-372); 27 y v22 desde la 4.54 (los estilos, lo enviado a la web y los meses provisionales, D-355, D-356, D-358); 26 y v21 desde la 4.51 (los acuerdos y los paquetes, D-305 a D-307); 25 y v20 desde la 4.47 (el acuerdo, el servicio, las entregas y la reunión, D-288 a D-292); 24 desde la 4.33 (la marca «copia» de una foto que bajó como copia de trabajo, D-259); 23 desde la 4.32 (la nube, almacén 'nube', D-253); 22 desde la 4.31 (el diario de cambios, D-250); v19 y 21 desde la 4.27 (el porqué y cómo fue de cada mes, el almacén 'meses', D-238); v18 y 20 desde la 4.26 (cobros y sus facturas en PDF, la cuota de un cliente, D-232); v17 y 19 desde la 4.24 (varios clientes, fin y plantillas de material de una sesión, D-217 a D-220); v16 y 18 desde la 4.22 (sesiones, esporádicos, material y el almacén 'tfotos', D-206 a D-208); la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183); v15 y 17 desde la 4.19 (D-193)
   // la batería va con el reloj de la mesa parado antes de sus fechas (noviembre de 2026): nada vence ni pasa solo a Publicado
   // salvo en las pruebas que lo adelantan (D-120)
   const RELOJ_PRUEBAS = Date.parse('2026-10-01T10:00:00+02:00');
@@ -26639,6 +26639,45 @@
       const h4 = q('.pp-ep-nom'); h4.dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true, clientX: r0.left + 8, clientY: r0.top + 8, detail: 1 })); h4.textContent = 'Fuera EP8';
       q('.pp-ep-tn').dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true, cancelable: true })); await hasta(() => M.personal._p.TK.get(e.id).txt === 'Fuera EP8', 2000, 'pulsar fuera no lo guarda');
       await espera(60); const h5 = q('.pp-ep-nom'); h5.focus(); tecla('Enter', { en: h5 }); ok(q('.pp-ep-nom').isContentEditable, 'Enter con el foco en el nombre no lo escribe'); tecla('Escape', { en: q('.pp-ep-nom') }); await espera(40);
+    } finally { await epFin(); }
+  });
+
+  // ---------- lote 5b de los ajustes de la 4.55: un esporádico en su web (D-378) ----------
+  prueba('EV1', 'El ojo de las tareas y notas de un esporádico (D-378): en su página y en su ficha, tachado de serie (las de antes siguen ocultas); un clic lo abre y otro lo tacha, sin abrir la ficha; cambiar su texto lo conserva; va en el archivo y vuelve al importar; una tarea de un mensual no lleva ojo', async () => {
+    await tablero([pub(1)]); await sinTareas(); relojEn('2026-11-19T10:00:00+01:00');
+    try {
+      await epListo();
+      const { e, t, n } = await epCliente('ev1esp', 'Esporádico EV1');
+      const tm = await M.personal.tarea({ txt: 'Tarea mensual EV1', fecha: '2026-11-24', cliente: CLIENTE });
+      await epAbre(e.id);
+      const ojoT = () => q(`.pp-ep-tn .pp-tk[data-tid="${t.id}"] [data-pp="tn-ojo"]`), ojoN = () => q(`.pp-ep-tn .pp-pt[data-nid="${n.id}"] [data-pp="tn-ojo"]`);
+      ok(ojoT() && ojoT().getAttribute('aria-pressed') === 'false' && /Solo para ti/.test(ojoT().title), 'la tarea no lleva su ojo tachado');
+      ok(ojoN() && ojoN().getAttribute('aria-pressed') === 'false', 'la nota no lleva su ojo tachado');
+      ok(!('visible' in M.personal._p.TK.get(t.id)), 'una tarea de antes cambia sola');
+      ojoT().click(); await hasta(() => M.personal._p.TK.get(t.id).visible === true, 2000, 'que se abra');
+      ok(!q('.pp-ov'), 'el ojo abre la ficha');
+      await hasta(() => ojoT() && ojoT().getAttribute('aria-pressed') === 'true', 2000, 'su ojo abierto');
+      ojoN().click(); await hasta(() => M.personal._p.TK.get(n.id).visible === true, 2000, 'el de la nota');
+      ok(!q('.pp-ov'), 'el ojo de la nota abre la ficha');
+      await M.personal._p.cambiar(t.id, x => { x.txt = 'Tarea EV1 cambiada'; return x; });
+      ok(M.personal._p.TK.get(t.id).visible === true, 'cambiar su texto pierde el ojo');
+      // its card: the same eye
+      M.personal._p.abrirCard(t.id); const c = await hasta(() => q('.pp-ov .pp-card [data-pp="tn-ojo"]'), 3000, 'el ojo en su ficha');
+      ok(c.getAttribute('aria-pressed') === 'true', 'la ficha no dice que lo ve');
+      c.click(); await hasta(() => !('visible' in M.personal._p.TK.get(t.id)), 2000, 'tacharlo desde la ficha');
+      await hasta(() => (q('.pp-ov .pp-card [data-pp="tn-ojo"]') || {}).getAttribute && q('.pp-ov .pp-card [data-pp="tn-ojo"]').getAttribute('aria-pressed') === 'false', 2000, 'la ficha al día');
+      M.personal._p.cerrarCard(true); await espera(60);
+      M.personal._p.abrirCard(tm.id); await hasta(() => q('.pp-ov .pp-card'), 3000, 'la ficha de la mensual');
+      ok(!q('.pp-ov .pp-card [data-pp="tn-ojo"]'), 'una tarea de un mensual lleva ojo');
+      M.personal._p.cerrarCard(true); await espera(60);
+      // the file: it goes and comes back
+      const x = await M.exportAll({ returnBlob: true }), j = JSON.parse(await x.text());
+      igual(j.v, V_ARCHIVO, 'la versión del archivo');
+      ok((j.tareas || []).find(y => y.id === n.id).visible === true, 'el ojo no va en el archivo');
+      const im = await M.importData(x, { confirm: false }); ok(!im || !im.error, 'importar falla: ' + json(im));
+      await M.personal.render(); ok(M.personal._p.TK.get(n.id).visible === true, 'importar le quita el ojo');
+      const mal = JSON.parse(JSON.stringify(j)); mal.tareas.find(y => y.id === n.id).visible = 'si';
+      const im2 = await M.importData(new W.Blob([JSON.stringify(mal)], { type: 'application/json' }), { confirm: false }); ok(im2 && im2.error, 'un ojo que no es sí o no se importa');
     } finally { await epFin(); }
   });
 

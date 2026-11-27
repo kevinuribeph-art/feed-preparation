@@ -824,7 +824,7 @@
     const grupo = (tt, l) => l.length ? `<section class="pp-ep-gr"><h3 class="pp-gt pp-ep-sub">${tt} <span>${l.length}</span></h3><div class="pp-es-l">${l.map(fila).join('')}</div></section>` : '';   // as the groups of Tareas (D-371)
     const desde = e.creada ? `${MESL0[+e.creada.slice(5, 7) - 1]} ${e.creada.slice(0, 4)}` : '';
     const mas = svgI('mas'), nT = tk.filter(k => !k.hecha).length;
-    const pn = `<div class="pp-pn">${ns.map(n => `<div class="pp-pt" data-nid="${esc(n.id)}" data-pp="tver" data-id="${esc(n.id)}" tabindex="0" role="button" aria-label="Nota: ${esc(n.txt)}"><div class="pp-ptx">${P.leerTxt(n.txt, { casillas: 'no' })}</div></div>`).join('')}</div>`;
+    const pn = `<div class="pp-pn">${ns.map(n => `<div class="pp-pt" data-nid="${esc(n.id)}" data-pp="tver" data-id="${esc(n.id)}" tabindex="0" role="button" aria-label="Nota: ${esc(n.txt)}"><div class="pp-ptx">${P.leerTxt(n.txt, { casillas: 'no' })}</div>${P.ojoTN(n)}</div>`).join('')}</div>`;   // its eye (D-378)
     return `<div class="pp-ep" data-esp="${esc(id)}">`
       + `<div class="pp-ep-cab"><button type="button" class="pp-ep-vol" data-pp="ep-volver">${ATRAS}Esporádicos</button>`
       + `<div class="pp-ep-id">${P.avatar(id, 'lg')}<div class="pp-ep-t"><h1 class="pp-ep-nom" data-pp="ep-nom" tabindex="-1" title="Clic: cambiar el nombre">${esc(e.txt)}</h1>${desde ? `<p>Esporádico desde ${desde}</p>` : ''}</div></div><span class="pp-ep-sp"></span>`

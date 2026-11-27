@@ -15335,7 +15335,7 @@
 
   prueba('IN7', 'Datos nuevos de su web (D-372): IndexedDB 28 y archivo v23; la huella viaja en «Exportar» y vuelve al importar; un archivo v22 se sigue importando', async () => {
     await tablero([pub(1)]);
-    igual([M._in.xfer.IDB, V_IDB, V_ARCHIVO], [29, 29, 24], 'las versiones');   // 29 y v24 desde la 4.59 (D-374, D-375), a propósito
+    igual([M._in.xfer.IDB, V_IDB, V_ARCHIVO], [30, 30, 25], 'las versiones');   // 30 y v25 desde la 4.60 (D-377); 29 y v24 desde la 4.59 (D-374, D-375), a propósito
     const k = '~huella:' + M._in.S.key;
     igual(await M._in.envPoner([{ cliente: CLIENTE, slot: k, huella: 'a'.repeat(64), url: 'https://in7.test', at: '2026-11-20T10:00:00.000Z' }]), 1, 'la huella no se guarda');
     ok(!M._in.xfer.envRecValido({ cliente: CLIENTE, slot: k, huella: 'no', url: '', at: '2026-11-20T10:00:00.000Z' }), 'entra una huella mal formada');

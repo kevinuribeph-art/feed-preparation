@@ -277,6 +277,26 @@
     if (t === 'material') return !matDe(a, r).L.length;
     return !String(typeof a.texto === 'string' ? a.texto : '').replace(/\s+/g, '');
   }
+  // What its client sees of a session in its web (D-378), the same as «Ver como el cliente»: the sections with the eye open and
+  // something in them, in its order; texts as written (the web draws their marks), the ids of their photos (web.js sends them
+  // reduced) and Material as its families. null if the session is hidden or isn't one
+  function paraCliente(r) {
+    if (!r || r.tipo !== 'sesion' || !r.sesion || r.sesion.visible === false) return null;
+    const fotos = [], fo = l => (l || []).map(x => typeof x === 'string' ? x : x && x.id).filter(id => typeof id === 'string' && id).map(id => { if (!fotos.includes(id)) fotos.push(id); return id; });
+    const corta = (t, n) => String(t == null ? '' : t).slice(0, n);
+    const contenido = (r.sesion.apartados || []).filter(a => a && a.visible !== false && !vacioAp(a, r)).map(a => {
+      const t = tipoDe(a), o = { id: corta(a.id, 40), nombre: corta(a.nombre || (APS[a.id] || {}).n || a.id, 60), tipo: t };
+      if (t === 'planos') o.pestanas = (a.pestanas || []).filter(p => (p.items || []).length).map(p => ({ nombre: corta(p.nombre, 40),
+        items: p.items.map(it => ({ titulo: corta(it.titulo, 200), texto: corta(it.texto, 2000), fotos: fo(it.fotos), enlaces: (it.enlaces || []).map(u => typeof u === 'string' ? u : u && u.url).filter(u => typeof u === 'string' && /^https?:\/\/\S+$/.test(u) && u.length <= 1000).slice(0, 10) })) }));
+      else if (t === 'mood') o.grupos = (a.grupos || []).filter(g => (g.fotos || []).length).map(g => ({ nombre: corta(g.nombre || 'Grupo', 60), modo: g.modo === 'columnas' ? 'columnas' : 'linea', fotos: fo(g.fotos) }));
+      else if (t === 'material') { const fams = []; for (const x of matDe(a, r).L) { let f = fams.find(y => y.nombre === x.familia); if (!f) fams.push(f = { nombre: corta(x.familia, 60), cosas: [] }); f.cosas.push(corta(x.nombre, 80)); } o.familias = fams; }
+      else o.texto = corta(typeof a.texto === 'string' ? a.texto : '', 8000);
+      return o;
+    });
+    return { contenido, fotos };
+  }
+  // the sporadic clients of a session whose web has its conversation (D-378)
+  const espsDe = r => P.espCli ? P.clis(r).filter(P.espCli) : [];
   function hojaHTML(r) {
     const X = I(), ses = r.sesion, vc = S.vista, vis = ses.visible !== false, nf = (r.fotos || []).length;
     // as the client sees it, neither what is struck out (D-206) nor what is empty (D-228)
@@ -286,6 +306,11 @@
     const col = c => C[c].filter(verAp).map(id => apHTML(ap(r, id), r)).join('');
     const faltan = ORDEN.filter(id => !ap(r, id));
     const fija = !!(P.CARD && P.CARD.vc), cls = P.clis(r).filter(P.cliOk).filter(c => !fija || c === P.CARD.cli);   // the vista cliente: only that board's client (D-219)
+    // its conversation with a sporadic client (D-378): «Del cliente» at the top of the right column, for Kevin; as the client sees
+    // it, its comments under the sections (to read: Kevin answers from his sheet). web.js fills them in their place (data-propio)
+    const es = espsDe(r).filter(c => !fija || c === P.CARD.cli);
+    const del = vc ? '' : es.map(c => `<section class="webdel pp-hj-del" data-propio data-web-ses="${P.esc(r.id)}" data-web-cli="${P.esc(c)}" aria-label="Del cliente"></section>`).join('');
+    const com = vc && vis && es.length ? `<section class="pp-hj-com" data-propio data-web-ses="${P.esc(r.id)}" data-web-cli="${P.esc(es[0])}" data-web-ro aria-label="Comentarios"></section>` : '';
     const cab = `<header class="pp-hj-cab"><div class="pp-hj-t">${vc ? '' : `<input type="checkbox" class="pp-ck" data-pp="ck" data-id="${P.esc(r.id)}"${r.hecha ? ' checked' : ''} aria-label="Hecha">`}<h2 class="pp-hj-nom" data-campo="nom">${P.esc(r.txt)}</h2>${P.botonesCard(vc ? '' : ojoBtn(vis, 'pp-cb', 'data-hj="ojo"'))}</div>`
       + `<div class="pp-hj-meta">${vc ? `<span class="pp-hj-chip ro">${svgI(CLASES.find(c => c[0] === ses.clase) ? CLASES.find(c => c[0] === ses.clase)[2] : 'sesion')}${P.esc(claseTxt(ses.clase))}</span>${r.fecha ? `<span class="pp-hj-chip ro">${svgI('fecha')}${P.esc(P.tramo(r))}</span>` : ''}${cls.map(id => `<span class="pp-hj-chip ro">${P.avatar(id, 'xs')}${P.esc(P.cliDe(id).name)}</span>`).join('')}`
         : `<span class="pp-hj-chip">${svgI(CLASES.find(c => c[0] === ses.clase) ? CLASES.find(c => c[0] === ses.clase)[2] : 'sesion')}<select data-hj="clase" aria-label="Tipo de sesión">${CLASES.map(([k, l]) => `<option value="${k}"${ses.clase === k ? ' selected' : ''}>${l}</option>`).join('')}</select></span>`
@@ -297,10 +322,10 @@
       + (S.tira && !vc ? `<div class="pp-hj-tira" data-drop="tira" title="Suelta aquí fotos del ordenador; arrástralas a un plano o a un grupo">${nf ? (r.fotos || []).map(f => `<span class="pp-hj-tf pp-fo" data-f="${P.esc(f.id)}" draggable="true" tabindex="0" role="button" aria-label="Foto de la sesión"></span>`).join('') : `<span class="pp-pl-sin">Sin fotos</span>`}</div>` : '') + `</header>`;
     const cuerpo = vc && !vis ? `<p class="pp-hj-oculta">${svgI('ojoNo')}El cliente no ve esta sesión</p>`
       : nada ? `<p class="pp-hj-oculta pp-hj-nada">Aún sin detalles</p>`
-      : `<div class="pp-hj-cols${dos ? '' : ' una'}" style="${dos ? `grid-template-columns:minmax(0,${C.sep.toFixed(4)}fr) 17px minmax(0,${(1 - C.sep).toFixed(4)}fr)` : ''}"><div class="pp-hj-col" data-col="izq">${col('izq')}${dos ? '' : col('der')}${!dos && !vc && faltan.length ? `<button type="button" class="pp-cmas pp-hj-apn" data-hj="ap-nuevo">${svgI('mas')}Apartado</button>` : ''}</div>`
+      : `<div class="pp-hj-cols${dos ? '' : ' una'}" style="${dos ? `grid-template-columns:minmax(0,${C.sep.toFixed(4)}fr) 17px minmax(0,${(1 - C.sep).toFixed(4)}fr)` : ''}"><div class="pp-hj-col" data-col="izq">${dos ? '' : del}${col('izq')}${dos ? '' : col('der')}${!dos && !vc && faltan.length ? `<button type="button" class="pp-cmas pp-hj-apn" data-hj="ap-nuevo">${svgI('mas')}Apartado</button>` : ''}</div>`
         + (dos && vc ? `<div class="pp-hj-sep fija" aria-hidden="true"></div><div class="pp-hj-col" data-col="der">${col('der')}</div>` : '')   // seen as the client: the line, nothing that moves (D-228)
-        + (dos && !vc ? `<div class="pp-hj-sep" role="separator" tabindex="0" aria-orientation="vertical" aria-label="Separador de las columnas" aria-valuemin="25" aria-valuemax="75" aria-valuenow="${Math.round(C.sep * 100)}" title="Arrastra para repartir · doble clic: como al principio"></div><div class="pp-hj-col" data-col="der">${col('der')}${!vc && faltan.length ? `<button type="button" class="pp-cmas pp-hj-apn" data-hj="ap-nuevo">${svgI('mas')}Apartado</button>` : ''}</div>` : '') + `</div>`;
-    return `<div class="pp-card pp-hj${vc ? ' vc' : ''}${P.CARD && P.CARD.ed ? ' ed' : ''}${P.CARD && P.CARD.amplia ? ' amplia' : ''}" role="dialog" aria-modal="true" aria-label="Sesión: ${P.esc(r.txt)}" tabindex="-1">${cab}${cuerpo}</div>`;
+        + (dos && !vc ? `<div class="pp-hj-sep" role="separator" tabindex="0" aria-orientation="vertical" aria-label="Separador de las columnas" aria-valuemin="25" aria-valuemax="75" aria-valuenow="${Math.round(C.sep * 100)}" title="Arrastra para repartir · doble clic: como al principio"></div><div class="pp-hj-col" data-col="der">${del}${col('der')}${!vc && faltan.length ? `<button type="button" class="pp-cmas pp-hj-apn" data-hj="ap-nuevo">${svgI('mas')}Apartado</button>` : ''}</div>` : '') + `</div>`;
+    return `<div class="pp-card pp-hj${vc ? ' vc' : ''}${P.CARD && P.CARD.ed ? ' ed' : ''}${P.CARD && P.CARD.amplia ? ' amplia' : ''}" role="dialog" aria-modal="true" aria-label="Sesión: ${P.esc(r.txt)}" tabindex="-1">${cab}${cuerpo}${com}</div>`;
   }
 
   // ---------- drawing the sheet ----------
@@ -319,6 +344,7 @@
     if (ctlCampo && !viva) { ctlCampo.apagar(); ctlCampo = null; }
     P.morfar(ov, hojaHTML(r), { vivo: n => n === viva });
     if (M.controles && M.controles.mejorar) M.controles.mejorar(ov);
+    if (M.web && M.web.hojaSes) M.web.hojaSes(ov);   // its conversation with a sporadic client, in its place (D-378)
     const c = ov.firstChild; if (c.scrollTop !== y) c.scrollTop = y;
     if (enlV) { const e2 = ov.querySelector('[data-hj="en-in"]'); if (e2 && e2.value !== enlV) e2.value = enlV; }
     const mi = ov.querySelector('[data-hj="mat-in"]'); if (mi && !mi._blur) { mi._blur = true; mi.addEventListener('blur', () => { if (S.cosa === mi.dataset.fam && mi.isConnected) ponerCosa(mi, false); }); }
@@ -1111,6 +1137,7 @@
   M.sesiones = {
     version: VERSION, plantilla: () => P.hondo(PLANTILLA),
     movil: { vista: vistaMovil, campo: campoMovil, editar: editarMovil },
+    paraCliente: r => paraCliente(r && r.id ? r : null),   // what a sporadic client sees of a session in its web (D-378)
     _test: { limpiar, reparto: () => reparto(), S: () => ({ ...S, plg: [...S.plg] }), decodificados: () => BM.size,
       crear: async o => { await listo(); const now = P.ahoraISO(), c = PLANTILLA[o.clase] ? o.clase : 'fotovideo', r = { id: P.nuevoId('ss'), tipo: 'sesion', txt: o.txt || nombreDe(c), creada: now, at: now, sesion: { clase: c, visible: o.visible !== false, plantilla: PLANTILLA.v, apartados: PLANTILLA[c].map(apartado) } }; if (o.fecha) r.fecha = o.fecha; if (o.hora) r.hora = o.hora; ponerClis(r, o.clientes || (o.cliente ? [o.cliente] : [])); if (o.fin && r.fecha) r.fin = { ...o.fin }; await P.hacer([{ id: r.id, despues: r }]); return P.copia(r); } },
     _off: () => { OFF.forEach(f => f()); OFF.length = 0; if (P) { delete P.EXT.sesion; delete P.EXT.ficha; } soltarFotos(); }

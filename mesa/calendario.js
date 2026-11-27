@@ -267,7 +267,7 @@
     const nav = `<span class="cnav"><button type="button" data-cal="prev" aria-label="Mes anterior">‹</button><span class="cmes" title="${esc(mesTit)}">${esc(mesNom)}</span><button type="button" data-cal="next" aria-label="Mes siguiente">›</button></span>`;
     const bodyEl = sec.querySelector('.calbody'), top = bodyEl ? bodyEl.scrollTop : 0;
     sec.hidden = false; sec.classList.remove('fold', 'vctabs'); sec.classList.add('cont');
-    const h = `<div class="calhead"><b class="ctit">Calendario</b>${nav}</div><div class="calbody"><div class="cgrid" style="grid-template-rows:22px repeat(${rows},minmax(44px,auto))">${body}</div></div>`;
+    const h = `<div class="calhead"><b class="ctit">Calendario</b>${esp ? pastilla() : ''}${nav}</div><div class="calbody"><div class="cgrid" style="grid-template-rows:22px repeat(${rows},minmax(44px,auto))">${body}</div></div>`;
     if (sec._h !== h) { sec.innerHTML = h; sec._h = h; const nb = sec.querySelector('.calbody'); if (nb && top) nb.scrollTop = top; }
     light();
   }
@@ -422,9 +422,10 @@
   const SEC = [['venc', 'Sin publicar', true], ['zernio', 'Zernio tiene la versión de antes', true], ['cliente', 'Del cliente', false], ['pronto', 'Sale en 48 h y no está lista', false], ['web', 'Su web', false]];
   const DESG = { venc: ['sin publicar', 'sin publicar'], zernio: ['con Zernio en la versión de antes', 'con Zernio en la versión de antes'], cliente: ['del cliente', 'del cliente'], pronto: ['sale en 48 h sin estar lista', 'salen en 48 h sin estar listas'], web: ['de su web', 'de su web'] };
   function avisos(X) {
-    const S = X && X.S, cont = !S && X && X.contCli && X.contCli();
-    if (!X || (!S && !cont) || X.root().classList.contains('client')) return null;
-    const a = S && X.avisosCal ? X.avisosCal() : [], w = M.web && M.web.avisos ? M.web.avisos() : null, filas = {};
+    const ep = M.personal && M.personal._p && M.personal._p.espWeb ? M.personal._p.espWeb() : null;   // a sporadic client's page: only its web (D-378)
+    const S = X && X.S, cont = !ep && !S && X && X.contCli && X.contCli();
+    if (!X || (!S && !cont && !ep) || X.root().classList.contains('client')) return null;
+    const a = S && !ep && X.avisosCal ? X.avisosCal() : [], w = M.web && M.web.avisos ? M.web.avisos() : null, filas = {};
     SEC.forEach(([k]) => { filas[k] = []; });
     const nom = s => `<button type="button" class="vnom" data-cal="av-abrir" data-slot="${esc(s.id)}" title="Abrir la publicación"><b>${esc(X.shortLabel(s.name, s.type))}</b></button>`;
     const li = (k, s, que) => `<li data-k="${k}|${esc(s.id)}">${nom(s)} <span class="vque">· ${esc(s.date ? X.fmtDate(s.date) : 'sin fecha')} · ${que}</span></li>`;
@@ -492,6 +493,7 @@
   }
   async function enVenc(b) {
     const X = I(), S = X && X.S, li = b.closest('li[data-k]'), a = b.dataset.cal;
+    if (a === 'av-ses') { const id = b.dataset.id; X.closeDetail(); if (id && M.personal && M.personal._p) M.personal._p.abrirCard(id); return; }   // a sporadic client's session (D-378)
     if (a === 'av-abrir') { const id = b.dataset.slot; X.closeDetail(); if (id && X.slot && X.slot(id)) X.openDetail(id, 0); return; }   // a notice opens its post (D-372)
     if (!S) { if (X) X.closeDetail(); return; }
     const v = li && X.vencidas().find(x => vk(x) === li.dataset.k);

@@ -97,6 +97,9 @@
   const PAG = new Map();
   function tablero() {
     const X = I(); if (!X) return null;
+    // a sporadic client's page (D-378): its sessions, its tasks and notes it sees and its payments, before the board behind it
+    const ep = M.personal && M.personal._p && M.personal._p.espWeb ? M.personal._p.espWeb() : null;
+    if (ep) { if (!PAG.has(ep)) PAG.set(ep, { key: 'cliente:' + ep, client: ep, slots: [], pins: [], contenido: true, esporadico: true }); return PAG.get(ep); }
     if (X.S) return X.S;
     const cli = X.contCli ? X.contCli() : null; if (!cli) return null;
     if (!PAG.has(cli)) PAG.set(cli, { key: 'cliente:' + cli, client: cli, slots: [], pins: [], contenido: true });
@@ -110,11 +113,15 @@
   async function paquete(B0) {
     const X = I(), B = B0 || tablero();
     if (!B) return { error: 'sin tablero abierto' };
-    const cli = B.client, c = X.CL.find(x => x.id === cli) || {};
+    const cli = B.client, tareas0 = B.esporadico ? await X.idbAll('tareas') : null;
+    const E = B.esporadico ? (tareas0 || []).find(t => t && t.id === cli && t.tipo === 'esporadico' && !t.pasado) : null;   // D-378
+    if (B.esporadico && !E) return { error: 'este esporádico ya no está' };
+    if (E && !(M.sesiones && M.sesiones.paraCliente)) return { error: 'no se cargó sesiones.js: recarga la página' };
+    const c = E ? { id: cli, name: E.txt } : X.CL.find(x => x.id === cli) || {};
     const pubs = B.contenido ? [] : await filas(B);
     const meses = B.contenido ? [] : [...new Set([...pubs.map(p => p.fila.mes), ...X.boardMonths ? (X.boardMonths(B) || []) : []].filter(Boolean))].sort();
     const previo = meses.length ? X.addMonths(meses[0], -1) : null;
-    const tareas = await X.idbAll('tareas');   // si falla, no se envía (una lectura fallida no es «sin sesiones»: lección 94)
+    const tareas = tareas0 || await X.idbAll('tareas');   // si falla, no se envía (una lectura fallida no es «sin sesiones»: lección 94)
     // una reunión con el ojo abierto va como «reunion» (D-297); con el ojo tachado, nada (como cualquier sesión)
     const ses = tareas.filter(t => t.tipo === 'sesion' && !(t.sesion && t.sesion.visible === false) && /^\d{4}-\d{2}-\d{2}$/.test(t.fecha || '')
       && (Array.isArray(t.clientes) ? t.clientes : t.cliente ? [t.cliente] : []).includes(cli) && (B.contenido || meses.includes(t.fecha.slice(0, 7))))   // de solo contenido, todas las suyas (D-312)
@@ -122,7 +129,9 @@
         const fin = t.fin && /^\d{4}-\d{2}-\d{2}$/.test(t.fin.fecha || '') && t.fin.fecha >= t.fecha ? t.fin.fecha : null;
         return { cliente_id: cli, id: String(t.id).slice(0, 60), mes: t.fecha.slice(0, 7), nombre: String(t.txt || (t.sesion && t.sesion.clase === 'reunion' ? 'Reunión' : 'Sesión')).slice(0, 80),
           inicio: X.madridISO(t.fecha, /^\d\d:\d\d$/.test(t.hora || '') ? t.hora : '00:00'), fin: fin ? X.madridISO(fin, '23:59') : null, sin_hora: !/^\d\d:\d\d$/.test(t.hora || ''),
-          clase: t.sesion && t.sesion.clase === 'reunion' ? 'reunion' : 'sesion' };
+          clase: t.sesion && t.sesion.clase === 'reunion' ? 'reunion' : 'sesion',
+          // a sporadic client sees what each session has with the eye open (D-378); the photos, by their id until it's sent
+          ...(E ? (v => ({ contenido: v ? v.contenido : [], _fotos: v ? v.fotos : [] }))(M.sesiones.paraCliente(t)) : {}) };
       });
     const mesesInfo = [];
     for (const m of [previo, ...meses].filter(Boolean)) {
@@ -139,7 +148,7 @@
       hasta: /^\d{4}-\d{2}$/.test(r.periodo || '') && cob.hasta && cob.hasta(r) !== r.periodo ? cob.hasta(r) : null }));   // el tramo que cubre (D-297)
     // el acuerdo como lo ve el cliente (D-297): cada cuánto paga, cuánto en cada pago y el tramo que cubre hoy; la cuota, como
     // siempre, solo si paga cada mes (un portal viejo la lee «al mes»); la fecha de renegociar, nunca
-    const q = cob ? cob.cuota(c, H.slice(0, 7)) : null, prox = cob && q ? cob.proxima(cli) : null, mensual = q && (q.pago || 'mensual') === 'mensual';   // the agreement of today (D-305)
+    const q = cob && !E ? cob.cuota(c, H.slice(0, 7)) : null, prox = cob && q ? cob.proxima(cli) : null, mensual = q && (q.pago || 'mensual') === 'mensual';   // the agreement of today (D-305)
     const tr = q && cob.tramo ? cob.tramo(q, H.slice(0, 7)) : null, rg = q && cob.rango ? cob.rango(q, H.slice(0, 7)) : null;
     const cliente = { id: cli, nombre: String(c.name || cli).slice(0, 80), handle: c.handle ? String(c.handle).replace(/^@/, '').slice(0, 40) : null,
       cuota_cent: mensual ? Math.round(q.importe * 100) : null, proxima_emision: prox && prox.emitida ? prox.emitida : null,
@@ -153,6 +162,11 @@
       // doesn't include and its conditions (D-375)
       ...planWeb(q, cob),
       metricas: c.metricas && X.metricasOk && X.metricasOk(c.metricas) && /^https:\/\//.test(c.metricas) ? c.metricas : null, _foto: c.foto || null };   // «Ver más en Zernio» (D-294)
+    if (E) Object.assign(cliente, { handle: null, servicio: 'sesiones', metricas: null, _foto: null });   // a sporadic client: its sessions (D-378)
+    // its tasks and notes with the eye open (D-378): their text, a task's day and if it's done; nothing else of them
+    const tareasNotas = !E ? null : tareas.filter(t => t && (t.tipo === 'tarea' || t.tipo === 'nota') && t.cliente === cli && t.visible === true && String(t.txt || '').trim())
+      .sort((a, b) => (a.tipo === b.tipo ? 0 : a.tipo === 'tarea' ? -1 : 1) || String(a.fecha || '9999').localeCompare(String(b.fecha || '9999')) || String(a.creada || '').localeCompare(String(b.creada || '')) || String(a.id).localeCompare(String(b.id)))
+      .map((t, i) => ({ cliente_id: cli, id: String(t.id).slice(0, 60), tipo: t.tipo, texto: String(t.txt).slice(0, 4000), fecha: t.tipo === 'tarea' && /^\d{4}-\d{2}-\d{2}$/.test(t.fecha || '') ? t.fecha : null, hecha: !!t.hecha, orden: i }));
     // Las entregas de un cliente de solo contenido (D-297), todas las suyas (son pocas): qué, cuánto, su fecha y, solo entregada,
     // su enlace. Leídas del almacén: una lectura fallida no es «sin entregas» (lección 94), no se envía.
     const contenido = cliente.servicio === 'contenido';
@@ -161,16 +175,21 @@
         enlace: /^\d{4}-\d{2}-\d{2}$/.test(r.entregada || '') && /^https:\/\/\S+$/.test(r.enlace || '') && r.enlace.length <= 1000 ? r.enlace : null, entregada: /^\d{4}-\d{2}-\d{2}$/.test(r.entregada || '') ? r.entregada : null }))
       .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id.localeCompare(b.id));
     // Ningún texto que va a la web nombra a otro cliente (lecciones 82 y 84): si no, no se envía.
-    const problemas = [], esporadicos = tareas.filter(t => t.tipo === 'esporadico' && !t.pasado && t.txt).map(t => String(t.txt));
+    const problemas = [], esporadicos = tareas.filter(t => t.tipo === 'esporadico' && !t.pasado && t.txt && t.id !== cli).map(t => String(t.txt));   // its own name, not another client's
     const textos = [...pubs.flatMap(p => [[`«${p.fila.nombre}», nombre`, p.fila.nombre], [`«${p.fila.nombre}», caption`, p.fila.caption]]),
       ...ses.map(x => [`sesión «${x.nombre}»`, x.nombre]), ...pagos.map(p => [`cobro ${p.factura || p.periodo || ''}, concepto`, p.concepto || '']),
-      ...entregas.flatMap(e => [[`entrega «${e.que}»`, e.que], [`entrega «${e.que}», cuánto`, e.cuanto || '']])];
+      ...entregas.flatMap(e => [[`entrega «${e.que}»`, e.que], [`entrega «${e.que}», cuánto`, e.cuanto || '']]),
+      // a sporadic client's: what it sees of each session and its tasks and notes (D-378)
+      ...ses.flatMap(x => (x.contenido || []).flatMap(a => [[`sesión «${x.nombre}», ${a.nombre}`, a.nombre], [`sesión «${x.nombre}», ${a.nombre}`, a.texto || ''],
+        ...(a.pestanas || []).flatMap(p => [[`sesión «${x.nombre}», ${a.nombre}`, p.nombre], ...p.items.flatMap(it => [[`sesión «${x.nombre}», ${a.nombre}`, it.titulo], [`sesión «${x.nombre}», ${a.nombre}`, it.texto]])]),
+        ...(a.grupos || []).map(g => [`sesión «${x.nombre}», ${a.nombre}`, g.nombre]), ...(a.familias || []).flatMap(f => [[`sesión «${x.nombre}», ${a.nombre}`, f.nombre], ...f.cosas.map(k => [`sesión «${x.nombre}», ${a.nombre}`, k])])])),
+      ...(tareasNotas || []).map(t => [`${t.tipo === 'nota' ? 'nota' : 'tarea'} «${t.texto.slice(0, 30)}»`, t.texto])];
     mesesInfo.forEach(r => { (r.porque && r.porque.partes || []).forEach((q, i) => textos.push([`por qué de ${r.mes}`, q.t], [`por qué de ${r.mes}`, q.x]));
       if (r.resumen) { (r.resumen.posts || []).forEach(q => textos.push([`resumen de ${r.mes}`, q.nombre])); textos.push([`resumen de ${r.mes}`, r.resumen.frase || '']); } });
     // La propia agencia no pasa esta comprobación: sus captions enseñan trabajos para clientes y su web solo la ve Kevin (D-245).
     if (!AGENCIA.includes(cli)) X.mesOtros(cli, textos, m => problemas.push(m), esporadicos, AGENCIA.filter(a => a !== cli));
     const mesesQuitar = [previo, ...meses].filter(m => m && !mesesInfo.some(r => r.mes === m));
-    return { cliente, publicaciones: pubs, sesiones: ses, meses: mesesInfo, mesesTablero: meses, mesesQuitar, pagos, entregas, contenido, problemas };
+    return { cliente, publicaciones: pubs, sesiones: ses, meses: mesesInfo, mesesTablero: meses, mesesQuitar, pagos, entregas, contenido, problemas, esporadico: !!E, tareasNotas };
   }
 
   // ---------- Estado de la barra ----------
@@ -186,6 +205,7 @@
     if (v && v.servidor) Object.assign(st, v); else { st.servidor = null; st.cambios = null; st.lista = null; st.firma = ''; st.extra = null; }
     Promise.resolve().then(() => { const X = I(); if (X && X.renderBar) X.renderBar(); });   // the indicator follows the month it comes back to (it kept the other's)
     if (!conv.has(B.key)) leerConversacion().catch(() => null);
+    if (B.esporadico) leerSes(B.client).catch(() => null);   // its sessions' conversation (D-378)
   }
   const IMG = new Map();   // «pid|firma de sus fotos» → sus imágenes ya enviadas en esta pestaña: un cambio de caption no las rehace
   async function leerServidor(cli, B) {
@@ -222,7 +242,7 @@
     const sp = q && cob && cob.ivaSep ? cob.ivaSep(q) : null, n = q && q.pago === 'unico' ? 1 : (q && cob.paso ? cob.paso(q) : 1) || 1, l = (k, m) => q && q.paquete && Array.isArray(q.paquete[k]) && q.paquete[k].length ? q.paquete[k].slice(0, 20).map(x => String(x).slice(0, m)) : null;
     return { plan_mes_cent: sp ? Math.round(sp.base / n * 100) : null, iva: sp ? sp.iva : null, no_incluye: l('noIncluye', 80), condiciones: l('condiciones', 160) };
   }
-  const huellaExtra = P => sha(JSON.stringify([P.cliente, P.sesiones, P.meses, P.mesesQuitar, P.pagos, P.entregas || []]));
+  const huellaExtra = P => sha(JSON.stringify([P.cliente, P.sesiones, P.meses, P.mesesQuitar, P.pagos, P.entregas || [], ...(P.tareasNotas ? [P.tareasNotas] : [])]));   // a sporadic client's tasks and notes (D-378); the others', as they were
   async function repaso(todo) {
     const X = I(), B = tablero(), c = sb();
     if (MOVIL || !B || !c || !c.usuario() || st.enviando || X.locked) return;
@@ -279,7 +299,7 @@
     const o = cambian.filter(p => soloOrden(p, serv.get(p.pid))).length;
     if (o) out.push({ k: 'orden', html: `<li data-k="web|orden"><b>El orden del feed</b> <span class="vque">· ${o === 1 ? 'una publicación cambia' : o + ' publicaciones cambian'} de sitio</span></li>` });
     (sobran || []).forEach(pid => { const r = serv.get(pid); out.push({ k: 'sobra-' + pid, html: `<li data-k="web|${esc(pid)}"><b>${esc(r ? r.nombre : 'Una publicación')}</b> <span class="vque">· ya no está en el tablero: se oculta en su web</span></li>` }); });
-    if (st.extra) out.push({ k: 'extra', html: '<li data-k="web|extra"><b>Sesiones, pagos o el porqué del mes</b> <span class="vque">· cambiaron desde el envío</span></li>' });
+    if (st.extra) out.push({ k: 'extra', html: `<li data-k="web|extra"><b>${B.esporadico ? 'Sus sesiones, tareas, notas o pagos' : 'Sesiones, pagos o el porqué del mes'}</b> <span class="vque">· cambiaron desde el envío</span></li>` });
     return out;
   }
   const abrirLista = () => { if (M.calendario && M.calendario.vencidas) M.calendario.vencidas(); };   // «Web: N cambios» had its own window until D-372
@@ -290,6 +310,10 @@
     if (MOVIL || !X || !B || !c || X.root().classList.contains('client')) return out;
     const fila = (s, que) => `<li data-k="cliente|${esc(s.id)}|w"><button type="button" class="vnom" data-cal="av-abrir" data-slot="${esc(s.id)}" title="Abrir la publicación"><b>${esc(X.shortLabel(s.name, s.type))}</b></button> <span class="vque">· ${esc(s.date ? X.fmtDate(s.date) : 'sin fecha')} · ${que}</span></li>`;
     const C0 = actual();
+    if (B.esporadico && c.usuario() && st.dueno !== false) for (const [sid, n0] of sinLeerSesiones(B.client)) {   // D-378
+      const r = M.personal && M.personal._p && M.personal._p.TK ? M.personal._p.TK.get(sid) : null;
+      out.cliente.push(`<li data-k="cliente|ses|${esc(sid)}|w"><button type="button" class="vnom" data-cal="av-ses" data-id="${esc(sid)}" title="Abrir la sesión"><b>${esc(r ? r.txt : 'Una sesión')}</b></button> <span class="vque">· ${n0 === 1 ? '1 comentario sin leer' : `${n0} comentarios sin leer`}</span></li>`);
+    }
     if (C0 && c.usuario() && st.dueno !== false) for (const s of B.slots || []) { const pid = C0.pidDe.get(s.id), n = pid ? sinLeer(C0, pid) : 0; if (n) out.cliente.push(fila(s, n === 1 ? '1 comentario sin leer' : `${n} comentarios sin leer`)); }
     for (const x of pendientes(B.client)) { const s = (B.slots || []).find(y => y.id === x.slot); if (s) out.cliente.push(fila(s, `${QUE_NO[x.decision] || 'Decidió'} en su web, pero ya la habías movido: no la he cambiado`)); }
     const una = (k, txt, acc, etq) => out.web.push(`<li data-k="web|${k}"><span class="vque avtx">${txt}</span> <button type="button" class="btn2" data-web="${acc}">${etq}</button></li>`);
@@ -389,8 +413,29 @@
       if (sobran.length) await c.actualizar(`publicaciones?cliente_id=eq.${ce}&pid=in.(${sobran.join(',')})`, { visible: false });
       // Sesiones: primero las de ahora y después se quitan las que ya no están (si algo falla a medias, no se queda sin ninguna).
       const enMeses = m => m.length ? `&mes=in.(${m.map(x => `"${x}"`).join(',')})` : '';
-      if (P.sesiones.length) await c.insertar('sesiones', P.sesiones, { upsert: true, conflicto: 'cliente_id,id' });
-      if (P.mesesTablero.length || P.contenido) await c.borrar(`sesiones?cliente_id=eq.${ce}${P.contenido ? '' : enMeses(P.mesesTablero)}` + (P.sesiones.length ? `&id=not.in.(${P.sesiones.map(x => `"${x.id.replace(/"/g, '')}"`).join(',')})` : ''));   // de solo contenido, por cliente (D-312)
+      let sesFilas = P.sesiones;
+      if (P.esporadico) {                       // the photos of what it sees, reduced (as a post's), and their routes for `firmar` (D-378)
+        const imgSes = async fid => {
+          const k = 's|' + cli + '|' + fid;
+          if (!IMG.has(k)) {
+            const rec = await X.idbGet('tfotos', fid).catch(() => null); if (!rec || !(rec.blob instanceof Blob)) return null;
+            const g = await lienzoA(rec.blob, null, rec.w || 1440, rec.h || 1440, 1440), m = await lienzoA(g.blob, null, g.w, g.h, 480), h = await sha(await g.blob.arrayBuffer());
+            const im = { ruta: `${cli}/s-${h}.jpg`, mini: `${cli}/s-${h}-m.jpg`, an: g.w, al: g.h };
+            await subir(im.ruta, g.blob); await subir(im.mini, m.blob); IMG.set(k, im);
+          }
+          return IMG.get(k);
+        };
+        sesFilas = [];
+        for (const { _fotos, ...x } of P.sesiones) {
+          const mapa = new Map(); for (const f of _fotos || []) { const im = await imgSes(f); if (im) mapa.set(f, im); } sigue();
+          const pon = l => (l || []).map(f => mapa.get(f)).filter(Boolean);
+          const contenido = (x.contenido || []).map(a => a.tipo === 'planos' ? { ...a, pestanas: a.pestanas.map(q => ({ ...q, items: q.items.map(it => ({ ...it, fotos: pon(it.fotos) })) })) }
+            : a.tipo === 'mood' ? { ...a, grupos: a.grupos.map(g => ({ ...g, fotos: pon(g.fotos) })).filter(g => g.fotos.length) } : a).filter(a => a.tipo !== 'mood' || a.grupos.length);
+          sesFilas.push({ ...x, contenido, fotos: [...mapa.values()].flatMap(im => [im.ruta, im.mini]) });
+        }
+      }
+      if (sesFilas.length) await c.insertar('sesiones', sesFilas, { upsert: true, conflicto: 'cliente_id,id' });
+      if (P.mesesTablero.length || P.contenido || P.esporadico) await c.borrar(`sesiones?cliente_id=eq.${ce}${P.contenido || P.esporadico ? '' : enMeses(P.mesesTablero)}` + (P.sesiones.length ? `&id=not.in.(${P.sesiones.map(x => `"${x.id.replace(/"/g, '')}"`).join(',')})` : ''));   // de solo contenido, por cliente (D-312)
       if (P.meses.length) await c.insertar('meses', P.meses, { upsert: true, conflicto: 'cliente_id,mes' });
       if (P.mesesQuitar.length) await c.borrar(`meses?cliente_id=eq.${ce}${enMeses(P.mesesQuitar)}`);
       // Las facturas en PDF (D-237), en su carpeta privada y nombradas por su huella: un PDF cambiado es otro archivo.
@@ -418,11 +463,15 @@
         if (P.entregas.length) await c.insertar('entregas', P.entregas, { upsert: true, conflicto: 'cliente_id,id' });
         await c.borrar(`entregas?cliente_id=eq.${ce}` + (P.entregas.length ? `&id=not.in.(${P.entregas.map(x => `"${x.id}"`).join(',')})` : ''));
       }
+      if (P.esporadico) {                       // its tasks and notes it sees (D-378): first the ones of now, then the others go
+        if (P.tareasNotas.length) await c.insertar('tareas_notas', P.tareasNotas, { upsert: true, conflicto: 'cliente_id,id' });
+        await c.borrar(`tareas_notas?cliente_id=eq.${ce}` + (P.tareasNotas.length ? `&id=not.in.(${P.tareasNotas.map(x => `"${x.id.replace(/"/g, '')}"`).join(',')})` : ''));
+      }
       if (X.envHuellaPoner) await X.envHuellaPoner(B, c._url, await huellaExtra(P)).catch(() => 0);   // in 'enviados' (D-372); what was sent stays sent if this browser can't write it
       const ahoraIso = new Date().toISOString();   // lo enviado de cada publicación, campo a campo: la marca y la lista cuentan desde aquí (D-355)
       if (X.envPoner) await X.envPoner(P.publicaciones.filter(p => p.firma).map(p => ({ cliente: cli, slot: p.s.id, ...p.firma, estado: p.fila.estado, orden: p.fila.orden, visible: p.fila.visible, at: ahoraIso }))).catch(() => 0);
       st.servidor = await leerServidor(cli, B); st.clave = B.key; st.cliente = cli; st.firma = ''; st.cambios = null; st.lista = null; st.extra = 0; st.extraT = Date.now(); st.error = '';
-      toast(P.contenido ? `Enviado a la web del cliente: ${P.entregas.length} ${P.entregas.length === 1 ? 'entrega' : 'entregas'}` : `Enviado a la web del cliente: ${filasPub.filter(f => f.visible).length} publicaciones`);
+      toast(P.esporadico ? `Enviado a la web del cliente: ${sesFilas.length} ${sesFilas.length === 1 ? 'sesión' : 'sesiones'}` : P.contenido ? `Enviado a la web del cliente: ${P.entregas.length} ${P.entregas.length === 1 ? 'entrega' : 'entregas'}` : `Enviado a la web del cliente: ${filasPub.filter(f => f.visible).length} publicaciones`);
       return { ok: true, publicaciones: filasPub.filter(f => f.visible).length, ocultas: sobran.length, imagenes: [...imgs.values()].reduce((n, l) => n + l.length, 0), subidas };
     } catch (e) {
       const m = String(e.message || e);
@@ -604,6 +653,63 @@
     if (!c || !c.usuario() || st.dueno === false || !X.S || X.root().classList.contains('client')) return '';
     return `<section class="webdel" data-web-slot="${esc(s.id)}" aria-label="Del cliente"></section>`;
   }
+  // ---------- a sporadic client's sessions (D-378): its conversation, as a post's ----------
+  // read from the server (the newest 1000), drawn with textContent; Kevin answers and marks them done from the session's sheet;
+  // «read» is of this browser and each session, as a post's
+  const C_CS = 'id,cliente_id,sesion,texto,autor_nombre,de_kevin,hora,resuelto';
+  const CSES = new Map(), CSES_LEE = new Map();   // sporadic id → { coms }; a reading in flight
+  function leerSes(cli) {
+    if (CSES_LEE.has(cli)) return CSES_LEE.get(cli);
+    const p = (async () => {
+      const c = sb(), X = I(); if (MOVIL || !c || !c.usuario() || !X) return null;
+      if (!(await esDueno(c))) return null;
+      const l = await c.leer(`comentarios_sesion?select=${C_CS}&cliente_id=eq.${encodeURIComponent(cli)}&order=hora.desc&limit=1000`);
+      const v = { coms: (l || []).reverse() }, a = CSES.get(cli); CSES.set(cli, v);
+      if (!a || JSON.stringify(a.coms) !== JSON.stringify(v.coms)) { hojaSes(); if (M.calendario && M.calendario.pastillaPintar) M.calendario.pastillaPintar(); }
+      return v;
+    })().finally(() => CSES_LEE.delete(cli));
+    CSES_LEE.set(cli, p); return p;
+  }
+  const leidoSes = (cli, sid) => lsG(`mesa-web-leido:s:${cli}:${sid}`) || '';
+  const sinLeerSes = (cli, sid) => { const v = CSES.get(cli); return v ? v.coms.filter(x => x.sesion === sid && !x.de_kevin && !x.resuelto && x.hora > leidoSes(cli, sid)).length : 0; };
+  function sinLeerSesiones(cli) { const v = CSES.get(cli), out = new Map(); if (!v) return out; for (const sid of new Set(v.coms.map(x => x.sesion))) { const n = sinLeerSes(cli, sid); if (n) out.set(sid, n); } return out; }
+  function hojaSes(raiz) { const R = raiz || (I() && I().root && I().root()); if (R && R.querySelectorAll) R.querySelectorAll('[data-web-ses][data-web-cli]').forEach(pintarSes); }
+  function pintarSes(sec) {
+    const cli = sec.dataset.webCli, sid = sec.dataset.webSes, ro = sec.hasAttribute('data-web-ro'), c = sb(), k = 'ses|' + cli + '|' + sid;
+    const tit = () => ro ? nodo('h3', { class: 'pp-hj-comt', text: 'Comentarios' }) : nodo('h4', { class: 'webh', text: 'Del cliente' });
+    if (!c || !c.usuario() || st.dueno === false) { sec.replaceChildren(...(ro ? [] : [tit(), nodo('p', { class: 'webp', text: !c ? 'Sin proyecto de la web.' : !c.usuario() ? 'Entra en su web para leer lo que comenta.' : 'Has entrado con una cuenta que no es la de Kevin.' })])); return; }
+    const v = CSES.get(cli);
+    if (!v) { sec.replaceChildren(tit(), nodo('p', { class: 'webp', text: 'Leyendo lo que ha comentado…' })); leerSes(cli).catch(() => { sec.replaceChildren(tit(), nodo('p', { class: 'webp', text: 'No se pudo leer: se vuelve a intentar en un momento.' })); }); return; }
+    const coms = v.coms.filter(x => x.sesion === sid), sinL = sinLeerSes(cli, sid);
+    const lista = nodo('ol', { class: 'webl' }, coms.map(x => nodo('li', { class: 'webcm' + (x.de_kevin ? ' kv' : '') + (x.resuelto && !ro ? ' res' : '') },
+      nodo('span', { class: 'webq' }, nodo('b', { text: x.de_kevin ? (ro ? 'Uribe Visuals' : 'Tú') : x.autor_nombre }), ' · ' + cuando(x.hora) + (x.resuelto && !ro ? ' · resuelto' : '')),
+      nodo('p', { text: x.texto }),
+      !ro && !x.de_kevin && !x.resuelto ? nodo('button', { type: 'button', class: 'lnk webres', text: 'Marcar como resuelto', onclick: e => resolverSes(x, e.currentTarget, sec) }) : null)));
+    if (ro) { sec.replaceChildren(tit(), coms.length ? lista : nodo('p', { class: 'webp', text: 'Aún sin comentarios.' })); return; }
+    const vivo = sec.querySelector('.webta');
+    if (vivo && document.activeElement === vivo) { const o = sec.querySelector('ol.webl'); if (o) o.replaceWith(lista); else if (coms.length) sec.querySelector('.webesc').before(lista); }   // writing: only its list
+    else {
+      const ta = nodo('textarea', { class: 'webta', rows: '2', placeholder: coms.length ? 'Responder al cliente…' : 'Escribe al cliente…', 'aria-label': coms.length ? 'Responder al cliente' : 'Escribir al cliente', maxlength: '2000' });
+      ta.value = borradores.get(k) || '';
+      const env = nodo('button', { type: 'button', class: 'btn2 webenv', text: coms.length ? 'Responder' : 'Enviar', disabled: !ta.value.trim() });
+      const err = nodo('p', { class: 'ferr', hidden: true });
+      ta.addEventListener('input', () => { borradores.set(k, ta.value); env.disabled = !ta.value.trim(); });
+      env.addEventListener('click', async () => {
+        const t = ta.value.trim(); if (!t) return; env.disabled = true; err.hidden = true;
+        try { await sb().insertar('comentarios_sesion', [{ cliente_id: cli, sesion: sid, texto: t }]); borradores.delete(k); ta.value = ''; await leerSes(cli); }
+        catch (e) { err.textContent = 'No se pudo enviar: ' + (e.message || e); err.hidden = false; env.disabled = false; }
+      });
+      sec.replaceChildren(...[nodo('h4', { class: 'webh' }, 'Del cliente', sinL ? nodo('span', { class: 'webn', text: sinL === 1 ? '1 nueva' : sinL + ' nuevas' }) : coms.length ? null : nodo('span', { class: 'webq', text: 'Aún no ha dicho nada' })),
+        coms.length ? lista : null, nodo('div', { class: 'webesc' }, ta, env), err].filter(Boolean));
+    }
+    const ult = coms.reduce((m, x) => (x.hora > m ? x.hora : m), '');
+    if (ult && ult > leidoSes(cli, sid)) { lsS(`mesa-web-leido:s:${cli}:${sid}`, ult); setTimeout(() => { if (M.calendario && M.calendario.pastillaPintar) M.calendario.pastillaPintar(); }, 0); }   // opened: read
+  }
+  async function resolverSes(x, b, sec) {
+    b.disabled = true;
+    try { await sb().actualizar(`comentarios_sesion?id=eq.${encodeURIComponent(x.id)}`, { resuelto: new Date().toISOString() }); await leerSes(x.cliente_id); const sig = sec.querySelector('.webres') || sec.querySelector('.webta'); if (sig) sig.focus({ preventScroll: true }); }
+    catch (e) { b.disabled = false; toast('No se pudo marcar como resuelto: ' + (e.message || e), { error: true }); }
+  }
   function nodo(tag, at, ...kids) {
     const el = document.createElement(tag);
     for (const [k, v] of Object.entries(at || {})) { if (v == null || v === false) continue; if (k === 'class') el.className = v; else if (k === 'text') el.textContent = v; else if (k.startsWith('on')) el.addEventListener(k.slice(2), v); else el.setAttribute(k, v === true ? '' : String(v)); }
@@ -769,6 +875,7 @@
     salir: async () => { const c = sb(); if (c) await c.salir(); st.servidor = null; st.cambios = null; st.dueno = null; if (I()) I().renderBar(); },
     repasar: () => { st.servidor = null; st.firma = ''; st.extra = null; return repaso(true); },
     // tocado: a session or a delivery moved in a calendar, what isn't a post is read again (D-373)
+    hojaSes, leerSes, sinLeerSes, coms: cli => (CSES.get(cli) || { coms: [] }).coms.slice(),   // a sporadic client's conversation (D-378)
     _sb: () => sb(), avisos, abierta, tocado: () => { st.extraT = 0; pedirRepaso(); }, _test: { olvidar: () => { st.servidor = null; st.firma = ''; st.extra = null; st.cambios = null; st.lista = null; visto.clear(); } },
     _off: () => { OFF.splice(0).forEach(f => f()); clearInterval(tic); clearInterval(tic2); clearTimeout(repasoT); },
   };
@@ -779,7 +886,7 @@
     I().estilo('mesa-web-css', ESTILO);
     // Cada 3 s con la pestaña a la vista: si el tablero cambió, se vuelve a contar (solo huellas, sin imágenes).
     tic = setInterval(() => { if (!document.hidden && sb() && tablero()) repaso().catch(() => { /* st.error */ }); }, 3000);
-    tic2 = setInterval(() => { if (document.hidden || !sb()) return; if (I().S) leerConversacion().catch(() => { /* el siguiente */ }); leerRespuestas().catch(() => { /* el siguiente */ }); }, 120000);
+    tic2 = setInterval(() => { if (document.hidden || !sb()) return; const B0 = tablero(); if (B0 && B0.esporadico) leerSes(B0.client).catch(() => { /* el siguiente */ }); if (I().S) leerConversacion().catch(() => { /* el siguiente */ }); leerRespuestas().catch(() => { /* el siguiente */ }); }, 120000);
     I().renderBar(); pedirRepaso(); leerRespuestas().catch(() => null);
   }).catch(() => { (window.MESA_CARGA = window.MESA_CARGA || {}).web = 'fallo'; });
   const ESTILO = `#mesa .webbtn{white-space:nowrap;border-color:var(--line);color:var(--ink);font-weight:600}

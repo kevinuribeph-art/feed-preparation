@@ -1678,6 +1678,7 @@
   }
   const _p = {
     ojoTN, verTN, espCli,   // D-378
+    espWeb: () => (st.on && st.esp && espCli(st.esp) ? st.esp : null),   // the sporadic client whose page is open: what its web sends (D-378)
     EXT, TK, I, esc, ICO, st, avatar, avatarN, cliDe, clis, conCli, cliOk, esps, sesiones, tareas, notas, vivos, opcionesCli, diaHora, tramo, ultDia, marcaT, grupoT, moverInicio, finOk, finNuevo, corto, fechaLarga, addD, dow, difD, acuerdoCuando, MESL,
     hacer, cambiar, enmendar, escribir, deshacer, copia, hondo, nuevoId, ahoraISO, puede, borrar, marcar, rebajar, esImagen, verFoto, remapH, guardarCard, ampliar, colocarAmplia,
     pintar, refrescar, cargarTK, abrirCard, abrirEsp, salirEsp, cvistaPoner, tareasHTML, espDe, cerrarCard, quitarCard, pintarCard, editar, borrador, pedirFecha, comando, menuSesion, menuEsp,

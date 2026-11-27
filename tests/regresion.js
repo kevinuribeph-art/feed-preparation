@@ -15335,7 +15335,7 @@
 
   prueba('IN7', 'Datos nuevos de su web (D-372): IndexedDB 28 y archivo v23; la huella viaja en «Exportar» y vuelve al importar; un archivo v22 se sigue importando', async () => {
     await tablero([pub(1)]);
-    igual([M._in.xfer.IDB, V_IDB, V_ARCHIVO], [30, 30, 25], 'las versiones');   // 30 y v25 desde la 4.60 (D-377); 29 y v24 desde la 4.59 (D-374, D-375), a propósito
+    igual([M._in.xfer.IDB, V_IDB, V_ARCHIVO], [31, 31, 26], 'las versiones');   // 31 y v26 desde la 4.61 (D-378); 30 y v25 desde la 4.60 (D-377); 29 y v24 desde la 4.59 (D-374, D-375), a propósito
     const k = '~huella:' + M._in.S.key;
     igual(await M._in.envPoner([{ cliente: CLIENTE, slot: k, huella: 'a'.repeat(64), url: 'https://in7.test', at: '2026-11-20T10:00:00.000Z' }]), 1, 'la huella no se guarda');
     ok(!M._in.xfer.envRecValido({ cliente: CLIENTE, slot: k, huella: 'no', url: '', at: '2026-11-20T10:00:00.000Z' }), 'entra una huella mal formada');
@@ -17933,10 +17933,10 @@
   const WB_URL = 'https://pruebasfalsas.supabase.co';
   // Un servidor de mentira en memoria: lo que la Mesa envía queda en `db` y `archivos`; `fallar` simula la red caída.
   function wbServidor(f0) {
-    const db = { clientes: [], publicaciones: [], sesiones: [], meses: [], pagos: [], aprobaciones: [], comentarios: [], lecturas: [], entregas: [] }, archivos = new Map(), pedidos = [];
+    const db = { clientes: [], publicaciones: [], sesiones: [], meses: [], pagos: [], aprobaciones: [], comentarios: [], lecturas: [], entregas: [], tareas_notas: [], comentarios_sesion: [] }, archivos = new Map(), pedidos = [];
     const sv = { db, archivos, pedidos, fallar: false, f0 };   // f0: the frame's own fetch (another frame, D-267: its own)
     const resp = (st, j) => new W.Response(j === undefined || st === 204 ? null : JSON.stringify(j), { status: st, headers: { 'Content-Type': 'application/json' } });
-    const CLAVE = { clientes: ['id'], publicaciones: ['cliente_id', 'pid'], sesiones: ['cliente_id', 'id'], meses: ['cliente_id', 'mes'], pagos: ['cliente_id', 'id'], aprobaciones: ['id'], comentarios: ['id'], lecturas: ['cliente_id'], entregas: ['cliente_id', 'id'] };
+    const CLAVE = { clientes: ['id'], publicaciones: ['cliente_id', 'pid'], sesiones: ['cliente_id', 'id'], meses: ['cliente_id', 'mes'], pagos: ['cliente_id', 'id'], aprobaciones: ['id'], comentarios: ['id'], lecturas: ['cliente_id'], entregas: ['cliente_id', 'id'], tareas_notas: ['cliente_id', 'id'], comentarios_sesion: ['id'] };   // a sporadic client's (D-378)
     const lista = v => v.slice(1, -1).split(',').map(x => x.replace(/^"|"$/g, ''));
     const pasa = filtro => r => filtro.every(([k, v]) => {
       const i = v.indexOf('.'), op = v.slice(0, i), val = v.slice(i + 1);
@@ -17962,7 +17962,7 @@
       m = ruta.match(/^\/rest\/v1\/(\w+)$/); if (!m || !db[m[1]]) return resp(404, { message: 'ruta' });
       const t = m[1], f = pasa([...u.searchParams].filter(([k]) => !['select', 'on_conflict'].includes(k)));
       if (met === 'GET') return resp(200, db[t].filter(f));
-      if (met === 'POST') { for (const x0 of [].concat(cuerpo)) { const x = t === 'comentarios' && !x0.id ? { id: 'k' + db.comentarios.length, hora: new Date().toISOString(), de_kevin: true, autor_nombre: 'Kevin', resuelto: null, diapositiva: null, ...x0 } : x0; const i = db[t].findIndex(r => CLAVE[t].every(k => r[k] === x[k])); if (i >= 0) db[t][i] = { ...db[t][i], ...x }; else db[t].push({ ...x }); } return resp(201); }
+      if (met === 'POST') { for (const x0 of [].concat(cuerpo)) { const x = t === 'comentarios' && !x0.id ? { id: 'k' + db.comentarios.length, hora: new Date().toISOString(), de_kevin: true, autor_nombre: 'Kevin', resuelto: null, diapositiva: null, ...x0 } : t === 'comentarios_sesion' && !x0.id ? { id: 'ks' + db.comentarios_sesion.length, hora: new Date().toISOString(), de_kevin: true, autor_nombre: 'Kevin', resuelto: null, ...x0 } : x0; const i = db[t].findIndex(r => CLAVE[t].every(k => r[k] === x[k])); if (i >= 0) db[t][i] = { ...db[t][i], ...x }; else db[t].push({ ...x }); } return resp(201); }
       if (met === 'PATCH') { db[t].filter(f).forEach(r => Object.assign(r, cuerpo)); return resp(204); }
       if (met === 'DELETE') { db[t] = db[t].filter(r => !f(r)); return resp(204); }
       return resp(405, {});
@@ -26678,6 +26678,77 @@
       await M.personal.render(); ok(M.personal._p.TK.get(n.id).visible === true, 'importar le quita el ojo');
       const mal = JSON.parse(JSON.stringify(j)); mal.tareas.find(y => y.id === n.id).visible = 'si';
       const im2 = await M.importData(new W.Blob([JSON.stringify(mal)], { type: 'application/json' }), { confirm: false }); ok(im2 && im2.error, 'un ojo que no es sí o no se importa');
+    } finally { await epFin(); }
+  });
+
+  prueba('EV2', '«Web del cliente» de un esporádico (D-378): desde su página, aunque haya un tablero detrás; viajan él (servicio «sesiones», sin acuerdo), sus sesiones con fecha y el ojo abierto con lo que ve de cada una (nunca un apartado tachado o vacío), sus tareas y notas con el ojo abierto y sus cobros; su propio nombre no es «otro cliente» y el de otro sí; ocultar una tarea la quita', async () => {
+    await tablero([pub(1)]); await sinTareas(); relojEn('2026-11-19T10:00:00+01:00');
+    try {
+      await epListo();
+      const { e, s1, s2, t, n } = await epCliente('ev2esp', 'Esporádico EV2');
+      await M.personal._p.hacer([{ id: 'ev2otro', despues: { id: 'ev2otro', tipo: 'esporadico', txt: 'Estudio Brezo', creada: '2026-10-01T09:00:00.000Z', at: new Date().toISOString() } }]);
+      await M.personal._p.cambiar(s1.id, x => { const g = id => x.sesion.apartados.find(a => a.id === id); if (g('orden')) g('orden').texto = 'ORDEN-EV2'; const no = x.sesion.apartados.find(a => a.visible === false && 'texto' in a); if (no) no.texto = 'TACHADO-EV2'; return x; });
+      await M.personal._p.cambiar(t.id, x => { x.visible = true; return x; });
+      await M.personal._p.cambiar(n.id, x => { x.txt = 'NOTA-OCULTA-EV2'; return x; });
+      await epAbre(e.id);
+      await conWeb(async sv => {
+        wbSesion(); await espera(60);
+        const P = await M.web.paquete(); ok(P && !P.error, 'el paquete: ' + json(P && P.error));
+        igual([P.cliente.id, P.cliente.nombre, P.cliente.servicio, P.cliente.pago, P.cliente.paquete], [e.id, 'Esporádico EV2', 'sesiones', null, null], 'el cliente');
+        igual(P.sesiones.map(x => x.nombre).sort(), ['Pasada ev2esp', 'Reunión ev2esp'], 'sus sesiones con fecha y el ojo abierto');
+        const c1 = P.sesiones.find(x => x.id === s1.id).contenido;
+        ok(c1.some(a => a.id === 'orden' && a.texto === 'ORDEN-EV2'), 'lo que ve de la sesión: ' + json(c1));
+        ok(!json(P).includes('TACHADO-EV2') && !json(P).includes('NOTA-OCULTA-EV2'), 'viaja un apartado tachado o una nota oculta');
+        igual((P.tareasNotas || []).map(x => [x.id, x.tipo, x.fecha]), [[t.id, 'tarea', '2026-11-24']], 'sus tareas y notas con el ojo abierto');
+        igual(P.problemas, [], 'su propio nombre sale como otro cliente');
+        const r = await M.web.enviar(); ok(r.ok, 'no se envió: ' + json(r));
+        igual(sv.db.clientes.map(x => [x.id, x.servicio]), [[e.id, 'sesiones']], 'solo él va a la web (nada del tablero de detrás)');
+        igual(sv.db.sesiones.filter(x => x.cliente_id === e.id).length, 2, 'sus sesiones en la web');
+        ok(sv.db.sesiones.find(x => x.id === s1.id).contenido.some(a => a.texto === 'ORDEN-EV2') && Array.isArray(sv.db.sesiones.find(x => x.id === s1.id).fotos), 'lo que ve de la sesión en la web');
+        igual(sv.db.tareas_notas.map(x => x.id), [t.id], 'su tarea en la web');
+        igual(sv.db.publicaciones.length, 0, 'se enviaron publicaciones');
+        ok(!json(sv.db).includes('NOTA-OCULTA-EV2') && !json(sv.db).includes('TACHADO-EV2'), 'llegó algo oculto');
+        // another client's name in what it sees: not sent
+        await M.personal._p.cambiar(t.id, x => { x.txt = 'Llamar a Estudio Brezo'; return x; });
+        const P2 = await M.web.paquete(); ok(P2.problemas.length > 0, 'el nombre de otro esporádico no se para');
+        await M.personal._p.cambiar(t.id, x => { x.txt = 'Tarea ev2esp'; delete x.visible; return x; });
+        const r2 = await M.web.enviar(); ok(r2.ok, 'no se envió otra vez: ' + json(r2));
+        igual(sv.db.tareas_notas.length, 0, 'una tarea tachada sigue en la web');
+      });
+    } finally { await epFin(); }
+  });
+  prueba('EV3', 'La conversación de una sesión de un esporádico (D-378): lo que comenta llega a la pastilla de su página («Del cliente», una fila por sesión) y, en la hoja de la sesión, a «Del cliente», arriba de la columna derecha; abrirla lo da por leído; Kevin responde y lo marca como resuelto; como lo ve el cliente, sus comentarios al pie y solo para leer', async () => {
+    await tablero([pub(1)]); await sinTareas(); relojEn('2026-11-19T10:00:00+01:00');
+    try {
+      await epListo();
+      const { e, s1 } = await epCliente('ev3esp', 'Esporádico EV3');
+      await M.personal._p.cambiar(s1.id, x => { const g = x.sesion.apartados.find(a => a.id === 'orden'); if (g) g.texto = 'Orden EV3'; return x; });
+      await epAbre(e.id);
+      await conWeb(async sv => {
+        wbSesion(); await espera(60);
+        ok((await M.web.enviar()).ok, 'no se envió');
+        sv.db.comentarios_sesion.push({ id: 'cs1', cliente_id: e.id, sesion: s1.id, texto: 'COMENTARIO-EV3', autor_nombre: 'Ana', de_kevin: false, hora: new Date().toISOString(), resuelto: null });
+        await M.web.leerSes(e.id); await M.personal.render(); await espera(80);
+        const pil = await hasta(() => q('.pp-ep .cal .cvenc'), 3000, 'la pastilla en su página');
+        ok(/del cliente/.test(pil.title), 'la pastilla no dice «del cliente»: ' + pil.title);
+        pil.click(); const d = await hasta(() => q('.detail:not([hidden])[data-dlg="venc"]'), 3000, 'su lista');
+        const b = d.querySelector(`[data-cal="av-ses"][data-id="${s1.id}"]`); ok(b && /Pasada ev3esp/.test(b.textContent), 'la fila de la sesión');
+        b.click(); const sec = await hasta(() => q(`.pp-ov .webdel[data-web-ses="${s1.id}"]`), 3000, '«Del cliente» en su hoja');
+        await hasta(() => /COMENTARIO-EV3/.test(sec.textContent), 3000, 'su comentario');
+        ok(sec.closest('[data-col="der"]') || sec.closest('.pp-hj-col.una, .pp-hj-cols.una'), 'no va en la columna derecha (o en la única)');
+        await espera(60); igual(M.web.sinLeerSes(e.id, s1.id), 0, 'abrirla no lo da por leído');
+        const ta = sec.querySelector('.webta'); ta.value = 'RESPUESTA-EV3'; ta.dispatchEvent(new W.Event('input', { bubbles: true }));
+        sec.querySelector('.webenv').click(); await hasta(() => sv.db.comentarios_sesion.some(x => x.texto === 'RESPUESTA-EV3'), 3000, 'su respuesta');
+        igual(sv.db.comentarios_sesion.find(x => x.texto === 'RESPUESTA-EV3').sesion, s1.id, 'la respuesta en otra sesión');
+        const res = await hasta(() => q(`.pp-ov .webdel[data-web-ses="${s1.id}"] .webres`), 3000, '«Marcar como resuelto»');
+        res.click(); await hasta(() => sv.db.comentarios_sesion.find(x => x.id === 'cs1').resuelto, 3000, 'resuelto');
+        // as the client sees it: its comments at the foot, to read
+        const vb = q('.pp-ov [data-hj="vista"]'); vb.click();
+        const ro = await hasta(() => q(`.pp-ov .pp-hj-com[data-web-ses="${s1.id}"]`), 3000, 'sus comentarios como lo ve el cliente');
+        await hasta(() => /COMENTARIO-EV3/.test(ro.textContent) && /RESPUESTA-EV3/.test(ro.textContent), 3000, 'la conversación');
+        ok(!ro.querySelector('textarea, .webres'), 'como lo ve el cliente se escribe o se resuelve');
+        M.personal._p.cerrarCard(true);
+      });
     } finally { await epFin(); }
   });
 

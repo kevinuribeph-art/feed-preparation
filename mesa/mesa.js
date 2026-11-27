@@ -267,6 +267,9 @@
       // 28 (mesa 4.58): in 'enviados', also the print of what isn't a post that a board last sent to its web (`~huella:<board>`,
       // D-372; it lived in this browser's localStorage) and, in a Programada's signature, its location, tags and collaborators.
       // An older tab would not know the print (and would drop it from a copy or the cloud).
+      // 29 (mesa 4.59): an amount's base and IVA in agreements and invoices, a client's «Sin IVA», packages without IVA (D-374, D-375).
+      // 30 (mesa 4.60): a sporadic client's free payment, without a session (`periodo: ''`, its concept, `creada`), and its «Sin IVA»
+      // in its record of 'tareas' (D-377): the 4.59 doesn't import a free payment.
       const r = indexedDB.open('mesa-feed', IDB_V);   /* idb-crudo: the only opening */
       r.onupgradeneeded = e => {
         const d = r.result; for (const n of [...ALMACENES, DIARIO, NUBE_ST]) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n);
@@ -7313,6 +7316,7 @@ ${TK_FUENTES}
         if (it.id != null && !/^[\w.-]{1,60}$/.test(String(it.id))) return mal('id no válido (letras, números, guiones; hasta 60)');
         const per = String(it.periodo || ''), hasta = it.hasta == null || it.hasta === '' ? '' : String(it.hasta);
         if (COB_MES.test(per)) { if (!mensual) return mal('un esporádico no tiene cuota: su periodo es el id de una sesión'); }
+        else if (per === '') { const ya = it.id != null && COB.get(String(it.id)); if (mensual && !(ya && !ya.borrado && ya.periodo === '' && ya.cliente === cli)) return mal('periodo vacío: solo un cobro libre de un esporádico (D-377)'); }   // a free one: no session, its concept
         else if (!ses.has(per)) { const ya = it.id != null && COB.get(String(it.id)); if (!ya || ya.borrado || ya.periodo !== per || ya.cliente !== cli) return mal(`periodo «${per}»: ni un mes AAAA-MM ni una sesión`); }   // one already here keeps its session
         else if (!clisDe(ses.get(per)).includes(cli)) return mal('esa sesión no es de ese cliente');
         else if (ses.get(per).sesion && ses.get(per).sesion.clase === 'reunion') return mal('una reunión no tiene cobro');   // D-291
@@ -7327,13 +7331,14 @@ ${TK_FUENTES}
         const at = it.at == null ? ahoraISO : new Date(Date.parse(String(it.at))).toISOString();   // ISO always: compared as text
         const id = it.id != null ? String(it.id) : cobId();
         if (plan.some(p => p.id === id)) return mal('id repetido en la lista');
-        if (!COB_MES.test(per)) {
+        if (!COB_MES.test(per) && per !== '') {   // a free one has no session to share (D-377)
           const otro = [...cobVivos(cli), ...plan.filter(p => p.cliente === cli)].find(r => r.periodo === per && r.id !== id);
           if (otro) return mal('esa sesión ya tiene cobro de ese cliente: ' + otro.id);
         }
         const prev = COB.get(id);
         const concepto = it.concepto != null ? String(it.concepto).slice(0, 120) : prev && !prev.borrado ? prev.concepto || '' : ses.has(per) ? String(ses.get(per).txt || '') : '';
-        plan.push({ id, cliente: cli, periodo: per, ...(hasta && hasta !== per ? { hasta } : {}), concepto, importe, ...(sep ? sep : {}), factura, ...f, pdf: prev && !prev.borrado ? prev.pdf || '' : '', at });
+        const creada = per === '' ? (cobDia(it.creada) ? String(it.creada) : prev && !prev.borrado && prev.creada) || madParts(ahora()).day : '';   // a free one, ordered by its issue or its making (D-377)
+        plan.push({ id, cliente: cli, periodo: per, ...(hasta && hasta !== per ? { hasta } : {}), concepto, importe, ...(creada ? { creada } : {}), ...(sep ? sep : {}), factura, ...f, pdf: prev && !prev.borrado ? prev.pdf || '' : '', at });
       });
       if (problemas.length) return { error: 'no se ha cargado nada: hay facturas con problemas', problemas };
       const r = { ok: true, nuevos: 0, actualizados: 0, masRecientesAqui: 0, ids: plan.map(p => p.id) };

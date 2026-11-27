@@ -749,7 +749,7 @@
     if (!st.on) return;
     st.on = false; ssSet(SS_CLI, '1'); st.esp = null; ssSet(SS_ESP, null); cerrarMenu(); if (CARD) { if (CARD.ed) guardarCard(); quitarCard(); }
     if (root) root.classList.remove('pp-on');
-    if (page) { page.hidden = true; page.innerHTML = ''; }
+    if (page) { page.hidden = true; page.innerHTML = ''; page.classList.remove('pp-ep-on'); }   // its sporadic page's class never outlives it (D-377: its display beat [hidden])
     colocar();
     if (X && X.renderBar && X.S) { try { X.render(); } catch (e) { /* */ } }   // the board, as it is now
     if (X && X.vencRevisar) X.vencRevisar(false).catch(() => {});
@@ -1035,7 +1035,7 @@
   // new one's attributes and children, matched by its tag and its data key. What stays keeps everything: its entrance never
   // runs again (pp-dentro), a photo keeps what it drew, the focus, the caret, a composition and an open dropdown stay. A
   // control's twin (controles.js) goes with its native, which is kept only while it would be drawn the same.
-  const CLAVES = ['f', 'ap', 'it', 'tid', 'sid', 'g', 'panel', 'slot', 'id', 'cat', 'tab', 'pp', 'hj', 'p', 'v', 'k', 'm', 'c', 'campo', 'key'];
+  const CLAVES = ['f', 'ap', 'it', 'tid', 'sid', 'g', 'panel', 'slot', 'id', 'cat', 'tab', 'pp', 'hj', 'p', 'v', 'k', 'm', 'c', 'campo', 'key', 'esp'];   // esp: another sporadic client's page is another page (its calendar too, D-377)
   function claveDe(n) {
     if (n.nodeType !== 1) return '#' + n.nodeType;
     let k = n.tagName; const d = n.dataset;
@@ -1129,6 +1129,7 @@
     else if (antes !== id && EXT.ficha.enfocar) EXT.ficha.enfocar(page);
     return true;
   }
+  const cvistaPoner = v => { st.cvista = v === 'esporadicos' ? 'esporadicos' : 'mensuales'; ssSet(SS_CV, st.cvista); };   // passed to a monthly one: «Mensuales» (D-377)
   function salirEsp(foco = true) {
     const id = st.esp; if (!id) return;
     st.esp = null; ssSet(SS_ESP, null); page.scrollTop = 0; pintar();
@@ -1669,7 +1670,7 @@
   const _p = {
     EXT, TK, I, esc, ICO, st, avatar, avatarN, cliDe, clis, conCli, cliOk, esps, sesiones, tareas, notas, vivos, opcionesCli, diaHora, tramo, ultDia, marcaT, grupoT, moverInicio, finOk, finNuevo, corto, fechaLarga, addD, dow, difD, acuerdoCuando, MESL,
     hacer, cambiar, enmendar, escribir, deshacer, copia, hondo, nuevoId, ahoraISO, puede, borrar, marcar, rebajar, esImagen, verFoto, remapH, guardarCard, ampliar, colocarAmplia,
-    pintar, refrescar, cargarTK, abrirCard, abrirEsp, salirEsp, tareasHTML, espDe, cerrarCard, quitarCard, pintarCard, editar, borrador, pedirFecha, comando, menuSesion, menuEsp,
+    pintar, refrescar, cargarTK, abrirCard, abrirEsp, salirEsp, cvistaPoner, tareasHTML, espDe, cerrarCard, quitarCard, pintarCard, editar, borrador, pedirFecha, comando, menuSesion, menuEsp,
     abrirMenu, cerrarMenu, ES, leerTxt, lsGet, lsSet, enCard, pocoMov, DBL, fotosURL, botonesCard, ponerCard, seleccionando, morfar,
     get CARD() { return CARD; }, get ov() { return ov; }, get page() { return page; },
     cardT: { quitar: () => { clearTimeout(cardT); cardT = null; }, poner: f => { clearTimeout(cardT); cardT = setTimeout(f, 400); } }

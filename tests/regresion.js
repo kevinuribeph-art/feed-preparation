@@ -26449,14 +26449,14 @@
       ok(!q('.pp-ov'), 'se abre una ventana encima de la página');
       ok(/Esporádico EP1/.test(q('.pp-ep-nom').textContent) && /Esporádico desde octubre 2026/.test(pg.textContent), 'su cabecera: ' + q('.pp-ep-cab').textContent);
       igual(['ep-volver', 'ep-sesion', 'ep-reunion', 'ep-tarea', 'ep-nota', 'ep-mas'].map(k => !!pg.querySelector(`[data-pp="${k}"]`)), [true, true, true, true, true, true], 'sus botones');
-      igual(qa('.pp-ep-citas .pp-ep-sub').map(h => h.textContent), ['Próximas', 'Sin fecha', 'Pasadas'], 'los grupos de su agenda');
+      igual(qa('.pp-ep-citas .pp-ep-sub').map(h => h.textContent), ['Próximas 1', 'Sin fecha 1', 'Pasadas 1'], 'los grupos de su agenda');
       igual(qa('.pp-ep-citas .pp-es-s').map(b => b.dataset.tid), [s2.id, s3.id, s1.id], 'su agenda');
       await hasta(() => qa('.pp-ep .side > .cal .chip[data-ses]').length >= 2, 3000, 'su calendario con sus citas');
       ok(qa('.pp-ep-tn .pp-tk').some(r => r.dataset.tid === t.id) && !qa('.pp-ep-tn .pp-tk').some(r => [s1.id, s2.id, s3.id].includes(r.dataset.tid)), 'sus tareas, sin sus sesiones');
       ok(q(`.pp-ep-tn .pp-pt[data-nid="${n.id}"]`), 'su nota');
       igual(qa('.pp-ep-tot b').map(b => b.textContent.replace(/\s/g, ' ')), ['726 €', '0 €'], 'Cobrado y Pendiente');
-      const cg = q('.pp-ep .cal .cgrid'); M.personal._p.pintar(); await M.personal.render(); await espera(60);
-      ok(q('.pp-ep .cal .cgrid') === cg, 'un redibujo de la página borra su calendario');
+      const cg = q('.pp-ep .cal .cgrid'); await M.personal.tarea({ tipo: 'nota', txt: 'Otra nota EP1', cliente: e.id }); await M.personal.render(); await espera(80);   // a real drawing: its notes change
+      ok(qa('.pp-ep-tn .pp-pt').length === 2 && q('.pp-ep .cal .cgrid') === cg, 'un redibujo de la página borra su calendario o no pinta la nota');
       ok(!q('.main .side > .cal .chip[data-ses]'), 'sus citas se pintan en el calendario del tablero');
       q('[data-pp="ep-volver"]').click(); await espera(80);
       ok(!q('.pp-ep') && q('[data-pp="cvista"][data-v="esporadicos"]').classList.contains('on'), 'no vuelve a «Esporádicos»');
@@ -26490,6 +26490,8 @@
       ok(q('.pp-ep-cob').contains(D.activeElement), '«Cobros» no está a la vista con el foco');
       const r = await M.personal.nuevoEsporadico('Nuevo EP2'); ok(r && r.ok, 'nuevoEsporadico: ' + json(r));
       await hasta(() => q(`.pp-ep[data-esp="${r.id}"]`), 3000, 'la página del nuevo');
+      await hasta(() => q(`.pp-ep .side > .cal[data-cli="${r.id}"] .cgrid`), 3000, 'su calendario, el del nuevo');
+      ok(!q('.pp-ep .cal .chip[data-ses]'), 'el calendario del nuevo enseña las citas del anterior');
     } finally { await epFin(); }
   });
 
@@ -26509,6 +26511,8 @@
       ok(!q('.pp-ep') && q('.pp-in') && W.sessionStorage.getItem('mesa-pp-esp') == null, 'un esporádico que ya no existe deja la página vacía');
       await epAbre(e.id); q('.appbar [data-pp="logo"]').click(); await espera(80);
       ok(!q('.pp-ep') && q('.pp-in'), 'el logo no vuelve a la página personal');
+      // closed from its page (a client's tab), the personal page leaves no gap over the board
+      await epAbre(e.id); M.personal.cerrar(); await espera(60); ok(W.getComputedStyle(q('.pp')).display === 'none' && !q('.pp').classList.contains('pp-ep-on'), 'la página personal cerrada sigue ocupando sitio');
     } finally { await epFin(); }
   });
 
@@ -26532,7 +26536,9 @@
       dia.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: rd.left + 5, clientY: rd.top + 5 })); await espera(60);
       const l = qa('.mmenu button, [role="menu"] button').map(b => b.textContent);
       ok(l.some(x => /Nueva sesión/.test(x)) && !l.some(x => /historia/i.test(x)), 'el clic derecho en un día: ' + json(l));
-      tecla('Escape'); await espera(60);
+      qa('.mmenu button, [role="menu"] button').find(b => /Nueva sesión/.test(b.textContent)).click();
+      const dl = await hasta(() => q('.detail form.pp-ns'), 2000, '«Nueva sesión»'); ok(/Esporádico EP4/.test(dl.textContent), '«Nueva sesión» no es de su esporádico: ' + dl.textContent.slice(0, 200));
+      M._in.closeDetail(); await espera(60);
     } finally { await epFin(); }
   });
 
@@ -26560,6 +26566,10 @@
       const x = await M.exportAll({ returnBlob: true }), j = JSON.parse(await x.text()), cj = (j.cobros || []).find(y => y.id === c.id);
       ok(cj && cj.periodo === '' && cj.concepto === 'Edición extra', 'el cobro libre no viaja: ' + json(cj));
       const im = await M.importData(x, { confirm: false }); ok(!im || !im.error, 'importar falla: ' + json(im));
+      // MESA.cobros.cargar keeps a free one (its concept and its making)
+      const cg = await M.cobros.cargar([{ id: c.id, cliente: e.id, periodo: '', importe: 217.8, base: 180, iva: 21, cobrada: '2026-11-19' }]); ok(cg && cg.ok, 'cargar un cobro libre: ' + json(cg));
+      const r2 = M.cobros.ver(e.id).find(y => y.id === c.id); ok(r2 && r2.concepto === 'Edición extra' && r2.estado === 'cobrada', 'cargar no conserva el cobro libre: ' + json(r2));
+      ok((await M.cobros.cargar([{ cliente: e.id, periodo: '', concepto: 'Otro libre', importe: 50 }])).ok, 'cargar no crea un cobro libre');
     } finally { await epFin(); }
   });
 
@@ -26602,6 +26612,7 @@
       await espera(200); ok(!q('.pp-ep') && M.personal.abierta(), 'su página sigue abierta o la página personal se cerró');
       const L = await M.personal.tareas(); igual([L.find(k => k.id === s1.id).clientes.join(), L.find(k => k.id === t.id).cliente], [nuevo, nuevo], 'no le pasa sus sesiones y tareas');
       ok(M.cobros.ver(nuevo).length === 1, 'no le pasa sus cobros');
+      igual(W.sessionStorage.getItem('mesa-pp-cvista'), 'mensuales', 'la pestaña sigue recordando «Esporádicos»');
     } finally { await epFin(); if (nuevo) await M.removeClient(nuevo).catch(() => {}); }
   });
 
@@ -26622,6 +26633,10 @@
       const h3 = q('.pp-ep-nom'); h3.dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true, clientX: r0.left + 8, clientY: r0.top + 8, detail: 1 }));
       h3.textContent = M._in.CL[0].name; tecla('Enter', { en: h3 }); await espera(120);
       igual(M.personal._p.TK.get(e.id).txt, 'Renombrado EP8', 'un nombre repetido se guarda');
+      // pressing elsewhere keeps it; the focus on it and Enter writes it (the keyboard)
+      const h4 = q('.pp-ep-nom'); h4.dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true, clientX: r0.left + 8, clientY: r0.top + 8, detail: 1 })); h4.textContent = 'Fuera EP8';
+      q('.pp-ep-tn').dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true, cancelable: true })); await hasta(() => M.personal._p.TK.get(e.id).txt === 'Fuera EP8', 2000, 'pulsar fuera no lo guarda');
+      await espera(60); const h5 = q('.pp-ep-nom'); h5.focus(); tecla('Enter', { en: h5 }); ok(q('.pp-ep-nom').isContentEditable, 'Enter con el foco en el nombre no lo escribe'); tecla('Escape', { en: q('.pp-ep-nom') }); await espera(40);
     } finally { await epFin(); }
   });
 

@@ -820,8 +820,8 @@
     const t = k => (k.fecha || '') + ' ' + (k.hora || '');
     const prox = ss.filter(k => k.fecha && P.ultDia(k) >= hoy).sort((a, b) => t(a).localeCompare(t(b))), sinf = ss.filter(k => !k.fecha), pas = ss.filter(k => k.fecha && P.ultDia(k) < hoy).sort((a, b) => t(b).localeCompare(t(a)));
     const fila = k => { const d = k.fecha ? P.difD(hoy, k.fecha) : null, reu = k.sesion && k.sesion.clase === 'reunion';
-      return `<button type="button" class="pp-es-s" data-tid="${esc(k.id)}" title="${esc((reu ? 'Reunión' : 'Sesión') + ' · ' + k.txt)}"><span class="pp-es-d${d != null && d >= 0 ? ' prox' : ''}">${k.fecha ? esc(P.tramo(k)) : ''}</span>${icoSes(k)}<b>${esc(k.txt)}</b>${d === 0 ? '<i>hoy</i>' : d === 1 ? '<i>mañana</i>' : ''}</button>`; };
-    const grupo = (tt, l) => l.length ? `<h3 class="pp-ep-sub">${tt}</h3><div class="pp-es-l">${l.map(fila).join('')}</div>` : '';
+      return `<button type="button" class="pp-es-s" data-tid="${esc(k.id)}" data-pp="tver" data-id="${esc(k.id)}" title="${esc((reu ? 'Reunión' : 'Sesión') + ' · ' + k.txt)}"><span class="pp-es-d${d != null && d >= 0 ? ' prox' : ''}">${k.fecha ? esc(P.tramo(k)) : ''}</span>${icoSes(k)}<b>${esc(k.txt)}</b>${d === 0 ? '<i>hoy</i>' : d === 1 ? '<i>mañana</i>' : ''}</button>`; };
+    const grupo = (tt, l) => l.length ? `<section class="pp-ep-gr"><h3 class="pp-gt pp-ep-sub">${tt} <span>${l.length}</span></h3><div class="pp-es-l">${l.map(fila).join('')}</div></section>` : '';   // as the groups of Tareas (D-371)
     const desde = e.creada ? `${MESL0[+e.creada.slice(5, 7) - 1]} ${e.creada.slice(0, 4)}` : '';
     const mas = svgI('mas'), nT = tk.filter(k => !k.hecha).length;
     const pn = `<div class="pp-pn">${ns.map(n => `<div class="pp-pt" data-nid="${esc(n.id)}" data-pp="tver" data-id="${esc(n.id)}" tabindex="0" role="button" aria-label="Nota: ${esc(n.txt)}"><div class="pp-ptx">${P.leerTxt(n.txt, { casillas: 'no' })}</div></div>`).join('')}</div>`;
@@ -830,7 +830,7 @@
       + `<div class="pp-ep-id">${P.avatar(id, 'lg')}<div class="pp-ep-t"><h1 class="pp-ep-nom" data-pp="ep-nom" tabindex="-1" title="Clic: cambiar el nombre">${esc(e.txt)}</h1>${desde ? `<p>Esporádico desde ${desde}</p>` : ''}</div></div><span class="pp-ep-sp"></span>`
       + `<div class="pp-ep-acc"><button type="button" class="btn" data-pp="ep-sesion">${mas}Sesión</button><button type="button" class="btn2" data-pp="ep-reunion">${mas}Reunión</button><button type="button" class="btn2" data-pp="ep-tarea">${mas}Tarea</button><button type="button" class="btn2" data-pp="ep-nota">${mas}Nota</button>`
       + `<button type="button" class="ibtn pp-ep-mas" data-pp="ep-mas" aria-label="Más del esporádico" title="Más">${svgI('mas3')}</button></div></div>`
-      + `<div class="pp-ep-cols"><div class="pp-ep-ag"><section class="pp-ep-p pp-ep-citas" aria-label="Agenda"><h2 class="pp-ep-h">Agenda <span>${prox.length}</span></h2>`
+      + `<div class="pp-ep-cols"><div class="pp-ep-ag"><section class="pp-ep-p pp-ep-citas" aria-label="Agenda"><h2 class="pp-ep-h">Agenda</h2>`
       + (ss.length ? grupo('Próximas', prox) + grupo('Sin fecha', sinf) + grupo('Pasadas', pas) : '<p class="pp-ep-vacio">Sin sesiones ni reuniones</p>')
       + `</section><div class="side pp-ep-side"><section class="cal" data-propio data-cli="${esc(id)}" aria-label="Calendario"></section></div></div>`
       + `<section class="pp-ep-p pp-ep-tn" aria-label="Tareas y notas"><h2 class="pp-ep-h">Tareas <span>${nT}</span></h2>${tk.length ? P.tareasHTML(R, { cli: id }) : '<p class="pp-ep-vacio">Sin tareas</p>'}`
@@ -865,7 +865,8 @@
     n.removeAttribute('contenteditable'); n.removeAttribute('role'); n.classList.remove('escribiendo'); n.title = 'Clic: cambiar el nombre';
     if (!guardar || !v || v === e0.txt) { n.textContent = e0.txt; P.pintar(); return; }
     if ([...I().CL.map(c => c.name), ...P.esps().filter(x => x.id !== e0.id).map(x => x.txt)].some(x => String(x).toLowerCase() === v.toLowerCase())) { n.textContent = e0.txt; I().toast('Ya hay un cliente con ese nombre.'); P.pintar(); return; }
-    P.cambiar(e0.id, x => { x.txt = v; return x; }).then(() => P.pintar());
+    if (!P.puede()) { n.textContent = e0.txt; I().toast('La mesa está abierta en otra pestaña: pulsa «Usar aquí».'); P.pintar(); return; }
+    P.cambiar(e0.id, x => { x.txt = v; return x; }).then(ok => { if (!ok) I().toast('No se pudo guardar el nombre.'); P.pintar(); });
   }
   function pagClic(k, a, e) {
     const e0 = espDePg(); if (!e0) return; nomVigente();
@@ -881,12 +882,17 @@
     if (!t.matches('[data-pp="ep-iva"]')) return false;
     const e0 = espDePg(); if (!e0) return true;
     const si = t.value === '0', antes = e0.sinIva === true; if (si === antes) return true;
-    const poner = v => P.cambiar(e0.id, x => { if (v) x.sinIva = true; else delete x.sinIva; return x; }).then(() => P.pintar());
-    poner(si).then(() => I().toast(si ? 'Sin IVA: sus cobros nuevos irán sin IVA; los que ya tiene no cambian.' : 'Con IVA (21 %) en sus cobros nuevos.', { action: 'Deshacer', ms: 6000, onAction: () => poner(antes) }));
+    if (!P.puede()) { t.value = antes ? '0' : '21'; P.pintar(); I().toast('La mesa está abierta en otra pestaña: pulsa «Usar aquí».'); return true; }
+    const poner = v => P.cambiar(e0.id, x => { if (v) x.sinIva = true; else delete x.sinIva; return x; }).then(ok => { P.pintar(); return ok; });
+    poner(si).then(ok => !ok ? I().toast('No se pudo guardar su IVA.') : I().toast(si ? 'Sin IVA: sus cobros nuevos irán sin IVA; los que ya tiene no cambian.' : 'Con IVA (21 %) en sus cobros nuevos.', { action: 'Deshacer', ms: 6000, onAction: () => poner(antes) }));
     return true;
   }
   function pagTecla(e) {
-    if (!nomVigente()) return false;
+    if (!nomVigente()) {   // its name, focused (as the page opens), is written with Enter
+      const h = e.key === 'Enter' && !e.isComposing && e.target && e.target.matches && e.target.matches('.pp-ep-nom');
+      if (h) { e.preventDefault(); e.stopImmediatePropagation(); nomEscribir(null); return true; }
+      return false;
+    }
     const n = P.page && P.page.querySelector('.pp-ep-nom'); if (!n) return false;
     if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); nomFin(false); n.focus({ preventScroll: true }); return true; }   // also with the focus gone (another window)
     if (e.target !== n) return false;
@@ -918,7 +924,7 @@
       if (X.CL.some(c => String(c.name).trim().toLowerCase() === String(e0.txt).trim().toLowerCase())) { X.closeDetail(); X.toast(`Ya hay un cliente mensual que se llama «${e0.txt}»: cambia antes el nombre del esporádico.`, { ms: 7000 }); return; }
       b.disabled = true;
       let c; try { c = await M.addClient({ name: e0.txt, servicio: tipo }); } catch (err) { X.toast('No se pudo: ' + ((err && err.message) || err)); b.disabled = false; return; }
-      try { if (e0.sinIva && C && C.ivaPoner) await C.ivaPoner(c.id, true); } catch (err) { /* its IVA, by hand in «Editar cliente · Cobros» */ }   // its «Sin IVA» goes with it (D-377)
+      let sinIvaMal = false; try { if (e0.sinIva && C && C.ivaPoner) await C.ivaPoner(c.id, true); } catch (err) { sinIvaMal = true; }   // its «Sin IVA» goes with it (D-377); if not, said
       try { if (C) for (const r of C.vivos(e0.id)) await C.parche(r.id, { cliente: c.id }); }   // its payments go with it first (D-234)
       catch (err) { X.toast('No se pudo pasar sus cobros: ' + ((err && err.message) || err), { ms: 8000 }); b.disabled = false; return; }
       const now = P.ahoraISO(), cambios = [];
@@ -930,8 +936,8 @@
       P.remapH(pasa, e0.id);   // its own steps go: it can't come back unpassed
       if (P.st.tcli === e0.id) P.st.tcli = c.id;
       X.closeDetail(); if (P.CARD && P.CARD.id === e0.id) P.cerrarCard(true);
-      P.st.cvista = 'mensuales'; if (P.st.esp === e0.id) P.salirEsp(false); await P.refrescar(); P.pintar();
-      X.toast(tipo === 'contenido' ? `«${e0.txt}» ya es de solo contenido: tiene su pestaña arriba.` : `«${e0.txt}» ya es mensual: sus meses los crea Claude.`);
+      P.cvistaPoner('mensuales'); if (P.st.esp === e0.id) P.salirEsp(false); await P.refrescar(); P.pintar();
+      X.toast((tipo === 'contenido' ? `«${e0.txt}» ya es de solo contenido: tiene su pestaña arriba.` : `«${e0.txt}» ya es mensual: sus meses los crea Claude.`) + (sinIvaMal ? ' No se pudo pasar su «Sin IVA»: ponlo en «Editar cliente · Cobros».' : ''), sinIvaMal ? { ms: 9000 } : undefined);
     });
   }
 
@@ -1308,15 +1314,14 @@
 #mesa .pp-es-s:hover{background:var(--bg-2)}#mesa .pp-es-s svg{width:16px;height:16px;color:var(--mute)}
 #mesa .pp-es-s b{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#mesa .pp-es-s i{font-style:normal;font-size:12px;font-weight:600;color:var(--acc-ink)}
 #mesa .pp-es-d{font-size:12.5px;color:var(--mute)}#mesa .pp-es-d.prox{color:var(--ink);font-weight:600}
-#mesa .pp.pp-ep-on{display:flex;flex-direction:column;overflow:hidden;padding-bottom:20px}
+#mesa .pp.pp-ep-on:not([hidden]){display:flex;flex-direction:column;overflow:hidden;padding-bottom:20px}
 #mesa .pp-ep{flex:1;min-height:0;display:flex;flex-direction:column}
 #mesa .pp-ep-cab{flex:none;display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;padding:6px 0 14px}
 #mesa .pp-ep-vol{display:inline-flex;align-items:center;gap:2px;min-height:32px;margin:0 6px 0 -6px;padding:0 8px 0 2px;border:0;border-radius:var(--r-pill);background:none;font:inherit;font-size:13px;font-weight:600;color:var(--acc-ink);cursor:pointer;transition:background var(--d1) ease-out}
-#mesa .pp-ep-vol svg{width:16px;height:16px;stroke-width:2}#mesa .pp-ep-vol:hover{background:var(--bg-2)}
+#mesa .pp-ep-vol svg{width:16px;height:16px}#mesa .pp-ep-vol:hover{background:var(--bg-2)}
 #mesa .pp-ep-id{display:flex;align-items:center;gap:12px;min-width:0}#mesa .pp-ep-t{min-width:0}
-#mesa .pp-ep h1.pp-ep-nom{margin:0 0 0 -6px;padding:2px 6px;border-radius:var(--r-sm);font-size:22px;font-weight:800;line-height:1.25;letter-spacing:-.01em;overflow-wrap:anywhere;outline:none;cursor:text}
+#mesa .pp-ep h1.pp-ep-nom{margin:0 0 0 -6px;padding:2px 6px;border-radius:var(--r-sm);font-size:22px;font-weight:800;line-height:1.25;letter-spacing:-.01em;overflow-wrap:anywhere;cursor:text}
 #mesa .pp-ep-nom:hover:not(.escribiendo){background:var(--bg-2)}#mesa .pp-ep-nom.escribiendo{background:none;box-shadow:inset 0 0 0 1px var(--pp-escr);outline:none}   /* what is written, D-213 */
-#mesa .pp-ep-nom:focus-visible:not(.escribiendo){box-shadow:0 0 0 2px var(--acc-soft)}
 #mesa .pp-ep-t p{margin:1px 0 0;font-size:12.5px;color:var(--mute)}
 #mesa .pp-ep-sp{flex:1}
 #mesa .pp-ep-acc{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -1324,27 +1329,28 @@
 #mesa .pp-ep-cols{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(320px,380px);gap:12px}
 #mesa .pp-ep-ag{min-height:0;display:grid;grid-template-rows:minmax(0,auto) minmax(300px,1fr);gap:12px}
 #mesa .pp-ep-p{min-width:0;min-height:0;overflow-y:auto;overscroll-behavior:contain;background:var(--panel);border-radius:var(--r-lg);padding:14px 18px 16px}
-#mesa .pp-ep-side{min-height:0;background:none}#mesa .pp-ep-side>.cal{height:100%;min-height:0;border-top:0;border-radius:var(--r-lg)}
+#mesa .pp-ep-side{min-height:0;background:none}#mesa .pp-ep .pp-ep-side>.cal:not(.fold){flex:1 1 auto;height:100%;min-height:0;border-top:0;border-radius:var(--r-lg)}   /* over the calendar's own narrow rule (42vh) */
 #mesa .pp-ep-side>.cal .calhead{padding:12px 12px 4px 18px}
 #mesa .pp-ep h2.pp-ep-h{display:flex;align-items:baseline;gap:8px;margin:0 0 8px;font-size:17px;font-weight:800;letter-spacing:-.025em;color:var(--ink)}
 #mesa .pp-ep-h>span:not(.co-ivw){font-size:13px;font-weight:400;letter-spacing:0;color:var(--mute)}
 #mesa .pp-ep h2.pp-ep-h2{margin-top:22px}
-#mesa .pp-ep h3.pp-ep-sub{margin:14px 0 2px;font-size:12px;font-weight:600;color:var(--mute)}#mesa .pp-ep h3.pp-ep-sub:first-of-type{margin-top:2px}
+#mesa .pp-ep h3.pp-ep-sub{margin:0;padding:4px 0}#mesa .pp-ep-gr + .pp-ep-gr{margin-top:14px}
 #mesa .pp-ep-vacio{margin:0;font-size:13px;color:var(--mute)}
-#mesa .pp-ep-p .pp-es-s{grid-template-columns:132px 18px minmax(0,1fr) auto}#mesa .pp-ep-p .pp-es-l>.pp-es-s:last-child{border-bottom:0}
+#mesa .pp-ep-p .pp-es-s{grid-template-columns:150px 18px minmax(0,1fr) auto}#mesa .pp-ep-p .pp-es-l>.pp-es-s:last-child{border-bottom:0}
 #mesa .pp-ep-tn .pp-tk .pp-avs{display:none}
 #mesa .pp-ep-tn .pp-tk.pp-tg,#mesa .pp-ep-tn .pp-sinf .pp-tk.pp-tg{grid-template-columns:42px 32px minmax(0,1fr)}#mesa .pp-ep-tn .pp-sinf .pp-tfv{display:block}
-#mesa .pp-ep-tn .pp-tk:hover{background:var(--bg-2)}
+#mesa :where(.pp-ep-tn .pp-tk):hover{background:var(--bg-2)}   /* under the marks of Hoy and Se ha pasado (D-300) */
 #mesa .pp-ep-tn .pp-tv{display:block}#mesa .pp-ep-tn .pp-sinf{margin:14px 0 0;padding:10px 0 0;border-left:0;border-top:1px solid var(--line2)}#mesa .pp-ep-tn .pp-sinf .pp-sub{padding:4px 10px}
 #mesa .pp-ep-tn .pp-pn{margin:2px 0 0}
 #mesa .pp-ep-h .pp-ep-iv{margin-left:auto;align-self:center;font-size:13px;font-weight:400;letter-spacing:0}#mesa .pp-ep-iv .co-ivs + .mx-sel{width:auto;min-width:96px}
 #mesa .pp-ep-tot{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 14px}
 #mesa .pp-ep-tot>div{padding:10px 12px;border-radius:var(--r-md);background:var(--bg-2)}
 #mesa .pp-ep-tot span{display:block;font-size:12px;color:var(--mute)}
-#mesa .pp-ep-tot b{display:block;margin-top:2px;font-size:18px;font-weight:800;letter-spacing:-.01em;color:var(--ink)}#mesa .pp-ep-tot .pend b{color:var(--acc-ink)}
-#mesa .pp-pas-t{display:flex;gap:6px;margin:4px 0 12px}
+#mesa .pp-ep-tot b{display:block;margin-top:2px;font-size:18px;font-weight:800;letter-spacing:-.01em;color:var(--ink)}#mesa .pp-ep-tot .pend b{color:var(--chg)}   /* pending, as its state (.co-e.pend) */
+#mesa .pp-pas-t{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:4px 0 12px}
 #mesa .pp-pas-p{margin:0 0 10px;font-size:13px;line-height:1.5;color:var(--ink-2)}#mesa .pp-pas-p.pp-pas-no{color:var(--ink);font-weight:600}
-@media (max-width:980px){#mesa .pp.pp-ep-on{display:block;overflow-y:auto}#mesa .pp-ep-cols{display:flex;flex-direction:column}#mesa .pp-ep-ag{display:flex;flex-direction:column}#mesa .pp-ep-cols .pp-ep-p,#mesa .pp-ep-side{flex:none;overflow:visible}#mesa .pp-ep-side>.cal{height:auto;min-height:420px}}
+@media (min-width:981px) and (max-width:1240px){#mesa .pp-ep-cols{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(0,1fr)}#mesa .pp-ep-ag{grid-row:1 / span 2}}   /* two columns: its tasks over its payments */
+@media (max-width:980px){#mesa .pp.pp-ep-on:not([hidden]){display:block;overflow-y:auto}#mesa .pp-ep{display:block}#mesa .pp-ep-cols{display:flex;flex-direction:column;flex:none}#mesa .pp-ep-ag{display:flex;flex-direction:column}#mesa .pp-ep-cols .pp-ep-p,#mesa .pp-ep-side{flex:none;overflow:visible}#mesa .pp-ep .pp-ep-side>.cal:not(.fold){height:auto;min-height:420px}}
 @media (max-width:720px){
   #mesa .pp-ov.pp-hoja{padding:16px 10px}#mesa .pp-ov.pp-hoja.amplia{padding:0}
   #mesa .pp-ov.amplia .pp-hj-cab{padding:18px 16px 4px}#mesa .pp-ov.amplia .pp-hj-cols{padding:6px 14px 24px 22px}

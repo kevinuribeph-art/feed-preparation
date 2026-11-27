@@ -153,12 +153,13 @@
     ya.forEach(e => e.remove());
     if (!col._visto) { col._visto = true; dispatchEvent(new Event('resize')); }   // the feed sizes its grid with its new width (lesson 72)
   }
+  let VE = { key: null, m: null };   // the month of a sporadic client's page, apart from the board's and «Solo contenido»'s (D-377)
   const espSec = sec => !!(sec && sec.dataset && sec.dataset.cli && sec.closest('.pp'));   // the calendar of a sporadic client's page (D-377)
   function render() {
     if (mv && mv.on) { later = true; return; }   // a chip being moved: drawn again once it is let go
     const X = I(); if (!X || !X.shellReady || !X.shellReady()) return;
     const root = X.root(), sec = root && root.querySelector('.side > .cal'); if (!sec) return;
-    if (espSec(sec)) { renderCont(X, root, sec, sec.dataset.cli, true); return; }   // a sporadic client's page, over the board (D-377): only its calendar
+    if (espSec(sec)) { const v0 = view; view = VE; try { renderCont(X, root, sec, sec.dataset.cli, true); } finally { VE = view; view = v0; } return; }   // a sporadic client's page, over the board (D-377): only its calendar
     const S = X.S, cc = !S && X.contCli ? X.contCli() : null;
     if (cc) { renderCont(X, root, sec, cc); return; }   // the page of a client of «Solo contenido», without a board (D-312)
     if (!S) { sec.hidden = true; return; }
@@ -321,7 +322,8 @@
       if (a === 'venc') { if (!client) abrirVencidas(); return; }
       if (a === 'fold') { plegar(X, sec); return; }
       if (a === 'vctab') { if (vcTab === b.dataset.t) return; vcTab = b.dataset.t; render(); const t = sec.querySelector(`.vcp-tab[data-t="${cssq(vcTab)}"]`); if (t) t.focus({ preventScroll: true }); return; }
-      if ((a === 'prev' || a === 'next') && (espSec(sec) || !X.S)) { if (espSec(sec) || (X.contCli && X.contCli())) view.m = addMonths(view.m, a === 'prev' ? -1 : 1); }   // the page (D-312): any month
+      if ((a === 'prev' || a === 'next') && espSec(sec)) { if (VE.m) VE.m = addMonths(VE.m, a === 'prev' ? -1 : 1); }
+      else if ((a === 'prev' || a === 'next') && !X.S) { if (X.contCli && X.contCli()) view.m = addMonths(view.m, a === 'prev' ? -1 : 1); }   // the page (D-312): any month
       else if (a === 'prev' || a === 'next') { const sp = span(X), i = sp.list.indexOf(view.m) + (a === 'prev' ? -1 : 1); if (sp.list[i]) view.m = sp.list[i]; }
       render(); return;
     }
@@ -755,7 +757,8 @@
     const X = I(), pv = X && e.target.closest && e.target.closest('#mesa .side > .cal .cprov');
     if (pv) { if (M.provisional) { const r = M.provisional(pv.dataset.mes, false); if (r && r.error) X.toast(r.error, { error: true }); else X.toast('Mes fijado: sus fechas ya son firmes'); } return; }   // D-358
     if (!X || !e.target.closest || !e.target.closest('#mesa .side > .cal .cmes')) return;
-    if (!X.S || espSec(e.target.closest('.cal'))) { if ((espSec(e.target.closest('.cal')) || (X.contCli && X.contCli())) && view.m !== X.hoy().slice(0, 7)) { view.m = X.hoy().slice(0, 7); render(); } return; }   // the page (D-312) and a sporadic client's (D-377): today's month
+    if (espSec(e.target.closest('.cal'))) { if (VE.m !== X.hoy().slice(0, 7)) { VE.m = X.hoy().slice(0, 7); render(); } return; }   // a sporadic client's page (D-377): today's month
+    if (!X.S) { if (X.contCli && X.contCli() && view.m !== X.hoy().slice(0, 7)) { view.m = X.hoy().slice(0, 7); render(); } return; }   // the page (D-312): today's month
     const ini = mesInicial(X, span(X)); if (view.m !== ini) { view.m = ini; render(); }
   }
   // ---------- the right click (D-285): in a day, what can be made there; on a chip, what it is ----------

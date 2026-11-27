@@ -477,12 +477,13 @@
     return cab + `<div class="avlist">${SEC.map(sec).join('')}</div>`;
   }
   function abrirVencidas() {
-    const X = I(); if (!X || !(X.S || (X.contCli && X.contCli())) || !X.vencidas || X.root().classList.contains('client')) return;
+    const X = I(), ep = () => M.personal && M.personal._p && M.personal._p.espWeb && M.personal._p.espWeb();   // a sporadic's page too (D-378)
+    if (!X || !(X.S || (X.contCli && X.contCli()) || ep()) || !X.vencidas || X.root().classList.contains('client')) return;
     vabre = null;
     X.showDialog('venc', vencHTML(X));
   }
   function vencPintar(desdeFuera) {            // drawn again; from a redraw of the mesa, not while one of its fields is in use
-    const X = I(), d = X && X.root && X.root().querySelector('.detail[data-dlg="venc"]'); if (!d || d.hidden || !(X.S || (X.contCli && X.contCli()))) return;
+    const X = I(), d = X && X.root && X.root().querySelector('.detail[data-dlg="venc"]'); if (!d || d.hidden || !(X.S || (X.contCli && X.contCli()) || (M.personal && M.personal._p && M.personal._p.espWeb && M.personal._p.espWeb()))) return;
     if (desdeFuera && d.contains(document.activeElement) && document.activeElement.matches('input')) return;
     const c = d.querySelector('.card'); if (!c) return;
     const h = vencHTML(X); if (c._h === h) return;

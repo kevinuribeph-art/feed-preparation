@@ -99,7 +99,7 @@
     const X = I(); if (!X) return null;
     // a sporadic client's page (D-378): its sessions, its tasks and notes it sees and its payments, before the board behind it
     const ep = M.personal && M.personal._p && M.personal._p.espWeb ? M.personal._p.espWeb() : null;
-    if (ep) { if (!PAG.has(ep)) PAG.set(ep, { key: 'cliente:' + ep, client: ep, slots: [], pins: [], contenido: true, esporadico: true }); return PAG.get(ep); }
+    if (ep) { const k = 'esp:' + ep; if (!PAG.has(k)) PAG.set(k, { key: 'cliente:' + ep, client: ep, slots: [], pins: [], contenido: true, esporadico: true }); return PAG.get(k); }   // its own key: passed to «Solo contenido», the same id is another page
     if (X.S) return X.S;
     const cli = X.contCli ? X.contCli() : null; if (!cli) return null;
     if (!PAG.has(cli)) PAG.set(cli, { key: 'cliente:' + cli, client: cli, slots: [], pins: [], contenido: true });
@@ -187,7 +187,8 @@
     mesesInfo.forEach(r => { (r.porque && r.porque.partes || []).forEach((q, i) => textos.push([`por qué de ${r.mes}`, q.t], [`por qué de ${r.mes}`, q.x]));
       if (r.resumen) { (r.resumen.posts || []).forEach(q => textos.push([`resumen de ${r.mes}`, q.nombre])); textos.push([`resumen de ${r.mes}`, r.resumen.frase || '']); } });
     // La propia agencia no pasa esta comprobación: sus captions enseñan trabajos para clientes y su web solo la ve Kevin (D-245).
-    if (!AGENCIA.includes(cli)) X.mesOtros(cli, textos, m => problemas.push(m), esporadicos, AGENCIA.filter(a => a !== cli));
+    if (!AGENCIA.includes(cli)) X.mesOtros(cli, textos, m => problemas.push(m), esporadicos, AGENCIA.filter(a => a !== cli), E ? { id: cli, name: E.txt } : null);   // a sporadic's own name and words are its (it isn't in CL)
+    ses.forEach(x => { if ((x._fotos || []).length > 100) problemas.push(`sesión «${x.nombre}»: lleva ${x._fotos.length} fotos a la vista y su web admite 100: tacha el ojo de un apartado o quita fotos`); });   // sesiones.fotos: 200 rutas (D-378)
     const mesesQuitar = [previo, ...meses].filter(m => m && !mesesInfo.some(r => r.mes === m));
     return { cliente, publicaciones: pubs, sesiones: ses, meses: mesesInfo, mesesTablero: meses, mesesQuitar, pagos, entregas, contenido, problemas, esporadico: !!E, tareasNotas };
   }
@@ -425,6 +426,10 @@
           }
           return IMG.get(k);
         };
+        for (const x of P.sesiones) for (const f of x._fotos || []) {   // first all there: a photo not here yet (it comes down from the cloud later) isn't left out as if sent
+          const rec = IMG.has('s|' + cli + '|' + f) ? true : await X.idbGet('tfotos', f).catch(() => null);
+          if (rec && rec !== true && !(rec.blob instanceof Blob)) throw new Error(`falta una foto de la sesión «${x.nombre}» en esta Mesa (aún no ha bajado de la nube): espera un momento y vuelve a enviar`);
+        }
         sesFilas = [];
         for (const { _fotos, ...x } of P.sesiones) {
           const mapa = new Map(); for (const f of _fotos || []) { const im = await imgSes(f); if (im) mapa.set(f, im); } sigue();
@@ -672,7 +677,9 @@
   }
   const leidoSes = (cli, sid) => lsG(`mesa-web-leido:s:${cli}:${sid}`) || '';
   const sinLeerSes = (cli, sid) => { const v = CSES.get(cli); return v ? v.coms.filter(x => x.sesion === sid && !x.de_kevin && !x.resuelto && x.hora > leidoSes(cli, sid)).length : 0; };
-  function sinLeerSesiones(cli) { const v = CSES.get(cli), out = new Map(); if (!v) return out; for (const sid of new Set(v.coms.map(x => x.sesion))) { const n = sinLeerSes(cli, sid); if (n) out.set(sid, n); } return out; }
+  function sinLeerSesiones(cli) { const v = CSES.get(cli), out = new Map(), T = M.personal && M.personal._p; if (!v) return out;
+    for (const sid of new Set(v.coms.map(x => x.sesion))) { const r = T && T.TK ? T.TK.get(sid) : null; if (T && T.TK && !(r && T.clis(r).includes(cli))) continue;   // gone, or no longer its: nothing to open
+      const n = sinLeerSes(cli, sid); if (n) out.set(sid, n); } return out; }
   function hojaSes(raiz) { const R = raiz || (I() && I().root && I().root()); if (R && R.querySelectorAll) R.querySelectorAll('[data-web-ses][data-web-cli]').forEach(pintarSes); }
   function pintarSes(sec) {
     const cli = sec.dataset.webCli, sid = sec.dataset.webSes, ro = sec.hasAttribute('data-web-ro'), c = sb(), k = 'ses|' + cli + '|' + sid;
@@ -696,7 +703,7 @@
       ta.addEventListener('input', () => { borradores.set(k, ta.value); env.disabled = !ta.value.trim(); });
       env.addEventListener('click', async () => {
         const t = ta.value.trim(); if (!t) return; env.disabled = true; err.hidden = true;
-        try { await sb().insertar('comentarios_sesion', [{ cliente_id: cli, sesion: sid, texto: t }]); borradores.delete(k); ta.value = ''; await leerSes(cli); }
+        try { await sb().insertar('comentarios_sesion', [{ cliente_id: cli, sesion: sid, texto: t }]); borradores.delete(k); ta.value = ''; await leerSes(cli); const n = sec.isConnected && sec.querySelector('.webta'); if (n) n.focus({ preventScroll: true }); }
         catch (e) { err.textContent = 'No se pudo enviar: ' + (e.message || e); err.hidden = false; env.disabled = false; }
       });
       sec.replaceChildren(...[nodo('h4', { class: 'webh' }, 'Del cliente', sinL ? nodo('span', { class: 'webn', text: sinL === 1 ? '1 nueva' : sinL + ' nuevas' }) : coms.length ? null : nodo('span', { class: 'webq', text: 'Aún no ha dicho nada' })),

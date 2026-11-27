@@ -521,19 +521,19 @@
   // y notas para leer y «Tus pagos»; una sesión se abre en una hoja con lo que tiene visible y su conversación al pie.
   const C_CS = 'id,cliente_id,sesion,texto,autor_nombre,de_kevin,hora,resuelto';
   const ultDiaSes = x => diaDe(x.fin || x.inicio);
+  const icoSes = x => x.clase === 'foto' ? 'camera' : x.clase === 'video' ? 'video' : x.clase === 'libre' ? 'file' : reu(x) ? 'users' : 'clap';   // its kind's, as the Mesa's
   const tramoSes = x => { const d = diaDe(x.inicio), f = x.fin ? diaDe(x.fin) : d, ho = x.sin_hora ? '' : ' · ' + horaDe(x.inicio);
     return f !== d ? `${dsem(d).slice(0, 3)} ${diaCorto(d)}${ho} – ${dsem(f).slice(0, 3)} ${diaCorto(f)}` : `${dsem(d).slice(0, 3)} ${diaCorto(d)}${ho}`; };
   function pintarSesEsp() {
     const H = hoy(), l = (st.d.ses || []).filter(x => x.inicio).sort((a, b) => a.inicio.localeCompare(b.inicio) || a.id.localeCompare(b.id));
     const prox = l.filter(x => ultDiaSes(x) >= H), pas = l.filter(x => ultDiaSes(x) < H).reverse();
-    const fila = x => { const n = (st.d.cses || []).filter(c => c.sesion === x.id).length;
-      return h('li', {}, h('button', { type: 'button', class: 'ent-f ent-ses es-r', 'data-ses': x.id, onclick: e => abrirSes(x.id, e.currentTarget), 'aria-label': `${x.nombre} · ${tramoSes(x)}` },
-        h('span', { class: 'd' }, ico(reu(x) ? 'users' : 'clap'), diaCorto(diaDe(x.inicio))),
-        h('span', { class: 't' }, h('b', { text: x.nombre }), h('span', { text: [reu(x) ? 'Reunión' : 'Sesión', tramoSes(x).split(' · ').slice(1).join(' · ')].filter(Boolean).join(' · ') }), n ? h('span', { class: 'es-n', text: n === 1 ? '1 comentario' : n + ' comentarios' }) : null),
-        ico('right', 'es-ch'))); };
-    const grupo = (t, g) => g.length ? [h('p', { class: 'h3', text: t }), h('ol', { class: 'ents es-l' }, g.map(fila))] : null;
+    const fila = x => { const n = (st.d.cses || []).filter(c => c.sesion === x.id).length, nt = n === 1 ? '1 comentario' : n + ' comentarios';
+      return h('li', {}, h('button', { type: 'button', class: 'ent-f es-r', 'data-ses': x.id, onclick: e => abrirSes(x.id, e.currentTarget), 'aria-label': `${reu(x) ? 'Reunión' : 'Sesión'}: ${x.nombre} · ${tramoSes(x)}${n ? ' · ' + nt : ''}` },
+        h('span', { class: 'd', text: tramoSes(x) }), ico(icoSes(x), 'es-i'),
+        h('span', { class: 't' }, h('b', { text: x.nombre }), n ? h('span', { class: 'es-n', text: nt }) : null))); };
+    const grupo = (t, g) => g.length ? [h('p', { class: 'h3' }, t + ' ', h('span', { text: String(g.length) })), h('ol', { class: 'ents es-l' }, g.map(fila))] : null;
     return h('div', { class: 'es-col' },
-      h('section', { class: 'card entw', 'aria-labelledby': 'h-ses' }, h('div', { class: 'ti' }, h('h2', { id: 'h-ses', text: 'Tus sesiones' }), l.length ? h('span', { text: [prox.length ? `${prox.length} ${prox.length === 1 ? 'próxima' : 'próximas'}` : '', pas.length ? `${pas.length} ${pas.length === 1 ? 'pasada' : 'pasadas'}` : ''].filter(Boolean).join(' · ') }) : null),
+      h('section', { class: 'card entw', 'aria-labelledby': 'h-ses' }, h('div', { class: 'ti' }, h('h2', { id: 'h-ses', text: 'Tus sesiones' })),
         l.length ? [grupo('Próximas', prox), grupo('Pasadas', pas)] : h('p', { class: 'vacio', text: 'Aún no hay sesiones.' })),
       h('section', { class: 'card es-calw', 'aria-label': 'Calendario' }, calEsp()));
   }
@@ -548,7 +548,7 @@
     for (let d = 1; d <= dias; d++) { const dia = `${m}-${String(d).padStart(2, '0')}`; celdas.push(h('div', { class: 'dia' + (dia === H ? ' hoy' : '') }, h('span', { class: 'n', text: d === 1 ? `1 ${MESES[mo - 1].slice(0, 3)}` : String(d) }), deDia(dia))); }
     for (let d = 1; celdas.length % 7; d++) celdas.push(h('div', { class: 'dia fuera', 'aria-hidden': 'true' }, h('span', { class: 'n', text: d === 1 ? `1 ${MESES[mo % 12].slice(0, 3)}` : String(d) })));
     const ir = k => { const [a, b] = st.mesEsp.split('-').map(Number), n = new Date(Date.UTC(a, b - 1 + k, 1)); st.mesEsp = n.toISOString().slice(0, 7); const w = document.querySelector('.es-calw'); if (w) w.replaceChildren(...calEsp()); };
-    return [h('div', { class: 'ti es-cal-h' }, h('h2', { text: 'Calendario' }), h('span', { class: 'es-nav' }, h('button', { type: 'button', class: 'es-mes', 'aria-label': 'Mes anterior', onclick: () => ir(-1), text: '‹' }), h('b', { text: may(MESES[mo - 1]) + ' ' + y }), h('button', { type: 'button', class: 'es-mes', 'aria-label': 'Mes siguiente', onclick: () => ir(1), text: '›' }))),
+    return [h('div', { class: 'ti es-cal-h' }, h('h2', { text: 'Calendario' }), h('span', { class: 'es-nav' }, h('button', { type: 'button', class: 'es-mes', 'aria-label': 'Mes anterior', onclick: () => ir(-1) }, ico('left')), h('b', { text: may(MESES[mo - 1]) + ' ' + y }), h('button', { type: 'button', class: 'es-mes', 'aria-label': 'Mes siguiente', onclick: () => ir(1) }, ico('right')))),
       h('div', { class: 'cal es-cal', role: 'grid', 'aria-label': 'Calendario de ' + MESES[mo - 1] }, ['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(x => h('span', { class: 'dn', 'aria-hidden': 'true', text: x })), celdas)];
   }
   function pintarTN() {
@@ -572,7 +572,7 @@
       if (l.trim() === '\u2E3B') return h('hr', { class: 'es-sep' });
       const m = MARCA.exec(l); if (!m) return h('p', { class: l ? null : 'vacia' }, conEnlaces(l));
       const k = m[2], nu = /^\d/.test(k), niv = Math.min(4, m[1].length / 2);
-      return h('p', { class: 'li' + (niv ? ' n' + niv : '') }, h('span', { class: 'mk', 'aria-hidden': 'true', text: nu ? k : '•' }), h('span', { class: 'lt' }, conEnlaces(l.slice(m[0].length))));
+      return h('p', { class: 'li' + (nu ? ' nu' : '') + (niv ? ' n' + niv : '') }, h('span', { class: 'mk', 'aria-hidden': 'true', text: nu ? k : '•' }), h('span', { class: 'lt' }, conEnlaces(l.slice(m[0].length))));
     }));
   }
   function abrirSes(id, origen) {
@@ -583,11 +583,11 @@
     const quitar = () => { velo.remove(); dlg.remove(); st.sesAb = null; if (st.sucio) { st.sucio = false; pintar(); } const o = origen && origen.isConnected ? origen : document.querySelector(`[data-ses="${CSS.escape(id)}"]`); if (o) o.focus(); };
     const fotos = [];
     const foto = f => { if (!f || !f.mini) return null; const im = h('img', { class: 'es-fo', alt: '', 'data-grande': f.mini, loading: 'lazy' }); if (f.an && f.al) { im.width = f.an; im.height = f.al; } fotos.push(im); return im; };
-    const ap = a => h('section', { class: 'es-ap' }, h('h3', { text: a.nombre }),
-      a.tipo === 'planos' ? (a.pestanas || []).map(p => [(a.pestanas || []).length > 1 || !/^planos$/i.test(p.nombre) ? h('p', { class: 'es-pt', text: p.nombre }) : null,
-        (p.items || []).map(it => h('div', { class: 'es-it' }, h('b', { text: it.titulo }), it.texto ? texto(it.texto) : null, (it.fotos || []).length ? h('div', { class: 'es-fos' }, it.fotos.map(foto)) : null,
-          (it.enlaces || []).length ? h('p', { class: 'es-en' }, it.enlaces.map(u => h('a', { href: u, target: '_blank', rel: 'noopener noreferrer', text: u.replace(/^https?:\/\//, '') }))) : null))])
-      : a.tipo === 'mood' ? (a.grupos || []).map(g => h('div', { class: 'es-g' }, h('p', { class: 'es-pt', text: g.nombre }), h('div', { class: 'es-fos' + (g.modo === 'columnas' ? ' col' : '') }, (g.fotos || []).map(foto))))
+    const plano = it => h('div', { class: 'es-it' }, h('b', { text: it.titulo }), it.texto ? texto(it.texto) : null, (it.fotos || []).length ? h('div', { class: 'es-fos' }, it.fotos.map(foto)) : null,
+      (it.enlaces || []).length ? h('p', { class: 'es-en' }, it.enlaces.map(u => h('a', { href: u, target: '_blank', rel: 'noopener noreferrer', text: u.replace(/^https?:\/\//, '') }))) : null);
+    const ap = a => a.tipo === 'planos' ? (a.pestanas || []).map(p => h('section', { class: 'es-ap' }, h('h3', { text: p.nombre }), (p.items || []).map(plano)))
+      : h('section', { class: 'es-ap' }, h('h3', { text: a.nombre }),
+      a.tipo === 'mood' ? (a.grupos || []).map(g => h('div', { class: 'es-g' }, h('p', { class: 'es-pt', text: g.nombre }), h('div', { class: 'es-fos' + (g.modo === 'columnas' ? ' col' : '') }, (g.fotos || []).map(foto))))
       : a.tipo === 'material' ? (a.familias || []).map(f => h('div', { class: 'es-g' }, h('p', { class: 'es-pt', text: f.nombre }), h('ul', { class: 'es-ma' }, f.cosas.map(k => h('li', { text: k })))))
       : texto(a.texto));
     const hilo = () => { const l = (st.d.cses || []).filter(c => c.sesion === id); return l.length ? h('ol', {}, l.map(c => h('li', { class: 'cm' + (c.de_kevin ? ' kv' : '') }, h('span', { class: 'q' }, h('b', { text: c.de_kevin ? 'Uribe Visuals' : c.autor_nombre }), cuando(c.hora)), h('p', { text: c.texto })))) : h('p', { class: 'vacio', text: 'Aún sin comentarios.' }); };
@@ -1011,7 +1011,7 @@
   document.addEventListener('keydown', e => {
     if (e.key === 'Tab') {   // el foco no sale del diálogo de encima
       const top = document.querySelector('.dlg') || document.querySelector('.hoja'); if (!top) return;
-      const f = [...top.querySelectorAll('button,textarea,input,[tabindex="0"]')].filter(x => !x.disabled && x.offsetParent !== null);
+      const f = [...top.querySelectorAll('button,textarea,input,a[href],[tabindex="0"]')].filter(x => !x.disabled && x.offsetParent !== null);   // the links of a session's sheet too (D-378)
       if (!f.length) return;
       const i = f.indexOf(document.activeElement);
       if (e.shiftKey && (i <= 0)) { e.preventDefault(); f[f.length - 1].focus(); }

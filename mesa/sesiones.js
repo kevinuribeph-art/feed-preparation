@@ -858,13 +858,13 @@
     return `<div class="pp-ep vc" data-esp="${esc(id)}">`
       + `<div class="pp-ep-cab"><div class="pp-ep-id">${P.avatar(id, 'lg')}<div class="pp-ep-t"><h1 class="pp-ep-nom">${esc(e.txt)}</h1></div></div><span class="pp-ep-sp"></span>`
       + `<div class="pp-ep-acc"><label class="sw pp-ep-vcs"><input type="checkbox" data-pp="ep-vc" checked> Vista cliente</label></div></div>`
-      + `<div class="pp-ep-cols"><div class="pp-ep-ag"><section class="pp-ep-p pp-ep-citas" aria-label="Tus sesiones"><h2 class="pp-ep-h">Tus sesiones</h2>`
-      + (ss.length ? grupo('Próximas', prox) + grupo('Pasadas', pas) : '<p class="pp-ep-vacio">Aún no hay sesiones</p>')
+      + `<div class="pp-ep-cols${pagos ? '' : ' sin-lado'}"><div class="pp-ep-ag"><section class="pp-ep-p pp-ep-citas" aria-label="Tus sesiones"><h2 class="pp-ep-h">Tus sesiones</h2>`
+      + (ss.length ? grupo('Próximas', prox) + grupo('Pasadas', pas) : '<p class="pp-ep-vacio">Aún no hay sesiones.</p>')
       + `</section><div class="side pp-ep-side"><section class="cal" data-propio data-vc data-cli="${esc(id)}" aria-label="Calendario"></section></div></div>`
       + `<section class="pp-ep-p pp-ep-tn" aria-label="Tareas y notas"><h2 class="pp-ep-h">Tareas <span>${tk.length}</span></h2>`
-      + (tk.length ? `<div class="pp-ep-vtl">${tk.map(k => `<div class="pp-ep-vt${k.hecha ? ' hecha' : ''}"><span class="pp-ep-vd">${esc(dia(k.fecha))}</span><span class="pp-ep-vx">${esc(k.txt)}</span></div>`).join('')}</div>` : '<p class="pp-ep-vacio">Sin tareas</p>')
-      + `<h2 class="pp-ep-h pp-ep-h2">Notas <span>${ns.length}</span></h2>` + (ns.length ? ns.map(n => `<div class="pp-ep-vn">${P.leerTxt(n.txt, { casillas: 'vineta', enlaces: true })}</div>`).join('') : '<p class="pp-ep-vacio">Sin notas</p>') + `</section>`
-      + `<section class="pp-ep-p pp-ep-cob pp-ep-vpg" aria-label="Tus pagos">${pagos || '<h2 class="pp-ep-h">Tus pagos</h2><p class="pp-ep-vacio">Sin facturas</p>'}</section></div></div>`;
+      + (tk.length ? `<div class="pp-ep-vtl">${tk.map(k => `<div class="pp-ep-vt${k.hecha ? ' hecha' : ''}"><span class="pp-ep-vd">${esc(dia(k.fecha))}</span><span class="pp-ep-vx">${esc(k.txt)}</span></div>`).join('')}</div>` : '<p class="pp-ep-vacio">Sin tareas.</p>')
+      + `<h2 class="pp-ep-h pp-ep-h2">Notas <span>${ns.length}</span></h2>` + (ns.length ? ns.map(n => `<div class="pp-ep-vn">${P.leerTxt(n.txt, { casillas: 'vineta', enlaces: true })}</div>`).join('') : '<p class="pp-ep-vacio">Sin notas.</p>') + `</section>`
+      + (pagos ? `<section class="pp-ep-p pp-ep-cob pp-ep-vpg" aria-label="Tus pagos">${pagos}</section>` : '') + `</div></div>`;   // nothing to pay: no column, as its web
   }
   function paginaHTML(e0, R) {
     const e = P.TK.get(e0.id) || e0, X = I(), hoy = X.hoy(), id = e.id, esc = P.esc;   // its record (espDe gives its name as a client's)
@@ -1238,6 +1238,12 @@
 #mesa .pp-hj-tf.pp-fo img{object-fit:cover}
 #mesa .pp-hj-cols{display:grid;grid-template-columns:minmax(0,1.2fr) 17px minmax(0,1fr);flex:1 0 auto;padding:6px 18px 28px 26px;position:relative;transition:grid-template-columns var(--d-m) var(--ease-m)}
 #mesa .pp-hj-cols.una{grid-template-columns:minmax(0,1fr)}
+#mesa .pp-hj-cols:has(+ .pp-hj-com){flex:none}   /* its comments right under it, not at the foot */
+#mesa .pp-hj-com{padding:14px 18px 28px 26px;border-top:1px solid var(--line2)}#mesa .pp-ov.amplia .pp-hj-com{padding:14px 32px 28px 40px}   /* as a post's comments in «Vista cliente» (.igcoms, D-378) */
+#mesa .pp-hj-com h3.pp-hj-comt{margin:0 0 10px;font-size:14px;font-weight:600}
+#mesa .pp-hj-com .webl{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+#mesa .pp-hj-com .webcm{gap:3px;max-width:52ch}#mesa .pp-hj-com .webcm p{margin:0;font-size:14px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}#mesa .pp-hj-com .webp{margin:0}
+#mesa .webdel.pp-hj-del{margin:0}
 #mesa .pp-hj-cols.mov{transition:none}
 #mesa .pp-hj-col{min-width:0;display:flex;flex-direction:column;gap:26px;padding:14px 4px 0}
 #mesa .pp-hj-col[data-col="der"]{padding-left:24px}   /* 20 px more inside: its sections' handle has its own room, off the separator's (D-216) */
@@ -1384,14 +1390,14 @@
 #mesa .pp-ep-sp{flex:1}
 #mesa .pp-ep-acc{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 #mesa .pp-ep-acc .pp-ep-vcs{margin:0 2px 0 6px}   /* «Vista cliente» (D-378) */
-#mesa .pp-ep.vc .pp-ep-cab{min-height:56px}
+#mesa .pp-ep.vc .pp-ep-cab{min-height:56px}#mesa .pp-ep.vc .pp-ep-acc .pp-ep-vcs{margin-right:42px}   /* the switch doesn't move: «⋯» isn't there */
 #mesa .pp-ep-nc{display:block;font-weight:400;font-size:12.5px;color:var(--mute);margin-top:1px}
 #mesa .pp-ep-vtl{display:flex;flex-direction:column}
-#mesa .pp-ep-vt{display:grid;grid-template-columns:52px minmax(0,1fr);column-gap:10px;align-items:baseline;padding:8px 2px;border-bottom:1px solid var(--line);font-size:13.5px}
+#mesa .pp-ep-vt{display:grid;grid-template-columns:52px minmax(0,1fr);column-gap:10px;align-items:baseline;padding:9px 2px;border-bottom:1px solid var(--line2);font-size:14px}
 #mesa .pp-ep-vt:last-child{border-bottom:0}#mesa .pp-ep-vd{font-size:12.5px;color:var(--mute);white-space:nowrap}#mesa .pp-ep-vt.hecha .pp-ep-vx{text-decoration:line-through;color:var(--mute)}
-#mesa .pp-ep-vn{background:var(--panel-2);border-radius:var(--r-sm);padding:10px 12px;font-size:13.5px;line-height:1.45;margin:0 0 8px}
+#mesa .pp-ep-vn{background:var(--panel-2);border-radius:var(--r-md);padding:12px 14px;font-size:14px;line-height:1.5;margin:0 0 8px}
 #mesa .pp-ep-acc svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}#mesa .pp-ep-acc .ibtn svg{width:18px;height:18px}
-#mesa .pp-ep-cols{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(320px,380px);gap:12px}
+#mesa .pp-ep-cols{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(320px,380px);gap:12px}#mesa .pp-ep-cols.sin-lado{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)}
 #mesa .pp-ep-ag{min-height:0;display:grid;grid-template-rows:minmax(0,auto) minmax(300px,1fr);gap:12px}
 #mesa .pp-ep-p{min-width:0;min-height:0;overflow-y:auto;overscroll-behavior:contain;background:var(--panel);border-radius:var(--r-lg);padding:14px 18px 16px}
 #mesa .pp-ep-side{min-height:0;background:none}#mesa .pp-ep .pp-ep-side,#mesa.hv-on .pp-ep .pp-ep-side{flex:none}   /* never the board's stories' column (historias.js) */#mesa .pp-ep .pp-ep-side>.cal:not(.fold){flex:1 1 auto;height:100%;min-height:0;border-top:0;border-radius:var(--r-lg)}   /* over the calendar's own narrow rule (42vh) */
@@ -1403,7 +1409,7 @@
 #mesa .pp-ep-vacio{margin:0;font-size:13px;color:var(--mute)}
 #mesa .pp-ep-p .pp-es-s{grid-template-columns:150px 18px minmax(0,1fr) auto}#mesa .pp-ep-p .pp-es-l>.pp-es-s:last-child{border-bottom:0}
 #mesa .pp-ep-tn .pp-tk .pp-avs{display:none}
-#mesa .pp-ep-tn .pp-tk.pp-tg,#mesa .pp-ep-tn .pp-sinf .pp-tk.pp-tg{grid-template-columns:42px 32px minmax(0,1fr)}#mesa .pp-ep-tn .pp-sinf .pp-tfv{display:block}
+#mesa .pp-ep-tn .pp-tk.pp-tg,#mesa .pp-ep-tn .pp-sinf .pp-tk.pp-tg{grid-template-columns:42px 32px minmax(0,1fr)}#mesa .pp-ep-tn .pp-tk.pp-tg.con-ojo,#mesa .pp-ep-tn .pp-sinf .pp-tk.pp-tg.con-ojo{grid-template-columns:42px 32px minmax(0,1fr) 28px}   /* its eye (D-378), over personal.js's */#mesa .pp-ep-tn .pp-sinf .pp-tfv{display:block}
 #mesa .pp-ep-tn .pp-tv{display:block}#mesa .pp-ep-tn .pp-sinf{margin:14px 0 0;padding:10px 0 0;border-left:0;border-top:1px solid var(--line2)}#mesa .pp-ep-tn .pp-sinf .pp-sub{padding:4px 10px}
 #mesa .pp-ep-tn .pp-pn{margin:2px 0 0}
 #mesa .pp-ep-h .pp-ep-iv{margin-left:auto;align-self:center;font-size:13px;font-weight:400;letter-spacing:0}#mesa .pp-ep-iv .co-ivs + .mx-sel{width:auto;min-width:96px}
@@ -1413,13 +1419,13 @@
 #mesa .pp-ep-tot b{display:block;margin-top:2px;font-size:18px;font-weight:800;letter-spacing:-.01em;color:var(--ink)}#mesa .pp-ep-tot .pend b{color:var(--chg)}   /* pending, as its state (.co-e.pend) */
 #mesa .pp-pas-t{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:4px 0 12px}
 #mesa .pp-pas-p{margin:0 0 10px;font-size:13px;line-height:1.5;color:var(--ink-2)}#mesa .pp-pas-p.pp-pas-no{color:var(--ink);font-weight:600}
-@media (min-width:981px) and (max-width:1240px){#mesa .pp-ep-cols{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(0,1fr)}#mesa .pp-ep-ag{grid-row:1 / span 2}}   /* two columns: its tasks over its payments */
+@media (min-width:981px) and (max-width:1240px){#mesa .pp-ep-cols{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(0,1fr)}#mesa .pp-ep-ag{grid-row:1 / span 2}#mesa .pp-ep-cols.sin-lado{grid-template-rows:minmax(0,1fr)}#mesa .pp-ep-cols.sin-lado .pp-ep-ag{grid-row:auto}}   /* two columns: its tasks over its payments */
 @media (max-width:980px){#mesa .pp.pp-ep-on:not([hidden]){display:block;overflow-y:auto}#mesa .pp-ep{display:block}#mesa .pp-ep-cols{display:flex;flex-direction:column;flex:none}#mesa .pp-ep-ag{display:flex;flex-direction:column}#mesa .pp-ep-cols .pp-ep-p,#mesa .pp-ep-side{flex:none;overflow:visible}#mesa .pp-ep .pp-ep-side>.cal:not(.fold){height:auto;min-height:420px}}
 @media (max-width:720px){
   #mesa .pp-ov.pp-hoja{padding:16px 10px}#mesa .pp-ov.pp-hoja.amplia{padding:0}
   #mesa .pp-ov.amplia .pp-hj-cab{padding:18px 16px 4px}#mesa .pp-ov.amplia .pp-hj-cols{padding:6px 14px 24px 22px}
   #mesa .pp-hj-cab{padding:18px 16px 4px}#mesa .pp-hj-meta{margin-left:0}#mesa .pp-hj-tira{margin-left:0}#mesa .pp-hj-oculta,#mesa .pp-ov.amplia .pp-hj-oculta{margin:32px 16px}
-  #mesa .pp-hj-cols{padding:6px 14px 24px 22px}
+  #mesa .pp-hj-cols{padding:6px 14px 24px 22px}#mesa .pp-hj-com,#mesa .pp-ov.amplia .pp-hj-com{padding:14px 14px 24px 22px}
   #mesa .pp-pl-it{grid-template-columns:28px minmax(0,1fr)}#mesa .pp-pl-ref{grid-column:2;max-width:none;margin-top:8px}
   #mesa .pp-ns-tipos{grid-template-columns:repeat(2,minmax(0,1fr))}#mesa .pp-ns-2{grid-template-columns:minmax(0,1fr)}
   #mesa .pp-es-sec{margin-left:0}#mesa .pp-es-s{grid-template-columns:116px 18px minmax(0,1fr) auto}

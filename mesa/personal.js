@@ -870,7 +870,7 @@
   // the eye of a sporadic client's task or note (D-378): crossed out by default (`visible` absent), open = its client sees it in
   // its web; the ones from before stay hidden (nothing changes by itself)
   const espCli = id => { const e = id && TK.get(id); return !!(e && e.tipo === 'esporadico' && !e.pasado); };
-  const ojoTN = r => r && (r.tipo === 'tarea' || r.tipo === 'nota') && espCli(r.cliente) ? `<button type="button" class="ibtn pp-tn-ojo" data-pp="tn-ojo" data-id="${esc(r.id)}" aria-pressed="${!!r.visible}" title="${r.visible ? 'Lo verá el cliente' : 'Solo para ti'}" aria-label="${r.visible ? 'Lo verá el cliente' : 'Solo para ti'}">${r.visible ? ICO.ojo : ICO.ojoNo}</button>` : '';
+  const ojoTN = (r, cls) => r && !r._b && (r.tipo === 'tarea' || r.tipo === 'nota') && espCli(r.cliente) ? `<button type="button" class="ibtn pp-tn-ojo${cls ? ' ' + cls : ''}" data-pp="tn-ojo" data-id="${esc(r.id)}" aria-pressed="${!!r.visible}" title="${r.visible ? 'Lo verá el cliente' : 'Solo para ti'}" aria-label="${r.visible ? 'Lo verá el cliente' : 'Solo para ti'}">${r.visible ? ICO.ojo : ICO.ojoNo}</button>` : '';
   const verTN = id => cambiar(id, x => { if (x.tipo !== 'tarea' && x.tipo !== 'nota') return null; if (x.visible) delete x.visible; else x.visible = true; return x; })
     .then(r => { pintar(); if (CARD && CARD.id === id) pintarCard(true); if (M.web && M.web.tocado) M.web.tocado(); return r; });
   // the iPhone edits a task or a note field by field (D-272), with the rules of the Mac's card (D-182, D-183): the title (a task's in one
@@ -892,7 +892,7 @@
     if (campo === 'txt') { const t = nota ? String(v ?? '').replace(/\s+$/, '') : String(v ?? '').replace(/\s*\n\s*/g, ' ').trim(); if (!t.trim()) return { error: nota ? 'una nota necesita un texto' : 'una tarea necesita un texto' }; f = x => { x.txt = t; return x; }; }
     else if (nota) return { error: 'campo no válido' };
     else if (campo === 'fecha') { if (v && !/^\d{4}-\d{2}-\d{2}$/.test(v)) return { error: 'fecha no válida' }; f = x => { if (v) x.fecha = v; else delete x.fecha; return x; }; }
-    else if (campo === 'cliente') { if (v && !cliDe(v)) return { error: 'cliente no válido' }; f = x => { if (v) x.cliente = v; else delete x.cliente; return x; }; }
+    else if (campo === 'cliente') { if (v && !cliDe(v)) return { error: 'cliente no válido' }; f = x => { if ((x.cliente || '') !== v) delete x.visible; if (v) x.cliente = v; else delete x.cliente; return x; }; }   // another client: its eye closes (D-378)
     else if (campo === 'detalles') { const d = String(v ?? '').replace(/^\s*\n|\s+$/g, ''); f = x => { if (d) x.detalles = d; else delete x.detalles; return x; }; }
     else if (campo === 'subtarea') {
       const o = v || {}, sid = o.sid, t = String(o.txt ?? '').trim();
@@ -946,7 +946,7 @@
   const botonesCard = (ojo = '', amp = true) => `<span class="pp-cbs">${ojo}${amp ? ampBtn() : ''}<button type="button" class="ibtn pp-cb pp-cx" data-pp="cerrar" title="Cerrar" aria-label="Cerrar">${ICO.x}</button></span>`;
   function htmlCard(r, ed) {
     const X = I(), ce = ed ? ' contenteditable="plaintext-only" spellcheck="true" role="textbox"' : '', amp = CARD && CARD.amplia ? ' amplia' : '';
-    if (r.tipo === 'nota') return `<div class="pp-card nota${ed ? ' ed' : ''}${amp}" role="dialog" aria-modal="true" aria-label="Nota" tabindex="-1">${botonesCard(ojoTN(r))}<div class="pp-cn" data-pp="cn" data-id="${esc(r.id)}"${ce}${ed ? ' aria-multiline="true" aria-label="Nota"' : ''}>${ed ? esc(r.txt) : leerTxt(r.txt, { enlaces: true })}</div></div>`;
+    if (r.tipo === 'nota') return `<div class="pp-card nota${ed ? ' ed' : ''}${amp}" role="dialog" aria-modal="true" aria-label="Nota" tabindex="-1">${botonesCard(ojoTN(r, 'pp-cb'))}<div class="pp-cn" data-pp="cn" data-id="${esc(r.id)}"${ce}${ed ? ' aria-multiline="true" aria-label="Nota"' : ''}>${ed ? esc(r.txt) : leerTxt(r.txt, { enlaces: true })}</div></div>`;
     const venc = !r.hecha && r.fecha && r.fecha < X.hoy(), c = r.cliente ? cliDe(r.cliente) : null;
     const fecha = ed ? `<span class="pp-cmf"><input type="date" class="pp-cfecha" data-sin-fecha data-id="${esc(r.id)}" value="${esc(r.fecha || '')}" aria-label="Fecha de la tarea"></span>`
       : r.fecha ? `<span class="pp-cml${venc ? ' rojo' : ''}" data-pp="lfecha">${ICO.fecha}${esc(fechaLarga(r.fecha))}</span>` : `<span class="pp-cml vacio" data-pp="lfecha">${ICO.fecha}Fecha</span>`;   // read: a click writes and opens its control (D-209)
@@ -954,7 +954,7 @@
       : c ? `<span class="pp-cml" data-pp="lcli">${avatar(c.id, 'xs')}${esc(c.name)}</span>` : `<span class="pp-cml vacio" data-pp="lcli">${ICO.cliente}Cliente</span>`;
     const fotos = (r.fotos || []).length ? `<div class="pp-cfo">${r.fotos.map((f, i) => `<button type="button" class="pp-tfo" data-pp="foto" data-id="${esc(r.id)}" data-i="${i}" title="Ver la foto" aria-label="Ver la foto"><img src="${fotosURL(f)}" alt=""></button>`).join('')}</div>` : '';
     return `<div class="pp-card${ed ? ' ed' : ''}${r.hecha ? ' hecha' : ''}${amp}" role="dialog" aria-modal="true" aria-label="Tarea" tabindex="-1">`
-      + `<div class="pp-ch"><input type="checkbox" class="pp-ck" data-pp="ck" data-id="${esc(r.id)}"${r.hecha ? ' checked' : ''} aria-label="Hecha"><p class="pp-ct" data-pp="ct" data-id="${esc(r.id)}"${ce}${ed ? ' aria-label="Tarea"' : ''}>${esc(r.txt)}</p>${botonesCard(ojoTN(r))}</div>`
+      + `<div class="pp-ch"><input type="checkbox" class="pp-ck" data-pp="ck" data-id="${esc(r.id)}"${r.hecha ? ' checked' : ''} aria-label="Hecha"><p class="pp-ct" data-pp="ct" data-id="${esc(r.id)}"${ce}${ed ? ' aria-label="Tarea"' : ''}>${esc(r.txt)}</p>${botonesCard(ojoTN(r, 'pp-cb'))}</div>`
       + `<div class="pp-cm">${fecha}${cli}</div>` + fotos + detSub(r, ed) + `</div>`;
   }
   // its details and its subtasks (D-183): the details, one field that takes no room in small when empty; the subtasks, each with
@@ -1477,7 +1477,7 @@
     if (k === 'foto') { verFoto(a.dataset.id, a.dataset.i); return; }
     if (k === 'cmas') { nuevaSub(); return; }
     if (k === 'csx') { quitarSub(a.closest('.pp-csub')); return; }
-    if (k === 'tn-ojo') { verTN(a.dataset.id); return; }   // D-378
+    if (k === 'tn-ojo') { if (CARD && CARD.ed && CARD.id === a.dataset.id) guardarCard(false); verTN(a.dataset.id); return; }   // D-378; writing: what is written first
     if (t.closest('.pp-ck, input, select, button, [contenteditable="plaintext-only"], .mx-sel, .mx-f')) return;
     if (e.detail >= 2) return;                 // the double click decides (alDobleClic)
     CARD.peq = false;
@@ -1509,7 +1509,7 @@
     if (CARD && CARD.ext && enCard(t) && CARD.ext.cambio && CARD.ext.cambio(e)) return;   // a session's sheet, a sporadic client's file (sesiones.js)
     // the card's date and client (D-182): saved at once, the card stays as it is (its control is finishing its gesture)
     if (t.matches('.pp-cfecha')) { const v = /^\d{4}-\d{2}-\d{2}$/.test(t.value) ? t.value : ''; cambiar(t.dataset.id, x => { if (v) x.fecha = v; else delete x.fecha; return x; }).then(() => pintar()); return; }
-    if (t.matches('.pp-ccli')) { const v = t.value && cliDe(t.value) ? t.value : ''; cambiar(t.dataset.id, x => { if (v) x.cliente = v; else delete x.cliente; return x; }).then(() => pintar()); return; }
+    if (t.matches('.pp-ccli')) { const v = t.value && cliDe(t.value) ? t.value : ''; cambiar(t.dataset.id, x => { if ((x.cliente || '') !== v) delete x.visible; if (v) x.cliente = v; else delete x.cliente; return x; }).then(() => pintar()); return; }   // another client: its eye closes (D-378)
     if (t.matches('[data-pp="ttodas"]')) { st.ttodas = t.checked; pintar(); return; }
     if (t.matches('[data-pp="avtareas"]')) { st.avTareas = t.checked; pintar(); return; }
     // «Fecha» and «Cliente» of «Nueva tarea»: only the field changes (the mesa's control is still finishing its gesture)
@@ -1929,8 +1929,8 @@
 #mesa .pp-tk.pp-tg{display:grid;grid-template-columns:28px 42px 32px minmax(0,1fr);align-items:center;column-gap:10px;min-height:36px;padding:3px 10px}   /* a row of Avisos (D-371) */
 #mesa .pp-sinf .pp-tk.pp-tg{grid-template-columns:28px 32px minmax(0,1fr)}#mesa .pp-sinf .pp-tfv{display:none}
 #mesa .pp-tk.pp-tg.con-ojo{grid-template-columns:28px 42px 32px minmax(0,1fr) 28px}#mesa .pp-sinf .pp-tk.pp-tg.con-ojo{grid-template-columns:28px 32px minmax(0,1fr) 28px}   /* its eye (D-378) */
-#mesa .pp-tn-ojo{width:28px;height:28px;color:var(--faint)}#mesa .pp-tn-ojo[aria-pressed="true"]{color:var(--ink)}#mesa .pp-tn-ojo svg{width:16px;height:16px}
-#mesa .pp-pt .pp-tn-ojo{position:absolute;right:3px;bottom:3px;width:24px;height:24px;color:inherit;opacity:.55}#mesa .pp-pt .pp-tn-ojo[aria-pressed="true"]{opacity:.9}
+#mesa .pp-tn-ojo{width:28px;height:28px;color:var(--mute)}#mesa .pp-tk .pp-tn-ojo:hover{background:var(--bg-3)}#mesa .pp-tn-ojo[aria-pressed="true"]{color:var(--ink)}#mesa .pp-tn-ojo svg{width:16px;height:16px}
+#mesa .pp-pt .pp-tn-ojo{position:absolute;right:3px;bottom:3px;width:24px;height:24px;color:inherit;opacity:.55}#mesa .pp-pt .pp-tn-ojo[aria-pressed="true"]{opacity:.9}#mesa .pp-pt .pp-tn-ojo:hover{background:var(--postit-3)}#mesa .pp-pt:has(.pp-tn-ojo) .pp-ptx{padding-right:22px}
 #mesa .pp-tg .pp-tf{font-size:12.5px;line-height:1.25}#mesa .pp-tck{display:inline-flex;justify-content:center}
 #mesa .pp-tx{display:flex;align-items:center;gap:8px;min-width:0}#mesa .pp-tx > .pp-tt,#mesa .pp-tx > .pp-col{flex:1;min-width:0}
 #mesa .pp-tgr + .pp-tgr{margin-top:14px}#mesa .pp-tgr .pp-gt{padding:4px 10px 4px}
@@ -2072,6 +2072,9 @@
 #mesa .pp-card.nota{padding-right:92px}
 #mesa .pp-card.nota .pp-cb{color:color-mix(in oklab,var(--postit-ink) 62%,var(--postit-2))}
 #mesa .pp-card.nota .pp-cb:hover{background:var(--postit-3);color:var(--postit-ink)}
+#mesa .pp-cb.pp-tn-ojo{width:32px;height:32px}#mesa .pp-cb.pp-tn-ojo svg{width:18px;height:18px}#mesa .pp-cb.pp-tn-ojo[aria-pressed="false"]{color:var(--mute)}   /* its eye in the card, as its buttons (D-378) */
+#mesa .pp-card.nota .pp-cb.pp-tn-ojo[aria-pressed="false"]{color:color-mix(in oklab,var(--postit-ink) 62%,var(--postit-2))}#mesa .pp-card.nota .pp-cb.pp-tn-ojo[aria-pressed="true"]{color:var(--postit-ink)}
+#mesa .pp-ch:has(.pp-tn-ojo){padding-right:100px}#mesa .pp-card.nota:has(.pp-tn-ojo){padding-right:128px}   /* three buttons, not two */
 /* read, a click writes where it is pressed (D-209): the text cursor says so; the date and the client open their control */
 #mesa .pp-card .pp-ct,#mesa .pp-card .pp-cn,#mesa .pp-card .pp-cd,#mesa .pp-csub > span{cursor:text}
 #mesa .pp-cml{cursor:pointer;border-radius:var(--r-xs)}#mesa .pp-cml:hover{color:var(--ink)}#mesa .pp-cml.vacio{color:var(--mute);opacity:0;transition:opacity var(--d1) var(--ease)}#mesa .pp-cml.vacio svg{color:inherit}#mesa .pp-cml.vacio:hover{color:var(--ink)}
@@ -2099,7 +2102,7 @@
   #mesa .pp-sem{grid-template-columns:repeat(4,minmax(0,1fr))}#mesa .pp-sd{min-height:84px}
   #mesa .pp-tv.dos{grid-template-columns:minmax(0,1fr)}#mesa .pp-sinf{border-left:0;border-top:1px solid var(--line);padding:6px 0 0}#mesa .pp-tk.pp-tg{column-gap:8px}#mesa .pp-sinf .pp-tk.pp-tg{grid-template-columns:28px 42px 32px minmax(0,1fr)}#mesa .pp-sinf .pp-tfv{display:block}#mesa .pp-sinf .pp-tk.pp-tg.con-ojo{grid-template-columns:28px 42px 32px minmax(0,1fr) 28px}#mesa .pp-md{min-height:52px}#mesa .pp-mt{font-size:10.5px}
   #mesa .pp-av{column-gap:8px}
-  #mesa .pp-ov.amplia .pp-card{padding:28px 16px 32px}#mesa .pp-ov.amplia .pp-card.nota{padding:56px 20px 32px}#mesa .pp-card.amplia .pp-ch{padding-right:68px}#mesa .pp-card.amplia .pp-ch > .pp-cbs{top:30px;right:8px}
+  #mesa .pp-ov.amplia .pp-card{padding:28px 16px 32px}#mesa .pp-ov.amplia .pp-card.nota{padding:56px 20px 32px}#mesa .pp-card.amplia .pp-ch{padding-right:68px}#mesa .pp-card.amplia .pp-ch:has(.pp-tn-ojo){padding-right:104px}#mesa .pp-card.amplia .pp-ch > .pp-cbs{top:30px;right:8px}
   #mesa .pp-card.amplia:not(.nota){grid-template-columns:minmax(0,1fr)}#mesa .pp-card.amplia > .pp-cs{grid-column:1;margin:14px 0 0 29px}
 }
 `;

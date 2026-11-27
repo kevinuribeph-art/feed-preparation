@@ -7609,8 +7609,8 @@ ${TK_FUENTES}
   // the words of a name that tell a client apart (3 letters or more, not a common word): «One LAB» → lab
   const MES_COMUNES = new Set('one the and los las del con por para que una uno cafe bar club casa shop tienda studio estudio hotel villa travel experiences ibiza surf coffee food'.split(' '));
   const mesPalabras = t => mesSinAcento(t).split(/[^a-z0-9]+/).filter(w => w.length >= 3 && !MES_COMUNES.has(w));
-  function mesOtros(cli, textos, mal, esporadicos = [], noCuentan = []) {   // noCuentan: ids que no son «otro cliente» (la agencia, D-244)
-    const yo = CL.find(c => c.id === cli) || {}, mios = [yo.name, yo.id, String(yo.handle || '').replace(/^@/, '')].filter(x => x && String(x).trim().length >= 3);
+  function mesOtros(cli, textos, mal, esporadicos = [], noCuentan = [], yo0 = null) {   // noCuentan: ids que no son «otro cliente» (la agencia, D-244); yo0: un esporádico, que no está en CL (D-378)
+    const yo = yo0 || CL.find(c => c.id === cli) || {}, mios = [yo.name, yo.id, String(yo.handle || '').replace(/^@/, '')].filter(x => x && String(x).trim().length >= 3);
     const mias = new Set(mios.flatMap(mesPalabras)), quitarMio = v => mios.reduce((t, x) => t.replace(new RegExp('(^|[^a-z0-9_-])@?' + mesSinAcento(x).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?=$|[^a-z0-9_-])', 'g'), '$1 '), v);   // its own name doesn't count (alone, never inside a longer id)
     const otros = [...CL.filter(c => c.id !== cli && !noCuentan.includes(c.id)).map(c => ({ c: c.name || c.id, xs: [c.name, c.id, String(c.handle || '').replace(/^@/, '')] })), ...esporadicos.map(e => ({ c: e, xs: [e] }))]
       .flatMap(({ c, xs }) => [...xs.filter(x => x && String(x).trim().length >= 3).map(x => mesSinAcento(x).trim()), ...xs.flatMap(mesPalabras)].filter(x => !mias.has(x)).map(x => ({ c, x })));

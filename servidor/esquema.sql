@@ -505,6 +505,10 @@ begin
   if not exists (select 1 from public.sesiones s where s.cliente_id = new.cliente_id and s.id = new.sesion) then
     raise exception 'sesión no encontrada' using errcode = 'PT404';
   end if;
+  -- solo un esporádico comenta sus sesiones (D-378): de un mensual nadie lo leería
+  if not exists (select 1 from public.clientes c where c.id = new.cliente_id and c.servicio = 'sesiones') then
+    raise exception 'solo se comentan las sesiones de un esporádico' using errcode = 'PT403';
+  end if;
   return new;
 end $$;
 

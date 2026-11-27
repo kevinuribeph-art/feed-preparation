@@ -448,6 +448,7 @@ async function main() {
   r = await cs(ke, { cliente_id: E.id, sesion: 'no-existe', texto: 'hola' }); ok(es(r, 404), 'una sesión suya que no existe: 404', r.text);
   r = await cs(ke, { cliente_id: B.id, sesion: 'ses-b1', texto: 'hola' }); ok(es(r, 403), 'Eva no comenta una sesión de Sur: 403', r.text);
   r = await cs(ka, { cliente_id: E.id, sesion: 'ses-e1', texto: 'hola' }); ok(es(r, 403), 'ni Ana la del esporádico', r.text);
+  r = await cs(kb, { cliente_id: B.id, sesion: 'ses-b1', texto: 'hola' }); ok(es(r, 403), 'Bea no comenta una sesión de su cliente mensual: solo un esporádico (nadie lo leería)', r.text);
   r = await cs(ko, { cliente_id: E.id, sesion: 'ses-e1', texto: 'hola' }); ok(es(r, 403), 'la cuenta que solo mira no comenta (y ve el esporádico, que llegó después)', r.text);
   r = await rest(P, `sesiones?select=id&cliente_id=eq.${E.id}`, { token: ko }); ok(r.ok && r.json.length === 1, 'la que solo mira lo ve', r.text);
   r = await cs(kk, { cliente_id: E.id, sesion: 'ses-e1', texto: 'Respuesta de Kevin' }); const ck = r.ok && r.json && r.json[0];

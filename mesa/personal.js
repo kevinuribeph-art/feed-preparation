@@ -468,7 +468,7 @@
     const { r, e } = u, imp = C.impTxt(r),   // with its IVA (D-374)
       d = x => C.corto(x) + (x && x.slice(0, 4) !== I().hoy().slice(0, 4) ? ' ' + x.slice(0, 4) : '');
     // with its IVA (D-374) the line is longer: what matters (when it's due, late) before the amount, and all of it in its title
-    const sep = !!(C.ivaSep && C.ivaSep(r)), y = (a, b) => sep ? `${b}${a ? ' · ' + a : ''}` : `${a}${b ? ' · ' + b : ''}`;
+    const sep = !!(C.ivaSep && C.ivaSep(r)), y = (a, b) => (sep ? [b, a] : [a, b]).filter(Boolean).join(' · ');
     const [cls, ico, txt] = e.k === 'retrasada' ? ['tarde', ICO.alerta, `Retrasada ${e.dias} ${e.dias === 1 ? 'día' : 'días'} · ${imp}`]
       : e.k === 'pendiente' ? ['pend', ICO.reloj, `Pendiente · ${y(imp, r.vence ? 'vence el ' + d(r.vence) : '')}`]
       : e.k === 'sinemitir' ? ['sin', ICO.libre, `Factura sin emitir · ${y(imp, r.tarde ? 'con retraso' : '')}`]   // its day passed (D-304)

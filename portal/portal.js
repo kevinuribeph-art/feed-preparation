@@ -627,10 +627,10 @@
     // ficha: el precio, cómo se paga y de cuándo a cuándo, y sus tres listas—; sin paquete, «Tus pagos» como antes. Como la Mesa
     const plan = cli && cli.paquete ? cli.paquete : null, listas = plan ? [['incluye', 'Incluye', 'check', 'si'], ['no_incluye', 'No incluye', 'minus', 'no'], ['condiciones', 'Condiciones', null, 'c']].filter(([k]) => Array.isArray(cli[k]) && cli[k].length) : [];
     const ti = plan ? h('div', { class: 'ti pagos-ti tplan' }, h('h2', { id: 'h-pagos', text: 'Tu plan' }), plan !== 'Personalizado' ? h('span', { class: 'tp-n', text: plan }) : null,
-      listas.length ? h('button', { type: 'button', class: 'tp-qi', 'aria-haspopup': 'dialog', onclick: ev => abrirPlan(cli, listas, rg, ev.currentTarget) }, 'Qué incluye', ico('right')) : h('span', { class: 'tp-pp', text: precioPlan(cli, rg) }))   // sin listas, su precio (no hay ficha que abrir)
+      listas.length ? h('button', { type: 'button', class: 'tp-qi', 'aria-haspopup': 'dialog', onclick: ev => abrirPlan(cli, listas, rg, ev.currentTarget) }, 'Qué incluye', ico('right')) : null)
       : h('div', { class: 'ti pagos-ti' }, h('h2', { id: 'h-pagos', text: 'Tus pagos' }), tramo ? h('span', { text: `${PAGO[cli.pago] || 'Pago'} · ${eur(cli.pago_cent)}${rg ? ' · ' + rg + (cli.acuerdo_renueva ? ', se\u00a0renueva' : '') : ''}` }) : cli && cli.cuota_cent ? h('span', { text: eur(cli.cuota_cent) + ' al mes' + (rg ? ' · ' + rg : '') }) : null);
     return h('section', { class: 'card', 'aria-labelledby': 'h-pagos', 'data-p': 'pagos' },
-      ti, plan ? null : inc, cubre,
+      ti, plan ? (listas.length ? null : h('p', { class: 'cubre tp-pp', text: precioPlan(cli, rg) })) : inc, cubre,   // sin listas, su precio en su línea (no hay ficha que abrir)
       deber.length ? h('p', { class: 'pend-pago' }, 'Pendiente de pago ', h('b', { text: eur(deber.reduce((s, r) => s + r.importe_cent, 0)) }), venc ? h('em', { text: `· ${venc === 1 ? '1 vencida' : venc + ' vencidas'}` }) : null) : null,
       filas.map(fila), mas, emite);
   }

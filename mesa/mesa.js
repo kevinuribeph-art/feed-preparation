@@ -7274,7 +7274,7 @@ ${TK_FUENTES}
       if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; pulsa «Usar aquí» o vuelve a abrirla' };
       if (!Array.isArray(lista) || lista.some(p => !paqValido(p))) return { error: 'la lista tiene que ser [{nombre (hasta 60), precio? (€ al mes), neto? (true: el precio sin IVA), permanencia? (meses, 1-120), incluye: [texto, … hasta 20 de 80], noIncluye?: [ídem], condiciones?: [hasta 20 de 160]}]' };
       for (const p of lista) {
-        const ya = paqVivos().find(x => x.nombre.toLowerCase() === p.nombre.trim().toLowerCase()), o = { nombre: p.nombre, precio: p.precio, incluye: p.incluye || [] };
+        const ya = paqVivos().find(x => x.nombre.toLowerCase() === p.nombre.trim().toLowerCase()), o = { nombre: p.nombre, incluye: p.incluye || [], ...(p.precio !== undefined || !ya ? { precio: p.precio } : {}) };   // without a price, it keeps its own
         for (const k of ['neto', 'permanencia', 'noIncluye', 'condiciones']) if (p[k] !== undefined) o[k] = p[k];   // what it doesn't give, as it was
         if (p.precio !== undefined && p.neto === undefined) o.neto = false;   // a price without «neto» carries its IVA inside, as before
         if (ya) await paqCambiar(ya.id, o); else await paqNuevo(o);

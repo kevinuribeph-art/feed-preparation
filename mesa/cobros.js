@@ -152,7 +152,7 @@
     const sp = a && C().ivaSep ? C().ivaSep(a) : null, tf = sp ? tarifa(a) : null;
     const dif = tf && tf.base != null && tf.base !== sp.base ? difHTML(eur(tf.base), 'tarifa-imp') : '';
     const sepB = !sp && a && a.importe != null ? `<button type="button" class="co-lnk co-sepb" data-co="sep-abrir" aria-expanded="${UI.sep === a.id}">Separar el IVA…</button>` : '';
-    const ivaT = sp ? (sp.iva ? `+ ${eur(sp.cuota)} IVA` : 'sin IVA') : '', n = Math.min(18, Math.max(7, ivaT.length));   // the room it leaves the amount, by its length
+    const ivaT = sp ? (sp.iva ? `+ ${eur(sp.cuota)} IVA` : 'sin IVA') : '', n = Math.min(16, Math.max(7, ivaT.length));   // the room it leaves the amount, by its length
     return `<div><label for="co-a-importe${sx}">Importe de cada pago</label><div class="co-impw${sp ? ` iva sx${n}` : ''}"><input id="co-a-importe${sx}" type="text" class="co-q" data-co="cuota" data-k="importe" inputmode="decimal" autocomplete="off" value="${esc(acuVal(a, 'importe'))}" placeholder="Importe"${sp ? ` aria-describedby="co-a-iva${sx}"` : ''}>${sp ? `<span class="co-sfx" id="co-a-iva${sx}">${esc(ivaT)}</span>` : ''}</div>${dif}${sepB}</div>`;
   }
   // a month written as «may 2026», «mayo 2026», «05/2026» or «2026-05»; '' empty; undefined, not a month
@@ -221,7 +221,7 @@
     // (revisión del lote B: «cada mes, se renueva» read as «renews each month»)
     const ciclo = n => n === 1 ? 'cada mes' : n === 12 ? 'cada año' : n % 12 === 0 ? `cada ${n / 12} años` : `cada ${n} meses`;
     const pago = (PAGO_K[a.pago] || '') + (a.pago === 'unico' ? '' : a.cubreHasta && est !== 'fin' ? ` · hasta ${mesC0(a.cubreHasta)}` : a.meses && a.renueva ? (C().paso && a.meses === C().paso(a) ? ' · se renueva' : ` · se renueva ${ciclo(a.meses)}`) : '');   // «cada 6 meses · se renueva», not twice
-    const ps = C().resumenA(a).split(' · '), pi = ps.findIndex(x => /€/.test(x)), pagos = pi < 0 ? '' : ps[pi] + (ps[pi + 1] === 'sin IVA' ? ' · sin IVA' : '');   // «· sin IVA» with its amount (D-374)
+    const ps = C().resumenA(a).split(' · '), pi = ps.findIndex(x => /€/.test(x)), pagos = pi < 0 ? '' : ps[pi] + (/^sin IVA\b/.test(ps[pi + 1] || '') ? ' · sin IVA' : '');   // «· sin IVA» with its amount (D-374)
     const t = est === 'fin' ? (a.desde ? `${mesC0(a.desde)} – ${mesC0(a.cubreHasta)}` : `Hasta ${mesC0(a.cubreHasta)}`) : a.desde ? `Desde ${mesC0(a.desde)} · ${pago}` : may(pago);
     const chip = est === 'fin' ? '<span class="co-ach fin">Terminado</span>' : est === 'prox' ? '<span class="co-ach prox">Empieza</span>' : '<span class="co-ach ok">Ahora</span>';
     return { t, sub: [a.paquete ? a.paquete.nombre : '', pagos].filter(Boolean).join(' · '), chip };
@@ -620,7 +620,7 @@
     // «Tu plan» (D-376): an agreement with a package, one line — the title, its name (none with «Personalizado») and «Qué incluye»,
     // that opens its card (its price, how it's paid and from when to when, and its three lists); without one, «Tus pagos» as before
     const pl = q && q.paquete && q.paquete.nombre ? q.paquete : null, hayL = pl && ['incluye', 'noIncluye', 'condiciones'].some(k => (pl[k] || []).length);
-    const cab = pl ? `<div class="co-tph"><h2 class="co-vh co-tp">Tu plan${pl.id !== 'personalizado' ? ` <span class="co-tpn">${esc(pl.nombre)}</span>` : ''}</h2>${hayL ? `<button type="button" class="co-tpb" data-co="plan" data-c="${esc(cli)}" aria-haspopup="dialog">Qué incluye${IC.chev}</button>` : `<span class="co-tpp">${esc(planPrecio(q, rgT))}</span>`}</div>`   // without lists, its price (no card to open)
+    const cab = pl ? `<div class="co-tph"><h2 class="co-vh co-tp">Tu plan${pl.id !== 'personalizado' ? ` <span class="co-tpn">${esc(pl.nombre)}</span>` : ''}</h2>${hayL ? `<button type="button" class="co-tpb" data-co="plan" data-c="${esc(cli)}" aria-haspopup="dialog">Qué incluye${IC.chev}</button>` : ''}</div>${hayL ? '' : `<p class="co-tpp">${esc(planPrecio(q, rgT))}</p>`}`   // without lists, its price in its own line (no card to open)
       : `<h2 class="co-vh">Tus pagos${sub ? ` <span>${esc(sub)}</span>` : ''}</h2>${inc}`;
     return `<div class="co-pagos">${cab}${cubre}`
       + (deber.length ? `<p class="co-vp">Pendiente de pago <b>${esc(eur(suma))}</b>${venc ? ` <span class="rojo">· ${venc} vencida${venc === 1 ? '' : 's'}</span>` : ''}</p>` : '')
@@ -861,7 +861,7 @@
 #mesa .co-vh span{font-size:13px;font-weight:400;letter-spacing:0;color:var(--mute)}
 #mesa .co-vcubre{margin:-6px 0 12px;font-size:13.5px;color:var(--ink-2)}#mesa .co-vcubre b{font-weight:600;color:var(--ink)}
 #mesa .co-tph{display:flex;align-items:baseline;gap:10px;margin:0 0 12px}#mesa .co-tph .co-vh.co-tp{flex-wrap:nowrap;min-width:0;margin:0}#mesa .co-vh .co-tpn{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:17px;font-weight:400;letter-spacing:-.01em;color:var(--ink-2)}
-#mesa .co-tpp{margin-left:auto;font-size:13px;color:var(--mute);text-align:right}#mesa .co-tpb{margin:-6px -2px -6px auto;flex:none;align-self:center;display:inline-flex;align-items:center;gap:2px;min-height:32px;padding:0 2px 0 8px;border:0;border-radius:var(--r-sm);background:none;font:inherit;font-size:13px;font-weight:600;letter-spacing:0;color:var(--acc-ink);cursor:pointer}
+#mesa .co-tpp{margin:-6px 0 12px;font-size:13.5px;color:var(--ink-2)}#mesa .co-tph .co-vh.co-tp{white-space:nowrap}#mesa .co-tpb{margin:-6px -2px -6px auto;flex:none;align-self:center;display:inline-flex;align-items:center;gap:2px;min-height:32px;padding:0 2px 0 8px;border:0;border-radius:var(--r-sm);background:none;font:inherit;font-size:13px;font-weight:600;letter-spacing:0;color:var(--acc-ink);cursor:pointer}
 #mesa .co-pagos .co-tpb svg{width:15px;height:15px}#mesa .co-pll li svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:var(--i-trazo);stroke-linecap:round;stroke-linejoin:round}#mesa .co-tpb:hover{background:var(--co-hov,var(--bg-2))}#mesa .co-tpb:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 #mesa .detail[data-dlg="plan"] .card.dlg{max-width:480px;width:min(480px,calc(100vw - 32px));max-height:calc(100vh - 48px);overflow-y:auto;padding:20px}
 #mesa .card>p.co-plp{margin:4px 0 0;font-size:14px;line-height:1.45;color:var(--ink-2)}#mesa .co-plg h4{margin:16px 0 6px;font-size:13px;font-weight:600;color:var(--ink)}
@@ -915,7 +915,7 @@
 #mesa .co-pq-p{display:inline-flex;align-items:center;gap:6px;flex:none;margin:0;font-size:12.5px;font-weight:400;color:var(--mute)}#mesa .co-pq-p .co-q{width:110px;text-align:right}
 #mesa .co-nota{margin:4px 0 0;font-size:12.5px;line-height:1.45;color:var(--mute)}
 #mesa .co-impw{position:relative}#mesa .co-impw .co-sfx{position:absolute;right:11px;top:50%;transform:translateY(-50%);font-size:12.5px;color:var(--mute);pointer-events:none;white-space:nowrap}
-${Array.from({ length: 12 }, (x, i) => `#mesa .co-impw.sx${i + 7} .co-q{padding-right:${Math.round(18 + (i + 7) * 6.4)}px}`).join('')}
+${Array.from({ length: 10 }, (x, i) => `#mesa .co-impw.sx${i + 7} .co-q{padding-right:${Math.round(18 + (i + 7) * 6.4)}px}`).join('')}
 #mesa .co-dif{margin:5px 0 0;font-size:12px;line-height:1.4;color:var(--mute)}#mesa .co-dif b{font-weight:600;color:var(--ink-2)}
 #mesa .co-lnk{padding:0;border:0;background:none;font:inherit;font-weight:600;color:var(--acc-ink);cursor:pointer}#mesa .co-lnk:hover{text-decoration:underline}
 #mesa .co-lnk:focus-visible,#mesa .co-civb:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:2px}
@@ -924,7 +924,7 @@ ${Array.from({ length: 12 }, (x, i) => `#mesa .co-impw.sx${i + 7} .co-q{padding-
 #mesa .co-sep{margin:4px 0 14px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel-2)}
 #mesa .co-sep-t{margin:0 0 10px;font-size:14px;font-weight:600;color:var(--ink)}
 #mesa .co-sep-ops{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-#mesa .co-sep-op{display:flex;gap:10px;align-items:flex-start;margin:0;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel);cursor:pointer;font-weight:400;transition:background var(--d1) ease-out,border-color var(--d1) ease-out}#mesa .co-sep-op.on{border-color:var(--acc);background:var(--acc-soft)}#mesa .co-sep-op input:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+#mesa .co-sep-op{display:flex;gap:10px;align-items:flex-start;margin:0;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel);cursor:pointer;font-weight:400;transition:background var(--d1) ease-out,border-color var(--d1) ease-out}#mesa .co-sep .co-sep-op.on{border-color:var(--acc);background:var(--acc-soft)}#mesa .co-sep-op input:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 #mesa .co-sep-op b{display:block;font-size:13.5px;font-weight:600;color:var(--ink)}
 #mesa .co-sep-op span span{display:block;margin-top:2px;font-size:12.5px;line-height:1.4;color:var(--mute)}
 #mesa .co-sep-pie{display:flex;align-items:center;gap:16px;margin-top:12px}#mesa .co-sep-no{font-weight:400;color:var(--ink-2)}#mesa .co-sep .co-nota{margin:10px 0 0}

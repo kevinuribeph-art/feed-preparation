@@ -23900,10 +23900,14 @@
       M._in.closeDetail(); await hasta(() => D.activeElement && D.activeElement.dataset && D.activeElement.dataset.co === 'plan', 2000, 'el foco de vuelta');
       // sin listas: el precio en su línea
       await CB().acuCambiar(CLIENTE, aid(), { paquete: { id: 'personalizado', nombre: 'Personalizado', incluye: [], noIncluye: [], condiciones: [] } });
-      await hasta(() => pag() && pag().querySelector('.co-tpp'), 3000, 'el precio sin listas');
+      await hasta(() => pag() && pag().querySelector('.co-tpp'), 3000, 'el precio sin listas'); ok(!pag().querySelector('.co-tph .co-tpp'), 'el precio sin listas aprieta el título');
       ok(/1000 € \+ IVA al mes · pago mensual/.test(pag().querySelector('.co-tpp').textContent), pag().querySelector('.co-tpp').textContent);
       await vistaCliente(false);
-      // la página personal: la fecha antes del importe
+      // la página personal: la fecha antes del importe; sin fecha, sin un separador de más
+      relojEn('2026-11-02T10:00:00+01:00'); M.personal.abrir();
+      const l0 = await hasta(() => q(`.pp-cob[data-c="${CLIENTE}"]`), 3000, 'la línea sin emitir');
+      ok(/Factura sin emitir · 1000 € \+ 210 € IVA/.test(l0.textContent) && !/· +·/.test(l0.textContent), 'la línea sin emitir: ' + l0.textContent);
+      M.personal.cerrar(); relojEn('2026-11-20T10:00:00+01:00');
       await M.cobros.cargar([{ id: 'iv4-f', cliente: CLIENTE, periodo: '2026-11', importe: 1210, base: 1000, iva: 21, emitida: '2026-11-05', vence: '2026-11-25' }]);
       const t = CB().urgente(CLIENTE); ok(t && t.r.id === 'iv4-f', 'la urgente');
       M.personal.abrir(); const lin = await hasta(() => q(`.pp-cob[data-c="${CLIENTE}"]`), 3000, 'la línea de cobro');
@@ -23959,7 +23963,7 @@
       coCambiar(sel(), id('Plan Dos')); await hasta(() => a().base === 6000, 3000, 'otra vez');
       ok(!card().querySelector('.co-dif'), 'marcado sin ser distinto');
       // distinto de la tarifa, solo para este cliente; «Volver a la tarifa»
-      const imp = card().querySelector('[data-k="importe"]'); imp.value = '5400'; coCambiar(imp, '5400'); await hasta(() => a().base === 5400, 3000, 'otro importe');
+      const imp = card().querySelector('[data-k="importe"]'); imp.value = '5500'; coCambiar(imp, '5500'); await hasta(() => a().base === 5500, 3000, 'otro importe');
       const dif = await hasta(() => card().querySelector('.co-dif'), 2000, 'la marca'); ok(/Distinto de la tarifa: 6000 €/.test(dif.textContent.replace(/ /g, ' ')), dif.textContent);
       dif.querySelector('[data-co="tarifa-imp"]').click(); await hasta(() => a().base === 6000 && !card().querySelector('.co-dif'), 3000, '«Volver a la tarifa»');
       // las listas, para este cliente

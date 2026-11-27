@@ -7,7 +7,7 @@
 (function cobrosBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
-  const VERSION = '1.7';   // 1.7: el IVA (la base y su IVA, «Separar el IVA…», «Sin IVA» del cliente, el IVA de cada factura sin emitir), los paquetes que rellenan el acuerdo y «Tu plan» (D-374 a D-376). 1.6: las pestañas de «Editar cliente» cambian cualquier panel: Datos, Cobros y Estilo (D-356). 1.5: the agreement's head goes on below at 280–340 px, its chip on the right (D-314). 1.4: the agreement's fields with options (D-304); the list of agreements, each with its invoices, «Nuevo acuerdo», «Termina en» and the packages' catalog (D-305 to D-307); «Tus pagos» from when to when and what it includes (D-308); «Se factura» (D-309). 1.3: «Tus pagos» of the vista cliente with its stretch — «Pago semestral · 2700 €», «Cubre may – oct 2026 · el siguiente, el 1 nov» and each invoice «Mayo – octubre» (D-297). 1.2: «Acuerdo» instead of «Cuota mensual» — how often it pays, from when, for how long, whether it renews and when to renegotiate, with its line; «+ Factura» of its stretch; in «Tus pagos», «al mes» only if it pays each month and each invoice by its first month, as the client's web gets them until lot D (D-288). 1.1: a PDF that hasn't come down from the server yet (lot 4 of the traspaso) says so (D-259)
+  const VERSION = '1.8';   // 1.8: a sporadic client's free payment, its concept written in its row; «+ Cobro» always; its IVA, the sporadic client's (D-377). 1.7: 1.7: el IVA (la base y su IVA, «Separar el IVA…», «Sin IVA» del cliente, el IVA de cada factura sin emitir), los paquetes que rellenan el acuerdo y «Tu plan» (D-374 a D-376). 1.6: las pestañas de «Editar cliente» cambian cualquier panel: Datos, Cobros y Estilo (D-356). 1.5: the agreement's head goes on below at 280–340 px, its chip on the right (D-314). 1.4: the agreement's fields with options (D-304); the list of agreements, each with its invoices, «Nuevo acuerdo», «Termina en» and the packages' catalog (D-305 to D-307); «Tus pagos» from when to when and what it includes (D-308); «Se factura» (D-309). 1.3: «Tus pagos» of the vista cliente with its stretch — «Pago semestral · 2700 €», «Cubre may – oct 2026 · el siguiente, el 1 nov» and each invoice «Mayo – octubre» (D-297). 1.2: «Acuerdo» instead of «Cuota mensual» — how often it pays, from when, for how long, whether it renews and when to renegotiate, with its line; «+ Factura» of its stretch; in «Tus pagos», «al mes» only if it pays each month and each invoice by its first month, as the client's web gets them until lot D (D-288). 1.1: a PDF that hasn't come down from the server yet (lot 4 of the traspaso) says so (D-259)
   const I = () => M._in, C = () => M._in.cob, P = () => (M.personal && M.personal._p) || null;
   if (M.cobrosUI && M.cobrosUI._off) { try { M.cobrosUI._off(); } catch (e) { /* */ } }
   const OFF = [];
@@ -176,7 +176,8 @@
       ? `<span class="co-pdf"><button type="button" class="co-pn" data-co="ver-pdf" title="Descargar el PDF">${IC.doc}<span>${esc(pdfNombre(r, h))}</span></button><button type="button" class="co-x" data-co="quitar" aria-label="Quitar el PDF de ${quien}" title="Quitar el PDF">${IC.x}</button></span>`
       : `<button type="button" class="co-mini" data-co="subir" title="O suelta el PDF sobre la fila">${IC.subir}Subir PDF</button>`;
     const acc = s.k === 'cobrada' ? '' : `<button type="button" class="co-mini" data-co="cobrada" title="Cobrada hoy">${IC.ok}Cobrada</button>`;
-    const fila = `<tr class="co-f" data-id="${id}"><td class="co-m">${quien}</td>`
+    const celda = esp && !r.periodo ? `<input type="text" class="co-in co-con" data-co="con" maxlength="80" autocomplete="off" value="${esc(r.concepto || '')}" placeholder="Concepto" aria-label="Concepto del cobro">` : quien;   // a free one (D-377): its concept, written there
+    const fila = `<tr class="co-f" data-id="${id}"><td class="co-m">${celda}</td>`
       + `<td class="co-n" data-l="Factura"><input type="text" class="co-in" data-co="num" maxlength="40" autocomplete="off" value="${esc(r.factura || '')}" placeholder="Nº" aria-label="Número de la factura de ${quien}"></td>`
       + `<td class="co-i" data-l="Importe"><input type="text" class="co-in co-imp" data-co="imp" inputmode="decimal" autocomplete="off" value="${esc(impVal(r))}" placeholder="Importe" aria-label="Importe de ${quien}">${ivaFila(r, s, quien)}</td>`
       + `<td class="co-s"><span class="co-e ${s.cls}">${esc(s.t)}</span></td>`
@@ -255,8 +256,7 @@
   function tabla(cli, o = {}) {
     const h = hoy(), l = C().vivos(cli).sort(C().orden);
     if (o.esp) {
-      const ss = sesSinCobro(cli), n = ss.length;
-      const pie = `<button type="button" class="pp-cmas" data-co="nuevo-ses"${n ? '' : ` disabled title="${C().vivos(cli).length ? 'Todas sus sesiones tienen su cobro' : 'Aún no tiene sesiones'}"`}>${IC.mas}Cobro</button>`;
+      const pie = `<button type="button" class="pp-cmas" data-co="nuevo-ses" title="De una sesión o de otro concepto">${IC.mas}Cobro</button>`;   // always: one of a session or a free one (D-377)
       return `<div class="co co-esp" data-co-cli="${esc(cli)}">${tablaFilas(l, h, true)}<div class="co-pie">${pie}</div></div>`;
     }
     if (UI.vista.get(cli) === 'paquetes') return paquetesHTML(cli);
@@ -283,7 +283,7 @@
   const pane = () => { const r = I().root && I().root(); return r ? r.querySelector('.detail[data-dlg="editclient"] .co-pane') : null; };
   function pintar() {
     const d = pane(); if (d) morf(d, tabla(d.dataset.coCli));
-    const p = P(); if (p && p.CARD && p.CARD.ext && p.CARD.ext.cls === 'pp-ficha' && p.pintarCard) p.pintarCard();   // a sporadic client's file
+    const p = P(); if (p && p.st && p.st.esp && p.pintar) p.pintar();   // a sporadic client's page (D-377)
     const r = I().root && I().root(); if (r && r.classList.contains('client') && I().vc) I().vc.pintar();   // «Tus pagos»
   }
   const filaDe = el => el && el.closest ? el.closest('tr.co-f[data-id], tr.co-det[data-id]') : null;
@@ -513,14 +513,24 @@
     try { await C().guardar({ id, cliente: cid, periodo: m, ...(h && h > m ? { hasta: h } : {}), concepto: '', ...parte, factura: '', ...C().fechas(m, q), cobrada: '', pdf: '' }); } catch (e) { fallo(e); return; }
     enfocar(`tr.co-f[data-id="${id}"] [data-co="num"]`);
   }
+  // «+ Cobro» of a sporadic client: of one of its sessions without one, or of another concept (a free one: no session, its concept
+  // written in its row, its month its issue's, D-377); its IVA, the client's (its «Sin IVA», D-377)
+  const ivaEsp = cid => { const p = P(), e = p && p.TK && p.TK.get(cid); return e && e.sinIva === true ? 0 : 21; };
   function nuevoSes(btn) {
-    const cid = cliDe(btn), p = P(), ss = sesSinCobro(cid); if (!p || !ss.length) return;
+    const cid = cliDe(btn), p = P(), ss = sesSinCobro(cid); if (!p || !cid) return;
+    const crear = async (k, foco) => {
+      const id = C().nuevoId(), iva = ivaEsp(cid);
+      const rec = k ? { periodo: k.id, concepto: String(k.txt || 'Sesión') } : { periodo: '', concepto: '', creada: hoy() };
+      try { await C().guardar({ id, cliente: cid, ...rec, importe: 0, ...(C().ivaTotal ? { iva } : {}), factura: '', emitida: '', vence: '', cobrada: '', pdf: '' }); } catch (e) { fallo(e); return; }   // what's typed is its base (D-374)
+      enfocar(`tr.co-f[data-id="${id}"] [data-co="${foco}"]`);
+    };
     const r = btn.getBoundingClientRect();
-    p.abrirMenu(r.left, r.bottom + 4, ss.map(k => [k.id, esc(k.txt || 'Sesión') + (k.fecha ? ` <span class="co-mf">· ${esc(corto(k.fecha))}</span>` : ''), async () => {
-      const id = C().nuevoId();
-      try { await C().guardar({ id, cliente: cid, periodo: k.id, concepto: String(k.txt || 'Sesión'), importe: 0, ...(C().ivaTotal ? { iva: 21 } : {}), factura: '', emitida: '', vence: '', cobrada: '', pdf: '' }); } catch (e) { fallo(e); return; }   // with 21 %: what's typed is its base (D-374)
-      enfocar(`tr.co-f[data-id="${id}"] [data-co="imp"]`);
-    }]), btn);
+    p.abrirMenu(r.left, r.bottom + 4, [...ss.map(k => [k.id, esc(k.txt || 'Sesión') + (k.fecha ? ` <span class="co-mf">· ${esc(corto(k.fecha))}</span>` : ''), () => crear(k, 'imp')]), ['__libre', 'Otro concepto…', () => crear(null, 'con')]], btn);
+  }
+  async function concepto(inp) {
+    const f = filaDe(inp), r = f && C().get(f.dataset.id); if (!r) return;
+    const v = inp.value.replace(/\s+/g, ' ').trim().slice(0, 80); if (v === (r.concepto || '')) { inp.value = v; return; }
+    await guardar(r.id, { concepto: v });
   }
   async function cobrada(btn) {
     const f = filaDe(btn); if (!f) return; const id = f.dataset.id;
@@ -704,7 +714,7 @@
   function alCambiar(e) {
     const t = e.target; if (!t.dataset || !t.dataset.co) return;
     const k = t.dataset.co;
-    if (k === 'cuota') { const ctx = { cid: cliDe(t), aid: aidDe(t), v: t.value }; colaQ = colaQ.then(() => cuota(t, ctx)).catch(() => {}); } else if (k === 'num') numero(t); else if (k === 'imp') importe(t); else if (k === 'fecha') fecha(t);
+    if (k === 'cuota') { const ctx = { cid: cliDe(t), aid: aidDe(t), v: t.value }; colaQ = colaQ.then(() => cuota(t, ctx)).catch(() => {}); } else if (k === 'num') numero(t); else if (k === 'con') concepto(t); else if (k === 'imp') importe(t); else if (k === 'fecha') fecha(t);
     else if (k === 'paq-nombre' || k === 'paq-precio' || k === 'paq-perm') colaQ = colaQ.then(() => paqCampo(t)).catch(() => {});   // D-307, D-375
     else if (k === 'iva-cli') colaQ = colaQ.then(() => ivaCli(t)).catch(() => {});   // D-374
 
@@ -719,7 +729,7 @@
     }
     const k = t.dataset && t.dataset.co;
     if (e.key === 'Escape' && t.closest && t.closest('.co-sep')) { e.preventDefault(); e.stopPropagation(); const b = t.closest('.co-sep').querySelector('[data-co="sep-no"]'); if (b) b.click(); return; }   // Esc closes only «Separar el IVA…»
-    if (k === 'cuota' || k === 'num' || k === 'imp' || k === 'paq-nombre' || k === 'paq-precio' || k === 'paq-perm' || k === 'inc-nuevo') {
+    if (k === 'cuota' || k === 'num' || k === 'con' || k === 'imp' || k === 'paq-nombre' || k === 'paq-precio' || k === 'paq-perm' || k === 'inc-nuevo') {
       if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); if (k === 'inc-nuevo') { colaQ = colaQ.then(() => incluye(t, false)).catch(() => {}); return; } alCambiar({ target: t }); return; }
       if (e.key === 'Escape') { escCampo(e); return; }   // first Esc puts the field back; the next one closes what is open
     }
@@ -737,9 +747,9 @@
   }
   // Esc in a field that changed: back to what is saved, and nothing else closes (true); else false
   function escCampo(e) {
-    const t = e.target, k = t && t.dataset && t.dataset.co; if (!['cuota', 'num', 'imp', 'paq-nombre', 'paq-precio', 'paq-perm', 'inc-nuevo'].includes(k)) return false;
+    const t = e.target, k = t && t.dataset && t.dataset.co; if (!['cuota', 'num', 'con', 'imp', 'paq-nombre', 'paq-precio', 'paq-perm', 'inc-nuevo'].includes(k)) return false;
     const f = filaDe(t), r = f && C().get(f.dataset.id), pq = t.closest('[data-paq]'), pr = pq && C().paqGet ? C().paqGet(pq.dataset.paq) : null;
-    const v0 = k === 'cuota' ? (() => { const x = document.createElement('input'); x.dataset.k = t.dataset.k; pintarCuota(x, cliDe(t), aidDe(t)); return x.value; })() : k === 'num' ? (r && r.factura) || ''
+    const v0 = k === 'cuota' ? (() => { const x = document.createElement('input'); x.dataset.k = t.dataset.k; pintarCuota(x, cliDe(t), aidDe(t)); return x.value; })() : k === 'num' ? (r && r.factura) || '' : k === 'con' ? (r && r.concepto) || ''
       : k === 'paq-nombre' ? (pr && pr.nombre) || '' : k === 'paq-precio' ? (pr && pr.precio != null ? eur(pr.precio) : '') : k === 'paq-perm' ? String((pr && pr.permanencia) || '') : k === 'inc-nuevo' ? '' : r ? impVal(r) : '';
     if (t.value === v0) return false;
     e.preventDefault(); e.stopPropagation(); t.value = v0; return true;
@@ -814,7 +824,7 @@
 #mesa .co-vh0{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 #mesa .co-m{font-weight:400;max-width:120px}#mesa .co-t td.co-m{white-space:normal}
 #mesa .co-in{box-sizing:border-box;height:28px;margin-left:-7px;padding:0 6px;border:1px solid transparent;border-radius:var(--r-sm);background:none;font:inherit;color:var(--ink);transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out,background var(--d1) ease-out}
-#mesa .co-n .co-in{width:94px}#mesa .co-in.co-imp{width:70px;margin:0 -7px 0 0;text-align:right}
+#mesa .co-n .co-in{width:94px}#mesa .co-m .co-con{width:calc(100% + 7px);font-weight:600}#mesa .co-in.co-imp{width:70px;margin:0 -7px 0 0;text-align:right}
 #mesa .co-in:hover{border-color:var(--line)}#mesa .co-in:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--ring);background:var(--panel-2)}
 #mesa .co-e{display:inline-flex;align-items:center;padding:2px 8px;border-radius:var(--r-xs);font-size:12.5px;font-weight:600;line-height:18px}
 #mesa .co-e.ok{background:var(--ok-soft);color:var(--ok)}#mesa .co-e.pend{background:var(--chg-soft);color:var(--chg)}#mesa .co-e.tarde{background:var(--red-soft);color:var(--red)}#mesa .co-e.sin{background:var(--bg-2);color:var(--mute)}

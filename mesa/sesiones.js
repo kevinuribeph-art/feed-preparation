@@ -209,7 +209,7 @@
       const vacia = !ref && !en && !nueva;
       return `<div class="pp-pl-it${it.hecho ? ' hecho' : ''}" data-it="${P.esc(it.id)}">${vc ? '' : `<input type="checkbox" class="pp-ck" data-hj="it-hecho" data-it="${P.esc(it.id)}"${it.hecho ? ' checked' : ''} aria-label="Hecho">`}`
         + `<div class="pp-pl-c"><div class="pp-pl-ti${it.titulo ? '' : ' vacio'}" data-campo="it:${P.esc(a.id)}:${P.esc(pt.id)}:${P.esc(it.id)}:titulo">${P.esc(it.titulo || (vc ? '' : 'Sin título'))}</div>${texto(`it:${a.id}:${pt.id}:${it.id}:texto`, it.texto, '')}</div>`
-        + `<div class="pp-pl-ref" data-drop="it:${P.esc(a.id)}:${P.esc(pt.id)}:${P.esc(it.id)}">${ref ? `<div class="pp-pl-fos">${ref}</div>` : ''}${en ? `<div class="pp-pl-ens">${en}</div>` : ''}${nueva}${vacia ? `<span class="pp-pl-sin">Sin referencia</span>` : ''}${vc ? '' : `<button type="button" class="pp-pl-ena" data-hj="en-mas" title="Añadir un enlace">${svgI('enlace')}Enlace</button>`}</div></div>`;
+        + `<div class="pp-pl-ref" data-drop="it:${P.esc(a.id)}:${P.esc(pt.id)}:${P.esc(it.id)}">${ref ? `<div class="pp-pl-fos">${ref}</div>` : ''}${en ? `<div class="pp-pl-ens">${en}</div>` : ''}${nueva}${vacia && !vc ? `<span class="pp-pl-sin">Sin referencia</span>` : ''}${vc ? '' : `<button type="button" class="pp-pl-ena" data-hj="en-mas" title="Añadir un enlace">${svgI('enlace')}Enlace</button>`}</div></div>`;
     }).join('');
     return { cab: tabs, cuerpo: `<div class="pp-pl-items">${items}</div>${vc ? '' : `<button type="button" class="pp-cmas" data-hj="it-nuevo">${svgI('mas')}${P.esc(sing(pt.nombre))}</button>`}` };
   }
@@ -1239,7 +1239,7 @@
 #mesa .pp-hj-cols{display:grid;grid-template-columns:minmax(0,1.2fr) 17px minmax(0,1fr);flex:1 0 auto;padding:6px 18px 28px 26px;position:relative;transition:grid-template-columns var(--d-m) var(--ease-m)}
 #mesa .pp-hj-cols.una{grid-template-columns:minmax(0,1fr)}
 #mesa .pp-hj-cols:has(+ .pp-hj-com){flex:none}   /* its comments right under it, not at the foot */
-#mesa .pp-hj-com{padding:14px 18px 28px 26px;border-top:1px solid var(--line2)}#mesa .pp-ov.amplia .pp-hj-com{padding:14px 32px 28px 40px}   /* as a post's comments in «Vista cliente» (.igcoms, D-378) */
+#mesa .pp-hj-com{padding:14px 22px 28px 30px;border-top:1px solid var(--line2)}#mesa .pp-ov.amplia .pp-hj-com{padding:14px 36px 28px 44px}   /* as a post's comments in «Vista cliente» (.igcoms, D-378) */
 #mesa .pp-hj-com:empty{display:none}#mesa .pp-hj-com h3.pp-hj-comt{margin:0 0 10px;font-size:14px;font-weight:600}
 #mesa .pp-hj-com .webl{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
 #mesa .pp-hj-com .webcm{gap:3px;max-width:52ch}#mesa .pp-hj-com .webcm p{margin:0;font-size:14px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}#mesa .pp-hj-com .webp{margin:0}
@@ -1404,7 +1404,7 @@
 #mesa .pp-ep-side>.cal .calhead{padding:12px 12px 4px 18px}
 #mesa .pp-ep h2.pp-ep-h{display:flex;align-items:baseline;gap:8px;margin:0 0 8px;font-size:17px;font-weight:800;letter-spacing:-.025em;color:var(--ink)}
 #mesa .pp-ep-h>span:not(.co-ivw){font-size:13px;font-weight:400;letter-spacing:0;color:var(--mute)}
-#mesa .pp-ep h2.pp-ep-h2{margin-top:22px}
+#mesa .pp-ep h2.pp-ep-h2{margin-top:22px}#mesa .pp-ep-vpg h2.co-vh{margin:0 0 12px}   /* «Tus pagos» of its «Vista cliente» keeps its margin over .pp's (D-378) */
 #mesa .pp-ep h3.pp-ep-sub{margin:0;padding:4px 0}#mesa .pp-ep-gr + .pp-ep-gr{margin-top:14px}
 #mesa .pp-ep-vacio{margin:0;font-size:13px;color:var(--mute)}
 #mesa .pp-ep-p .pp-es-s{grid-template-columns:150px 18px minmax(0,1fr) auto}#mesa .pp-ep-p .pp-es-l>.pp-es-s:last-child{border-bottom:0}
@@ -1425,7 +1425,7 @@
   #mesa .pp-ov.pp-hoja{padding:16px 10px}#mesa .pp-ov.pp-hoja.amplia{padding:0}
   #mesa .pp-ov.amplia .pp-hj-cab{padding:18px 16px 4px}#mesa .pp-ov.amplia .pp-hj-cols{padding:6px 14px 24px 22px}
   #mesa .pp-hj-cab{padding:18px 16px 4px}#mesa .pp-hj-meta{margin-left:0}#mesa .pp-hj-tira{margin-left:0}#mesa .pp-hj-oculta,#mesa .pp-ov.amplia .pp-hj-oculta{margin:32px 16px}
-  #mesa .pp-hj-cols{padding:6px 14px 24px 22px}#mesa .pp-hj-com,#mesa .pp-ov.amplia .pp-hj-com{padding:14px 14px 24px 22px}
+  #mesa .pp-hj-cols{padding:6px 14px 24px 22px}#mesa .pp-hj-com,#mesa .pp-ov.amplia .pp-hj-com{padding:14px 18px 24px 26px}
   #mesa .pp-pl-it{grid-template-columns:28px minmax(0,1fr)}#mesa .pp-pl-ref{grid-column:2;max-width:none;margin-top:8px}
   #mesa .pp-ns-tipos{grid-template-columns:repeat(2,minmax(0,1fr))}#mesa .pp-ns-2{grid-template-columns:minmax(0,1fr)}
   #mesa .pp-es-sec{margin-left:0}#mesa .pp-es-s{grid-template-columns:116px 18px minmax(0,1fr) auto}

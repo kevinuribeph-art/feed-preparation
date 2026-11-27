@@ -26766,6 +26766,7 @@
       await M.personal._p.cambiar(s2.id, x => { x.sesion.visible = false; return x; });   // la reunión, oculta
       await M.personal._p.cambiar(t.id, x => { x.visible = true; return x; });
       await M.personal.tarea({ txt: 'Oculta EV4', fecha: '2026-11-25', cliente: e.id });
+      await M.personal._p.cambiar(s1.id, x => { x.sesion.apartados = x.sesion.apartados.filter(a => a.id !== 'planos'); x.sesion.apartados.push({ id: 'planos', visible: true, pestanas: [{ id: 'ev4pt', nombre: 'Planos', items: [{ id: 'ev4pi', titulo: 'Plano EV4', texto: '', fotos: [], enlaces: [] }] }] }); return x; });   // a shot without reference
       await epAbre(e.id);
       const sw = q('.pp-ep-cab [data-pp="ep-vc"]'); ok(sw && !sw.checked, 'sin «Vista cliente» en su cabecera');
       const x0 = sw.closest('label').getBoundingClientRect().right;
@@ -26774,6 +26775,7 @@
       ok(!pg.querySelector('[data-pp="ep-sesion"], [data-pp="ep-mas"], [data-pp="tn-ojo"], [data-pp="ep-volver"]'), 'en su «Vista cliente» se puede editar');
       igual(qa('.pp-ep.vc .pp-ep-citas .pp-ep-vs').map(b => b.dataset.id), [s1.id], 'sus sesiones: con fecha y el ojo abierto');
       ok(/Tus sesiones/.test(pg.textContent) && /Tus pagos|Tu plan/.test(q('.pp-ep.vc .pp-ep-vpg').textContent), 'sus títulos: ' + pg.textContent.slice(0, 120));
+      igual(W.getComputedStyle(q('.pp-ep.vc .pp-ep-vpg h2')).marginBottom, '12px', '«Tus pagos» pegado a su primera fila');
       igual(qa('.pp-ep.vc .pp-ep-vt .pp-ep-vx').map(x => x.textContent), ['Tarea ev4esp'], 'sus tareas: solo la del ojo abierto');
       ok(!pg.querySelector('.pp-ep-vn') && /Sin notas/.test(pg.textContent), 'su nota oculta sale');
       await hasta(() => json([...new Set(qa('.pp-ep.vc .side > .cal .chip[data-ses]').map(c => c.dataset.ses))]) === json([s1.id]), 3000, 'el calendario: solo lo que ve');
@@ -26781,6 +26783,7 @@
       q(`.pp-ep.vc [data-pp="ep-vses"][data-id="${s1.id}"]`).click();
       const hj = await hasta(() => q('.pp-ov .pp-hj.vc'), 3000, 'la sesión como la ve el cliente');
       ok(!hj.querySelector('[data-hj="vista"]') && !hj.querySelector('.pp-ck'), 'se puede salir de «Ver como el cliente» o marcarla');
+      ok(/Plano EV4/.test(hj.textContent) && !hj.querySelector('.pp-pl-sin'), 'como la ve el cliente, un plano sin referencia dice «Sin referencia» (lo vacío, D-228)');
       M.personal._p.cerrarCard(true); await espera(60);
       const ch = q(`.pp-ep.vc .side > .cal .chip[data-ses="${s1.id}"]`); ch.click();
       await hasta(() => q('.pp-ov .pp-hj.vc'), 3000, 'desde el calendario, también fija'); M.personal._p.cerrarCard(true); await espera(60);

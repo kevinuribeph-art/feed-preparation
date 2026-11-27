@@ -153,10 +153,12 @@
     ya.forEach(e => e.remove());
     if (!col._visto) { col._visto = true; dispatchEvent(new Event('resize')); }   // the feed sizes its grid with its new width (lesson 72)
   }
+  const espSec = sec => !!(sec && sec.dataset && sec.dataset.cli && sec.closest('.pp'));   // the calendar of a sporadic client's page (D-377)
   function render() {
     if (mv && mv.on) { later = true; return; }   // a chip being moved: drawn again once it is let go
     const X = I(); if (!X || !X.shellReady || !X.shellReady()) return;
     const root = X.root(), sec = root && root.querySelector('.side > .cal'); if (!sec) return;
+    if (espSec(sec)) { renderCont(X, root, sec, sec.dataset.cli, true); return; }   // a sporadic client's page, over the board (D-377): only its calendar
     const S = X.S, cc = !S && X.contCli ? X.contCli() : null;
     if (cc) { renderCont(X, root, sec, cc); return; }   // the page of a client of «Solo contenido», without a board (D-312)
     if (!S) { sec.hidden = true; return; }
@@ -239,10 +241,11 @@
   // No board nor months: the calendar opens on today's month and ‹ › go to any month, without changing the lists beside it
   // (entregas.js). Its sessions and deliveries, a chip each; the days of another month dimmed, their chips muted (D-153); no
   // total, steps nor Notion. In the vista cliente there is no calendar: its list and «Tus pagos» (D-297)
-  function renderCont(X, root, sec, cli) {
-    const client = root.classList.contains('client'), today = X.hoy();
+  // esp: a sporadic client's page (D-377), the same calendar of its sessions and meetings, in the place of the personal page
+  function renderCont(X, root, sec, cli, esp) {
+    const client = !esp && root.classList.contains('client'), today = X.hoy();
     if (client) { sec.hidden = true; sec.innerHTML = ''; sec._h = null; vcLado(X, root, vcPartes(X, today.slice(0, 7), cli).lado); return; }   // its cache goes with it: back from the view, drawn again (cold review)
-    vcLado(X, root, []);
+    if (!esp) vcLado(X, root, []);
     if (view.key !== 'cli:' + cli || view.sec !== sec) view = { key: 'cli:' + cli, m: today.slice(0, 7), sec };   // each time its page opens, today's month
     if (!SES && !sesLee) leerSes();
     const m = view.m, [y, mo] = m.split('-').map(Number), first = `${m}-01`, start = addDays(first, -dow(first)), dim = new Date(Date.UTC(y, mo, 0)).getUTCDate();
@@ -251,7 +254,7 @@
       if (!x.clientes.includes(cli) || x.fin < start || x.fecha > fin) continue;
       for (let d = x.fecha < start ? start : x.fecha, i = 0; d <= x.fin && d <= fin && i < 400; d = addDays(d, 1), i++) (sd[d] = sd[d] || []).push({ x, t: x.fecha === d && x.hora ? +x.hora.replace(':', '') : -1 });
     }
-    if (X.ent) for (const r of X.ent.vivas(cli)) if (r.fecha >= start && r.fecha <= fin) (sd[r.fecha] = sd[r.fecha] || []).push({ e: r, t: -2 });
+    if (X.ent && !esp) for (const r of X.ent.vivas(cli)) if (r.fecha >= start && r.fecha <= fin) (sd[r.fecha] = sd[r.fecha] || []).push({ e: r, t: -2 });
     let body = DOW.map(d => `<div class="cdow">${d}</div>`).join('');
     for (let i = 0; i < rows * 7; i++) {
       const d = addDays(start, i), inM = d.slice(0, 7) === m;
@@ -318,7 +321,7 @@
       if (a === 'venc') { if (!client) abrirVencidas(); return; }
       if (a === 'fold') { plegar(X, sec); return; }
       if (a === 'vctab') { if (vcTab === b.dataset.t) return; vcTab = b.dataset.t; render(); const t = sec.querySelector(`.vcp-tab[data-t="${cssq(vcTab)}"]`); if (t) t.focus({ preventScroll: true }); return; }
-      if ((a === 'prev' || a === 'next') && !X.S) { if (X.contCli && X.contCli()) view.m = addMonths(view.m, a === 'prev' ? -1 : 1); }   // the page (D-312): any month
+      if ((a === 'prev' || a === 'next') && (espSec(sec) || !X.S)) { if (espSec(sec) || (X.contCli && X.contCli())) view.m = addMonths(view.m, a === 'prev' ? -1 : 1); }   // the page (D-312): any month
       else if (a === 'prev' || a === 'next') { const sp = span(X), i = sp.list.indexOf(view.m) + (a === 'prev' ? -1 : 1); if (sp.list[i]) view.m = sp.list[i]; }
       render(); return;
     }
@@ -548,7 +551,7 @@
     const X = I(), t = e.target && e.target.closest ? e.target : null; if (!t || !X || X.locked || X.root().classList.contains('client')) return;
     const ch = t.closest('#mesa .side > .cal .chip[data-slot], #mesa .side > .cal .chip[data-ses], #mesa .side > .cal .chip[data-ent], #mesa .pp-fi[data-tid], #mesa .pp-mt[data-tid]');
     if (!ch || ch.classList.contains('cx') || (t !== ch && t.closest('input, button, a') !== ch.closest('input, button, a'))) return;   // its checkbox or its photo: their own click
-    const dia = ch.closest('[data-day]'), b = { el: ch, x: e.clientX, y: e.clientY, on: false, over: null, desde: dia && dia.dataset.day };
+    const dia = ch.closest('[data-day]'), b = { el: ch, x: e.clientX, y: e.clientY, on: false, over: null, desde: dia && dia.dataset.day, esp: espSec(ch.closest('.cal')) };   // esp: in a sporadic client's page (D-377)
     if (!b.desde) return;
     if (ch.dataset.slot) { const s = X.S && X.S.slots.find(x => x.id === ch.dataset.slot); mv = { ...b, k: 'slot', id: ch.dataset.slot, sel: `.side > .cal .chip[data-slot="${cssq(ch.dataset.slot)}"]`, pub: !!s && X.estadoDe(s) === 'publicado' }; }   // a published one never lands (D-103)
     else if (!M.personal || !M.personal.mover) return;
@@ -602,13 +605,13 @@
   }
   async function soltar(m, day, el) {
     if (m.k === 'slot') { drop(m.id, day); return; }
-    const X = I(), S0 = X && X.S, cli = m.pp ? null : S0 ? S0.client : X && X.contCli ? X.contCli() : null;   // taken before the await (A55-14)
+    const X = I(), S0 = X && X.S, cli = m.pp || m.esp ? null : S0 ? S0.client : X && X.contCli ? X.contCli() : null;   // taken before the await (A55-14); on the personal page, its own ⌘Z
     const r = m.k === 'ent' ? await M.personal.moverEnt(m.id, day, cli) : await M.personal.mover(m.id, day, m.desde, cli);
     if (!r) return;
     if (M.web && M.web.tocado) M.web.tocado();   // one the client sees counts as a change not sent to its web
     // a session that no longer shows in the board's calendar (only its days, D-219) says so
     if (m.pp && el && el.classList.contains('fuera')) X.toast(`«${r.txt || 'La tarea'}» pasa al ${X.fmtDate(r.fecha)}: ya no se ve en este mes. ⌘Z la devuelve.`, { ms: 6000 });   // a day of another month in Mes shows nothing
-    if (m.k === 'ses' && X && X.S && S0 && X.S.key === S0.key) { const sp = span(X), fin = r.fin && r.fin.fecha > r.fecha ? r.fin.fecha : r.fecha; if (fin < sp.lo || r.fecha > sp.hi) X.toast(`«${r.txt || 'La sesión'}» pasa al ${X.fmtDate(r.fecha)}: ya no se ve en este calendario. ⌘Z la devuelve.`, { ms: 6000 }); }
+    if (m.k === 'ses' && !m.esp && X && X.S && S0 && X.S.key === S0.key) { const sp = span(X), fin = r.fin && r.fin.fecha > r.fecha ? r.fin.fecha : r.fecha; if (fin < sp.lo || r.fecha > sp.hi) X.toast(`«${r.txt || 'La sesión'}» pasa al ${X.fmtDate(r.fecha)}: ya no se ve en este calendario. ⌘Z la devuelve.`, { ms: 6000 }); }
   }
   function drop(id, day) {
     const X = I(), s = X && X.S && X.S.slots.find(x => x.id === id); if (!s || X.localDay(s.date) === day) return;
@@ -752,7 +755,7 @@
     const X = I(), pv = X && e.target.closest && e.target.closest('#mesa .side > .cal .cprov');
     if (pv) { if (M.provisional) { const r = M.provisional(pv.dataset.mes, false); if (r && r.error) X.toast(r.error, { error: true }); else X.toast('Mes fijado: sus fechas ya son firmes'); } return; }   // D-358
     if (!X || !e.target.closest || !e.target.closest('#mesa .side > .cal .cmes')) return;
-    if (!X.S) { if (X.contCli && X.contCli() && view.m !== X.hoy().slice(0, 7)) { view.m = X.hoy().slice(0, 7); render(); } return; }   // the page (D-312): today's month
+    if (!X.S || espSec(e.target.closest('.cal'))) { if ((espSec(e.target.closest('.cal')) || (X.contCli && X.contCli())) && view.m !== X.hoy().slice(0, 7)) { view.m = X.hoy().slice(0, 7); render(); } return; }   // the page (D-312) and a sporadic client's (D-377): today's month
     const ini = mesInicial(X, span(X)); if (view.m !== ini) { view.m = ini; render(); }
   }
   // ---------- the right click (D-285): in a day, what can be made there; on a chip, what it is ----------
@@ -760,9 +763,9 @@
   // is the board's, «Nueva historia» (one to design that day; the stories' view opens on it). A post: «Abrir». A session:
   // «Abrir», «Duplicar sesión», «Borrar sesión». Never in the vista cliente nor in a paused tab; elsewhere, the browser's.
   function onCtx(e) {
-    const X = I(), cc = X && !X.S && X.contCli ? X.contCli() : null; if (!X || (!X.S && !cc) || !X.menu || !e.target.closest) return;   // also the page of a client of «Solo contenido» (D-312)
-    const sec = e.target.closest('#mesa .side > .cal'); if (!sec || X.root().classList.contains('client') || X.locked) return;
-    const ch = e.target.closest('.chip'), dia = e.target.closest('.cday[data-day]'), P = M.personal, cli = X.S ? X.S.client : cc;
+    const X = I(), sec = X && e.target.closest ? e.target.closest('#mesa .side > .cal') : null, esp = espSec(sec), cc = X && !X.S && X.contCli ? X.contCli() : null; if (!X || (!X.S && !cc && !esp) || !X.menu || !e.target.closest) return;   // also the page of a client of «Solo contenido» (D-312) and of a sporadic one (D-377)
+    if (!sec || X.root().classList.contains('client') || X.locked) return;
+    const ch = e.target.closest('.chip'), dia = e.target.closest('.cday[data-day]'), P = M.personal, cli = esp ? sec.dataset.cli : X.S ? X.S.client : cc;
     let l = null;
     if (ch && ch.dataset.ses) {
       const id = ch.dataset.ses, de = `.side > .cal .chip[data-ses="${cssq(id)}"]`;
@@ -775,7 +778,7 @@
       l = [{ t: 'Nueva sesión', kb, off: !(P && P.nuevaSesion), hacer: () => P.nuevaSesion({ fecha: d, cliente: cli }) },
         { t: 'Nueva reunión', kb, off: !(P && P.nuevaSesion), hacer: () => P.nuevaSesion({ fecha: d, cliente: cli, clase: 'reunion' }) },   // D-291
         { t: 'Nueva tarea', kb, off: !(P && P.nuevaTarea), hacer: () => P.nuevaTarea({ fecha: d, cliente: cli, de }) }];
-      if (sp && d >= sp.lo && d <= sp.hi && M.hs && M.hs.anadir && !(X.esContenido && X.esContenido(X.S.client))) l.push('-', { t: 'Nueva historia', kb, hacer: () => nuevaHistoria(d) });   // no stories without a feed (D-290)
+      if (!esp && sp && d >= sp.lo && d <= sp.hi && M.hs && M.hs.anadir && !(X.esContenido && X.esContenido(X.S.client))) l.push('-', { t: 'Nueva historia', kb, hacer: () => nuevaHistoria(d) });   // no stories without a feed (D-290)
     }
     if (!l) return;
     e.preventDefault(); e.stopPropagation();

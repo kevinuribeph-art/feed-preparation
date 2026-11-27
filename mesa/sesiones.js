@@ -797,84 +797,129 @@
     mo.observe(det, { attributes: true, attributeFilter: ['hidden', 'data-dlg'] });
     i.focus();
   }
-  // a sporadic client's file: its notes (post-its), its sessions and tasks, «+ Sesión», «+ Tarea» and «Pasar a mensual»
-  const F = { campo: null, firma: '' };
-  function fichaHTML(e) {
-    const hoy = I().hoy(), ss = P.sesiones().filter(k => P.conCli(k, e.id)).sort((a, b) => String(b.fecha || '9').localeCompare(String(a.fecha || '9'))), ts = P.tareas().filter(k => k.cliente === e.id).sort((a, b) => String(a.fecha || '9').localeCompare(String(b.fecha || '9'))), ns = P.notas().filter(k => k.cliente === e.id);
-    const desde = e.creada ? `${['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'][+e.creada.slice(5, 7) - 1]} ${e.creada.slice(0, 4)}` : '';
-    const ses = k => { const ico = k.sesion && k.sesion.clase === 'foto' ? 'camara' : k.sesion && k.sesion.clase === 'video' ? 'video' : k.sesion && k.sesion.clase === 'libre' ? 'libre' : k.sesion && k.sesion.clase === 'reunion' ? 'reunion' : 'sesion', d = k.fecha ? P.difD(hoy, k.fecha) : null;
-      return `<button type="button" class="pp-es-s" data-pp="tver" data-id="${P.esc(k.id)}"><span class="pp-es-d${d != null && d >= 0 ? ' prox' : ''}">${k.fecha ? P.esc(P.tramo(k)) : 'Sin fecha'}</span>${svgI(ico)}<b>${P.esc(k.txt)}</b>${d === 0 ? '<i>hoy</i>' : d === 1 ? '<i>mañana</i>' : ''}</button>`; };
-    return `<div class="pp-card pp-es" role="dialog" aria-modal="true" aria-label="Esporádico: ${P.esc(e.txt)}" tabindex="-1"><div class="pp-es-cab">${P.avatar(e.id, 'lg')}<div class="pp-es-t"><h2 class="pp-es-nom" data-campo="nom">${P.esc(e.txt)}</h2>${desde ? `<p>Esporádico desde ${desde}</p>` : ''}</div>${P.botonesCard(`<button type="button" class="ibtn pp-cb pp-hj-mas" data-es="mas" aria-label="Más del esporádico" title="Más">${svgI('mas3')}</button>`, false)}</div>`
-      + (ns.length ? `<section class="pp-es-sec"><h3>Notas <span>${ns.length}</span></h3><div class="pp-pn">${ns.map(n => `<div class="pp-pt" data-nid="${P.esc(n.id)}" data-pp="tver" data-id="${P.esc(n.id)}" tabindex="0" role="button" aria-label="Nota: ${P.esc(n.txt)}"><div class="pp-ptx">${P.leerTxt(n.txt, { casillas: 'no' })}</div></div>`).join('')}</div></section>` : '')
-      + `<section class="pp-es-sec"><h3>Sesiones <span>${ss.length}</span></h3><div class="pp-es-l">${ss.map(ses).join('')}</div><button type="button" class="pp-cmas" data-es="sesion">${svgI('mas')}Sesión</button></section>`
-      + `<section class="pp-es-sec"><h3>Tareas <span>${ts.filter(k => !k.hecha).length}</span></h3><div class="pp-es-l">${ts.map(k => `<div class="pp-tk${k.hecha ? ' hecha' : ''}" data-tid="${P.esc(k.id)}"><input type="checkbox" class="pp-ck" data-pp="ck" data-id="${P.esc(k.id)}"${k.hecha ? ' checked' : ''} aria-label="Hecha"><span class="pp-tt" data-pp="tver" data-id="${P.esc(k.id)}" tabindex="0" role="button">${P.esc(k.txt)}</span>${k.fecha ? `<span class="pp-tf">${P.esc(P.diaHora(k.fecha).replace(/ \d{4}$/, ''))}</span>` : ''}</div>`).join('')}</div><button type="button" class="pp-cmas" data-es="tarea">${svgI('mas')}Tarea</button></section>`
-      + cobrosHTML(e)
-      + `<div class="pp-es-pie"><button type="button" class="btn2" data-es="pasar" title="Le crea su cliente en la Mesa (sin meses: los crea Claude) y le pasa sus sesiones, tareas y notas. No se deshace con ⌘Z.">Pasar a mensual</button></div></div>`;
+  // ---------- a sporadic client's page (lote 5 de la 4.55, D-377; it was a file over the page, D-207): drawn by personal.js in
+  // the place of the page; its head («‹ Esporádicos», its name written with a click, «Esporádico desde…», «+ Sesión», «+ Reunión»,
+  // «+ Tarea», «+ Nota», «⋯») and three columns: its agenda and its calendar (calendario.js, the «Solo contenido» one) · its tasks
+  // (the page's list, only its own) and its notes · its payments (cobros.js), with their totals and its IVA ----------
+  const PG = { ed: false, fuera: null, id: null };   // its name being written (of which client); what ends it from outside
+  // left without ending it (the page closed, another client's): nothing is being written any more
+  function nomVigente() {
+    if (!PG.ed) return false;
+    const n = P.page && P.page.querySelector('.pp-ep-nom.escribiendo');
+    if (n && P.st && P.st.esp === PG.id) return true;
+    PG.ed = false; if (PG.fuera) { document.removeEventListener('pointerdown', PG.fuera, true); PG.fuera = null; }
+    return false;
   }
-  // its payments: one per session and client, no fee (D-234); drawn by cobros.js, which does what is done in them
+  const MESL0 = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  const ATRAS = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>';   // Lucide chevron-left
+  const icoSes = k => { const c = k.sesion && k.sesion.clase; return svgI(c === 'foto' ? 'camara' : c === 'video' ? 'video' : c === 'libre' ? 'libre' : c === 'reunion' ? 'reunion' : 'sesion'); };
+  const ivaEsp = e => e && e.sinIva === true ? 0 : 21;   // what its new payments take (D-377; a monthly one's, D-374)
+  function paginaHTML(e0, R) {
+    const e = P.TK.get(e0.id) || e0, X = I(), hoy = X.hoy(), id = e.id, esc = P.esc;   // its record (espDe gives its name as a client's)
+    const ss = P.sesiones().filter(k => P.conCli(k, id)), tk = P.tareas().filter(k => k.cliente === id), ns = P.notas().filter(k => k.cliente === id);
+    const t = k => (k.fecha || '') + ' ' + (k.hora || '');
+    const prox = ss.filter(k => k.fecha && P.ultDia(k) >= hoy).sort((a, b) => t(a).localeCompare(t(b))), sinf = ss.filter(k => !k.fecha), pas = ss.filter(k => k.fecha && P.ultDia(k) < hoy).sort((a, b) => t(b).localeCompare(t(a)));
+    const fila = k => { const d = k.fecha ? P.difD(hoy, k.fecha) : null, reu = k.sesion && k.sesion.clase === 'reunion';
+      return `<button type="button" class="pp-es-s" data-tid="${esc(k.id)}" title="${esc((reu ? 'Reunión' : 'Sesión') + ' · ' + k.txt)}"><span class="pp-es-d${d != null && d >= 0 ? ' prox' : ''}">${k.fecha ? esc(P.tramo(k)) : ''}</span>${icoSes(k)}<b>${esc(k.txt)}</b>${d === 0 ? '<i>hoy</i>' : d === 1 ? '<i>mañana</i>' : ''}</button>`; };
+    const grupo = (tt, l) => l.length ? `<h3 class="pp-ep-sub">${tt}</h3><div class="pp-es-l">${l.map(fila).join('')}</div>` : '';
+    const desde = e.creada ? `${MESL0[+e.creada.slice(5, 7) - 1]} ${e.creada.slice(0, 4)}` : '';
+    const mas = svgI('mas'), nT = tk.filter(k => !k.hecha).length;
+    const pn = `<div class="pp-pn">${ns.map(n => `<div class="pp-pt" data-nid="${esc(n.id)}" data-pp="tver" data-id="${esc(n.id)}" tabindex="0" role="button" aria-label="Nota: ${esc(n.txt)}"><div class="pp-ptx">${P.leerTxt(n.txt, { casillas: 'no' })}</div></div>`).join('')}</div>`;
+    return `<div class="pp-ep" data-esp="${esc(id)}">`
+      + `<div class="pp-ep-cab"><button type="button" class="pp-ep-vol" data-pp="ep-volver">${ATRAS}Esporádicos</button>`
+      + `<div class="pp-ep-id">${P.avatar(id, 'lg')}<div class="pp-ep-t"><h1 class="pp-ep-nom" data-pp="ep-nom" tabindex="-1" title="Clic: cambiar el nombre">${esc(e.txt)}</h1>${desde ? `<p>Esporádico desde ${desde}</p>` : ''}</div></div><span class="pp-ep-sp"></span>`
+      + `<div class="pp-ep-acc"><button type="button" class="btn" data-pp="ep-sesion">${mas}Sesión</button><button type="button" class="btn2" data-pp="ep-reunion">${mas}Reunión</button><button type="button" class="btn2" data-pp="ep-tarea">${mas}Tarea</button><button type="button" class="btn2" data-pp="ep-nota">${mas}Nota</button>`
+      + `<button type="button" class="ibtn pp-ep-mas" data-pp="ep-mas" aria-label="Más del esporádico" title="Más">${svgI('mas3')}</button></div></div>`
+      + `<div class="pp-ep-cols"><div class="pp-ep-ag"><section class="pp-ep-p pp-ep-citas" aria-label="Agenda"><h2 class="pp-ep-h">Agenda <span>${prox.length}</span></h2>`
+      + (ss.length ? grupo('Próximas', prox) + grupo('Sin fecha', sinf) + grupo('Pasadas', pas) : '<p class="pp-ep-vacio">Sin sesiones ni reuniones</p>')
+      + `</section><div class="side pp-ep-side"><section class="cal" data-propio data-cli="${esc(id)}" aria-label="Calendario"></section></div></div>`
+      + `<section class="pp-ep-p pp-ep-tn" aria-label="Tareas y notas"><h2 class="pp-ep-h">Tareas <span>${nT}</span></h2>${tk.length ? P.tareasHTML(R, { cli: id }) : '<p class="pp-ep-vacio">Sin tareas</p>'}`
+      + `<h2 class="pp-ep-h pp-ep-h2">Notas <span>${ns.length}</span></h2>${ns.length ? pn : '<p class="pp-ep-vacio">Sin notas</p>'}</section>`
+      + cobrosHTML(e) + `</div></div>`;
+  }
+  // its payments: Cobrado and Pendiente, its IVA and the table of always (one per session and client, D-234, or one free, D-377)
   function cobrosHTML(e) {
-    const CO = M.cobrosUI; if (!CO || !I().cob) return '';
-    const n = I().cob.vivos(e.id).length;
-    return `<section class="pp-es-sec pp-es-cob"><h3>Cobros${n ? ` <span>${n}</span>` : ''}</h3>${CO.html(e.id, { esp: true })}</section>`;
+    const CO = M.cobrosUI, C = I().cob; if (!CO || !C) return `<section class="pp-ep-p pp-ep-cob" aria-label="Cobros"><h2 class="pp-ep-h">Cobros</h2><p class="pp-ep-vacio">${(window.MESA_CARGA || {}).cobros === 'fallo' ? 'No se pudieron cargar los cobros (cobros.js): recarga la página.' : 'Cargando los cobros…'}</p></section>`;
+    const vv = C.vivos(e.id), suma = l => Math.round(l.reduce((n, r) => n + (+r.importe || 0), 0) * 100) / 100, cob = suma(vv.filter(r => r.cobrada)), pend = suma(vv.filter(r => !r.cobrada));
+    const si = ivaEsp(e) === 0, iva = `<span class="co-ivw pp-ep-iv"><span class="co-ivl" aria-hidden="true">IVA</span><select class="co-q co-ivs" data-pp="ep-iva" aria-label="IVA del esporádico" title="Sin IVA: el de sus cobros nuevos; los que ya tiene no cambian"><option value="21"${si ? '' : ' selected'}>21 %</option><option value="0"${si ? ' selected' : ''}>Sin IVA</option></select></span>`;
+    const tot = C.mal && C.mal() ? '' : `<div class="pp-ep-tot"><div><span>Cobrado</span><b>${P.esc(C.eur(cob))}</b></div><div${pend ? ' class="pend"' : ''}><span>Pendiente</span><b>${P.esc(C.eur(pend))}</b></div></div>`;
+    return `<section class="pp-ep-p pp-ep-cob" aria-label="Cobros"><h2 class="pp-ep-h">Cobros${vv.length ? ` <span>${vv.length}</span>` : ''}${iva}</h2>${tot}${CO.html(e.id, { esp: true })}</section>`;
   }
-  function fichaPintar(e, o = {}) {
-    const ov = P.ov; if (!ov || !e) return;
-    const f = JSON.stringify([e, P.CARD.ed, P.vivos().filter(k => P.conCli(k, e.id)), M.cobrosUI && I().cob ? M.cobrosUI.firma(e.id) : '']);
-    if (!o.forzar && f === F.firma && ov.firstChild) return; F.firma = f;
-    P.morfar(ov, fichaHTML(e));                  // in place, only what changed (D-223)
-    const c = ov.firstChild;
-    if (P.CARD.ed) { const n = c.querySelector('[data-campo="nom"]'); n.setAttribute('contenteditable', 'plaintext-only'); n.setAttribute('role', 'textbox'); n.classList.add('escribiendo'); n.focus(); const rg = document.createRange(); rg.selectNodeContents(n); rg.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(rg); }
-    else if (!c.contains(document.activeElement)) c.focus({ preventScroll: true });
-  }
-  const espRec = () => { const C = P.CARD; return C && C.ext === FICHA ? P.TK.get(C.id) : null; };
-  function fichaClic(e) {
-    const t = e.target, c = P.ov && P.ov.firstChild; if (!c || !c.contains(t)) return false;
-    if (P.CARD.pd) { P.CARD.pd = false; return true; }
-    if (t.closest('[data-pp="cerrar"]')) return false;   // the ×: personal.js (D-209)
-    const e0 = espRec(); if (!e0) return true;
-    if (P.CARD.ed && !t.closest('[contenteditable]')) { P.editar(false); return true; }
-    if (!P.CARD.ed && e.detail < 2 && t.closest('[data-campo="nom"]') && !P.seleccionando()) { fichaEscribir({ x: e.clientX, y: e.clientY }); return true; }   // its name: a click writes it (D-209)
-    const a = t.closest('[data-es]'), k = a && a.dataset.es;
-    if (k === 'mas') { const q = a.getBoundingClientRect(); P.abrirMenu(q.left, q.bottom + 4, P.menuEsp(e0.id), a); return true; }
-    if (k === 'sesion') { nueva({ ctx: null, campo: 'ficha', desde: e0 }); return true; }
-    if (k === 'tarea') { P.cerrarCard(true); P.borrador({ cliente: e0.id }); return true; }
-    if (k === 'pasar') { pasar(e0); return true; }
-    const v = t.closest('[data-pp="tver"]'); if (v && !t.closest('.pp-ck')) { P.abrirCard(v.dataset.id); return true; }
-    return true;
-  }
-  function fichaDbl(e) { if (!P.CARD.peq && e.target.closest('[data-campo="nom"]') && !P.CARD.ed) fichaEscribir(null); }
-  function fichaEscribir(pt) {                 // the name, written in its place (nothing else drawn again), the caret where it was pressed
-    const n = P.ov && P.ov.querySelector('.pp-es [data-campo="nom"]'); if (!n) return;
-    P.CARD.ed = true; F.firma = JSON.stringify([espRec(), true, P.vivos().filter(k => P.conCli(k, P.CARD.id))]);
-    n.setAttribute('contenteditable', 'plaintext-only'); n.setAttribute('role', 'textbox'); n.classList.add('escribiendo'); n.focus({ preventScroll: true });
+  const espDePg = () => { const st = P.st, r = st && st.esp ? P.TK.get(st.esp) : null; return r && r.tipo === 'esporadico' && !r.pasado ? r : null; };   // its record
+  // its name, written in its place (a click puts the caret there); Enter or leaving keeps it, Esc goes back
+  function nomEscribir(pt) {
+    const n = P.page && P.page.querySelector('.pp-ep-nom'); if (!n || nomVigente()) return;
+    PG.ed = true; PG.id = P.st && P.st.esp; n.setAttribute('contenteditable', 'plaintext-only'); n.setAttribute('role', 'textbox'); n.removeAttribute('title'); n.classList.add('escribiendo'); n.focus({ preventScroll: true });
     let rg = pt && document.caretRangeFromPoint ? document.caretRangeFromPoint(pt.x, pt.y) : null; if (rg && !n.contains(rg.startContainer)) rg = null;
     if (!rg) { rg = document.createRange(); rg.selectNodeContents(n); rg.collapse(false); }
     const sl = getSelection(); sl.removeAllRanges(); sl.addRange(rg);
+    // a press elsewhere or the focus to another element ends it (saved); the window losing the focus doesn't
+    const fuera = ev => { if (ev.type === 'pointerdown' ? !n.contains(ev.target) : ev.target === n && ev.relatedTarget && !n.contains(ev.relatedTarget)) nomFin(true); };
+    PG.fuera = fuera; document.addEventListener('pointerdown', fuera, true); n.addEventListener('focusout', fuera);
   }
-  function fichaTecla(e) {
-    if (P.CARD.ed && e.key === 'Enter' && !e.isComposing && e.target.isContentEditable) { e.preventDefault(); e.stopImmediatePropagation(); P.editar(false); return true; }
-    if (!P.CARD.ed && e.key === 'Enter' && e.target === P.ov.firstChild) { e.preventDefault(); return true; }
-    if (!P.CARD.ed && (e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('[data-pp="tver"]')) { e.preventDefault(); P.abrirCard(e.target.dataset.id); return true; }
-    return false;
-  }
-  function fichaGuardar() {
-    const e0 = espRec(), n = P.ov && P.ov.querySelector('[data-campo="nom"][contenteditable]'); if (!e0 || !n) return;
-    const v = n.textContent.replace(/\s+/g, ' ').trim(); if (!v || v === e0.txt) return;
-    if ([...I().CL.map(c => c.name), ...P.esps().filter(x => x.id !== e0.id).map(x => x.txt)].some(x => String(x).toLowerCase() === v.toLowerCase())) { I().toast('Ya hay un cliente con ese nombre.'); return; }
+  function nomFin(guardar) {
+    if (!PG.ed) return; PG.ed = false;
+    if (PG.fuera) { document.removeEventListener('pointerdown', PG.fuera, true); const n0 = P.page && P.page.querySelector('.pp-ep-nom'); if (n0) n0.removeEventListener('focusout', PG.fuera); PG.fuera = null; }
+    const e0 = espDePg(), n = P.page && P.page.querySelector('.pp-ep-nom'); if (!e0 || !n) { P.pintar(); return; }
+    const v = n.textContent.replace(/\s+/g, ' ').trim();
+    n.removeAttribute('contenteditable'); n.removeAttribute('role'); n.classList.remove('escribiendo'); n.title = 'Clic: cambiar el nombre';
+    if (!guardar || !v || v === e0.txt) { n.textContent = e0.txt; P.pintar(); return; }
+    if ([...I().CL.map(c => c.name), ...P.esps().filter(x => x.id !== e0.id).map(x => x.txt)].some(x => String(x).toLowerCase() === v.toLowerCase())) { n.textContent = e0.txt; I().toast('Ya hay un cliente con ese nombre.'); P.pintar(); return; }
     P.cambiar(e0.id, x => { x.txt = v; return x; }).then(() => P.pintar());
   }
+  function pagClic(k, a, e) {
+    const e0 = espDePg(); if (!e0) return; nomVigente();
+    if (k === 'ep-nom') { if (!PG.ed && !P.seleccionando()) nomEscribir({ x: e.clientX, y: e.clientY }); return; }
+    if (PG.ed) nomFin(true);
+    if (k === 'ep-volver') { P.salirEsp(); return; }
+    if (k === 'ep-sesion' || k === 'ep-reunion') { nueva({ ctx: null, campo: 'ficha', desde: e0, clase: k === 'ep-reunion' ? 'reunion' : undefined }); return; }
+    if (k === 'ep-tarea' || k === 'ep-nota') { P.borrador({ cliente: e0.id, tipo: k === 'ep-nota' ? 'nota' : 'tarea', de: `[data-pp="${k}"]` }); return; }
+    if (k === 'ep-mas') { const q = a.getBoundingClientRect(); P.abrirMenu(q.right - 220, q.bottom + 4, [['pasar', 'Pasar a mensual…', () => pasar(e0)], ...P.menuEsp(e0.id)], a); }
+  }
+  // its IVA (D-377): «Sin IVA» goes to its new payments; a step of ⌘Z, with «Deshacer»
+  function pagCambio(t) {
+    if (!t.matches('[data-pp="ep-iva"]')) return false;
+    const e0 = espDePg(); if (!e0) return true;
+    const si = t.value === '0', antes = e0.sinIva === true; if (si === antes) return true;
+    const poner = v => P.cambiar(e0.id, x => { if (v) x.sinIva = true; else delete x.sinIva; return x; }).then(() => P.pintar());
+    poner(si).then(() => I().toast(si ? 'Sin IVA: sus cobros nuevos irán sin IVA; los que ya tiene no cambian.' : 'Con IVA (21 %) en sus cobros nuevos.', { action: 'Deshacer', ms: 6000, onAction: () => poner(antes) }));
+    return true;
+  }
+  function pagTecla(e) {
+    if (!nomVigente()) return false;
+    const n = P.page && P.page.querySelector('.pp-ep-nom'); if (!n) return false;
+    if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); nomFin(false); n.focus({ preventScroll: true }); return true; }   // also with the focus gone (another window)
+    if (e.target !== n) return false;
+    if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); e.stopImmediatePropagation(); nomFin(true); n.focus({ preventScroll: true }); return true; }
+    if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); nomFin(false); n.focus({ preventScroll: true }); return true; }
+    return true;                               // the rest is typed (the page's keys aren't for it)
+  }
+  function pagTras(page) { if (M.calendario && M.calendario.render) M.calendario.render(); }   // its calendar, in its place (its section is kept)
   // «Pasar a mensual»: asked first (it isn't undone with ⌘Z); the mesa's client is made without months (Claude makes them, D-184),
   // its sessions, tasks and notes go to it, the page stays; the sporadic record stays, marked as passed and hidden, so that an
   // older file imported doesn't bring it back
   function pasar(e0) {
-    const X = I();
-    X.showDialog('pp-pasar', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Pasar «${P.esc(e0.txt)}» a mensual</h3><p>Se crea su cliente en la Mesa, sin meses: los crea Claude. Sus sesiones, tareas y notas pasan a él. No se deshace con ⌘Z.</p><div class="row"><button type="button" class="btn" data-pp-pasar="1">Pasar a mensual</button></div>`);
-    const det = X.root().querySelector('.detail'), b = det.querySelector('[data-pp-pasar]'); b.focus();
-    b.addEventListener('click', async () => {
+    const X = I(), C = X.cob, id = e0.id, ns = n => n;
+    const nS = P.sesiones().filter(k => P.conCli(k, id)).length, nT = P.tareas().filter(k => k.cliente === id).length, nN = P.notas().filter(k => k.cliente === id).length, nC = C ? C.vivos(id).length : 0;
+    const pl = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`, cosas = [nS && pl(nS, 'sesión', 'sesiones'), nT && pl(nT, 'tarea', 'tareas'), nN && pl(nN, 'nota', 'notas'), nC && pl(nC, 'cobro', 'cobros')].filter(Boolean);
+    const lleva = (cosas.length ? `Se lleva ${cosas.length > 1 ? cosas.slice(0, -1).join(', ') + ' y ' + cosas[cosas.length - 1] : cosas[0]}` : 'Pasa sin sesiones, tareas, notas ni cobros') + (e0.sinIva ? ', y su «Sin IVA»' : '') + '.';
+    const TIP = [['redes', 'Gestión de redes', 'Tendrá su pestaña arriba; sus meses los crea Claude.'], ['contenido', 'Solo contenido', 'Tendrá su pestaña arriba, con su página de entregas.']];
+    let tipo = 'redes';
+    X.showDialog('pp-pasar', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Pasar «${P.esc(e0.txt)}» a mensual</h3>`
+      + `<form class="form pp-pasf" autocomplete="off"><label id="pp-pas-tl">Tipo de cliente</label><div class="pp-ns-tipos pp-pas-t" role="radiogroup" aria-labelledby="pp-pas-tl">${TIP.map(([k, l], i) => `<button type="button" role="radio" class="pp-ns-t${i ? '' : ' on'}" data-k="${k}" aria-checked="${!i}" tabindex="${i ? -1 : 0}">${l}</button>`).join('')}</div>`
+      + `<p class="pp-pas-p" data-pas="lleva">${P.esc(lleva)} ${TIP[0][2]}</p><p class="pp-pas-p pp-pas-no">No se deshace: ni con ⌘Z ni volviendo a esporádico.</p><div class="row"><button type="submit" class="btn" data-pp-pasar="1">Pasar a mensual</button></div></form>`);
+    const det = X.root().querySelector('.detail'), f = det.querySelector('form.pp-pasf'), b = f.querySelector('[data-pp-pasar]'), ts = [...f.querySelectorAll('.pp-pas-t [data-k]')], txt = f.querySelector('[data-pas="lleva"]');
+    const elegir = (x, foco) => { tipo = x.dataset.k; ts.forEach(y => { const s0 = y === x; y.classList.toggle('on', s0); y.setAttribute('aria-checked', String(s0)); y.tabIndex = s0 ? 0 : -1; }); txt.textContent = `${lleva} ${TIP.find(z => z[0] === tipo)[2]}`; if (foco) x.focus(); };
+    ts.forEach(x => x.addEventListener('click', () => elegir(x)));
+    f.querySelector('.pp-pas-t').addEventListener('keydown', ev => { const i = ts.indexOf(document.activeElement); if (i < 0 || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(ev.key)) return; ev.preventDefault(); elegir(ts[(i + (ev.key === 'ArrowLeft' || ev.key === 'ArrowUp' ? ts.length - 1 : 1)) % ts.length], true); });
+    ts[0].focus();
+    f.addEventListener('submit', async ev => {
+      ev.preventDefault(); if (b.disabled) return;
       if (X.CL.some(c => String(c.name).trim().toLowerCase() === String(e0.txt).trim().toLowerCase())) { X.closeDetail(); X.toast(`Ya hay un cliente mensual que se llama «${e0.txt}»: cambia antes el nombre del esporádico.`, { ms: 7000 }); return; }
       b.disabled = true;
-      let c; try { c = await M.addClient({ name: e0.txt }); } catch (err) { X.toast('No se pudo: ' + ((err && err.message) || err)); b.disabled = false; return; }
-      try { if (I().cob) for (const r of I().cob.vivos(e0.id)) await I().cob.parche(r.id, { cliente: c.id }); }   // its payments go with it first (D-234)
+      let c; try { c = await M.addClient({ name: e0.txt, servicio: tipo }); } catch (err) { X.toast('No se pudo: ' + ((err && err.message) || err)); b.disabled = false; return; }
+      try { if (e0.sinIva && C && C.ivaPoner) await C.ivaPoner(c.id, true); } catch (err) { /* its IVA, by hand in «Editar cliente · Cobros» */ }   // its «Sin IVA» goes with it (D-377)
+      try { if (C) for (const r of C.vivos(e0.id)) await C.parche(r.id, { cliente: c.id }); }   // its payments go with it first (D-234)
       catch (err) { X.toast('No se pudo pasar sus cobros: ' + ((err && err.message) || err), { ms: 8000 }); b.disabled = false; return; }
       const now = P.ahoraISO(), cambios = [];
       // a session shared with others: only its part (D-217)
@@ -885,8 +930,8 @@
       P.remapH(pasa, e0.id);   // its own steps go: it can't come back unpassed
       if (P.st.tcli === e0.id) P.st.tcli = c.id;
       X.closeDetail(); if (P.CARD && P.CARD.id === e0.id) P.cerrarCard(true);
-      P.st.cvista = 'mensuales'; await P.refrescar(); P.pintar();
-      X.toast(`«${e0.txt}» ya es mensual: sus meses los crea Claude.`);
+      P.st.cvista = 'mensuales'; if (P.st.esp === e0.id) P.salirEsp(false); await P.refrescar(); P.pintar();
+      X.toast(tipo === 'contenido' ? `«${e0.txt}» ya es de solo contenido: tiene su pestaña arriba.` : `«${e0.txt}» ya es mensual: sus meses los crea Claude.`);
     });
   }
 
@@ -976,12 +1021,13 @@
     cerrar: () => { if (ctlCampo) { ctlCampo.apagar(); ctlCampo = null; } S._id = null; S.firma = ''; mov = null; decodQ = []; soltarFotos(); },
     nueva, volverTexto, duplicar
   };
-  const FICHA = {
-    cls: 'pp-ficha', pintar: (e, o) => fichaPintar(e, o), clic: fichaClic, dbl: fichaDbl, tecla: fichaTecla, guardar: () => fichaGuardar(),
-    menu: e => { if (e.target.closest('.pp-es-cab')) { e.preventDefault(); const e0 = espRec(); if (e0) P.abrirMenu(e.clientX, e.clientY, P.menuEsp(e0.id)); return true; } return false; },
+  const PAGINA = {
+    pagina: (e, R) => paginaHTML(e, R), tras: pagTras, pagClic, pagCambio, pagTecla, ocupada: () => nomVigente(),
+    vivo: n => n.nodeType === 1 && n.classList.contains('pp-ep-nom') && nomVigente(),   // its name being written: left as it is by a drawing
     // opened from the line of its payments (D-235): its «Cobros» in sight, the focus on its first control
-    aCobros: () => setTimeout(() => { const ov = P.ov, sc = ov && ov.querySelector('.pp-es-cob'); if (!sc) return; sc.scrollIntoView({ block: 'nearest' }); const b = sc.querySelector('[data-co="num"], .co-mas:not(:disabled)'); if (b) b.focus({ preventScroll: true }); }, 60),
-    cerrar: () => { F.firma = ''; }, nuevo: () => pedirEsp(e2 => { if (e2) { P.st.cvista = 'esporadicos'; P.pintar(); } })
+    aCobros: page => requestAnimationFrame(() => { const sc = page && page.querySelector('.pp-ep-cob'); if (!sc) return; sc.scrollIntoView({ block: 'nearest' }); const b = sc.querySelector('[data-co="num"], [data-co="con"], [data-co="nuevo-ses"]'); if (b) b.focus({ preventScroll: true }); }),
+    enfocar: page => requestAnimationFrame(() => { const h = page && page.querySelector('.pp-ep-nom'); if (h) h.focus({ preventScroll: true }); }),
+    nuevo: () => pedirEsp(e2 => { if (e2) P.abrirEsp(e2.id); })   // made: its page (D-377)
   };
 
   // ---------- mounting: once personal.js is there ----------
@@ -990,7 +1036,7 @@
   listo().then(() => {
     P = M.personal._p;
     if (MOVIL) return;   // the iPhone (D-275): no listeners, no style, no limpiar() (it writes tfotos on its own: R1)
-    P.EXT.sesion = HOJA; P.EXT.ficha = FICHA;
+    P.EXT.sesion = HOJA; P.EXT.ficha = PAGINA;
     on(document, 'contextmenu', e => { const C = P.CARD; if (C && C.ext && C.ext.menu && P.enCard(e.target)) C.ext.menu(e); }, true);
     for (const ty of ['dragstart', 'dragenter', 'dragover', 'dragleave', 'drop']) on(document, ty, e => { const C = P.CARD; if (C && C.ext === HOJA && P.enCard(e.target)) arrastre(e); });
     on(document, 'pointerdown', e => { const C = P.CARD; if (C && C.ext === HOJA && P.enCard(e.target)) alPuntero(e); });
@@ -1066,8 +1112,8 @@
 
   // ---------- style: only the mesa's tokens (D-131), its icons and stroke (D-168), its scale and weights (D-172) ----------
   const ESTILO = `
-#mesa .pp-ov.pp-hoja,#mesa .pp-ov.pp-ficha{padding:28px 16px}
-#mesa .pp-card.pp-hj:focus-visible,#mesa .pp-card.pp-es:focus-visible{outline:none}
+#mesa .pp-ov.pp-hoja{padding:28px 16px}
+#mesa .pp-card.pp-hj:focus-visible{outline:none}
 #mesa .pp-card.pp-hj{width:min(1180px,100%);max-height:100%;height:100%;padding:0;display:flex;flex-direction:column;overflow:auto}
 #mesa .pp-hj-cab{padding:22px 26px 6px}
 #mesa .pp-hj-t{display:flex;align-items:center;gap:12px}
@@ -1083,8 +1129,8 @@
 #mesa .pp-ov .pp-card.pp-hj.amplia{width:100%;max-width:none;height:100%;border-radius:0;box-shadow:none;padding:0;display:flex}
 #mesa .pp-ov.amplia .pp-hj-cab{padding:22px 40px 6px}
 #mesa .pp-ov.amplia .pp-hj-cols{padding:6px 32px 28px 40px}
-#mesa .pp-hj svg,#mesa .pp-es svg,#mesa .pp-ns-cab svg,#mesa .pp-ns svg,#mesa .pp-ml svg{stroke-width:var(--i-trazo)}
-#mesa .pp-hj svg path,#mesa .pp-hj svg rect,#mesa .pp-hj svg circle,#mesa .pp-es svg path,#mesa .pp-es svg rect,#mesa .pp-es svg circle,#mesa .pp-ns-cab svg path,#mesa .pp-ns-cab svg circle,#mesa .pp-ns svg path,#mesa .pp-ns svg rect,#mesa .pp-ns svg circle,#mesa .pp-ml svg path{vector-effect:non-scaling-stroke}
+#mesa .pp-hj svg,#mesa .pp-ep svg,#mesa .pp-ns-cab svg,#mesa .pp-ns svg,#mesa .pp-ml svg{stroke-width:var(--i-trazo)}
+#mesa .pp-hj svg path,#mesa .pp-hj svg rect,#mesa .pp-hj svg circle,#mesa .pp-ep svg path,#mesa .pp-ep svg rect,#mesa .pp-ep svg circle,#mesa .pp-ns-cab svg path,#mesa .pp-ns-cab svg circle,#mesa .pp-ns svg path,#mesa .pp-ns svg rect,#mesa .pp-ns svg circle,#mesa .pp-ml svg path{vector-effect:non-scaling-stroke}
 #mesa .pp-hj-meta{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:10px 0 0 29px}
 #mesa .pp-hj-chip{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:0 4px 0 10px;border:0;border-radius:var(--r-pill);background:var(--bg-2);font:inherit;font-size:12.5px;color:var(--ink-2)}
 #mesa .pp-hj-chip.ro{padding:0 12px 0 10px}
@@ -1255,23 +1301,52 @@
 #mesa .pp-ml-cab{font-size:11.5px;color:var(--mute);margin:0 0 4px}
 #mesa .pp-ml-l{display:flex;flex-direction:column;gap:6px;max-height:min(52vh,460px);overflow:auto;padding:2px}
 #mesa .pp-ml-f input{min-width:0}
-/* a sporadic client's file */
-#mesa .pp-card.pp-es{width:min(720px,100%);padding:24px 28px 22px}
-#mesa .pp-es-cab{display:flex;align-items:flex-start;gap:14px;margin:0 0 6px}
+/* a sporadic client's page (D-377): the page's place, its head and three columns, each its own scroll; at 980 or less, one */
 #mesa .pp-ava.lg{width:44px;height:44px;font-size:16px}
-#mesa .pp-es-t{flex:1;min-width:0}#mesa .pp-es-t p{margin:2px 0 0;font-size:12.5px;color:var(--mute)}
-#mesa .pp-es-nom{margin:-2px 0 -2px -6px;padding:3px 6px;border-radius:var(--r-sm);font-size:20px;font-weight:800;line-height:1.3;outline:none;overflow-wrap:anywhere}
-
-#mesa .pp-es-sec{margin:20px 0 0 58px}
-#mesa .pp-es-sec h3{margin:0 0 8px;font-size:14px;font-weight:600}#mesa .pp-es-sec h3 span{font-weight:400;color:var(--mute);font-size:12.5px}
 #mesa .pp-es-l{display:flex;flex-direction:column}
 #mesa .pp-es-s{display:grid;grid-template-columns:150px 18px minmax(0,1fr) auto;align-items:center;gap:10px;min-height:38px;padding:4px 6px;margin-left:-6px;border:0;border-bottom:1px solid var(--line2);background:none;font:inherit;font-size:13px;color:var(--ink);text-align:left;cursor:pointer;border-radius:var(--r-xs);transition:background var(--d1) var(--ease)}
 #mesa .pp-es-s:hover{background:var(--bg-2)}#mesa .pp-es-s svg{width:16px;height:16px;color:var(--mute)}
 #mesa .pp-es-s b{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#mesa .pp-es-s i{font-style:normal;font-size:12px;font-weight:600;color:var(--acc-ink)}
 #mesa .pp-es-d{font-size:12.5px;color:var(--mute)}#mesa .pp-es-d.prox{color:var(--ink);font-weight:600}
-#mesa .pp-es-pie{display:flex;justify-content:flex-end;margin:22px 0 0;padding:14px 0 0;border-top:1px solid var(--line2)}
+#mesa .pp.pp-ep-on{display:flex;flex-direction:column;overflow:hidden;padding-bottom:20px}
+#mesa .pp-ep{flex:1;min-height:0;display:flex;flex-direction:column}
+#mesa .pp-ep-cab{flex:none;display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;padding:6px 0 14px}
+#mesa .pp-ep-vol{display:inline-flex;align-items:center;gap:2px;min-height:32px;margin:0 6px 0 -6px;padding:0 8px 0 2px;border:0;border-radius:var(--r-pill);background:none;font:inherit;font-size:13px;font-weight:600;color:var(--acc-ink);cursor:pointer;transition:background var(--d1) ease-out}
+#mesa .pp-ep-vol svg{width:16px;height:16px;stroke-width:2}#mesa .pp-ep-vol:hover{background:var(--bg-2)}
+#mesa .pp-ep-id{display:flex;align-items:center;gap:12px;min-width:0}#mesa .pp-ep-t{min-width:0}
+#mesa .pp-ep h1.pp-ep-nom{margin:0 0 0 -6px;padding:2px 6px;border-radius:var(--r-sm);font-size:22px;font-weight:800;line-height:1.25;letter-spacing:-.01em;overflow-wrap:anywhere;outline:none;cursor:text}
+#mesa .pp-ep-nom:hover:not(.escribiendo){background:var(--bg-2)}#mesa .pp-ep-nom.escribiendo{background:none;box-shadow:inset 0 0 0 1px var(--pp-escr);outline:none}   /* what is written, D-213 */
+#mesa .pp-ep-nom:focus-visible:not(.escribiendo){box-shadow:0 0 0 2px var(--acc-soft)}
+#mesa .pp-ep-t p{margin:1px 0 0;font-size:12.5px;color:var(--mute)}
+#mesa .pp-ep-sp{flex:1}
+#mesa .pp-ep-acc{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#mesa .pp-ep-acc svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}#mesa .pp-ep-acc .ibtn svg{width:18px;height:18px}
+#mesa .pp-ep-cols{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(320px,380px);gap:12px}
+#mesa .pp-ep-ag{min-height:0;display:grid;grid-template-rows:minmax(0,auto) minmax(300px,1fr);gap:12px}
+#mesa .pp-ep-p{min-width:0;min-height:0;overflow-y:auto;overscroll-behavior:contain;background:var(--panel);border-radius:var(--r-lg);padding:14px 18px 16px}
+#mesa .pp-ep-side{min-height:0;background:none}#mesa .pp-ep-side>.cal{height:100%;min-height:0;border-top:0;border-radius:var(--r-lg)}
+#mesa .pp-ep-side>.cal .calhead{padding:12px 12px 4px 18px}
+#mesa .pp-ep h2.pp-ep-h{display:flex;align-items:baseline;gap:8px;margin:0 0 8px;font-size:17px;font-weight:800;letter-spacing:-.025em;color:var(--ink)}
+#mesa .pp-ep-h>span:not(.co-ivw){font-size:13px;font-weight:400;letter-spacing:0;color:var(--mute)}
+#mesa .pp-ep h2.pp-ep-h2{margin-top:22px}
+#mesa .pp-ep h3.pp-ep-sub{margin:14px 0 2px;font-size:12px;font-weight:600;color:var(--mute)}#mesa .pp-ep h3.pp-ep-sub:first-of-type{margin-top:2px}
+#mesa .pp-ep-vacio{margin:0;font-size:13px;color:var(--mute)}
+#mesa .pp-ep-p .pp-es-s{grid-template-columns:132px 18px minmax(0,1fr) auto}#mesa .pp-ep-p .pp-es-l>.pp-es-s:last-child{border-bottom:0}
+#mesa .pp-ep-tn .pp-tk .pp-avs{display:none}
+#mesa .pp-ep-tn .pp-tk.pp-tg,#mesa .pp-ep-tn .pp-sinf .pp-tk.pp-tg{grid-template-columns:42px 32px minmax(0,1fr)}#mesa .pp-ep-tn .pp-sinf .pp-tfv{display:block}
+#mesa .pp-ep-tn .pp-tk:hover{background:var(--bg-2)}
+#mesa .pp-ep-tn .pp-tv{display:block}#mesa .pp-ep-tn .pp-sinf{margin:14px 0 0;padding:10px 0 0;border-left:0;border-top:1px solid var(--line2)}#mesa .pp-ep-tn .pp-sinf .pp-sub{padding:4px 10px}
+#mesa .pp-ep-tn .pp-pn{margin:2px 0 0}
+#mesa .pp-ep-h .pp-ep-iv{margin-left:auto;align-self:center;font-size:13px;font-weight:400;letter-spacing:0}#mesa .pp-ep-iv .co-ivs + .mx-sel{width:auto;min-width:96px}
+#mesa .pp-ep-tot{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 14px}
+#mesa .pp-ep-tot>div{padding:10px 12px;border-radius:var(--r-md);background:var(--bg-2)}
+#mesa .pp-ep-tot span{display:block;font-size:12px;color:var(--mute)}
+#mesa .pp-ep-tot b{display:block;margin-top:2px;font-size:18px;font-weight:800;letter-spacing:-.01em;color:var(--ink)}#mesa .pp-ep-tot .pend b{color:var(--acc-ink)}
+#mesa .pp-pas-t{display:flex;gap:6px;margin:4px 0 12px}
+#mesa .pp-pas-p{margin:0 0 10px;font-size:13px;line-height:1.5;color:var(--ink-2)}#mesa .pp-pas-p.pp-pas-no{color:var(--ink);font-weight:600}
+@media (max-width:980px){#mesa .pp.pp-ep-on{display:block;overflow-y:auto}#mesa .pp-ep-cols{display:flex;flex-direction:column}#mesa .pp-ep-ag{display:flex;flex-direction:column}#mesa .pp-ep-cols .pp-ep-p,#mesa .pp-ep-side{flex:none;overflow:visible}#mesa .pp-ep-side>.cal{height:auto;min-height:420px}}
 @media (max-width:720px){
-  #mesa .pp-ov.pp-hoja,#mesa .pp-ov.pp-ficha{padding:16px 10px}#mesa .pp-ov.pp-hoja.amplia{padding:0}
+  #mesa .pp-ov.pp-hoja{padding:16px 10px}#mesa .pp-ov.pp-hoja.amplia{padding:0}
   #mesa .pp-ov.amplia .pp-hj-cab{padding:18px 16px 4px}#mesa .pp-ov.amplia .pp-hj-cols{padding:6px 14px 24px 22px}
   #mesa .pp-hj-cab{padding:18px 16px 4px}#mesa .pp-hj-meta{margin-left:0}#mesa .pp-hj-tira{margin-left:0}#mesa .pp-hj-oculta,#mesa .pp-ov.amplia .pp-hj-oculta{margin:32px 16px}
   #mesa .pp-hj-cols{padding:6px 14px 24px 22px}

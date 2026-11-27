@@ -19,6 +19,7 @@
   const INI = ['D', 'L', 'M', 'X', 'J', 'V', 'S'], DS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
   const LS_FILA = 'mesa-pp-fila', LS_ALC = 'mesa-pp-alcance', LS_VISTA = 'mesa-pp-vista';   // remembered in this browser
   const SS_CLI = 'mesa-pp-cliente';            // this tab left the page for a client: a reload stays there
+  const SS_CV = 'mesa-pp-cvista', SS_ESP = 'mesa-pp-esp';   // «Mensuales · Esporádicos» as this tab left it, and a sporadic client's page open in it (lote 5 de la 4.55, D-377)
   const SS_TAREAS = 'mesa-pp-tareas';          // Tareas folded ('1') or open ('0') as this tab left it (D-225); a new tab, folded
   const TOPE = 8;                              // lines of a group before «N más»
   const FOTO_PX = 1600, MINI_PX = 160;         // a task's photo, lowered; and the thumbnail drawn
@@ -78,7 +79,7 @@
   const PLG0 = { tareas: true, clientes: false, avisos: false };
   const st = {
     on: false, filtro: null, modo: 'semana', desp: 0, abiertos: new Set(), plg: { ...PLG0 }, avTareas: false,
-    tcli: null, tsem: 0, tmes: 0, ttodas: false, nueva: { fecha: '', cliente: '', fotos: [] }, cvista: 'mensuales',
+    tcli: null, tsem: 0, tmes: 0, ttodas: false, nueva: { fecha: '', cliente: '', fotos: [] }, cvista: 'mensuales', esp: null,
     fila: [1, 2, 5].includes(+lsGet(LS_FILA)) ? +lsGet(LS_FILA) : 2,
     alcance: ['sem', '1m', '2m', '3m'].includes(lsGet(LS_ALC)) ? lsGet(LS_ALC) : '1m',
     vista: ['lista', 'semana', 'mes'].includes(lsGet(LS_VISTA)) ? lsGet(LS_VISTA) : 'lista'
@@ -503,11 +504,14 @@
   }
   const barraPg = (h, n) => `<span class="pp-pb" aria-hidden="true"><i style="width:${(h / n * 100).toFixed(1)}%"></i></span>`;
   const fotosURL = f => { if (!f || !(f.mini instanceof Blob)) return ''; let u = MINI.get(f.id); if (!u) { u = URL.createObjectURL(f.mini); MINI.set(f.id, u); } return u; };
-  function tareasHTML(R) {
-    const X = I(), hoy = R.hoy, todas = enLista(), fin = addD(hoy, 6);
+  // pg: {cli}, the list of a sporadic client's page (D-377): only its tasks (its sessions go in its agenda), all those ahead, without
+  // the field, the filter nor the bar
+  function tareasHTML(R, pg) {
+    const X = I(), hoy = R.hoy, todas = enLista().filter(k => !pg || k.tipo === 'tarea'), fin = addD(hoy, 6);
+    const tcli = pg ? pg.cli : st.tcli, vista = pg ? 'lista' : st.vista, ttodas = pg ? false : st.ttodas;
     const conT = [...R.filas.map(f => f.c), ...esps().map(e => ({ id: e.id, name: e.txt }))].filter(c => vivos().some(k => conCli(k, c.id) && k.tipo !== 'esporadico' && !(k.hecha && X.localDay(k.hecha) < hoy)));   // the clients with tasks, sessions or notes (a sporadic one too, D-207)
-    if (st.tcli && !conT.some(c => c.id === st.tcli)) st.tcli = null;
-    const l = todas.filter(k => !st.tcli || conCli(k, st.tcli));
+    if (!pg && st.tcli && !conT.some(c => c.id === st.tcli)) st.tcli = null;
+    const l = todas.filter(k => !tcli || conCli(k, tcli));
     const venc = k => !k.hecha && k.fecha && ultDia(k) < hoy;   // a session, once its last day passed (D-218)
     const diaTxt = d => d === hoy ? 'hoy' : d > hoy && d <= fin ? `${DS[dow(d)]} ${+d.slice(8, 10)}` : corto(d);
     const ck = k => `<input type="checkbox" class="pp-ck" data-pp="ck" data-id="${esc(k.id)}"${k.hecha ? ' checked' : ''} aria-label="Hecha">`;
@@ -544,11 +548,11 @@
     const filtro = conT.length ? `<div class="pp-tcl" role="group" aria-label="Ver las tareas de"><button type="button" class="pp-tc todos${st.tcli ? '' : ' on'}" data-pp="tcli" data-c="" aria-pressed="${!st.tcli}">Todos</button>${conT.map(c => `<button type="button" class="pp-tc${st.tcli === c.id ? ' on' : ''}" data-pp="tcli" data-c="${esc(c.id)}" aria-pressed="${st.tcli === c.id}" title="${esc(c.name)}" aria-label="${esc(c.name)}">${avatar(c.id)}</button>`).join('')}</div>` : '<span></span>';
     const sw = `<label class="sw pp-sw"><input type="checkbox" data-pp="ttodas"${st.ttodas ? ' checked' : ''}> Todas</label>`;
     let izq = '', barra = '', der = '';
-    if (st.vista === 'lista') {
-      const [r0, r1] = alcance(hoy), en = d => d >= r0 && d <= r1;
+    if (vista === 'lista') {
+      const [r0, r1] = pg ? ['0000-01-01', '9999-12-31'] : alcance(hoy), en = d => d >= r0 && d <= r1;
       // apagado: what is left to do up to the scope and what was done today (struck out until tomorrow); encendido: also what
       // was done, within the scope. The overdue ones, always (D-180)
-      const lf = l.filter(k => k.fecha && (venc(k) || (st.ttodas ? en(k.fecha) : ((!k.hecha && k.fecha <= r1 && ultDia(k) >= hoy) || (hechaHoy(k, hoy) && k.fecha <= r1))))).sort((a, b) => a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : String(a.hora || '').localeCompare(String(b.hora || '')) || String(a.creada).localeCompare(String(b.creada)));
+      const lf = l.filter(k => k.fecha && (venc(k) || (ttodas ? en(k.fecha) : ((!k.hecha && k.fecha <= r1 && ultDia(k) >= hoy) || (hechaHoy(k, hoy) && k.fecha <= r1))))).sort((a, b) => a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : String(a.hora || '').localeCompare(String(b.hora || '')) || String(a.creada).localeCompare(String(b.creada)));
       barra = `<span class="pp-tsw"><div class="seg pp-rg" role="group" aria-label="Hasta dónde">${Object.keys(RANGO).map(k => `<button type="button" class="${st.alcance === k ? 'on' : ''}" data-pp="alcance" data-r="${k}" aria-pressed="${st.alcance === k}" title="${RANGO[k][0]} atrás y adelante">${RANGO[k][1]}</button>`).join('')}</div>${sw}</span>`;
       // in groups as Avisos (D-371): «Se ha pasado» (only if there is), «Hoy» with «Mañana» as its subtitle, «Más adelante» up to the
       // scope; each says what is left to do. The group is the core's (grupoT), the iPhone's
@@ -559,7 +563,7 @@
         + (G.hoy.length || G.man.length ? grupo('hoy', 'Hoy', G.hoy.length ? sinH(G.hoy) : null, (G.hoy.length ? filas(G.hoy, 'hoy') : '<p class="pp-nada">Nada para hoy</p>') + (G.man.length ? `<p class="pp-sub pp-tsub">Mañana <span>${sinH(G.man)}</span></p>${filas(G.man, 'man')}` : '')) : '')
         + (G.despues.length ? grupo('despues', 'Más adelante', sinH(G.despues), filas(G.despues, 'despues')) : '')
         || `<p class="pp-orden">${l.some(k => k.fecha) ? 'Nada con fecha aquí' : 'Ninguna con fecha'}</p>`;
-      const sinV = l.filter(k => !k.fecha && (st.ttodas ? (!k.hecha || en(X.localDay(k.hecha))) : (!k.hecha || hechaHoy(k, hoy))));
+      const sinV = l.filter(k => !k.fecha && (ttodas ? (!k.hecha || en(X.localDay(k.hecha))) : (!k.hecha || hechaHoy(k, hoy))));
       if (sinV.length) der = `<div class="pp-sinf"><p class="pp-sub">Sin fecha <span>${sinV.filter(k => !k.hecha).length}</span></p><div class="pp-lista">${sinV.map(k => linea(k, null)).join('')}</div></div>`;
     } else {
       const ver = k => st.ttodas || !k.hecha || hechaHoy(k, hoy);
@@ -580,6 +584,7 @@
           return `<div class="pp-md${d === hoy ? ' hoy' : ''}${fuera ? ' fuera' : ''}" data-day="${d}"><span class="pp-mn">${+d.slice(8, 10)}</span>${ks.slice(0, 2).map(k => `<span class="pp-mt${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}${k.tipo === 'sesion' ? ' ses' : ''}${sigue(k, d)}${mkCls(marcaT(k, hoy))}" data-tid="${esc(k.id)}" ${ver(k)} title="${k.tipo === 'sesion' ? 'Sesión: ' : ''}${esc(k.txt)}${k.tipo === 'sesion' && k.fin ? ' · ' + esc(tramo(k)) : k.hora ? ' · ' + esc(k.hora) : ''}${venc(k) ? ' · ' + esc(corto(k.fecha)) : ''}">${k.tipo === 'sesion' ? ICO.sesion + (k.hora && k.fecha === d ? `<span class="pp-mh">${esc(k.hora)}</span> ` : '') : (k.fotos || []).length ? `<img src="${fotosURL(k.fotos[0])}" alt="">` : ''}${esc(k.txt)}${(k.subtareas || []).length ? ` · ${k.subtareas.filter(x => x.hecha).length}/${k.subtareas.length}` : ''}</span>`).join('')}${ks.length > 2 ? `<span class="pp-mm">${ks.length - 2} más</span>` : ''}</div>`; }).join('')}</div></div>`;
       }
     }
+    if (pg) return `<div class="pp-pc pp-ep-tl"><div class="pp-tv"><div class="pp-tvi">${izq}</div>${der}</div></div>`;
     const ns = st.vista === 'lista' ? notas().filter(n => st.tcli ? n.cliente === st.tcli : !n.cliente) : [];
     // the small post-it draws the marks without using them: a click opens the note (D-202)
     const pn = ns.length ? `<div class="pp-pn">${ns.map(n => `<div class="pp-pt" data-nid="${esc(n.id)}" ${ver(n)} aria-label="Nota: ${esc(n.txt)}"><div class="pp-ptx">${leerTxt(n.txt, { casillas: 'no' })}</div></div>`).join('')}</div>` : '';
@@ -663,7 +668,10 @@
   function pintar(R0) {
     if (!st.on || !page || !D) { if (CARD && CARD.tablero) pintarCard(); return; }   // a session's sheet over the board (D-219)
     R = R0 || calcular(D);
-    const html = pagina(R);
+    if (st.esp && !espDe(st.esp)) { st.esp = null; ssSet(SS_ESP, null); }   // gone (deleted, passed, another tab): its list
+    const ep = st.esp && EXT.ficha && EXT.ficha.pagina ? espDe(st.esp) : null;
+    page.classList.toggle('pp-ep-on', !!ep);
+    const html = ep ? EXT.ficha.pagina(ep, R) : pagina(R);
     if (html === ultimo && page.firstChild) { pintarCard(); return; }   // nothing changed: what is open (a dropdown, a caret, a composition) stays; the card follows its record
     ultimo = html;
     // what is being typed survives the drawing: the new task's text, the caret, the focus
@@ -671,8 +679,9 @@
     const clave = enPag ? (a.dataset.pp ? `[data-pp="${a.dataset.pp}"]${a.dataset.id ? `[data-id="${CSS.escape(a.dataset.id)}"]` : ''}${a.dataset.k ? `[data-k="${CSS.escape(a.dataset.k)}"]` : ''}${a.dataset.c != null ? `[data-c="${CSS.escape(a.dataset.c)}"]` : ''}${a.dataset.v ? `[data-v="${CSS.escape(a.dataset.v)}"]` : ''}${a.dataset.r ? `[data-r="${CSS.escape(a.dataset.r)}"]` : ''}${a.dataset.n ? `[data-n="${CSS.escape(a.dataset.n)}"]` : ''}${a.dataset.p ? `[data-p="${CSS.escape(a.dataset.p)}"]` : ''}` : null) : null;
     const inp = page.querySelector('[data-pp="nueva"]'), txt = inp ? inp.value : '', sel = inp && a === inp ? [inp.selectionStart, inp.selectionEnd] : null;
     const y = page.scrollTop;
-    morfar(page, html);                        // in place: nothing runs its entrance again nor is drawn again (D-223)
+    morfar(page, html, ep && EXT.ficha.vivo ? { vivo: EXT.ficha.vivo } : undefined);   // in place: nothing runs its entrance again nor is drawn again (D-223); a sporadic page's name being written stays (D-377)
     if (M.controles && M.controles.mejorar) M.controles.mejorar(page);
+    if (ep && EXT.ficha.tras) EXT.ficha.tras(page, ep);   // its calendar (calendario.js)
     const n = page.querySelector('[data-pp="nueva"]'); if (n && txt) n.value = txt;
     if (n && ES() && ES().enCampo) ES().enCampo(n, { comandos: () => (EXT.sesion && EXT.sesion.nueva ? ['sesion'] : []), alComando: (k, ctx) => comando(k, ctx, 'nueva') });
     if (clave) { const b = page.querySelector(clave); if (b) { b.focus({ preventScroll: true }); if (sel && b === n) b.setSelectionRange(sel[0], sel[1]); } }
@@ -703,7 +712,7 @@
   }
   let pendiente = false, componiendo = false;  // a drawing put off while something is being written or chosen
   const notaEnCurso = () => !!(CARD && CARD.ed && enCard(document.activeElement));   // writing in the card (D-182)
-  const ocupada = () => notaEnCurso() || componiendo || !!menu || !!(ES() && ES().menuAbierto()) || !!(M.controles && M.controles.abierto && M.controles.abierto() && page && page.contains(M.controles.abierto().de));
+  const ocupada = () => notaEnCurso() || componiendo || !!(st.esp && EXT.ficha && EXT.ficha.ocupada && EXT.ficha.ocupada()) || !!menu || !!(ES() && ES().menuAbierto()) || !!(M.controles && M.controles.abierto && M.controles.abierto() && page && page.contains(M.controles.abierto().de));
   // a drawing put off is done as soon as what held it closes (a control, the menu, a composition, a note left)
   const retomar = () => { if (pendiente && st.on) setTimeout(() => { if (pendiente && st.on && !ocupada()) { pendiente = false; pintar(); } }, 0); };
 
@@ -717,7 +726,7 @@
     if (b && b.tagName !== 'BUTTON') { const n = document.createElement('button'); n.type = 'button'; n.className = 'brand pp-logo'; n.innerHTML = b.innerHTML; n.dataset.pp = 'logo'; b.replaceWith(n); b = n; }
     if (b) { const cli = root.classList.contains('client'); if (cli) { b.removeAttribute('title'); b.removeAttribute('aria-label'); b.tabIndex = -1; } else { b.title = X.AYUDA_LOGO || 'Página personal'; b.setAttribute('aria-label', 'Página personal'); b.tabIndex = 0; } if (st.on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); }   // its title, the right click's copies too (D-263)
   }
-  function abrir() {
+  function abrir(o = {}) {
     const X = I(), root = X && X.root && X.root(); if (!root || !X.shellReady() || root.classList.contains('client')) return false;
     if (M.libre && M.libre.abierto && M.libre.abierto()) return false;   // the editor covers the mesa: it is closed with its own buttons
     if (M.diseno && M.diseno.abierto && M.diseno.abierto()) return false;
@@ -726,7 +735,9 @@
     // each visit starts the same (D-180): Clientes and Avisos open, the tasks out of Avisos, no figure chosen; Tareas as this tab
     // left it, folded in a new tab (D-225)
     const tg = ssGet(SS_TAREAS);
-    st.plg = { ...PLG0, tareas: tg === '0' ? false : tg === '1' ? true : PLG0.tareas }; st.avTareas = false; st.filtro = null; st.abiertos.clear(); st.cvista = 'mensuales';
+    st.plg = { ...PLG0, tareas: tg === '0' ? false : tg === '1' ? true : PLG0.tareas }; st.avTareas = false; st.filtro = null; st.abiertos.clear();
+    st.cvista = ssGet(SS_CV) === 'esporadicos' ? 'esporadicos' : 'mensuales';   // as this tab left it, like Tareas (D-377)
+    st.esp = o.recarga ? ssGet(SS_ESP) || null : null; if (!st.esp) ssSet(SS_ESP, null);   // reloaded with a sporadic client's page open: back to it
     st.on = true; ssSet(SS_CLI, null);
     root.classList.add('pp-on'); colocar(); page.hidden = false; page.scrollTop = 0;
     if (D) pintar();
@@ -736,7 +747,7 @@
   function cerrar() {
     const X = I(), root = X && X.root && X.root();
     if (!st.on) return;
-    st.on = false; ssSet(SS_CLI, '1'); cerrarMenu(); if (CARD) { if (CARD.ed) guardarCard(); quitarCard(); }
+    st.on = false; ssSet(SS_CLI, '1'); st.esp = null; ssSet(SS_ESP, null); cerrarMenu(); if (CARD) { if (CARD.ed) guardarCard(); quitarCard(); }
     if (root) root.classList.remove('pp-on');
     if (page) { page.hidden = true; page.innerHTML = ''; }
     colocar();
@@ -1050,6 +1061,7 @@
   function morfNodo(a, b, o) {
     if (a.nodeType !== 1) { if (a.nodeValue !== b.nodeValue) a.nodeValue = b.nodeValue; return; }
     if (o.vivo && o.vivo(a)) return;                    // left as it is (a text being written)
+    if (a.hasAttribute('data-propio') && a.tagName === b.tagName) return;   // drawn by another file in its place (the sporadic page's calendar, D-377)
     if (a._mx) return;                                  // a native control kept: the same, with its twin's marks (mx-nat, tabindex, aria-hidden)
     if (a.isEqualNode(b)) return;
     if (a.classList.contains('pp-fo') && b.classList.contains('pp-fo')) {   // the same photo keeps its drawing until it has the new one
@@ -1104,11 +1116,30 @@
   // the kinds of card other files draw (sesiones.js: a session's sheet, a sporadic client's file): {pintar, clic, dbl, tecla,
   // menu, guardar, cerrar}; this file keeps the card itself (its layer, its opening and closing, its ⌘Z)
   const EXT = {};
+  // ---------- a sporadic client's page (lote 5 de la 4.55, D-377): in the place of the page, «‹ Esporádicos» back; a card opened
+  // from it (a session, a task, a note) is over it and, closed, the page is there; this tab remembers it ----------
+  function abrirEsp(id, o = {}) {
+    if (!espDe(id) || !EXT.ficha || !EXT.ficha.pagina) return false;
+    if (!st.on && !abrir()) return false;
+    cerrarMenu(); if (CARD) { if (CARD.ed) guardarCard(); quitarCard(); }
+    const antes = st.esp; st.esp = id; ssSet(SS_ESP, id); st.cvista = 'esporadicos'; ssSet(SS_CV, 'esporadicos');
+    if (antes !== id) page.scrollTop = 0;
+    pintar();
+    if (o.cobros && EXT.ficha.aCobros) EXT.ficha.aCobros(page);   // from its payment (D-235): its «Cobros» in sight
+    else if (antes !== id && EXT.ficha.enfocar) EXT.ficha.enfocar(page);
+    return true;
+  }
+  function salirEsp(foco = true) {
+    const id = st.esp; if (!id) return;
+    st.esp = null; ssSet(SS_ESP, null); page.scrollTop = 0; pintar();
+    const b = foco && page.querySelector(`[data-pp="esp"][data-id="${CSS.escape(id)}"]`); if (b) b.focus({ preventScroll: false });   // back on its block
+  }
   function abrirCard(id, o = {}) {
     // over the board (D-219): the page closed, a session's sheet opened from the posts' calendar (in the vista cliente, read
     // only, fixed in «Ver como el cliente», naming only that board's client); a card opened from it stays over the board
     const X = I(), root = X.root(), tab = o.tablero != null ? !!o.tablero : !st.on, vc = tab && (o.vc != null ? !!o.vc : root.classList.contains('client')), cli = tab ? o.cli || (X.S && X.S.client) || null : null;
-    const r = TK.get(id); if (!r || !(st.on || tab)) return false;
+    const r = TK.get(id); if (r && r.tipo === 'esporadico' && EXT.ficha && EXT.ficha.pagina) return abrirEsp(id, o);   // its page (D-377)
+    if (!r || !(st.on || tab)) return false;
     cerrarMenu(); if (CARD) quitarCard();
     const ext = o.ext || (r.tipo === 'sesion' && EXT.sesion ? EXT.sesion : r.tipo === 'esporadico' && EXT.ficha ? EXT.ficha : null);
     ov = document.createElement('div'); ov.className = 'pp-ov entra' + (ext ? ' ' + ext.cls : ''); ov.dataset.pp = 'ov';
@@ -1284,7 +1315,7 @@
     if (k && CARD) CARD.cmdVolver = v;
   }
   function borrador(o = {}) {
-    const now = ahoraISO(), r = { id: nuevoId('tk'), tipo: 'tarea', txt: '', creada: now, at: now };
+    const now = ahoraISO(), r = { id: nuevoId(o.tipo === 'nota' ? 'nt' : 'tk'), tipo: o.tipo === 'nota' ? 'nota' : 'tarea', txt: '', creada: now, at: now };   // a note's too (its page's «+ Nota», D-377)
     if (o.cliente && cliOk(o.cliente)) r.cliente = o.cliente;
     if (o.fecha && /^\d{4}-\d{2}-\d{2}$/.test(o.fecha)) r.fecha = o.fecha;
     Object.defineProperty(r, '_b', { value: true, enumerable: false, configurable: true });   // never in a copy, an export or a write
@@ -1377,7 +1408,8 @@
     if (it && TK.has(it.dataset.tid || it.dataset.nid)) { abrirCard(it.dataset.tid || it.dataset.nid); return; }
     const a = e.target.closest('[data-pp]'); if (!a) return;
     const k = a.dataset.pp;
-    if (k === 'logo') { if (!root.classList.contains('client')) { if (st.on) page.scrollTop = 0; else abrir(); } return; }
+    if (k === 'logo') { if (!root.classList.contains('client')) { if (st.on) { if (st.esp) salirEsp(false); page.scrollTop = 0; } else abrir(); } return; }
+    if (k.startsWith('ep-') && st.on && page.contains(a) && st.esp && EXT.ficha && EXT.ficha.pagClic) { EXT.ficha.pagClic(k, a, e); return; }   // its page (sesiones.js)
     if (!st.on || (!page.contains(a) && k !== 'fnav')) return;
     if (k === 'fnav') { const det = root.querySelector('.detail'); if (det._ppIr) det._ppIr(+a.dataset.d); return; }
     if (k === 'filtro') { st.filtro = st.filtro === a.dataset.k ? null : a.dataset.k; if (st.filtro && st.plg.avisos) st.plg.avisos = false; pintar(); return; }
@@ -1391,7 +1423,7 @@
     if (k === 'tnav') { if (st.vista === 'semana') st.tsem += +a.dataset.d; else st.tmes += +a.dataset.d; pintar(); return; }
     if (k === 'tcli') { st.tcli = a.dataset.c || null; pintar(); return; }
     if (k === 'nota-campo') { crearDesdeCampo(true); return; }
-    if (k === 'cvista') { st.cvista = a.dataset.v === 'esporadicos' ? 'esporadicos' : 'mensuales'; pintar(); return; }   // E2 (D-207)
+    if (k === 'cvista') { st.cvista = a.dataset.v === 'esporadicos' ? 'esporadicos' : 'mensuales'; ssSet(SS_CV, st.cvista); pintar(); return; }   // E2 (D-207); this tab remembers it (D-377)
     if (k === 'esp') { abrirCard(a.dataset.id, { de: `[data-pp="esp"][data-id="${CSS.escape(a.dataset.id)}"]` }); return; }
     if (k === 'esp-nuevo') { if (EXT.ficha && EXT.ficha.nuevo) EXT.ficha.nuevo(); return; }
     if (k === 'reprog') { reprogramar(a.dataset.id, a); return; }
@@ -1400,7 +1432,7 @@
     if (k === 'foto') { verFoto(a.dataset.id, a.dataset.i); return; }
     if (k === 'cliente') { abrirCliente(a.dataset.c, a.dataset.key); return; }
     if (k === 'entrega') { const id = a.dataset.id; (async () => { await abrirCliente(a.dataset.c, a.dataset.key); if (M.entregasUI && M.entregasUI.abrir) setTimeout(() => M.entregasUI.abrir(id), 60); })(); return; }   // D-290
-    if (k === 'cobro') { const c = a.dataset.c; if (espDe(c)) { abrirCard(c); if (EXT.ficha && EXT.ficha.aCobros) EXT.ficha.aCobros(); } else if (I().cob) I().cob.dlgCliente(c, 'cobros'); return; }   // its «Cobros» (D-235)
+    if (k === 'cobro') { const c = a.dataset.c; if (espDe(c)) abrirEsp(c, { cobros: true }); else if (I().cob) I().cob.dlgCliente(c, 'cobros'); return; }   // its «Cobros» (D-235)
     if (k === 'abrir') { abrirPost(a.dataset.key, a.dataset.slot); return; }
     if (k === 'hs') { (async () => { const key = a.dataset.key; if (X.S && X.S.key === key) cerrar(); else if (!(await abrirTablero(() => M.open(key)))) return; if (M.hs && M.hs.ver) M.hs.ver(true); })(); return; }
   }
@@ -1457,6 +1489,7 @@
   function alCambiar(e) {
     if (!enCard(e.target) && !(st.on && page && page.contains(e.target))) return;
     const t = e.target;
+    if (st.esp && !enCard(t) && EXT.ficha && EXT.ficha.pagCambio && EXT.ficha.pagCambio(t)) return;   // its page (D-377)
     if (CARD && CARD.ext && enCard(t) && CARD.ext.cambio && CARD.ext.cambio(e)) return;   // a session's sheet, a sporadic client's file (sesiones.js)
     // the card's date and client (D-182): saved at once, the card stays as it is (its control is finishing its gesture)
     if (t.matches('.pp-cfecha')) { const v = /^\d{4}-\d{2}-\d{2}$/.test(t.value) ? t.value : ''; cambiar(t.dataset.id, x => { if (v) x.fecha = v; else delete x.fecha; return x; }).then(() => pintar()); return; }
@@ -1476,6 +1509,7 @@
   }
   function alTeclear(e) {
     if (!(st.on && page) && !(CARD && CARD.tablero)) return;
+    if (st.esp && !CARD && EXT.ficha && EXT.ficha.pagTecla && EXT.ficha.pagTecla(e)) return;   // its name being written (D-377)
     if (e.key === 'Escape' && M.cobrosUI && M.cobrosUI.escCampo && M.cobrosUI.escCampo(e)) return;   // a payment's field changed: back to what is saved (D-234)
     if (menu && e.key === 'Escape') return;    // the menu closes on its own (its keys), never the card under it
     const t = e.target;
@@ -1625,7 +1659,7 @@
       g._pp = f; M.importData = g;
     }
     // the mesa starts on the page: not in «Vista cliente» nor after a reload inside a client (this tab's session)
-    if (!root.classList.contains('client') && ssGet(SS_CLI) !== '1') abrir();
+    if (!root.classList.contains('client') && ssGet(SS_CLI) !== '1') abrir({ recarga: true });
   }
   // what sesiones.js reads (one file, one page: never a name of window.MESA, D-206)
   // a sporadic client passed to a monthly one (D-207): the steps of ⌘Z that bring back one of its records bring it with its new client
@@ -1635,7 +1669,7 @@
   const _p = {
     EXT, TK, I, esc, ICO, st, avatar, avatarN, cliDe, clis, conCli, cliOk, esps, sesiones, tareas, notas, vivos, opcionesCli, diaHora, tramo, ultDia, marcaT, grupoT, moverInicio, finOk, finNuevo, corto, fechaLarga, addD, dow, difD, acuerdoCuando, MESL,
     hacer, cambiar, enmendar, escribir, deshacer, copia, hondo, nuevoId, ahoraISO, puede, borrar, marcar, rebajar, esImagen, verFoto, remapH, guardarCard, ampliar, colocarAmplia,
-    pintar, refrescar, cargarTK, abrirCard, cerrarCard, quitarCard, pintarCard, editar, borrador, pedirFecha, comando, menuSesion, menuEsp,
+    pintar, refrescar, cargarTK, abrirCard, abrirEsp, salirEsp, tareasHTML, espDe, cerrarCard, quitarCard, pintarCard, editar, borrador, pedirFecha, comando, menuSesion, menuEsp,
     abrirMenu, cerrarMenu, ES, leerTxt, lsGet, lsSet, enCard, pocoMov, DBL, fotosURL, botonesCard, ponerCard, seleccionando, morfar,
     get CARD() { return CARD; }, get ov() { return ov; }, get page() { return page; },
     cardT: { quitar: () => { clearTimeout(cardT); cardT = null; }, poner: f => { clearTimeout(cardT); cardT = setTimeout(f, 400); } }
@@ -1656,8 +1690,7 @@
       if (!puede()) return { error: 'La mesa está abierta en otra pestaña: pulsa «Usar aquí».' };
       const now = ahoraISO(), e2 = { id: nuevoId('es'), tipo: 'esporadico', txt: n, creada: now, at: now };
       if (!(await hacer([{ id: e2.id, despues: e2 }]))) return { error: 'No se pudo guardar.' };
-      if (!st.on) abrir();                       // each visit starts on «Mensuales» (D-180): this one, on its new client's
-      st.cvista = 'esporadicos'; pintar();
+      abrirEsp(e2.id);                           // its page (D-377)
       return { ok: true, id: e2.id };
     },
     duplicarSesion: async id => { if (!EXT.sesion || !EXT.sesion.duplicar) return false; if (!st.on) await cargarTK(); const r = TK.get(id); if (!r || r.tipo !== 'sesion') return false; await EXT.sesion.duplicar(id); return true; },

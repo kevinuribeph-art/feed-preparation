@@ -209,7 +209,7 @@
   // ---------- IndexedDB ----------
   // the stores of the mesa's data: all of them travel in «Exportar todo» (copia.js, D-249); and the journal of changes, which is
   // this browser's (D-250)
-  const IDB_V = 29, ALMACENES = ['files', 'boards', 'clients', 'bandejas', 'ubicaciones', 'tareas', 'tfotos', 'cobros', 'cfacturas', 'meses', 'entregas', 'acuerdos', 'paquetes', 'estilos', 'enviados'], DIARIO = 'diario', NUBE_ST = 'nube';
+  const IDB_V = 30, ALMACENES = ['files', 'boards', 'clients', 'bandejas', 'ubicaciones', 'tareas', 'tfotos', 'cobros', 'cfacturas', 'meses', 'entregas', 'acuerdos', 'paquetes', 'estilos', 'enviados'], DIARIO = 'diario', NUBE_ST = 'nube';
   let dbp = null, dbConn = null;
   function db() {
     if (!dbp) dbp = new Promise((res, rej) => {
@@ -6891,7 +6891,7 @@ ${TK_FUENTES}
   // month before (D-304)
   const cobFechas = (mes, q) => { const emitida = `${q && q.adelanto ? addMonths(mes, -1) : mes}-${String(q.dia).padStart(2, '0')}`; return { emitida, vence: cobMasDias(emitida, q.plazo) }; };
   // what goes first in a list: its date of issue, else its month, else when it was written
-  const cobClave = r => r.emitida || (COB_MES.test(r.periodo || '') ? r.periodo + '-01' : '') || r.vence || '';
+  const cobClave = r => r.emitida || (COB_MES.test(r.periodo || '') ? r.periodo + '-01' : '') || r.vence || r.creada || '';   // a free one, by its issue or its making (D-377)
   const cobOrden = (a, b) => cobClave(b).localeCompare(cobClave(a)) || String(b.id).localeCompare(String(a.id));   // never by `at`: a row being written doesn't jump
   // the next invoice not issued yet of a monthly client: one saved with a later date of issue, or the first month from this
   // one that has none, with its fee
@@ -6962,7 +6962,7 @@ ${TK_FUENTES}
       const t = h === p ? mesN(p, y1 !== hy) : y1 !== y2 ? `${mesN(p, true)} – ${mesN(h, true)}` : `${mesN(p, false)} – ${mesN(h, y1 !== hy)}`;
       return t.charAt(0).toUpperCase() + t.slice(1);
     }
-    return r.concepto || 'Sesión';
+    return r.concepto || (r.periodo ? 'Sesión' : 'Cobro');   // a free one without its concept yet (D-377)
   }
   async function cobPdfValido(blob) {
     if (!blob || typeof blob.size !== 'number') return 'No es un archivo.';
@@ -9170,7 +9170,7 @@ ${TK_FUENTES}
       const entregas = ((await idbAll('entregas')) || []).filter(r => r && r.id);   // a «Solo contenido» client's deliveries, their tombstones too (D-290)
       const acuerdos = ((await idbAll('acuerdos')) || []).filter(r => r && r.id), paquetes = ((await idbAll('paquetes')) || []).filter(r => r && r.id);
       const estilos = ((await idbAll('estilos')) || []).filter(estRecValido), enviados = ((await idbAll('enviados')) || []).filter(envRecValido);   // each client's style and what went to its web (D-356, D-355)   // the agreements and the packages, their tombstones too (D-305, D-307)
-      const parts = ['{"format":"mesa-feed","v":24,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())   // v24: an amount's base and IVA (agreements, invoices), a client's «Sin IVA» and a package's price without IVA, permanence, what it doesn't include and its conditions (D-374, D-375); v23: the print of the rest of a client's web goes in «enviados» (D-372); v22: + estilos and enviados (D-356, D-355) and a board's provisional months (D-358); v21: + acuerdos and paquetes (with their tombstones), an agreement's «Termina en» and package (D-305 to D-307); v20: + entregas (with their tombstones) and a client's agreement, service, day of deliveries and link of metrics, an invoice's stretch (D-288 to D-292); v19: + meses, each client's month's why and summary (D-238); v18: + cobros (with their tombstones) and cfacturas, their PDFs in base64 (D-232); v3: + bandejas (D-041); v4: the boards may hold stories (D-054), whose images a mesa before 3.53 wouldn't bring; v5: «No aprobado» and the reason of a cancellation (D-082); v6: the month's step of each board (D-084); v7: a post put back by hand (D-085); v8: one step per month of a board (D-119; a file before it has the board's step, which goes to its first month); v9: a Programada keeps the date it was scheduled for (D-120); v10: + ubicaciones, the locations' catalog; the clients carry their lists and the posts the one chosen (D-124); v11: the clients carry their lists of people and the posts their tags and collaborators (D-130); v12: the editor's slides may hold a progress bar, a check or an x (D-179); v13: + tareas, the personal page's tasks and notes with their photos, and since when a post waits for the client (D-180); v14: a task's details and subtasks (D-183); v15: a designed slide's free layers of the editor and slides let go from the kit (D-193); v16: sessions, sporadic clients and the list of material (D-206, D-207); v17: a session's clients, end and template of material, several templates of material (D-217, D-218, D-220)
+      const parts = ['{"format":"mesa-feed","v":25,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())   // v24: an amount's base and IVA (agreements, invoices), a client's «Sin IVA» and a package's price without IVA, permanence, what it doesn't include and its conditions (D-374, D-375); v23: the print of the rest of a client's web goes in «enviados» (D-372); v22: + estilos and enviados (D-356, D-355) and a board's provisional months (D-358); v21: + acuerdos and paquetes (with their tombstones), an agreement's «Termina en» and package (D-305 to D-307); v20: + entregas (with their tombstones) and a client's agreement, service, day of deliveries and link of metrics, an invoice's stretch (D-288 to D-292); v19: + meses, each client's month's why and summary (D-238); v18: + cobros (with their tombstones) and cfacturas, their PDFs in base64 (D-232); v3: + bandejas (D-041); v4: the boards may hold stories (D-054), whose images a mesa before 3.53 wouldn't bring; v5: «No aprobado» and the reason of a cancellation (D-082); v6: the month's step of each board (D-084); v7: a post put back by hand (D-085); v8: one step per month of a board (D-119; a file before it has the board's step, which goes to its first month); v9: a Programada keeps the date it was scheduled for (D-120); v10: + ubicaciones, the locations' catalog; the clients carry their lists and the posts the one chosen (D-124); v11: the clients carry their lists of people and the posts their tags and collaborators (D-130); v12: the editor's slides may hold a progress bar, a check or an x (D-179); v13: + tareas, the personal page's tasks and notes with their photos, and since when a post waits for the client (D-180); v14: a task's details and subtasks (D-183); v15: a designed slide's free layers of the editor and slides let go from the kit (D-193); v16: sessions, sporadic clients and the list of material (D-206, D-207); v17: a session's clients, end and template of material, several templates of material (D-217, D-218, D-220)
         + ',"clients":' + JSON.stringify(clients) + ',"ubicaciones":' + JSON.stringify(ubicaciones) + ',"tareas":' + JSON.stringify(tareas) + ',"cobros":' + JSON.stringify(cobros) + ',"cfacturas":' + JSON.stringify(cfacturas) + ',"meses":' + JSON.stringify(meses) + ',"entregas":' + JSON.stringify(entregas) + ',"acuerdos":' + JSON.stringify(acuerdos) + ',"paquetes":' + JSON.stringify(paquetes) + ',"estilos":' + JSON.stringify(estilos) + ',"enviados":' + JSON.stringify(enviados) + ',"bandejas":' + JSON.stringify(bandejas) + ',"boards":' + JSON.stringify(boards) + ',"files":{'];
       let sep = '', n = 0, photos = 0, skipped = 0;
       for (const id of ids) {
@@ -9249,7 +9249,7 @@ ${TK_FUENTES}
   }
   function xferCheck(d) {
     if (!d || typeof d !== 'object' || d.format !== 'mesa-feed') return 'Este archivo no es una exportación de la Mesa de trabajo.';
-    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24].includes(d.v)) return +d.v > 24 ? 'Este archivo viene de una versión más nueva de la mesa: actualízala antes de importarlo.' : 'Versión de archivo desconocida: no se puede importar.';
+    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25].includes(d.v)) return +d.v > 25 ? 'Este archivo viene de una versión más nueva de la mesa: actualízala antes de importarlo.' : 'Versión de archivo desconocida: no se puede importar.';
     const bad = 'El archivo está dañado o incompleto: no se puede importar.';
     if (!Array.isArray(d.clients) || !Array.isArray(d.boards) || !d.files || typeof d.files !== 'object' || (d.past != null && typeof d.past !== 'object')) return bad;
     if (d.clients.some(c => !c || typeof c.id !== 'string' || !c.id)) return bad;
@@ -9264,7 +9264,7 @@ ${TK_FUENTES}
     // v18: the invoices (a tombstone, its id, client and date) and their PDFs (D-232)
     const dOk = v => v == null || v === '' || !!cobDia(v);
     if (d.cobros != null && (!Array.isArray(d.cobros) || d.cobros.some(r => !r || typeof r.id !== 'string' || !r.id || typeof r.cliente !== 'string' || !r.cliente || typeof r.at !== 'string' || isNaN(Date.parse(r.at)) || (/^\d{4}-\d{2}$/.test(r.periodo || '') && !COB_MES.test(r.periodo))
-      || (!r.borrado && (typeof r.periodo !== 'string' || !r.periodo || !(typeof r.importe === 'number' && isFinite(r.importe) && r.importe >= 0) || !dOk(r.emitida) || !dOk(r.vence) || !dOk(r.cobrada)
+      || (!r.borrado && (typeof r.periodo !== 'string' || (!r.periodo && (typeof r.concepto !== 'string' || (r.creada != null && !dOk(r.creada)))) || !(typeof r.importe === 'number' && isFinite(r.importe) && r.importe >= 0) || !dOk(r.emitida) || !dOk(r.vence) || !dOk(r.cobrada)
         || (r.factura != null && typeof r.factura !== 'string') || (r.pdf != null && typeof r.pdf !== 'string') || (r.concepto != null && typeof r.concepto !== 'string') || !ivaValido(r)))))) return bad;   // v24: its base and IVA (D-374)
     if (d.cfacturas != null && (!Array.isArray(d.cfacturas) || d.cfacturas.some(f => !f || typeof f.id !== 'string' || !f.id || typeof f.data !== 'string' || !f.data))) return bad;
     const qn = (v, a, b) => v == null || v === '' || (typeof v === 'number' && isFinite(v) && v >= a && v <= b && (b === 1e9 || Number.isInteger(v)));

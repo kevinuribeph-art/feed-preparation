@@ -1906,7 +1906,7 @@
 #mesa .pp-tv{display:block}
 #mesa .pp-tv.dos{display:grid;grid-template-columns:minmax(0,1fr) 268px;gap:10px;align-items:start}
 #mesa .pp-tk{display:flex;align-items:center;gap:10px;min-height:32px;padding:4px 10px;border-radius:var(--r-sm);font-size:13px}
-#mesa .pp-tk:hover{background:var(--bg-3)}#mesa .pp-tareas .pp-tk:hover{background:var(--bg-2)}
+#mesa .pp-tk:hover{background:var(--bg-3)}#mesa .pp-tareas .pp-tk:hover,#mesa .pp-ep-tn .pp-tk:hover{background:var(--bg-2)}
 #mesa .pp-tk.pp-tg{display:grid;grid-template-columns:28px 42px 32px minmax(0,1fr);align-items:center;column-gap:10px;min-height:36px;padding:3px 10px}   /* a row of Avisos (D-371) */
 #mesa .pp-sinf .pp-tk.pp-tg{grid-template-columns:28px 32px minmax(0,1fr)}#mesa .pp-sinf .pp-tfv{display:none}
 #mesa .pp-tg .pp-tf{font-size:12.5px;line-height:1.25}#mesa .pp-tck{display:inline-flex;justify-content:center}

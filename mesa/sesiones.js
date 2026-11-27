@@ -1329,7 +1329,7 @@
 #mesa .pp-ep-cols{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(320px,380px);gap:12px}
 #mesa .pp-ep-ag{min-height:0;display:grid;grid-template-rows:minmax(0,auto) minmax(300px,1fr);gap:12px}
 #mesa .pp-ep-p{min-width:0;min-height:0;overflow-y:auto;overscroll-behavior:contain;background:var(--panel);border-radius:var(--r-lg);padding:14px 18px 16px}
-#mesa .pp-ep-side{min-height:0;background:none}#mesa .pp-ep .pp-ep-side>.cal:not(.fold){flex:1 1 auto;height:100%;min-height:0;border-top:0;border-radius:var(--r-lg)}   /* over the calendar's own narrow rule (42vh) */
+#mesa .pp-ep-side{min-height:0;background:none}#mesa .pp-ep .pp-ep-side,#mesa.hv-on .pp-ep .pp-ep-side{flex:none}   /* never the board's stories' column (historias.js) */#mesa .pp-ep .pp-ep-side>.cal:not(.fold){flex:1 1 auto;height:100%;min-height:0;border-top:0;border-radius:var(--r-lg)}   /* over the calendar's own narrow rule (42vh) */
 #mesa .pp-ep-side>.cal .calhead{padding:12px 12px 4px 18px}
 #mesa .pp-ep h2.pp-ep-h{display:flex;align-items:baseline;gap:8px;margin:0 0 8px;font-size:17px;font-weight:800;letter-spacing:-.025em;color:var(--ink)}
 #mesa .pp-ep-h>span:not(.co-ivw){font-size:13px;font-weight:400;letter-spacing:0;color:var(--mute)}
@@ -1339,7 +1339,6 @@
 #mesa .pp-ep-p .pp-es-s{grid-template-columns:150px 18px minmax(0,1fr) auto}#mesa .pp-ep-p .pp-es-l>.pp-es-s:last-child{border-bottom:0}
 #mesa .pp-ep-tn .pp-tk .pp-avs{display:none}
 #mesa .pp-ep-tn .pp-tk.pp-tg,#mesa .pp-ep-tn .pp-sinf .pp-tk.pp-tg{grid-template-columns:42px 32px minmax(0,1fr)}#mesa .pp-ep-tn .pp-sinf .pp-tfv{display:block}
-#mesa :where(.pp-ep-tn .pp-tk):hover{background:var(--bg-2)}   /* under the marks of Hoy and Se ha pasado (D-300) */
 #mesa .pp-ep-tn .pp-tv{display:block}#mesa .pp-ep-tn .pp-sinf{margin:14px 0 0;padding:10px 0 0;border-left:0;border-top:1px solid var(--line2)}#mesa .pp-ep-tn .pp-sinf .pp-sub{padding:4px 10px}
 #mesa .pp-ep-tn .pp-pn{margin:2px 0 0}
 #mesa .pp-ep-h .pp-ep-iv{margin-left:auto;align-self:center;font-size:13px;font-weight:400;letter-spacing:0}#mesa .pp-ep-iv .co-ivs + .mx-sel{width:auto;min-width:96px}

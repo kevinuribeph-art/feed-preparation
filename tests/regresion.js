@@ -26537,7 +26537,7 @@
       const l = qa('.mmenu button, [role="menu"] button').map(b => b.textContent);
       ok(l.some(x => /Nueva sesión/.test(x)) && !l.some(x => /historia/i.test(x)), 'el clic derecho en un día: ' + json(l));
       qa('.mmenu button, [role="menu"] button').find(b => /Nueva sesión/.test(b.textContent)).click();
-      const dl = await hasta(() => q('.detail form.pp-ns'), 2000, '«Nueva sesión»'); ok(/Esporádico EP4/.test(dl.textContent), '«Nueva sesión» no es de su esporádico: ' + dl.textContent.slice(0, 200));
+      const dl = await hasta(() => q('.detail form.pp-ns'), 2000, '«Nueva sesión»'); ok(dl.querySelector(`[data-ns="cli-x"][data-c="${e.id}"]`), '«Nueva sesión» no es de su esporádico');
       M._in.closeDetail(); await espera(60);
     } finally { await epFin(); }
   });
@@ -26570,6 +26570,8 @@
       const cg = await M.cobros.cargar([{ id: c.id, cliente: e.id, periodo: '', importe: 217.8, base: 180, iva: 21, cobrada: '2026-11-19' }]); ok(cg && cg.ok, 'cargar un cobro libre: ' + json(cg));
       const r2 = M.cobros.ver(e.id).find(y => y.id === c.id); ok(r2 && r2.concepto === 'Edición extra' && r2.estado === 'cobrada', 'cargar no conserva el cobro libre: ' + json(r2));
       ok((await M.cobros.cargar([{ cliente: e.id, periodo: '', concepto: 'Otro libre', importe: 50 }])).ok, 'cargar no crea un cobro libre');
+      igual([M.cobros.ver(e.id).filter(y => y.periodo === '').length, M._in.cob.get(c.id).creada], [2, '2026-11-19'], 'dos cobros libres o su creada');
+      ok((await M.cobros.cargar([{ cliente: e.id, concepto: 'Sin periodo', importe: 10 }])).error, 'cargar sin periodo hace un cobro libre');
     } finally { await epFin(); }
   });
 

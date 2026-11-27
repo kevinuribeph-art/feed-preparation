@@ -7316,7 +7316,12 @@ ${TK_FUENTES}
         if (it.id != null && !/^[\w.-]{1,60}$/.test(String(it.id))) return mal('id no válido (letras, números, guiones; hasta 60)');
         const per = String(it.periodo || ''), hasta = it.hasta == null || it.hasta === '' ? '' : String(it.hasta);
         if (COB_MES.test(per)) { if (!mensual) return mal('un esporádico no tiene cuota: su periodo es el id de una sesión'); }
-        else if (per === '') { const ya = it.id != null && COB.get(String(it.id)); if (mensual && !(ya && !ya.borrado && ya.periodo === '' && ya.cliente === cli)) return mal('periodo vacío: solo un cobro libre de un esporádico (D-377)'); }   // a free one: no session, its concept
+        else if (per === '') {   // a free one: no session, its concept; only said, never a forgotten period
+          const ya = it.id != null && COB.get(String(it.id));
+          if (it.periodo !== '') return mal('falta el periodo: AAAA-MM, el id de una sesión o "" (un cobro libre de un esporádico)');
+          if (ya && !ya.borrado && ya.cliente !== cli) return mal('ese id es de otro cliente');
+          if (mensual && !(ya && !ya.borrado && ya.periodo === '' && ya.cliente === cli)) return mal('periodo vacío: solo un cobro libre de un esporádico (D-377)');
+        }   // a free one: no session, its concept
         else if (!ses.has(per)) { const ya = it.id != null && COB.get(String(it.id)); if (!ya || ya.borrado || ya.periodo !== per || ya.cliente !== cli) return mal(`periodo «${per}»: ni un mes AAAA-MM ni una sesión`); }   // one already here keeps its session
         else if (!clisDe(ses.get(per)).includes(cli)) return mal('esa sesión no es de ese cliente');
         else if (ses.get(per).sesion && ses.get(per).sesion.clase === 'reunion') return mal('una reunión no tiene cobro');   // D-291

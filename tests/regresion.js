@@ -26742,7 +26742,7 @@
         ok(sec.closest('[data-col="der"]') || sec.closest('.pp-hj-col.una, .pp-hj-cols.una'), 'no va en la columna derecha (o en la única)');
         await espera(60); igual(M.web.sinLeerSes(e.id, s1.id), 0, 'abrirla no lo da por leído');
         const ta = sec.querySelector('.webta'); ta.value = 'RESPUESTA-EV3'; ta.dispatchEvent(new W.Event('input', { bubbles: true }));
-        sec.querySelector('.webenv').click(); await hasta(() => sv.db.comentarios_sesion.some(x => x.texto === 'RESPUESTA-EV3'), 3000, 'su respuesta');
+        sec.querySelector('.webenv').focus(); sec.querySelector('.webenv').click(); await hasta(() => sv.db.comentarios_sesion.some(x => x.texto === 'RESPUESTA-EV3'), 3000, 'su respuesta');   // as a real click: the focus on the button
         await hasta(() => D.activeElement && D.activeElement.matches(`.pp-ov .webdel[data-web-ses="${s1.id}"] .webta`), 3000, 'el foco tras «Responder», en su campo');
         igual(sv.db.comentarios_sesion.find(x => x.texto === 'RESPUESTA-EV3').sesion, s1.id, 'la respuesta en otra sesión');
         const res = await hasta(() => q(`.pp-ov .webdel[data-web-ses="${s1.id}"] .webres`), 3000, '«Marcar como resuelto»');
@@ -26835,7 +26835,8 @@
         const r3 = await M.web.enviar(); ok(!r3.ok && /aún no ha bajado/.test(json(r3)), 'una foto que no ha bajado se envía sin ella: ' + json(r3));
         // more than 100 photos in view
         await T.cambiar(s1.id, x => { x.sesion.apartados.find(a => a.id === 'mood').grupos[0].fotos = Array.from({ length: 101 }, (_, i) => 'ev6f' + i); return x; });
-        const P4 = await M.web.paquete(); ok(P4.problemas.some(m => /101 fotos/.test(m)), 'más de 100 fotos a la vista no avisa: ' + json(P4.problemas));
+        const P4 = await M.web.paquete(); ok((P4.demasiadas || []).some(m => /101 fotos/.test(m)) && !P4.problemas.some(m => /fotos/.test(m)), 'más de 100 fotos a la vista no avisa, o avisa como «otro cliente»: ' + json([P4.demasiadas, P4.problemas]));
+        const r4 = await M.web.enviar(); ok(!r4.ok && /101 fotos/.test(json(r4)) && !/otro cliente/.test(json(r4)), 'su envío no dice por qué: ' + json(r4)); M._in.closeDetail();
         await T.cambiar(s1.id, x => { x.sesion.apartados.find(a => a.id === 'mood').grupos = []; return x; }); await M._in.idbDel('tfotos', 'ev6foto');
         // a comment of a session that isn't in the Mesa: nothing to open, not in its pill
         sv.db.comentarios_sesion.push({ id: 'cs6', cliente_id: e.id, sesion: 'ss-no-esta', texto: 'X', autor_nombre: 'Laura', de_kevin: false, hora: new Date().toISOString(), resuelto: null });

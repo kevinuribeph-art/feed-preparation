@@ -848,7 +848,7 @@
     const prox = ss.filter(k => P.ultDia(k) >= hoy).sort((a, b) => t(a).localeCompare(t(b))), pas = ss.filter(k => P.ultDia(k) < hoy).sort((a, b) => t(b).localeCompare(t(a)));
     const coms = M.web && M.web.coms ? M.web.coms(id) : [];
     const fila = k => { const n = coms.filter(x => x.sesion === k.id).length;
-      return `<button type="button" class="pp-es-s pp-ep-vs" data-pp="ep-vses" data-id="${esc(k.id)}" title="${esc((k.sesion && k.sesion.clase === 'reunion' ? 'Reunión' : 'Sesión') + ' · ' + k.txt)}"><span class="pp-es-d">${esc(P.tramo(k))}</span>${icoSes(k)}<b>${esc(k.txt)}${n ? `<span class="pp-ep-nc">${n === 1 ? '1 comentario' : n + ' comentarios'}</span>` : ''}</b></button>`; };
+      return `<button type="button" class="pp-es-s pp-ep-vs" data-pp="ep-vses" data-id="${esc(k.id)}" title="${esc((k.sesion && k.sesion.clase === 'reunion' ? 'Reunión' : 'Sesión') + ' · ' + k.txt)}"><span class="pp-es-d">${esc(P.tramo(k))}</span>${svgI(k.sesion && k.sesion.clase === 'reunion' ? 'reunion' : 'sesion')}<b>${esc(k.txt)}${n ? `<span class="pp-ep-nc">${n === 1 ? '1 comentario' : n + ' comentarios'}</span>` : ''}</b></button>`; };
     const grupo = (tt, l) => l.length ? `<section class="pp-ep-gr"><h3 class="pp-gt pp-ep-sub">${tt} <span>${l.length}</span></h3><div class="pp-es-l">${l.map(fila).join('')}</div></section>` : '';
     const tk = P.tareas().filter(k => k.cliente === id && k.visible === true).sort((a, b) => String(a.fecha || '9999').localeCompare(String(b.fecha || '9999')) || String(a.creada || '').localeCompare(String(b.creada || '')));
     const ns = P.notas().filter(k => k.cliente === id && k.visible === true);
@@ -1240,7 +1240,7 @@
 #mesa .pp-hj-cols.una{grid-template-columns:minmax(0,1fr)}
 #mesa .pp-hj-cols:has(+ .pp-hj-com){flex:none}   /* its comments right under it, not at the foot */
 #mesa .pp-hj-com{padding:14px 18px 28px 26px;border-top:1px solid var(--line2)}#mesa .pp-ov.amplia .pp-hj-com{padding:14px 32px 28px 40px}   /* as a post's comments in «Vista cliente» (.igcoms, D-378) */
-#mesa .pp-hj-com h3.pp-hj-comt{margin:0 0 10px;font-size:14px;font-weight:600}
+#mesa .pp-hj-com:empty{display:none}#mesa .pp-hj-com h3.pp-hj-comt{margin:0 0 10px;font-size:14px;font-weight:600}
 #mesa .pp-hj-com .webl{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
 #mesa .pp-hj-com .webcm{gap:3px;max-width:52ch}#mesa .pp-hj-com .webcm p{margin:0;font-size:14px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}#mesa .pp-hj-com .webp{margin:0}
 #mesa .webdel.pp-hj-del{margin:0}

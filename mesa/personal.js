@@ -2074,6 +2074,7 @@
 #mesa .pp-card.nota .pp-cb:hover{background:var(--postit-3);color:var(--postit-ink)}
 #mesa .pp-cb.pp-tn-ojo{width:32px;height:32px}#mesa .pp-cb.pp-tn-ojo svg{width:18px;height:18px}#mesa .pp-cb.pp-tn-ojo[aria-pressed="false"]{color:var(--mute)}   /* its eye in the card, as its buttons (D-378) */
 #mesa .pp-card.nota .pp-cb.pp-tn-ojo[aria-pressed="false"]{color:color-mix(in oklab,var(--postit-ink) 62%,var(--postit-2))}#mesa .pp-card.nota .pp-cb.pp-tn-ojo[aria-pressed="true"]{color:var(--postit-ink)}
+#mesa .pp-cb.pp-tn-ojo:hover{color:var(--ink)}#mesa .pp-card.nota .pp-cb.pp-tn-ojo:hover{color:var(--postit-ink)}
 #mesa .pp-ch:has(.pp-tn-ojo){padding-right:100px}#mesa .pp-card.nota:has(.pp-tn-ojo){padding-right:128px}   /* three buttons, not two */
 /* read, a click writes where it is pressed (D-209): the text cursor says so; the date and the client open their control */
 #mesa .pp-card .pp-ct,#mesa .pp-card .pp-cn,#mesa .pp-card .pp-cd,#mesa .pp-csub > span{cursor:text}

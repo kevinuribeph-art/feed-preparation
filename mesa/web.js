@@ -188,9 +188,9 @@
       if (r.resumen) { (r.resumen.posts || []).forEach(q => textos.push([`resumen de ${r.mes}`, q.nombre])); textos.push([`resumen de ${r.mes}`, r.resumen.frase || '']); } });
     // La propia agencia no pasa esta comprobación: sus captions enseñan trabajos para clientes y su web solo la ve Kevin (D-245).
     if (!AGENCIA.includes(cli)) X.mesOtros(cli, textos, m => problemas.push(m), esporadicos, AGENCIA.filter(a => a !== cli), E ? { id: cli, name: E.txt } : null);   // a sporadic's own name and words are its (it isn't in CL)
-    ses.forEach(x => { if ((x._fotos || []).length > 100) problemas.push(`sesión «${x.nombre}»: lleva ${x._fotos.length} fotos a la vista y su web admite 100: tacha el ojo de un apartado o quita fotos`); });   // sesiones.fotos: 200 rutas (D-378)
+    const demasiadas = ses.filter(x => (x._fotos || []).length > 100).map(x => `la sesión «${x.nombre}» lleva ${x._fotos.length} fotos a la vista y su web admite 100: tacha el ojo de un apartado o quita fotos`);   // sesiones.fotos: 200 rutas (D-378)
     const mesesQuitar = [previo, ...meses].filter(m => m && !mesesInfo.some(r => r.mes === m));
-    return { cliente, publicaciones: pubs, sesiones: ses, meses: mesesInfo, mesesTablero: meses, mesesQuitar, pagos, entregas, contenido, problemas, esporadico: !!E, tareasNotas };
+    return { cliente, publicaciones: pubs, sesiones: ses, meses: mesesInfo, mesesTablero: meses, mesesQuitar, pagos, entregas, contenido, problemas, demasiadas, esporadico: !!E, tareasNotas };
   }
 
   // ---------- Estado de la barra ----------
@@ -375,6 +375,7 @@
       if (M.flush) await M.flush(); sigue();
       const P = await paquete(B); sigue();
       if (P.error) throw new Error(P.error);
+      if (P.demasiadas.length) throw new Error(P.demasiadas.join(' · '));   // its own words (D-378)
       if (P.problemas.length) { dlgProblemas(P.problemas); return { error: 'nombra a otro cliente', problemas: P.problemas }; }
       const serv = st.servidor && st.clave === B.key ? st.servidor : await leerServidor(cli, B); sigue();
       const cambian = P.publicaciones.filter(p => p.fila.visible && (!serv.get(p.pid) || serv.get(p.pid).version !== p.version));
@@ -703,7 +704,7 @@
       ta.addEventListener('input', () => { borradores.set(k, ta.value); env.disabled = !ta.value.trim(); });
       env.addEventListener('click', async () => {
         const t = ta.value.trim(); if (!t) return; env.disabled = true; err.hidden = true;
-        try { await sb().insertar('comentarios_sesion', [{ cliente_id: cli, sesion: sid, texto: t }]); borradores.delete(k); ta.value = ''; await leerSes(cli); const n = sec.isConnected && sec.querySelector('.webta'); if (n) n.focus({ preventScroll: true }); }
+        try { await sb().insertar('comentarios_sesion', [{ cliente_id: cli, sesion: sid, texto: t }]); borradores.delete(k); ta.value = ''; await leerSes(cli); const a = document.activeElement, n = sec.isConnected && sec.querySelector('.webta'); if (n && (!a || a === document.body || sec.contains(a))) n.focus({ preventScroll: true }); }
         catch (e) { err.textContent = 'No se pudo enviar: ' + (e.message || e); err.hidden = false; env.disabled = false; }
       });
       sec.replaceChildren(...[nodo('h4', { class: 'webh' }, 'Del cliente', sinL ? nodo('span', { class: 'webn', text: sinL === 1 ? '1 nueva' : sinL + ' nuevas' }) : coms.length ? null : nodo('span', { class: 'webq', text: 'Aún no ha dicho nada' })),

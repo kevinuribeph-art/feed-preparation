@@ -521,7 +521,7 @@
   // y notas para leer y «Tus pagos»; una sesión se abre en una hoja con lo que tiene visible y su conversación al pie.
   const C_CS = 'id,cliente_id,sesion,texto,autor_nombre,de_kevin,hora,resuelto';
   const ultDiaSes = x => diaDe(x.fin || x.inicio);
-  const icoSes = x => x.clase === 'foto' ? 'camera' : x.clase === 'video' ? 'video' : x.clase === 'libre' ? 'file' : reu(x) ? 'users' : 'clap';   // its kind's, as the Mesa's
+  const icoSes = x => reu(x) ? 'users' : 'clap';   // a session or a meeting: what the Mesa sends (clase), as its «Vista cliente»
   const tramoSes = x => { const d = diaDe(x.inicio), f = x.fin ? diaDe(x.fin) : d, ho = x.sin_hora ? '' : ' · ' + horaDe(x.inicio);
     return f !== d ? `${dsem(d).slice(0, 3)} ${diaCorto(d)}${ho} – ${dsem(f).slice(0, 3)} ${diaCorto(f)}` : `${dsem(d).slice(0, 3)} ${diaCorto(d)}${ho}`; };
   function pintarSesEsp() {

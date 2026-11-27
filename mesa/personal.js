@@ -11,7 +11,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.23';   // 1.23: a sporadic client's page in the place of the page, «Mensuales · Esporádicos» and the page remembered by this tab, the tasks' list of one client, a note's draft (D-377).   // 1.22: an invoice's amount with its IVA (D-374). 1.21: Tareas as Avisos, in groups and with its columns, one tone, the core's rule of groups also for the iPhone (D-371); tasks and sessions are dragged in Semana and Mes, a delivery's move is a step of its ⌘Z (D-373). 1.20: a sporadic client's next date shows the meeting icon if it is a meeting (D-368). 1.19: the last month's «Cómo fue» in «Hoy» from the 3rd, with the clients that published and have no summary yet (D-362). 1.18: a delivery gone past and a «Solo contenido» client's block open its page (D-312); each day of Semana, Mes and the clients' strips under the mouse (D-313). 1.17: an invoice not issued whose day passed says «con retraso» (D-304). 1.16: a notice's and a task's mark from the core, marcaDe and marcaT; a task not done tinted as a post not scheduled, in Avisos and Tareas; at hover the row keeps its tint (D-300). 1.15: «Acuerdos» in Avisos, 14 days before renegotiating and, gone past, in «Se ha pasado» (D-288); a sporadic client from «Nuevo cliente» (D-289); a «Solo contenido» client's block counts its deliveries and one gone past goes to «Se ha pasado» (D-290). 1.14: from the board's calendar, a session or a task with that day and the client, a session duplicated or deleted with «Deshacer» (D-285); «/-» a separator (D-283). 1.13: campo/editar de una tarea o nota desde el iPhone (D-272), _p.clis y esps para la sesión (D-275). 1.12: in the iPhone (data-movil) nothing mounts; datos(o), lista(), valor(id), nuevoId(tipo) and a task with its id for the phone (D-267). 1.11: the symbol's button says «Clic: tu página · Clic derecho: copias» (D-263). 1.10: a photo of a task or note that hasn't come down from the server yet (lot 4 of the traspaso) shows nothing and says so, instead of breaking the page (D-259). 1.9: the cloud's activity notices, first in Avisos (D-257). 1.8: «aprobó / pidió cambios / ha comentado en su web» en «Esperando al cliente» (D-244). 1.7: each client's most urgent payment under its block, which opens its «Cobros», and the sums paid this month and pending in the header of Clientes (D-235); a late invoice in «Se ha pasado» (D-236); «Borrar esporádico» off with payments (D-234). 1.6: today's posts not scheduled, tinted amber in Avisos (D-222); the page and a card change in place only what changed (D-223); widen and reduce in the ×'s box (D-224); Tareas as this tab left it (D-225); a session in 600 with its clapperboard in --ty-ses-ink (D-226); square corners where a session goes on, --mute for what is read, «Fecha» / «Cliente» with the pointer over them, widening with a transform (D-231). 1.5: a session's several clients shown once, «A · B» and the first one's avatar with «+N» (D-217); its end in Avisos, Lista, Semana and Mes, «Reprogramar» keeps its length (D-218); its sheet opens over the board from the posts' calendar (D-219); «Duplicar sesión» in its menu (D-221). 1.4: a click writes, Esc and the × close (D-209); a session's sheet widens (D-210); «Hoy» and «Mañana» apart (D-212); one thin line on what is written (D-213). 1.3: the note and the details write with marks and the «/» menu (escritura.js, D-202–D-204); the card widens (D-205). 1.2: a task's date offers «Sin fecha» (D-188); what is not scheduled stands out in «Hoy y mañana» and «Se ha pasado» (D-190); each month's step is its most delayed post's (D-192)
+  const VERSION = '1.24';   // 1.24: a sporadic client's task or note with its eye; its «Vista cliente»; what its web sends (espWeb); the propio nodes keep what they are (D-378). 1.23: a sporadic client's page in the place of the page, «Mensuales · Esporádicos» and the page remembered by this tab, the tasks' list of one client, a note's draft (D-377).   // 1.22: an invoice's amount with its IVA (D-374). 1.21: Tareas as Avisos, in groups and with its columns, one tone, the core's rule of groups also for the iPhone (D-371); tasks and sessions are dragged in Semana and Mes, a delivery's move is a step of its ⌘Z (D-373). 1.20: a sporadic client's next date shows the meeting icon if it is a meeting (D-368). 1.19: the last month's «Cómo fue» in «Hoy» from the 3rd, with the clients that published and have no summary yet (D-362). 1.18: a delivery gone past and a «Solo contenido» client's block open its page (D-312); each day of Semana, Mes and the clients' strips under the mouse (D-313). 1.17: an invoice not issued whose day passed says «con retraso» (D-304). 1.16: a notice's and a task's mark from the core, marcaDe and marcaT; a task not done tinted as a post not scheduled, in Avisos and Tareas; at hover the row keeps its tint (D-300). 1.15: «Acuerdos» in Avisos, 14 days before renegotiating and, gone past, in «Se ha pasado» (D-288); a sporadic client from «Nuevo cliente» (D-289); a «Solo contenido» client's block counts its deliveries and one gone past goes to «Se ha pasado» (D-290). 1.14: from the board's calendar, a session or a task with that day and the client, a session duplicated or deleted with «Deshacer» (D-285); «/-» a separator (D-283). 1.13: campo/editar de una tarea o nota desde el iPhone (D-272), _p.clis y esps para la sesión (D-275). 1.12: in the iPhone (data-movil) nothing mounts; datos(o), lista(), valor(id), nuevoId(tipo) and a task with its id for the phone (D-267). 1.11: the symbol's button says «Clic: tu página · Clic derecho: copias» (D-263). 1.10: a photo of a task or note that hasn't come down from the server yet (lot 4 of the traspaso) shows nothing and says so, instead of breaking the page (D-259). 1.9: the cloud's activity notices, first in Avisos (D-257). 1.8: «aprobó / pidió cambios / ha comentado en su web» en «Esperando al cliente» (D-244). 1.7: each client's most urgent payment under its block, which opens its «Cobros», and the sums paid this month and pending in the header of Clientes (D-235); a late invoice in «Se ha pasado» (D-236); «Borrar esporádico» off with payments (D-234). 1.6: today's posts not scheduled, tinted amber in Avisos (D-222); the page and a card change in place only what changed (D-223); widen and reduce in the ×'s box (D-224); Tareas as this tab left it (D-225); a session in 600 with its clapperboard in --ty-ses-ink (D-226); square corners where a session goes on, --mute for what is read, «Fecha» / «Cliente» with the pointer over them, widening with a transform (D-231). 1.5: a session's several clients shown once, «A · B» and the first one's avatar with «+N» (D-217); its end in Avisos, Lista, Semana and Mes, «Reprogramar» keeps its length (D-218); its sheet opens over the board from the posts' calendar (D-219); «Duplicar sesión» in its menu (D-221). 1.4: a click writes, Esc and the × close (D-209); a session's sheet widens (D-210); «Hoy» and «Mañana» apart (D-212); one thin line on what is written (D-213). 1.3: the note and the details write with marks and the «/» menu (escritura.js, D-202–D-204); the card widens (D-205). 1.2: a task's date offers «Sin fecha» (D-188); what is not scheduled stands out in «Hoy y mañana» and «Se ha pasado» (D-190); each month's step is its most delayed post's (D-192)
   if (M.personal && M.personal._off) { try { M.personal._off(); } catch (e) { /* */ } }
 
   const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
@@ -532,7 +532,8 @@
       if (g === 'pasado' || g === 'despues') return `<span class="pp-tf${venc(k) ? ' rojo' : ''}">${esc(g === 'pasado' ? corto(ultDia(k)) : diaTxt(k.fecha))}${h ? '<br>' + h : ''}</span>`;
       return `<span class="pp-tf">${k.fecha === (g === 'man' ? addD(hoy, 1) : hoy) ? h : ''}</span>`;
     };
-    const linea = (k, g) => `<div class="pp-tk pp-tg${k.hecha ? ' hecha' : ''}${k.tipo === 'sesion' ? ' ses' : ''}${mkCls(marcaT(k, hoy))}" data-tid="${esc(k.id)}"${k.tipo === 'sesion' && k.fin ? ` title="${esc(tramo(k))}"` : ''}><span class="pp-avs"${clis(k).filter(cliOk).length > 1 ? ` title="${clis(k).filter(cliOk).map(nombreC).join(' · ')}"` : ''}>${clis(k).filter(cliOk).slice(0, 2).map(c => avatar(c, 'xs')).join('')}</span>${g ? cuandoT(k, g) : '<span class="pp-tf pp-tfv"></span>'}<span class="pp-tck">${ck(k)}</span><span class="pp-tx">${ses(k)}${mas(k, `<span class="pp-tt" ${ver(k)}>${esc(k.txt)}</span>`)}${k.tipo === 'sesion' ? '' : fotos(k)}</span></div>`;
+    const conOjo = !!(pg && pg.cli && espCli(pg.cli));   // its page: an eye in each row (D-378)
+    const linea = (k, g) => `<div class="pp-tk pp-tg${conOjo ? ' con-ojo' : ''}${k.hecha ? ' hecha' : ''}${k.tipo === 'sesion' ? ' ses' : ''}${mkCls(marcaT(k, hoy))}" data-tid="${esc(k.id)}"${k.tipo === 'sesion' && k.fin ? ` title="${esc(tramo(k))}"` : ''}><span class="pp-avs"${clis(k).filter(cliOk).length > 1 ? ` title="${clis(k).filter(cliOk).map(nombreC).join(' · ')}"` : ''}>${clis(k).filter(cliOk).slice(0, 2).map(c => avatar(c, 'xs')).join('')}</span>${g ? cuandoT(k, g) : '<span class="pp-tf pp-tfv"></span>'}<span class="pp-tck">${ck(k)}</span><span class="pp-tx">${ses(k)}${mas(k, `<span class="pp-tt" ${ver(k)}>${esc(k.txt)}</span>`)}${k.tipo === 'sesion' ? '' : fotos(k)}</span>${conOjo ? ojoTN(k) : ''}</div>`;
     let celda = null;                          // the day being drawn (Semana): an overdue task from before says its date
     // a session of several days goes on: square corners where it continues, by its real days (D-231)
     const sigue = (k, d) => k.tipo === 'sesion' && d && enTramo(k, d) && ultDia(k) > k.fecha ? `${k.fecha < d ? ' sigue-i' : ''}${d < ultDia(k) ? ' sigue-d' : ''}` : '';
@@ -747,7 +748,7 @@
   function cerrar() {
     const X = I(), root = X && X.root && X.root();
     if (!st.on) return;
-    st.on = false; ssSet(SS_CLI, '1'); st.esp = null; ssSet(SS_ESP, null); cerrarMenu(); if (CARD) { if (CARD.ed) guardarCard(); quitarCard(); }
+    st.on = false; ssSet(SS_CLI, '1'); st.esp = null; st.espVc = null; ssSet(SS_ESP, null); cerrarMenu(); if (CARD) { if (CARD.ed) guardarCard(); quitarCard(); }
     if (root) root.classList.remove('pp-on');
     if (page) { page.hidden = true; page.innerHTML = ''; page.classList.remove('pp-ep-on'); }   // its sporadic page's class never outlives it (D-377: its display beat [hidden])
     colocar();
@@ -866,6 +867,12 @@
     if (r._b) { Object.defineProperty(n, '_b', { value: true, enumerable: false, configurable: true }); TK.set(id, n); return Promise.resolve(true); }   // a new task not made yet (D-203): in memory only
     return hacer([{ id, despues: n }], junta); };
   const marcar = (id, v) => cambiar(id, r => { if (v) r.hecha = ahoraISO(); else delete r.hecha; return r; });
+  // the eye of a sporadic client's task or note (D-378): crossed out by default (`visible` absent), open = its client sees it in
+  // its web; the ones from before stay hidden (nothing changes by itself)
+  const espCli = id => { const e = id && TK.get(id); return !!(e && e.tipo === 'esporadico' && !e.pasado); };
+  const ojoTN = (r, cls) => r && !r._b && (r.tipo === 'tarea' || r.tipo === 'nota') && espCli(r.cliente) ? `<button type="button" class="ibtn pp-tn-ojo${cls ? ' ' + cls : ''}" data-pp="tn-ojo" data-id="${esc(r.id)}" aria-pressed="${!!r.visible}" title="${r.visible ? 'Lo verá el cliente' : 'Solo para ti'}" aria-label="${r.visible ? 'Lo verá el cliente' : 'Solo para ti'}">${r.visible ? ICO.ojo : ICO.ojoNo}</button>` : '';
+  const verTN = id => cambiar(id, x => { if (x.tipo !== 'tarea' && x.tipo !== 'nota') return null; if (x.visible) delete x.visible; else x.visible = true; return x; })
+    .then(r => { pintar(); if (CARD && CARD.id === id) pintarCard(true); if (M.web && M.web.tocado) M.web.tocado(); return r; });
   // the iPhone edits a task or a note field by field (D-272), with the rules of the Mac's card (D-182, D-183): the title (a task's in one
   // line; empty, refused), the date and the client (valid or none), the details (trimmed; empty, none) and each subtask on its own (its id
   // comes with the operation). A note: only its text. Each change, a step of the tasks' ⌘Z. campo(id, campo, sid) is what is there now.
@@ -885,7 +892,7 @@
     if (campo === 'txt') { const t = nota ? String(v ?? '').replace(/\s+$/, '') : String(v ?? '').replace(/\s*\n\s*/g, ' ').trim(); if (!t.trim()) return { error: nota ? 'una nota necesita un texto' : 'una tarea necesita un texto' }; f = x => { x.txt = t; return x; }; }
     else if (nota) return { error: 'campo no válido' };
     else if (campo === 'fecha') { if (v && !/^\d{4}-\d{2}-\d{2}$/.test(v)) return { error: 'fecha no válida' }; f = x => { if (v) x.fecha = v; else delete x.fecha; return x; }; }
-    else if (campo === 'cliente') { if (v && !cliDe(v)) return { error: 'cliente no válido' }; f = x => { if (v) x.cliente = v; else delete x.cliente; return x; }; }
+    else if (campo === 'cliente') { if (v && !cliDe(v)) return { error: 'cliente no válido' }; f = x => { if ((x.cliente || '') !== v) delete x.visible; if (v) x.cliente = v; else delete x.cliente; return x; }; }   // another client: its eye closes (D-378)
     else if (campo === 'detalles') { const d = String(v ?? '').replace(/^\s*\n|\s+$/g, ''); f = x => { if (d) x.detalles = d; else delete x.detalles; return x; }; }
     else if (campo === 'subtarea') {
       const o = v || {}, sid = o.sid, t = String(o.txt ?? '').trim();
@@ -939,7 +946,7 @@
   const botonesCard = (ojo = '', amp = true) => `<span class="pp-cbs">${ojo}${amp ? ampBtn() : ''}<button type="button" class="ibtn pp-cb pp-cx" data-pp="cerrar" title="Cerrar" aria-label="Cerrar">${ICO.x}</button></span>`;
   function htmlCard(r, ed) {
     const X = I(), ce = ed ? ' contenteditable="plaintext-only" spellcheck="true" role="textbox"' : '', amp = CARD && CARD.amplia ? ' amplia' : '';
-    if (r.tipo === 'nota') return `<div class="pp-card nota${ed ? ' ed' : ''}${amp}" role="dialog" aria-modal="true" aria-label="Nota" tabindex="-1">${botonesCard()}<div class="pp-cn" data-pp="cn" data-id="${esc(r.id)}"${ce}${ed ? ' aria-multiline="true" aria-label="Nota"' : ''}>${ed ? esc(r.txt) : leerTxt(r.txt, { enlaces: true })}</div></div>`;
+    if (r.tipo === 'nota') return `<div class="pp-card nota${ed ? ' ed' : ''}${amp}" role="dialog" aria-modal="true" aria-label="Nota" tabindex="-1">${botonesCard(ojoTN(r, 'pp-cb'))}<div class="pp-cn" data-pp="cn" data-id="${esc(r.id)}"${ce}${ed ? ' aria-multiline="true" aria-label="Nota"' : ''}>${ed ? esc(r.txt) : leerTxt(r.txt, { enlaces: true })}</div></div>`;
     const venc = !r.hecha && r.fecha && r.fecha < X.hoy(), c = r.cliente ? cliDe(r.cliente) : null;
     const fecha = ed ? `<span class="pp-cmf"><input type="date" class="pp-cfecha" data-sin-fecha data-id="${esc(r.id)}" value="${esc(r.fecha || '')}" aria-label="Fecha de la tarea"></span>`
       : r.fecha ? `<span class="pp-cml${venc ? ' rojo' : ''}" data-pp="lfecha">${ICO.fecha}${esc(fechaLarga(r.fecha))}</span>` : `<span class="pp-cml vacio" data-pp="lfecha">${ICO.fecha}Fecha</span>`;   // read: a click writes and opens its control (D-209)
@@ -947,7 +954,7 @@
       : c ? `<span class="pp-cml" data-pp="lcli">${avatar(c.id, 'xs')}${esc(c.name)}</span>` : `<span class="pp-cml vacio" data-pp="lcli">${ICO.cliente}Cliente</span>`;
     const fotos = (r.fotos || []).length ? `<div class="pp-cfo">${r.fotos.map((f, i) => `<button type="button" class="pp-tfo" data-pp="foto" data-id="${esc(r.id)}" data-i="${i}" title="Ver la foto" aria-label="Ver la foto"><img src="${fotosURL(f)}" alt=""></button>`).join('')}</div>` : '';
     return `<div class="pp-card${ed ? ' ed' : ''}${r.hecha ? ' hecha' : ''}${amp}" role="dialog" aria-modal="true" aria-label="Tarea" tabindex="-1">`
-      + `<div class="pp-ch"><input type="checkbox" class="pp-ck" data-pp="ck" data-id="${esc(r.id)}"${r.hecha ? ' checked' : ''} aria-label="Hecha"><p class="pp-ct" data-pp="ct" data-id="${esc(r.id)}"${ce}${ed ? ' aria-label="Tarea"' : ''}>${esc(r.txt)}</p>${botonesCard()}</div>`
+      + `<div class="pp-ch"><input type="checkbox" class="pp-ck" data-pp="ck" data-id="${esc(r.id)}"${r.hecha ? ' checked' : ''} aria-label="Hecha"><p class="pp-ct" data-pp="ct" data-id="${esc(r.id)}"${ce}${ed ? ' aria-label="Tarea"' : ''}>${esc(r.txt)}</p>${botonesCard(ojoTN(r, 'pp-cb'))}</div>`
       + `<div class="pp-cm">${fecha}${cli}</div>` + fotos + detSub(r, ed) + `</div>`;
   }
   // its details and its subtasks (D-183): the details, one field that takes no room in small when empty; the subtasks, each with
@@ -1061,7 +1068,10 @@
   function morfNodo(a, b, o) {
     if (a.nodeType !== 1) { if (a.nodeValue !== b.nodeValue) a.nodeValue = b.nodeValue; return; }
     if (o.vivo && o.vivo(a)) return;                    // left as it is (a text being written)
-    if (a.hasAttribute('data-propio') && a.tagName === b.tagName) return;   // drawn by another file in its place (the sporadic page's calendar, D-377)
+    if (a.hasAttribute('data-propio') && a.tagName === b.tagName) {   // drawn by another file in its place (the sporadic page's calendar, D-377)
+      for (const n of ['data-vc', 'data-cli', 'data-web-ses', 'data-web-cli', 'data-web-ro']) if (a.getAttribute(n) !== b.getAttribute(n)) { if (b.hasAttribute(n)) a.setAttribute(n, b.getAttribute(n)); else a.removeAttribute(n); a._h = null; }   // what it is: its «Vista cliente» or not, whose (D-378)
+      return;
+    }
     if (a._mx) return;                                  // a native control kept: the same, with its twin's marks (mx-nat, tabindex, aria-hidden)
     if (a.isEqualNode(b)) return;
     if (a.classList.contains('pp-fo') && b.classList.contains('pp-fo')) {   // the same photo keeps its drawing until it has the new one
@@ -1119,6 +1129,7 @@
   // ---------- a sporadic client's page (lote 5 de la 4.55, D-377): in the place of the page, «‹ Esporádicos» back; a card opened
   // from it (a session, a task, a note) is over it and, closed, the page is there; this tab remembers it ----------
   function abrirEsp(id, o = {}) {
+    st.espVc = null;   // another sporadic client's page: Kevin's view (D-378)
     if (!espDe(id) || !EXT.ficha || !EXT.ficha.pagina) return false;
     if (!st.on && !abrir()) return false;
     cerrarMenu(); if (CARD) { if (CARD.ed) guardarCard(); quitarCard(); }
@@ -1131,6 +1142,7 @@
   }
   const cvistaPoner = v => { st.cvista = v === 'esporadicos' ? 'esporadicos' : 'mensuales'; ssSet(SS_CV, st.cvista); };   // passed to a monthly one: «Mensuales» (D-377)
   function salirEsp(foco = true) {
+    st.espVc = null;   // its «Vista cliente» goes with it (D-378)
     const id = st.esp; if (!id) return;
     st.esp = null; ssSet(SS_ESP, null); page.scrollTop = 0; pintar();
     const b = foco && page.querySelector(`[data-pp="esp"][data-id="${CSS.escape(id)}"]`); if (b) b.focus({ preventScroll: false });   // back on its block
@@ -1146,7 +1158,8 @@
     ov = document.createElement('div'); ov.className = 'pp-ov entra' + (ext ? ' ' + ext.cls : ''); ov.dataset.pp = 'ov';
     ov.addEventListener('animationend', e => { if (e.target.classList.contains('pp-card')) e.currentTarget.classList.remove('entra'); });
     X.root().append(ov);
-    CARD = { id, ed: !!o.ed, peq: !o.ed, t0: Date.now(), cierre: 0, de: o.de || `[data-pp="tver"][data-id="${CSS.escape(id)}"]`, amplia: false, ext, tablero: tab, vc: tab && vc, cli: tab ? cli : null };
+    const espVc = !tab && !!o.vc && !!st.esp && st.espVc === st.esp;   // a sporadic client's «Vista cliente» (D-378): its session, fixed, naming only it
+    CARD = { id, ed: !!o.ed, peq: !o.ed, t0: Date.now(), cierre: 0, de: o.de || `[data-pp="tver"][data-id="${CSS.escape(id)}"]`, amplia: false, ext, tablero: tab, vc: (tab && vc) || espVc, cli: tab ? cli : espVc ? st.esp : null };
     root.classList.toggle('pp-card-on', tab);   // the board under it takes no keys, nor the focus (inert)
     root.querySelectorAll(':scope > .appbar, :scope > .bar, :scope > .main').forEach(el => { el.inert = tab; });
     setTimeout(() => { if (CARD && CARD.id === id) CARD.peq = false; }, 600);   // the second click of the double click that opened it
@@ -1405,10 +1418,11 @@
     if (st.on && e.target.closest('.tabs [data-act="client"]')) { if (e.target.closest('[data-act="client"]') && e.target.closest('[data-act="client"]').dataset.id === X.curClient) cerrar(); return; }   // another client: its tab opens it (and M.openClient closes the page)
     if (CARD && enCard(e.target)) { clicCard(e); return; }
     // a task or a note in small: a click opens it big (D-182); its checkbox and its photo, as before
-    const it = st.on && page && page.contains(e.target) && !e.target.closest('.pp-ck, [data-pp="foto"], [data-pp="reprog"]') && e.target.closest('[data-tid]:not([data-tid="nueva"]), [data-nid]');
+    const it = st.on && page && page.contains(e.target) && !e.target.closest('.pp-ck, [data-pp="foto"], [data-pp="reprog"], [data-pp="tn-ojo"]') && e.target.closest('[data-tid]:not([data-tid="nueva"]), [data-nid]');
     if (it && TK.has(it.dataset.tid || it.dataset.nid)) { abrirCard(it.dataset.tid || it.dataset.nid); return; }
     const a = e.target.closest('[data-pp]'); if (!a) return;
     const k = a.dataset.pp;
+    if (k === 'tn-ojo' && st.on && page.contains(a)) { verTN(a.dataset.id); return; }   // a sporadic client's task or note (D-378)
     if (k === 'logo') { if (!root.classList.contains('client')) { if (st.on) { if (st.esp) salirEsp(false); page.scrollTop = 0; } else abrir(); } return; }
     if (k.startsWith('ep-') && st.on && page.contains(a) && st.esp && EXT.ficha && EXT.ficha.pagClic) { EXT.ficha.pagClic(k, a, e); return; }   // its page (sesiones.js)
     if (!st.on || (!page.contains(a) && k !== 'fnav')) return;
@@ -1463,6 +1477,7 @@
     if (k === 'foto') { verFoto(a.dataset.id, a.dataset.i); return; }
     if (k === 'cmas') { nuevaSub(); return; }
     if (k === 'csx') { quitarSub(a.closest('.pp-csub')); return; }
+    if (k === 'tn-ojo') { if (CARD && CARD.ed && CARD.id === a.dataset.id) guardarCard(false); verTN(a.dataset.id); return; }   // D-378; writing: what is written first
     if (t.closest('.pp-ck, input, select, button, [contenteditable="plaintext-only"], .mx-sel, .mx-f')) return;
     if (e.detail >= 2) return;                 // the double click decides (alDobleClic)
     CARD.peq = false;
@@ -1494,7 +1509,7 @@
     if (CARD && CARD.ext && enCard(t) && CARD.ext.cambio && CARD.ext.cambio(e)) return;   // a session's sheet, a sporadic client's file (sesiones.js)
     // the card's date and client (D-182): saved at once, the card stays as it is (its control is finishing its gesture)
     if (t.matches('.pp-cfecha')) { const v = /^\d{4}-\d{2}-\d{2}$/.test(t.value) ? t.value : ''; cambiar(t.dataset.id, x => { if (v) x.fecha = v; else delete x.fecha; return x; }).then(() => pintar()); return; }
-    if (t.matches('.pp-ccli')) { const v = t.value && cliDe(t.value) ? t.value : ''; cambiar(t.dataset.id, x => { if (v) x.cliente = v; else delete x.cliente; return x; }).then(() => pintar()); return; }
+    if (t.matches('.pp-ccli')) { const v = t.value && cliDe(t.value) ? t.value : ''; cambiar(t.dataset.id, x => { if ((x.cliente || '') !== v) delete x.visible; if (v) x.cliente = v; else delete x.cliente; return x; }).then(() => pintar()); return; }   // another client: its eye closes (D-378)
     if (t.matches('[data-pp="ttodas"]')) { st.ttodas = t.checked; pintar(); return; }
     if (t.matches('[data-pp="avtareas"]')) { st.avTareas = t.checked; pintar(); return; }
     // «Fecha» and «Cliente» of «Nueva tarea»: only the field changes (the mesa's control is still finishing its gesture)
@@ -1578,7 +1593,9 @@
   // a sporadic client's: «Borrar esporádico», off while it has sessions, tasks or notes (D-201, D-207)
   function menuEsp(id) {
     const tiene = vivos().some(k => conCli(k, id) && k.tipo !== 'esporadico') || !!(I().cob && I().cob.vivos(id).length);   // a session shared with others too (D-217); its payments (D-234)
-    return [['borrar', 'Borrar esporádico', async () => { if (CARD && CARD.id === id) cerrarCard(true); await borrar(id); pintar(); }, tiene, tiene ? 'Tiene sesiones, tareas, notas o cobros' : '']];
+    // with its web sent from here (its print in 'enviados'), its web stays: said, the server is cleaned with tools/web.mjs (D-378)
+    const web = M.web && M.web._sb ? M.web._sb() : null, X = I(), conWeb = !!(web && X.envHuella && X.envHuella({ key: 'cliente:' + id, client: id }, web._url));
+    return [['borrar', 'Borrar esporádico', async () => { if (CARD && CARD.id === id) cerrarCard(true); await borrar(id); pintar(); if (conWeb) X.toast('Borrado. Su web sigue con lo último que enviaste: pídele a Claude que la borre.', { ms: 9000 }); }, tiene, tiene ? 'Tiene sesiones, tareas, notas o cobros' : '']];
   }
   // «Reprogramar» of a session gone past: the mesa's calendar under the button; the new day, a step of ⌘Z (D-206)
   function reprogramar(id, b) {
@@ -1668,6 +1685,8 @@
     for (const L of [H.u, H.r]) { for (let i = L.length - 1; i >= 0; i--) { const paso = L[i]; if (sinId) for (let j = paso.length - 1; j >= 0; j--) if (paso[j].id === sinId) paso.splice(j, 1); if (!paso.length) { L.splice(i, 1); continue; } for (const p of paso) { if (p.antes) f(p.antes); if (p.despues) f(p.despues); } } }
   }
   const _p = {
+    ojoTN, verTN, espCli,   // D-378
+    espWeb: () => (st.on && st.esp && espCli(st.esp) ? st.esp : null),   // the sporadic client whose page is open: what its web sends (D-378)
     EXT, TK, I, esc, ICO, st, avatar, avatarN, cliDe, clis, conCli, cliOk, esps, sesiones, tareas, notas, vivos, opcionesCli, diaHora, tramo, ultDia, marcaT, grupoT, moverInicio, finOk, finNuevo, corto, fechaLarga, addD, dow, difD, acuerdoCuando, MESL,
     hacer, cambiar, enmendar, escribir, deshacer, copia, hondo, nuevoId, ahoraISO, puede, borrar, marcar, rebajar, esImagen, verFoto, remapH, guardarCard, ampliar, colocarAmplia,
     pintar, refrescar, cargarTK, abrirCard, abrirEsp, salirEsp, cvistaPoner, tareasHTML, espDe, cerrarCard, quitarCard, pintarCard, editar, borrador, pedirFecha, comando, menuSesion, menuEsp,
@@ -1909,6 +1928,9 @@
 #mesa .pp-tk:hover{background:var(--bg-3)}#mesa .pp-tareas .pp-tk:hover,#mesa .pp-ep-tn .pp-tk:hover{background:var(--bg-2)}
 #mesa .pp-tk.pp-tg{display:grid;grid-template-columns:28px 42px 32px minmax(0,1fr);align-items:center;column-gap:10px;min-height:36px;padding:3px 10px}   /* a row of Avisos (D-371) */
 #mesa .pp-sinf .pp-tk.pp-tg{grid-template-columns:28px 32px minmax(0,1fr)}#mesa .pp-sinf .pp-tfv{display:none}
+#mesa .pp-tk.pp-tg.con-ojo{grid-template-columns:28px 42px 32px minmax(0,1fr) 28px}#mesa .pp-sinf .pp-tk.pp-tg.con-ojo{grid-template-columns:28px 32px minmax(0,1fr) 28px}   /* its eye (D-378) */
+#mesa .pp-tn-ojo{width:28px;height:28px;color:var(--mute)}#mesa .pp-tk .pp-tn-ojo:hover{background:var(--bg-3)}#mesa .pp-tn-ojo[aria-pressed="true"]{color:var(--ink)}#mesa .pp-tn-ojo svg{width:16px;height:16px}
+#mesa .pp-pt .pp-tn-ojo{position:absolute;right:3px;bottom:3px;width:24px;height:24px;color:inherit;opacity:.55}#mesa .pp-pt .pp-tn-ojo[aria-pressed="true"]{opacity:.9}#mesa .pp-pt .pp-tn-ojo:hover{background:var(--postit-3)}#mesa .pp-pt:has(.pp-tn-ojo) .pp-ptx{padding-right:22px}
 #mesa .pp-tg .pp-tf{font-size:12.5px;line-height:1.25}#mesa .pp-tck{display:inline-flex;justify-content:center}
 #mesa .pp-tx{display:flex;align-items:center;gap:8px;min-width:0}#mesa .pp-tx > .pp-tt,#mesa .pp-tx > .pp-col{flex:1;min-width:0}
 #mesa .pp-tgr + .pp-tgr{margin-top:14px}#mesa .pp-tgr .pp-gt{padding:4px 10px 4px}
@@ -2050,6 +2072,10 @@
 #mesa .pp-card.nota{padding-right:92px}
 #mesa .pp-card.nota .pp-cb{color:color-mix(in oklab,var(--postit-ink) 62%,var(--postit-2))}
 #mesa .pp-card.nota .pp-cb:hover{background:var(--postit-3);color:var(--postit-ink)}
+#mesa .pp-cb.pp-tn-ojo{width:32px;height:32px}#mesa .pp-cb.pp-tn-ojo svg{width:18px;height:18px}#mesa .pp-cb.pp-tn-ojo[aria-pressed="false"]{color:var(--mute)}   /* its eye in the card, as its buttons (D-378) */
+#mesa .pp-card.nota .pp-cb.pp-tn-ojo[aria-pressed="false"]{color:color-mix(in oklab,var(--postit-ink) 62%,var(--postit-2))}#mesa .pp-card.nota .pp-cb.pp-tn-ojo[aria-pressed="true"]{color:var(--postit-ink)}
+#mesa .pp-cb.pp-tn-ojo:hover{color:var(--ink)}#mesa .pp-card.nota .pp-cb.pp-tn-ojo:hover{color:var(--postit-ink)}
+#mesa .pp-ch:has(.pp-tn-ojo){padding-right:100px}#mesa .pp-card.nota:has(.pp-tn-ojo){padding-right:128px}   /* three buttons, not two */
 /* read, a click writes where it is pressed (D-209): the text cursor says so; the date and the client open their control */
 #mesa .pp-card .pp-ct,#mesa .pp-card .pp-cn,#mesa .pp-card .pp-cd,#mesa .pp-csub > span{cursor:text}
 #mesa .pp-cml{cursor:pointer;border-radius:var(--r-xs)}#mesa .pp-cml:hover{color:var(--ink)}#mesa .pp-cml.vacio{color:var(--mute);opacity:0;transition:opacity var(--d1) var(--ease)}#mesa .pp-cml.vacio svg{color:inherit}#mesa .pp-cml.vacio:hover{color:var(--ink)}
@@ -2075,9 +2101,9 @@
   #mesa .pp-top{flex-direction:column;align-items:stretch;gap:6px}#mesa .pp-periodo{padding:0 8px 6px}
   #mesa .pp-bgrid,#mesa .pp-bcab{grid-template-columns:minmax(0,1fr)}#mesa .pp-bcab > .pp-cab + .pp-cab{display:none}
   #mesa .pp-sem{grid-template-columns:repeat(4,minmax(0,1fr))}#mesa .pp-sd{min-height:84px}
-  #mesa .pp-tv.dos{grid-template-columns:minmax(0,1fr)}#mesa .pp-sinf{border-left:0;border-top:1px solid var(--line);padding:6px 0 0}#mesa .pp-tk.pp-tg{column-gap:8px}#mesa .pp-sinf .pp-tk.pp-tg{grid-template-columns:28px 42px 32px minmax(0,1fr)}#mesa .pp-sinf .pp-tfv{display:block}#mesa .pp-md{min-height:52px}#mesa .pp-mt{font-size:10.5px}
+  #mesa .pp-tv.dos{grid-template-columns:minmax(0,1fr)}#mesa .pp-sinf{border-left:0;border-top:1px solid var(--line);padding:6px 0 0}#mesa .pp-tk.pp-tg{column-gap:8px}#mesa .pp-sinf .pp-tk.pp-tg{grid-template-columns:28px 42px 32px minmax(0,1fr)}#mesa .pp-sinf .pp-tfv{display:block}#mesa .pp-sinf .pp-tk.pp-tg.con-ojo{grid-template-columns:28px 42px 32px minmax(0,1fr) 28px}#mesa .pp-md{min-height:52px}#mesa .pp-mt{font-size:10.5px}
   #mesa .pp-av{column-gap:8px}
-  #mesa .pp-ov.amplia .pp-card{padding:28px 16px 32px}#mesa .pp-ov.amplia .pp-card.nota{padding:56px 20px 32px}#mesa .pp-card.amplia .pp-ch{padding-right:68px}#mesa .pp-card.amplia .pp-ch > .pp-cbs{top:30px;right:8px}
+  #mesa .pp-ov.amplia .pp-card{padding:28px 16px 32px}#mesa .pp-ov.amplia .pp-card.nota{padding:56px 20px 32px}#mesa .pp-card.amplia .pp-ch{padding-right:68px}#mesa .pp-card.amplia .pp-ch:has(.pp-tn-ojo){padding-right:104px}#mesa .pp-card.amplia .pp-ch > .pp-cbs{top:30px;right:8px}
   #mesa .pp-card.amplia:not(.nota){grid-template-columns:minmax(0,1fr)}#mesa .pp-card.amplia > .pp-cs{grid-column:1;margin:14px 0 0 29px}
 }
 `;

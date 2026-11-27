@@ -39,6 +39,12 @@ const pesos = [...m.html.matchAll(/font-weight:(\d+)/g)].map(x => x[1]);
 ok(pesos.every(w => w === '400' || w === '800' || w === '700') && pesos.filter(w => w === '700').length === 1 && /font-weight:700">uribevisuals\.studio/.test(m.html), 'solo pesos 400 y 800 (el 700, solo en el enlace de la firma)', pesos.join());
 ok(/>Kevin Uribe<\/div>/.test(m.html) && /Creative Director · Uribe Visuals/.test(m.html) && /href="https:\/\/uribevisuals\.studio"/.test(m.html) && /Kevin Uribe\nCreative Director · Uribe Visuals\nIbiza · uribevisuals\.studio/.test(m.texto), 'la firma de email del manual, también en el texto');
 ok(!/\b(calidad|pasión|creatividad|colaboración|soluciones|elevar|alma|experiencias|alta gama|algo más|apasionados)\b/i.test(m.texto), 'sin el vocabulario prohibido del manual');
+{ // un esporádico (D-378): sus sesiones, sin calendario ni feed
+  const s = bienvenida({ nombre: 'Eva', correo: 'eva@ejemplo.test', clientes: ['Taller Este'], sesiones: true });
+  ok(s.asunto === 'Ya puedes ver tus sesiones con Uribe Visuals', 'el asunto de un esporádico: ' + s.asunto);
+  ok(/sesiones de Taller Este/.test(s.texto) && /En cada sesión, tus comentarios/.test(s.texto) && !/calendario de Instagram|feed|Aprobar/.test(s.texto), 'su texto habla de sus sesiones');
+  ok(/Tus sesiones y su calendario/.test(s.html) && !/El feed/.test(s.html), 'y su HTML');
+}
 m = bienvenida({ nombre: 'Bea', correo: 'b@ejemplo.test', clientes: ['Cliente Norte', 'Cliente Sur'] });
 ok(m.asunto === 'Ya puedes ver tu calendario de Cliente Norte y Cliente Sur' && /los calendarios de Cliente Norte y Cliente Sur/.test(m.texto) && /cambias entre Cliente Norte y Cliente Sur/.test(m.texto), 'con dos clientes, los dos y cómo cambiar', m.texto);
 m = bienvenida({ nombre: '<b>Eva</b> & "co"', correo: 'e@ejemplo.test', clientes: ['A<script>'] });

@@ -1,7 +1,8 @@
 // El correo de bienvenida del portal de clientes y su envío (D-273). Node 18+, sin dependencias.
 // Lo usa `node tools/web.mjs alta …`; no se ejecuta solo. Nada de aquí lleva datos de clientes: el nombre, el correo y los
 // clientes llegan de la orden y del servidor.
-//   bienvenida({ nombre, correo, clientes })   el asunto, el texto y el HTML (los clientes, por su nombre en el portal)
+//   bienvenida({ nombre, correo, clientes, sesiones })   el asunto, el texto y el HTML (los clientes, por su nombre en el portal;
+//                                              sesiones: todos son esporádicos, D-378: sus sesiones, no un calendario)
 //   mensaje({ …, asunto, texto, html })        el correo entero (RFC 5322, MIME texto + HTML, en base64, con CRLF)
 //   enviarSmtp({ host, port, usuario, clave, de, para, datos })   lo entrega por SMTP con TLS (465) y AUTH PLAIN
 import tls from 'node:tls';
@@ -26,18 +27,24 @@ const lista = ns => ns.length === 1 ? ns[0] : ns.slice(0, -1).join(', ') + ' y '
 // como texto alternativo; Schibsted Grotesk (la de la marca, servida desde el portal) donde el correo carga tipografías (Apple Mail,
 // iPhone) y Arial donde no (Gmail, Outlook: el manual pide Arial en el correo); pesos 400 y 800 y la firma de email del manual.
 // Sin antetítulos.
-export function bienvenida({ nombre, correo, clientes }) {
+export function bienvenida({ nombre, correo, clientes, sesiones = false }) {
   if (!nombre || !correo || !Array.isArray(clientes) || !clientes.length) throw new Error('faltan el nombre, el correo o los clientes');
   const varios = clientes.length > 1, de = lista(clientes);
-  const asunto = `Ya puedes ver tu calendario de ${de}`;
+  // un esporádico (D-378): sus sesiones, sin calendario de Instagram ni feed
+  const asunto = sesiones ? 'Ya puedes ver tus sesiones con Uribe Visuals' : `Ya puedes ver tu calendario de ${de}`;
   const intro = `Hola, ${nombre}. Ya tienes tu apartado en la web de Uribe Visuals. Ahí ves ` +
-    (varios ? `los calendarios de ${de} antes de que se publiquen.` : `el calendario de ${de} antes de que se publique.`);
+    (sesiones ? `cómo preparamos las sesiones de ${de}.` : varios ? `los calendarios de ${de} antes de que se publiquen.` : `el calendario de ${de} antes de que se publique.`);
   const pasos = [
     `Abre ${PORTAL.replace('https://', '')}.`,
     `Escribe ${correo} y pulsa «Enviarme el código».`,
     'Escribe el código de 6 cifras que te llega por correo. Vale 10 minutos. No hay contraseña.',
   ];
-  const ves = [
+  const ves = sesiones ? [
+    'Tus sesiones y su calendario, con lo que preparamos para cada una.',
+    'En cada sesión, tus comentarios.',
+    'Las tareas y notas que compartimos contigo, y tus pagos.',
+    ...(varios ? [`Arriba, junto al logo, cambias entre ${de}.`] : []),
+  ] : [
     'El feed y el calendario de cada mes, con la foto, el texto y la fecha de cada publicación.',
     'En cada publicación, «Aprobar» o «Pedir cambios», y comentarios.',
     'Por qué este calendario, tus pagos y cómo fue el mes anterior.',

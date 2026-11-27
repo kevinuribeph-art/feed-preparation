@@ -4,7 +4,7 @@
 // hace: aprobar, pedir cambios con motivo y comentar.
 (function portal() {
   'use strict';
-  const V = '1.13';   // 1.13: a pending invoice with only a due date shows, as in «Vista cliente» (D-368); in landscape nothing sits under the notch (portal.css, D-366). 1.12: al parar lejos del punto de un mes, la tira se centra sola en el mes activo (D-P14, como D-338 de la Mesa). 1.11: lo visto simulando el iPhone: girar no aleja la página, los puntos al cambiar el alto, la inercia larga (D-P11 a D-P13). 1.10: con algo por aprobar y la página deslizando, abre arriba, con el aviso a la vista (D-P10). 1.9: el feed seguido, con todos los meses, la cabecera de meses y su movimiento, como la «Vista cliente» (feed continuo; feed-mov.js 1.0). 1.8: un cliente de solo contenido sin meses: su lista entera y sus sesiones que vienen, sin calendario, como la «Vista cliente» (D-312). 1.7: «Tus pagos» con el acuerdo de cuándo a cuándo, lo que incluye su paquete y la siguiente por su fecha (D-308). 1.6: a pantalla completa (D-293), «Ver más en Zernio» (D-294), la ventana de una publicación como Instagram (D-295), las flechas del carrusel (D-296), «Tus pagos» con su tramo, las entregas de un cliente de solo contenido y la reunión (D-297). 1.5: el aviso de demasiados intentos ya no promete un minuto (D-280). 1.4: la cuenta que solo mira: ve cada cliente como lo ve él, sin aprobar, pedir cambios ni comentar (D-266). 1.3: el monograma a la izquierda de la barra, sin pulsar, y la página con las medidas de la «Vista cliente» (D-264)
+  const V = '1.15';   // 1.15: a sporadic client (servicio «sesiones»): its sessions with their calendar, its tasks and notes, a session's sheet with its comments (D-378). 1.14: «Tu plan» (D-376).   // 1.13: a pending invoice with only a due date shows, as in «Vista cliente» (D-368); in landscape nothing sits under the notch (portal.css, D-366). 1.12: al parar lejos del punto de un mes, la tira se centra sola en el mes activo (D-P14, como D-338 de la Mesa). 1.11: lo visto simulando el iPhone: girar no aleja la página, los puntos al cambiar el alto, la inercia larga (D-P11 a D-P13). 1.10: con algo por aprobar y la página deslizando, abre arriba, con el aviso a la vista (D-P10). 1.9: el feed seguido, con todos los meses, la cabecera de meses y su movimiento, como la «Vista cliente» (feed continuo; feed-mov.js 1.0). 1.8: un cliente de solo contenido sin meses: su lista entera y sus sesiones que vienen, sin calendario, como la «Vista cliente» (D-312). 1.7: «Tus pagos» con el acuerdo de cuándo a cuándo, lo que incluye su paquete y la siguiente por su fecha (D-308). 1.6: a pantalla completa (D-293), «Ver más en Zernio» (D-294), la ventana de una publicación como Instagram (D-295), las flechas del carrusel (D-296), «Tus pagos» con su tramo, las entregas de un cliente de solo contenido y la reunión (D-297). 1.5: el aviso de demasiados intentos ya no promete un minuto (D-280). 1.4: la cuenta que solo mira: ve cada cliente como lo ve él, sin aprobar, pedir cambios ni comentar (D-266). 1.3: el monograma a la izquierda de la barra, sin pulsar, y la página con las medidas de la «Vista cliente» (D-264)
   const app = document.getElementById('app');
   try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (e) { /* */ }   // el feed se coloca solo en su mes: al recargar, el navegador no lo mueve a donde estaba
   const CFG = window.PORTAL_CONFIG || {};
@@ -94,22 +94,25 @@
   // una lectura con columnas nuevas (D-297): un servidor que aún no las tiene contesta 400 y se lee sin ellas
   const leerCon = (t, cols, extra, resto) => S.leer(`${t}?select=${cols},${extra}${resto}`).catch(e => { if (e.status !== 400) throw e; return S.leer(`${t}?select=${cols}${resto}`); });
   async function cargarDatos(cli, antes) {
-    const c = encodeURIComponent(cli), prev = antes || {};
+    const c = encodeURIComponent(cli), prev = antes || {}, esp = (st.clientes.find(x => x.id === cli) || {}).servicio === 'sesiones';   // un esporádico (D-378)
     const pide = [
       S.leer(`publicaciones?select=${C_PUB}&cliente_id=eq.${c}&order=mes.desc,orden.asc`),
       S.leer(`aprobaciones?select=${C_APR}&cliente_id=eq.${c}&order=hora.asc`),
       S.leer(`comentarios?select=${C_COM}&cliente_id=eq.${c}&order=hora.asc`),
-      leerCon('sesiones', 'id,mes,nombre,inicio,fin,sin_hora', 'clase', `&cliente_id=eq.${c}`),
+      leerCon('sesiones', 'id,mes,nombre,inicio,fin,sin_hora', esp ? 'clase,contenido,fotos' : 'clase', `&cliente_id=eq.${c}`),
       S.leer(`meses?select=mes,porque,resumen&cliente_id=eq.${c}`),
       leerCon('pagos', 'id,periodo,concepto,importe_cent,factura,emitida,vence,cobrada,pdf', 'hasta', `&cliente_id=eq.${c}`),
       S.leer(`entregas?select=id,fecha,que,cuanto,enlace,entregada&cliente_id=eq.${c}&order=fecha.asc`),
+      // un esporádico (D-378): sus tareas y notas que ve y la conversación de sus sesiones
+      esp ? S.leer(`tareas_notas?select=id,tipo,texto,fecha,hecha,orden&cliente_id=eq.${c}&order=orden.asc`) : Promise.resolve([]),
+      esp ? S.leer(`comentarios_sesion?select=${C_CS}&cliente_id=eq.${c}&order=hora.asc`) : Promise.resolve([]),
     ];
     const r = await Promise.allSettled(pide);
     const mal = r.find(x => x.status === 'rejected');
     if (mal && (mal.reason.status === 401 || mal.reason.codigo === 'sesion')) throw mal.reason;
     if (r.slice(0, 3).some(x => x.status === 'rejected')) throw r.slice(0, 3).find(x => x.status === 'rejected').reason;   // sin publicaciones ni conversación, no se pinta
     const v = (i, k) => (r[i].status === 'fulfilled' ? r[i].value || [] : prev[k] || []);   // un panel que falla se queda como estaba
-    return { pubs: v(0, 'pubs').map(visto), aprs: v(1, 'aprs'), coms: v(2, 'coms'), ses: v(3, 'ses'), meses: v(4, 'meses'), pagos: v(5, 'pagos'), ents: v(6, 'ents'),
+    return { pubs: v(0, 'pubs').map(visto), aprs: v(1, 'aprs'), coms: v(2, 'coms'), ses: v(3, 'ses'), meses: v(4, 'meses'), pagos: v(5, 'pagos'), ents: v(6, 'ents'), tn: v(7, 'tn'), cses: v(8, 'cses'),
       entsMal: r[6].status === 'rejected' && (!prev.ents || !!prev.entsMal) };   // una lectura fallida no es «sin entregas» (lección 94)
   }
   // URL firmadas (10 minutos): se piden juntas y se guardan hasta un minuto antes de caducar.
@@ -223,7 +226,7 @@
   function pintar() {
     const cli = st.clientes.find(c => c.id === st.cli), cont = !!(cli && cli.servicio === 'contenido');
     const pv = app.querySelector(':scope > .pv');
-    if (!pv || st.pvDe !== st.cli + '|' + cont) return pintarTodo();
+    if (!pv || st.pvDe !== st.cli + '|' + cont || (cli && cli.servicio === 'sesiones')) return pintarTodo();   // un esporádico, entero: es poco (D-378)
     // con la página como el que desliza, lo de encima del feed (el aviso, la barra) puede cambiar de alto: el feed se queda donde se
     // ve (el navegador lo hace solo donde sabe; Safari no) y el motor lo sabe (su ancla se mueve con él)
     const F0 = !cont && st.feed && st.feed.mov && st.feed.movModo === 'win' ? st.feed : null, y0 = scrollY, g0 = F0 ? F0.grid.getBoundingClientRect().top + y0 : 0;
@@ -284,13 +287,14 @@
   }
   // la página entera: al entrar, al cambiar de cliente o si pasa a ser (o deja de ser) de solo contenido
   function pintarTodo() {
-    const cli = st.clientes.find(c => c.id === st.cli), cont = !!(cli && cli.servicio === 'contenido');
+    const cli = st.clientes.find(c => c.id === st.cli), esp = !!(cli && cli.servicio === 'sesiones'), cont = !!(cli && cli.servicio === 'contenido') || esp;   // un esporádico, sin meses ni feed (D-378)
     if (cont) limpiarFeed();
     const top = pintarTop(cli, cont), tira = pintarTira(), av = pintarAviso();
     // la columna derecha solo si tiene algo; sin ella, el calendario ocupa su sitio (como la «Vista cliente» de la Mesa, D-230, D-246)
     const lado = pintarLado(cli);
     // de solo contenido (D-312): su lista entera, sin calendario ni meses, y «Tus pagos» a la derecha, como la «Vista cliente»
-    const cols = h('div', { class: 'cols' + (cont ? ' cont' : '') + (lado ? ' con-lado' : '') }, cont ? seguro(pintarEntregas) : seguro(feedNodo), cont ? null : seguro(pintarCentro), lado);
+    const cols = esp ? h('div', { class: 'cols cont esp' + (lado ? ' con-lado' : '') }, seguro(pintarSesEsp), seguro(pintarTN), lado)   // sus sesiones con su calendario · sus tareas y notas · «Tus pagos», como su «Vista cliente» (D-378)
+      : h('div', { class: 'cols' + (cont ? ' cont' : '') + (lado ? ' con-lado' : '') }, cont ? seguro(pintarEntregas) : seguro(feedNodo), cont ? null : seguro(pintarCentro), lado);
     const pie = h('footer', { class: 'pie' }, h('a', { href: 'privacidad.html', text: 'Privacidad' }), h('a', { href: 'aviso-legal.html', text: 'Aviso legal' }), h('span', { text: 'Uribe Visuals' }));
     const y = window.scrollY, k = st.cli + '|' + st.mes;
     if (st.colsDe !== k) st.ys = new Map(); else scrollCols();   // otro cliente u otro mes: arriba
@@ -511,6 +515,108 @@
         : [pend.length ? h('ol', { class: 'ents' }, pend.map(filaEnt)) : hechas.length ? null : h('p', { class: 'vacio', text: 'Aún no hay entregas.' }),
           grupos.map(g => [h('p', { class: 'h3', text: may(MESES[+g.m.slice(5, 7) - 1]) + ' ' + g.m.slice(0, 4) }), h('ol', { class: 'ents' }, g.l.map(filaEnt))])],
       ses.length ? [h('p', { class: 'h3', text: 'Sesiones y reuniones' }), h('ol', { class: 'ents' }, ses.map(filaSes))] : null);
+  }
+  // ---------- un esporádico (D-378): sus sesiones, su calendario, sus tareas y notas, y la hoja de una sesión ----------
+  // Lo mismo que su «Vista cliente» en la Mesa (sesiones.js): sus sesiones (Próximas y Pasadas) con su calendario debajo, sus tareas
+  // y notas para leer y «Tus pagos»; una sesión se abre en una hoja con lo que tiene visible y su conversación al pie.
+  const C_CS = 'id,cliente_id,sesion,texto,autor_nombre,de_kevin,hora,resuelto';
+  const ultDiaSes = x => diaDe(x.fin || x.inicio);
+  const icoSes = x => reu(x) ? 'users' : 'clap';   // a session or a meeting: what the Mesa sends (clase), as its «Vista cliente»
+  const tramoSes = x => { const d = diaDe(x.inicio), f = x.fin ? diaDe(x.fin) : d, ho = x.sin_hora ? '' : ' · ' + horaDe(x.inicio);
+    return f !== d ? `${dsem(d).slice(0, 3)} ${diaCorto(d)}${ho} – ${dsem(f).slice(0, 3)} ${diaCorto(f)}` : `${dsem(d).slice(0, 3)} ${diaCorto(d)}${ho}`; };
+  function pintarSesEsp() {
+    const H = hoy(), l = (st.d.ses || []).filter(x => x.inicio).sort((a, b) => a.inicio.localeCompare(b.inicio) || a.id.localeCompare(b.id));
+    const prox = l.filter(x => ultDiaSes(x) >= H), pas = l.filter(x => ultDiaSes(x) < H).reverse();
+    const fila = x => { const n = (st.d.cses || []).filter(c => c.sesion === x.id).length, nt = n === 1 ? '1 comentario' : n + ' comentarios';
+      return h('li', {}, h('button', { type: 'button', class: 'ent-f es-r', 'data-ses': x.id, onclick: e => abrirSes(x.id, e.currentTarget), 'aria-label': `${reu(x) ? 'Reunión' : 'Sesión'}: ${x.nombre} · ${tramoSes(x)}${n ? ' · ' + nt : ''}` },
+        h('span', { class: 'd', text: tramoSes(x) }), ico(icoSes(x), 'es-i'),
+        h('span', { class: 't' }, h('b', { text: x.nombre }), n ? h('span', { class: 'es-n', text: nt }) : null))); };
+    const grupo = (t, g) => g.length ? [h('p', { class: 'h3' }, t + ' ', h('span', { text: String(g.length) })), h('ol', { class: 'ents es-l' }, g.map(fila))] : null;
+    return h('div', { class: 'es-col' },
+      h('section', { class: 'card entw', 'aria-labelledby': 'h-ses' }, h('div', { class: 'ti' }, h('h2', { id: 'h-ses', text: 'Tus sesiones' })),
+        l.length ? [grupo('Próximas', prox), grupo('Pasadas', pas)] : h('p', { class: 'vacio', text: 'Aún no hay sesiones.' })),
+      h('section', { class: 'card es-calw', 'aria-label': 'Calendario' }, calEsp()));
+  }
+  function calEsp() {
+    const m = st.mesEsp || (st.mesEsp = hoy().slice(0, 7)), [y, mo] = m.split('-').map(Number), d0 = new Date(Date.UTC(y, mo - 1, 1)), dias = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+    const lun = (d0.getUTCDay() + 6) % 7, H = hoy(), ses = (st.d.ses || []).filter(x => x.inicio);
+    const deDia = d => ses.filter(x => diaDe(x.inicio) <= d && ultDiaSes(x) >= d).sort((a, b) => a.inicio.localeCompare(b.inicio))
+      .map(x => h('button', { type: 'button', class: 'chip ses es-c' + (reu(x) ? ' reu' : ''), onclick: e => abrirSes(x.id, e.currentTarget), 'aria-label': `${x.nombre} · ${tramoSes(x)}` },
+        h('span', { class: 'cl' }, ico(reu(x) ? 'users' : 'clap', 'cses'), h('span', { class: 'cn', text: x.nombre })), x.sin_hora || diaDe(x.inicio) !== d ? null : h('span', { class: 'ct', text: horaDe(x.inicio) })));
+    const celdas = [], diasAntes = new Date(Date.UTC(y, mo - 1, 0)).getUTCDate();
+    for (let i = 0; i < lun; i++) celdas.push(h('div', { class: 'dia fuera', 'aria-hidden': 'true' }, h('span', { class: 'n', text: String(diasAntes - lun + 1 + i) })));
+    for (let d = 1; d <= dias; d++) { const dia = `${m}-${String(d).padStart(2, '0')}`; celdas.push(h('div', { class: 'dia' + (dia === H ? ' hoy' : '') }, h('span', { class: 'n', text: d === 1 ? `1 ${MESES[mo - 1].slice(0, 3)}` : String(d) }), deDia(dia))); }
+    for (let d = 1; celdas.length % 7; d++) celdas.push(h('div', { class: 'dia fuera', 'aria-hidden': 'true' }, h('span', { class: 'n', text: d === 1 ? `1 ${MESES[mo % 12].slice(0, 3)}` : String(d) })));
+    const ir = k => { const [a, b] = st.mesEsp.split('-').map(Number), n = new Date(Date.UTC(a, b - 1 + k, 1)); st.mesEsp = n.toISOString().slice(0, 7); const w = document.querySelector('.es-calw'); if (w) w.replaceChildren(...calEsp()); };
+    return [h('div', { class: 'ti es-cal-h' }, h('h2', { text: 'Calendario' }), h('span', { class: 'es-nav' }, h('button', { type: 'button', class: 'es-mes', 'aria-label': 'Mes anterior', onclick: () => ir(-1) }, ico('left')), h('b', { text: may(MESES[mo - 1]) + ' ' + y }), h('button', { type: 'button', class: 'es-mes', 'aria-label': 'Mes siguiente', onclick: () => ir(1) }, ico('right')))),
+      h('div', { class: 'cal es-cal', role: 'grid', 'aria-label': 'Calendario de ' + MESES[mo - 1] }, ['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(x => h('span', { class: 'dn', 'aria-hidden': 'true', text: x })), celdas)];
+  }
+  function pintarTN() {
+    const tn = st.d.tn || [], tk = tn.filter(x => x.tipo === 'tarea'), ns = tn.filter(x => x.tipo === 'nota');
+    return h('section', { class: 'card es-tn', 'aria-labelledby': 'h-tn' }, h('div', { class: 'ti' }, h('h2', { id: 'h-tn', text: 'Tareas' }), h('span', { text: String(tk.length) })),
+      tk.length ? h('ol', { class: 'es-tl' }, tk.map(x => h('li', { class: 'es-t' + (x.hecha ? ' hecha' : '') }, h('span', { class: 'd', text: x.fecha ? diaCorto(x.fecha) : '' }), h('span', { class: 'x', text: x.texto })))) : h('p', { class: 'vacio', text: 'Sin tareas.' }),
+      h('div', { class: 'ti es-ti2' }, h('h2', { text: 'Notas' }), h('span', { text: String(ns.length) })),
+      ns.length ? ns.map(x => h('div', { class: 'es-nota' }, texto(x.texto))) : h('p', { class: 'vacio', text: 'Sin notas.' }));
+  }
+  // un texto con sus marcas, como lo enseña la Mesa a quien lo lee (escritura.js, «vineta»): viñetas, números, sangrías, separadores
+  // y enlaces que se abren aparte; todo con textContent
+  const MARCA = /^((?:  )*)(-|\d{1,3}\.|\[[ xX]?\])( )/, URLS = /\bhttps?:\/\/[^\s<>"«»]+/g;
+  function conEnlaces(t) {
+    const out = []; let i = 0, m; URLS.lastIndex = 0;
+    while ((m = URLS.exec(t))) { let u = m[0]; const c = /[.,;:!?)\]'”’]+$/.exec(u); if (c) u = u.slice(0, -c[0].length); if (u.length > 8) { out.push(t.slice(i, m.index), h('a', { href: u, target: '_blank', rel: 'noopener noreferrer', text: u })); i = m.index + u.length; } URLS.lastIndex = m.index + Math.max(1, u.length); }
+    out.push(t.slice(i)); return out.filter(x => x !== '');
+  }
+  function texto(t) {
+    const L = String(t || '').split('\n'); while (L.length && !L[L.length - 1].trim()) L.pop();
+    return h('div', { class: 'es-tx' }, L.map(l => {
+      if (l.trim() === '\u2E3B') return h('hr', { class: 'es-sep' });
+      const m = MARCA.exec(l); if (!m) return h('p', { class: l ? null : 'vacia' }, conEnlaces(l));
+      const k = m[2], nu = /^\d/.test(k), niv = Math.min(4, m[1].length / 2);
+      return h('p', { class: 'li' + (nu ? ' nu' : '') + (niv ? ' n' + niv : '') }, h('span', { class: 'mk', 'aria-hidden': 'true', text: nu ? k : '•' }), h('span', { class: 'lt' }, conEnlaces(l.slice(m[0].length))));
+    }));
+  }
+  function abrirSes(id, origen) {
+    if (document.querySelector('.dlg')) return;
+    const x = (st.d.ses || []).find(y => y.id === id); if (!x) return;
+    st.sesAb = id;
+    const velo = h('div', { class: 'velo alto' });
+    const quitar = () => { velo.remove(); dlg.remove(); st.sesAb = null; if (st.sucio) { st.sucio = false; pintar(); } const o = origen && origen.isConnected ? origen : document.querySelector(`[data-ses="${CSS.escape(id)}"]`); if (o) o.focus(); };
+    const fotos = [];
+    const foto = f => { if (!f || !f.mini) return null; const im = h('img', { class: 'es-fo', alt: '', 'data-grande': f.mini, loading: 'lazy' }); if (f.an && f.al) { im.width = f.an; im.height = f.al; } fotos.push(im); return im; };
+    const plano = it => h('div', { class: 'es-it' }, h('b', { text: it.titulo }), it.texto ? texto(it.texto) : null, (it.fotos || []).length ? h('div', { class: 'es-fos' }, it.fotos.map(foto)) : null,
+      (it.enlaces || []).length ? h('p', { class: 'es-en' }, it.enlaces.map(u => h('a', { href: u, target: '_blank', rel: 'noopener noreferrer', text: u.replace(/^https?:\/\//, '') }))) : null);
+    const ap = a => a.tipo === 'planos' ? (a.pestanas || []).map(p => h('section', { class: 'es-ap' }, h('h3', { text: p.nombre }), (p.items || []).map(plano)))
+      : h('section', { class: 'es-ap' }, h('h3', { text: a.nombre }),
+      a.tipo === 'mood' ? (a.grupos || []).map(g => h('div', { class: 'es-g' }, h('p', { class: 'es-pt', text: g.nombre }), h('div', { class: 'es-fos' + (g.modo === 'columnas' ? ' col' : '') }, (g.fotos || []).map(foto))))
+      : a.tipo === 'material' ? (a.familias || []).map(f => h('div', { class: 'es-g' }, h('p', { class: 'es-pt', text: f.nombre }), h('ul', { class: 'es-ma' }, f.cosas.map(k => h('li', { text: k })))))
+      : texto(a.texto));
+    const hilo = () => { const l = (st.d.cses || []).filter(c => c.sesion === id); return l.length ? h('ol', {}, l.map(c => h('li', { class: 'cm' + (c.de_kevin ? ' kv' : '') }, h('span', { class: 'q' }, h('b', { text: c.de_kevin ? 'Uribe Visuals' : c.autor_nombre }), cuando(c.hora)), h('p', { text: c.texto })))) : h('p', { class: 'vacio', text: 'Aún sin comentarios.' }); };
+    const caja = h('div', { class: 'es-hilo' }, hilo());
+    const mira = soloMira(), k = 'portal-borrador-s-' + id;
+    const ta = h('textarea', { rows: '1', placeholder: mira ? 'Solo mirar: aquí no se comenta' : 'Escribe un comentario…', 'aria-label': 'Comentario', maxlength: '2000', disabled: mira, title: mira ? POR : null });
+    if (!mira) ta.value = lsGet(k) || '';
+    const env = h('button', { type: 'button', class: 'env', 'aria-label': 'Enviar comentario', disabled: mira || !ta.value.trim(), title: mira ? POR : null }, ico('send'));
+    const err = h('p', { class: 'err-p', role: 'alert', hidden: true });
+    ta.addEventListener('input', () => { if (mira) return; lsSet(k, ta.value); env.disabled = !ta.value.trim(); ta.style.height = 'auto'; ta.style.height = Math.min(160, ta.scrollHeight) + 'px'; });
+    env.addEventListener('click', async () => {
+      const t = ta.value.trim(); if (!t || soloMira()) return; env.disabled = true; err.hidden = true;
+      try {
+        st.gen++;
+        const fila = await S.insertar(`comentarios_sesion?select=${C_CS}`, [{ cliente_id: st.cli, sesion: id, texto: t }], { devolver: true });
+        st.gen++; st.d.cses = [...(st.d.cses || []), ...(fila || [])]; ta.value = ''; lsSet(k, null); ta.style.height = '';
+        caja.replaceChildren(hilo()); caja.lastElementChild && caja.scrollIntoView({ block: 'end' }); st.sucio = true;
+      } catch (e) { err.textContent = msgError(e); err.hidden = false; env.disabled = false; }
+    });
+    const cont = x.contenido || [];
+    const dlg = h('section', { class: 'dlg es-hoja', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'h-hs' },
+      h('button', { type: 'button', class: 'plan-x', 'aria-label': 'Cerrar', onclick: quitar }, ico('x')),
+      h('div', { class: 'es-cab' }, h('h2', { id: 'h-hs', tabindex: '-1', text: x.nombre }), h('p', { text: [reu(x) ? 'Reunión' : 'Sesión', tramoSes(x)].join(' · ') })),
+      h('div', { class: 'es-cue' }, cont.length ? cont.map(ap) : h('p', { class: 'vacio', text: 'Aún sin detalles.' }), h('div', { class: 'es-com' }, h('h3', { text: 'Comentarios' }), caja)),
+      h('div', { class: 'es-pie' }, h('div', { class: 'escr' }, h('div', { class: 'fila' }, ta, env)), err));
+    dlg._quitar = quitar; velo.addEventListener('click', quitar);
+    document.body.append(velo, dlg);
+    const xb = dlg.querySelector('.plan-x'); (xb.offsetParent ? xb : dlg.querySelector('#h-hs')).focus({ preventScroll: true });
+    if (fotos.length) urls(fotos.map(i => i.dataset.grande)).then(m => { for (const i of fotos) if (m[i.dataset.grande] && i.isConnected) i.src = m[i.dataset.grande]; }).catch(e => toast('No se pudieron cargar las fotos: ' + msgError(e)));
   }
   async function otraVez(e) {   // una URL firmada que caducó antes de verse (perezosa): se pide de nuevo, una vez
     const i = e.currentTarget, r = i.dataset.ruta || i.dataset.grande; if (!r || i.dataset.otra) return;
@@ -905,7 +1011,7 @@
   document.addEventListener('keydown', e => {
     if (e.key === 'Tab') {   // el foco no sale del diálogo de encima
       const top = document.querySelector('.dlg') || document.querySelector('.hoja'); if (!top) return;
-      const f = [...top.querySelectorAll('button,textarea,input,[tabindex="0"]')].filter(x => !x.disabled && x.offsetParent !== null);
+      const f = [...top.querySelectorAll('button,textarea,input,a[href],[tabindex="0"]')].filter(x => !x.disabled && x.offsetParent !== null);   // the links of a session's sheet too (D-378)
       if (!f.length) return;
       const i = f.indexOf(document.activeElement);
       if (e.shiftKey && (i <= 0)) { e.preventDefault(); f[f.length - 1].focus(); }

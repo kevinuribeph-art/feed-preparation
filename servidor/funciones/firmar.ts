@@ -58,8 +58,11 @@ Deno.serve(async (req) => {
   const puede = new Set<string>();
   try {
     if (bucket === 'fotos') {
-      const [p, c] = await Promise.all([todas('publicaciones?select=imagenes&visible=is.true'), todas('clientes?select=foto')]);
-      if (typeof p === 'number' || typeof c === 'number') return responder({ error: 'sin permiso' }, p === 401 || c === 401 ? 401 : 403, origen);
+      // y las fotos de lo que ve un esporádico de sus sesiones (D-378): las rutas que la Mesa apunta en `sesiones.fotos`
+      const [p, c, s] = await Promise.all([todas('publicaciones?select=imagenes&visible=is.true'), todas('clientes?select=foto'), todas('sesiones?select=fotos&fotos=not.is.null')]);
+      if (typeof p === 'number' || typeof c === 'number' || s === 401) return responder({ error: 'sin permiso' }, p === 401 || c === 401 || s === 401 ? 401 : 403, origen);
+      // sin la columna (la función antes que el esquema), sin las de las sesiones: las demás fotos siguen
+      for (const fila of typeof s === 'number' ? [] : s) for (const r of (fila.fotos as string[]) ?? []) if (typeof r === 'string') puede.add(r);
       for (const fila of p) for (const im of (fila.imagenes as { ruta?: string; mini?: string }[]) ?? []) { if (im?.ruta) puede.add(im.ruta); if (im?.mini) puede.add(im.mini); }
       for (const fila of c) if (fila.foto) puede.add(String(fila.foto));
     } else {

@@ -13,7 +13,7 @@
   }
 
   const CLIENTE = 'prueba-regresion', NOMBRE = 'Cliente de prueba', MES = '2026-11';
-  const V_ARCHIVO = 25, V_IDB = 30;   // IndexedDB 30 y v25 desde la 4.60 (el cobro libre de un esporádico, sin sesión, D-377); 29 y v24 desde la 4.59 (el IVA de acuerdos y facturas, «Sin IVA» del cliente y los paquetes con permanencia, lo que no incluyen y sus condiciones, D-374, D-375); 28 y v23 desde la 4.58 (la huella de lo demás de su web, en «enviados», D-372); 27 y v22 desde la 4.54 (los estilos, lo enviado a la web y los meses provisionales, D-355, D-356, D-358); 26 y v21 desde la 4.51 (los acuerdos y los paquetes, D-305 a D-307); 25 y v20 desde la 4.47 (el acuerdo, el servicio, las entregas y la reunión, D-288 a D-292); 24 desde la 4.33 (la marca «copia» de una foto que bajó como copia de trabajo, D-259); 23 desde la 4.32 (la nube, almacén 'nube', D-253); 22 desde la 4.31 (el diario de cambios, D-250); v19 y 21 desde la 4.27 (el porqué y cómo fue de cada mes, el almacén 'meses', D-238); v18 y 20 desde la 4.26 (cobros y sus facturas en PDF, la cuota de un cliente, D-232); v17 y 19 desde la 4.24 (varios clientes, fin y plantillas de material de una sesión, D-217 a D-220); v16 y 18 desde la 4.22 (sesiones, esporádicos, material y el almacén 'tfotos', D-206 a D-208); la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183); v15 y 17 desde la 4.19 (D-193)
+  const V_ARCHIVO = 26, V_IDB = 31;   // IndexedDB 31 y v26 desde la 4.61 (el ojo de las tareas y notas de un esporádico, D-378); 30 y v25 desde la 4.60 (el cobro libre de un esporádico, sin sesión, D-377); 29 y v24 desde la 4.59 (el IVA de acuerdos y facturas, «Sin IVA» del cliente y los paquetes con permanencia, lo que no incluyen y sus condiciones, D-374, D-375); 28 y v23 desde la 4.58 (la huella de lo demás de su web, en «enviados», D-372); 27 y v22 desde la 4.54 (los estilos, lo enviado a la web y los meses provisionales, D-355, D-356, D-358); 26 y v21 desde la 4.51 (los acuerdos y los paquetes, D-305 a D-307); 25 y v20 desde la 4.47 (el acuerdo, el servicio, las entregas y la reunión, D-288 a D-292); 24 desde la 4.33 (la marca «copia» de una foto que bajó como copia de trabajo, D-259); 23 desde la 4.32 (la nube, almacén 'nube', D-253); 22 desde la 4.31 (el diario de cambios, D-250); v19 y 21 desde la 4.27 (el porqué y cómo fue de cada mes, el almacén 'meses', D-238); v18 y 20 desde la 4.26 (cobros y sus facturas en PDF, la cuota de un cliente, D-232); v17 y 19 desde la 4.24 (varios clientes, fin y plantillas de material de una sesión, D-217 a D-220); v16 y 18 desde la 4.22 (sesiones, esporádicos, material y el almacén 'tfotos', D-206 a D-208); la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183); v15 y 17 desde la 4.19 (D-193)
   // la batería va con el reloj de la mesa parado antes de sus fechas (noviembre de 2026): nada vence ni pasa solo a Publicado
   // salvo en las pruebas que lo adelantan (D-120)
   const RELOJ_PRUEBAS = Date.parse('2026-10-01T10:00:00+02:00');
@@ -15335,7 +15335,7 @@
 
   prueba('IN7', 'Datos nuevos de su web (D-372): IndexedDB 28 y archivo v23; la huella viaja en «Exportar» y vuelve al importar; un archivo v22 se sigue importando', async () => {
     await tablero([pub(1)]);
-    igual([M._in.xfer.IDB, V_IDB, V_ARCHIVO], [30, 30, 25], 'las versiones');   // 30 y v25 desde la 4.60 (D-377); 29 y v24 desde la 4.59 (D-374, D-375), a propósito
+    igual([M._in.xfer.IDB, V_IDB, V_ARCHIVO], [31, 31, 26], 'las versiones');   // 31 y v26 desde la 4.61 (D-378); 30 y v25 desde la 4.60 (D-377); 29 y v24 desde la 4.59 (D-374, D-375), a propósito
     const k = '~huella:' + M._in.S.key;
     igual(await M._in.envPoner([{ cliente: CLIENTE, slot: k, huella: 'a'.repeat(64), url: 'https://in7.test', at: '2026-11-20T10:00:00.000Z' }]), 1, 'la huella no se guarda');
     ok(!M._in.xfer.envRecValido({ cliente: CLIENTE, slot: k, huella: 'no', url: '', at: '2026-11-20T10:00:00.000Z' }), 'entra una huella mal formada');
@@ -16429,8 +16429,12 @@
       T.abrirCard(e2.id); await hasta(() => q(`.pp-ep[data-esp="${e2.id}"]`), 3000, 'la página que pasa');
       q('[data-pp="ep-mas"]').click(); await espera(40); q('.pp-menu button[data-a="pasar"]').click(); await espera(40); (await hasta(() => q('.detail [data-pp-pasar]'), 2000, 'la confirmación')).click();
       const nuevo = await hasta(() => M._in.CL.find(c => c.name === 'Pasa C6'), 4000, 'el cliente mensual');
-      await hasta(() => (M.cobros.ver(nuevo.id)[0] || {}).id === 'c6-p', 3000, 'su cobro en el mensual'); igual(M.cobros.ver(e2.id).length, 0, 'el cobro se queda en el esporádico');
-      await M._test.cobBorrarTodo(); await M.removeClient(nuevo.id);
+      try {
+        await hasta(() => (M.cobros.ver(nuevo.id)[0] || {}).id === 'c6-p', 3000, 'su cobro en el mensual');
+        // the monthly one keeps its id (D-378, on purpose): its payment is that client's, once, and the sporadic is gone
+        const ex = await M._in.idbGet('tareas', e2.id);
+        igual([nuevo.id, M.cobros.ver(nuevo.id).length, !ex || !!ex.pasado], [e2.id, 1, true], 'el mensual no conserva su id o el cobro se queda en el esporádico');
+      } finally { await M._test.cobBorrarTodo(); await M.removeClient(nuevo.id); }
     } finally { try { M.personal._p.cerrarCard(true); } catch (e) { /* */ } M._in.closeDetail(); paginaCerrada(); relojVuelve(); await sinTareas(); }
   });
   prueba('CO7', 'Cobros, contraste (D-232 a D-237): los estados de Kevin («Cobrada», «Pendiente», «Retrasada N días», «Sin emitir») y del cliente («Pagada», «Pendiente», vencida), las fechas, la línea de cada bloque, la de Avisos y lo pendiente de «Tus pagos», de 4,5:1 o más sobre su fondo, en claro y en oscuro', async () => {
@@ -17933,10 +17937,10 @@
   const WB_URL = 'https://pruebasfalsas.supabase.co';
   // Un servidor de mentira en memoria: lo que la Mesa envía queda en `db` y `archivos`; `fallar` simula la red caída.
   function wbServidor(f0) {
-    const db = { clientes: [], publicaciones: [], sesiones: [], meses: [], pagos: [], aprobaciones: [], comentarios: [], lecturas: [], entregas: [] }, archivos = new Map(), pedidos = [];
+    const db = { clientes: [], publicaciones: [], sesiones: [], meses: [], pagos: [], aprobaciones: [], comentarios: [], lecturas: [], entregas: [], tareas_notas: [], comentarios_sesion: [] }, archivos = new Map(), pedidos = [];
     const sv = { db, archivos, pedidos, fallar: false, f0 };   // f0: the frame's own fetch (another frame, D-267: its own)
     const resp = (st, j) => new W.Response(j === undefined || st === 204 ? null : JSON.stringify(j), { status: st, headers: { 'Content-Type': 'application/json' } });
-    const CLAVE = { clientes: ['id'], publicaciones: ['cliente_id', 'pid'], sesiones: ['cliente_id', 'id'], meses: ['cliente_id', 'mes'], pagos: ['cliente_id', 'id'], aprobaciones: ['id'], comentarios: ['id'], lecturas: ['cliente_id'], entregas: ['cliente_id', 'id'] };
+    const CLAVE = { clientes: ['id'], publicaciones: ['cliente_id', 'pid'], sesiones: ['cliente_id', 'id'], meses: ['cliente_id', 'mes'], pagos: ['cliente_id', 'id'], aprobaciones: ['id'], comentarios: ['id'], lecturas: ['cliente_id'], entregas: ['cliente_id', 'id'], tareas_notas: ['cliente_id', 'id'], comentarios_sesion: ['id'] };   // a sporadic client's (D-378)
     const lista = v => v.slice(1, -1).split(',').map(x => x.replace(/^"|"$/g, ''));
     const pasa = filtro => r => filtro.every(([k, v]) => {
       const i = v.indexOf('.'), op = v.slice(0, i), val = v.slice(i + 1);
@@ -17962,7 +17966,7 @@
       m = ruta.match(/^\/rest\/v1\/(\w+)$/); if (!m || !db[m[1]]) return resp(404, { message: 'ruta' });
       const t = m[1], f = pasa([...u.searchParams].filter(([k]) => !['select', 'on_conflict'].includes(k)));
       if (met === 'GET') return resp(200, db[t].filter(f));
-      if (met === 'POST') { for (const x0 of [].concat(cuerpo)) { const x = t === 'comentarios' && !x0.id ? { id: 'k' + db.comentarios.length, hora: new Date().toISOString(), de_kevin: true, autor_nombre: 'Kevin', resuelto: null, diapositiva: null, ...x0 } : x0; const i = db[t].findIndex(r => CLAVE[t].every(k => r[k] === x[k])); if (i >= 0) db[t][i] = { ...db[t][i], ...x }; else db[t].push({ ...x }); } return resp(201); }
+      if (met === 'POST') { for (const x0 of [].concat(cuerpo)) { const x = t === 'comentarios' && !x0.id ? { id: 'k' + db.comentarios.length, hora: new Date().toISOString(), de_kevin: true, autor_nombre: 'Kevin', resuelto: null, diapositiva: null, ...x0 } : t === 'comentarios_sesion' && !x0.id ? { id: 'ks' + db.comentarios_sesion.length, hora: new Date().toISOString(), de_kevin: true, autor_nombre: 'Kevin', resuelto: null, ...x0 } : x0; const i = db[t].findIndex(r => CLAVE[t].every(k => r[k] === x[k])); if (i >= 0) db[t][i] = { ...db[t][i], ...x }; else db[t].push({ ...x }); } return resp(201); }
       if (met === 'PATCH') { db[t].filter(f).forEach(r => Object.assign(r, cuerpo)); return resp(204); }
       if (met === 'DELETE') { db[t] = db[t].filter(r => !f(r)); return resp(204); }
       return resp(405, {});
@@ -26640,6 +26644,223 @@
       q('.pp-ep-tn').dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true, cancelable: true })); await hasta(() => M.personal._p.TK.get(e.id).txt === 'Fuera EP8', 2000, 'pulsar fuera no lo guarda');
       await espera(60); const h5 = q('.pp-ep-nom'); h5.focus(); tecla('Enter', { en: h5 }); ok(q('.pp-ep-nom').isContentEditable, 'Enter con el foco en el nombre no lo escribe'); tecla('Escape', { en: q('.pp-ep-nom') }); await espera(40);
     } finally { await epFin(); }
+  });
+
+  // ---------- lote 5b de los ajustes de la 4.55: un esporádico en su web (D-378) ----------
+  prueba('EV1', 'El ojo de las tareas y notas de un esporádico (D-378): en su página y en su ficha, tachado de serie (las de antes siguen ocultas); un clic lo abre y otro lo tacha, sin abrir la ficha; cambiar su texto lo conserva; va en el archivo y vuelve al importar; una tarea de un mensual no lleva ojo', async () => {
+    await tablero([pub(1)]); await sinTareas(); relojEn('2026-11-19T10:00:00+01:00');
+    try {
+      await epListo();
+      const { e, t, n } = await epCliente('ev1esp', 'Esporádico EV1');
+      const tm = await M.personal.tarea({ txt: 'Tarea mensual EV1', fecha: '2026-11-24', cliente: CLIENTE });
+      await epAbre(e.id);
+      const ojoT = () => q(`.pp-ep-tn .pp-tk[data-tid="${t.id}"] [data-pp="tn-ojo"]`), ojoN = () => q(`.pp-ep-tn .pp-pt[data-nid="${n.id}"] [data-pp="tn-ojo"]`);
+      ok(ojoT() && ojoT().getAttribute('aria-pressed') === 'false' && /Solo para ti/.test(ojoT().title), 'la tarea no lleva su ojo tachado');
+      ok(ojoN() && ojoN().getAttribute('aria-pressed') === 'false', 'la nota no lleva su ojo tachado');
+      ok(!('visible' in M.personal._p.TK.get(t.id)), 'una tarea de antes cambia sola');
+      ojoT().click(); await hasta(() => M.personal._p.TK.get(t.id).visible === true, 2000, 'que se abra');
+      ok(!q('.pp-ov'), 'el ojo abre la ficha');
+      await hasta(() => ojoT() && ojoT().getAttribute('aria-pressed') === 'true', 2000, 'su ojo abierto');
+      ojoN().click(); await hasta(() => M.personal._p.TK.get(n.id).visible === true, 2000, 'el de la nota');
+      ok(!q('.pp-ov'), 'el ojo de la nota abre la ficha');
+      await M.personal._p.cambiar(t.id, x => { x.txt = 'Tarea EV1 cambiada'; return x; });
+      ok(M.personal._p.TK.get(t.id).visible === true, 'cambiar su texto pierde el ojo');
+      // its card: the same eye
+      M.personal._p.abrirCard(t.id); const c = await hasta(() => q('.pp-ov .pp-card [data-pp="tn-ojo"]'), 3000, 'el ojo en su ficha');
+      ok(c.getAttribute('aria-pressed') === 'true', 'la ficha no dice que lo ve');
+      c.click(); await hasta(() => !('visible' in M.personal._p.TK.get(t.id)), 2000, 'tacharlo desde la ficha');
+      await hasta(() => (q('.pp-ov .pp-card [data-pp="tn-ojo"]') || {}).getAttribute && q('.pp-ov .pp-card [data-pp="tn-ojo"]').getAttribute('aria-pressed') === 'false', 2000, 'la ficha al día');
+      M.personal._p.cerrarCard(true); await espera(60);
+      M.personal._p.abrirCard(tm.id); await hasta(() => q('.pp-ov .pp-card'), 3000, 'la ficha de la mensual');
+      ok(!q('.pp-ov .pp-card [data-pp="tn-ojo"]'), 'una tarea de un mensual lleva ojo');
+      M.personal._p.cerrarCard(true); await espera(60);
+      // the file: it goes and comes back
+      const x = await M.exportAll({ returnBlob: true }), j = JSON.parse(await x.text());
+      igual(j.v, V_ARCHIVO, 'la versión del archivo');
+      ok((j.tareas || []).find(y => y.id === n.id).visible === true, 'el ojo no va en el archivo');
+      const im = await M.importData(x, { confirm: false }); ok(!im || !im.error, 'importar falla: ' + json(im));
+      await M.personal.render(); ok(M.personal._p.TK.get(n.id).visible === true, 'importar le quita el ojo');
+      const mal = JSON.parse(JSON.stringify(j)); mal.tareas.find(y => y.id === n.id).visible = 'si';
+      const im2 = await M.importData(new W.Blob([JSON.stringify(mal)], { type: 'application/json' }), { confirm: false }); ok(im2 && im2.error, 'un ojo que no es sí o no se importa');
+    } finally { await epFin(); }
+  });
+
+  prueba('EV2', '«Web del cliente» de un esporádico (D-378): desde su página, aunque haya un tablero detrás; viajan él (servicio «sesiones», sin acuerdo), sus sesiones con fecha y el ojo abierto con lo que ve de cada una (nunca un apartado tachado o vacío), sus tareas y notas con el ojo abierto y sus cobros; su propio nombre no es «otro cliente» y el de otro sí; ocultar una tarea la quita', async () => {
+    await tablero([pub(1)]); await sinTareas(); relojEn('2026-11-19T10:00:00+01:00');
+    try {
+      await epListo();
+      const { e, s1, s2, t, n } = await epCliente('ev2esp', 'Esporádico EV2');
+      await M.personal._p.hacer([{ id: 'ev2otro', despues: { id: 'ev2otro', tipo: 'esporadico', txt: 'Estudio Brezo', creada: '2026-10-01T09:00:00.000Z', at: new Date().toISOString() } }]);
+      await M.personal._p.cambiar(s1.id, x => { const g = id => x.sesion.apartados.find(a => a.id === id); if (g('orden')) g('orden').texto = 'ORDEN-EV2'; const no = x.sesion.apartados.find(a => a.visible === false && 'texto' in a); if (no) no.texto = 'TACHADO-EV2'; return x; });
+      await M.personal._p.cambiar(t.id, x => { x.visible = true; return x; });
+      await M.personal._p.cambiar(n.id, x => { x.txt = 'NOTA-OCULTA-EV2'; return x; });
+      await epAbre(e.id);
+      await conWeb(async sv => {
+        wbSesion(); await espera(60);
+        const P = await M.web.paquete(); ok(P && !P.error, 'el paquete: ' + json(P && P.error));
+        igual([P.cliente.id, P.cliente.nombre, P.cliente.servicio, P.cliente.pago, P.cliente.paquete], [e.id, 'Esporádico EV2', 'sesiones', null, null], 'el cliente');
+        igual(P.sesiones.map(x => x.nombre).sort(), ['Pasada ev2esp', 'Reunión ev2esp'], 'sus sesiones con fecha y el ojo abierto');
+        const c1 = P.sesiones.find(x => x.id === s1.id).contenido;
+        ok(c1.some(a => a.id === 'orden' && a.texto === 'ORDEN-EV2'), 'lo que ve de la sesión: ' + json(c1));
+        ok(!json(P).includes('TACHADO-EV2') && !json(P).includes('NOTA-OCULTA-EV2'), 'viaja un apartado tachado o una nota oculta');
+        igual((P.tareasNotas || []).map(x => [x.id, x.tipo, x.fecha]), [[t.id, 'tarea', '2026-11-24']], 'sus tareas y notas con el ojo abierto');
+        igual(P.problemas, [], 'su propio nombre sale como otro cliente');
+        const r = await M.web.enviar(); ok(r.ok, 'no se envió: ' + json(r));
+        igual(sv.db.clientes.map(x => [x.id, x.servicio]), [[e.id, 'sesiones']], 'solo él va a la web (nada del tablero de detrás)');
+        igual(sv.db.sesiones.filter(x => x.cliente_id === e.id).length, 2, 'sus sesiones en la web');
+        ok(sv.db.sesiones.find(x => x.id === s1.id).contenido.some(a => a.texto === 'ORDEN-EV2') && Array.isArray(sv.db.sesiones.find(x => x.id === s1.id).fotos), 'lo que ve de la sesión en la web');
+        igual(sv.db.tareas_notas.map(x => x.id), [t.id], 'su tarea en la web');
+        igual(sv.db.publicaciones.length, 0, 'se enviaron publicaciones');
+        ok(!json(sv.db).includes('NOTA-OCULTA-EV2') && !json(sv.db).includes('TACHADO-EV2'), 'llegó algo oculto');
+        // another client's name in what it sees: not sent
+        await M.personal._p.cambiar(t.id, x => { x.txt = 'Llamar a Estudio Brezo'; return x; });
+        const P2 = await M.web.paquete(); ok(P2.problemas.length > 0, 'el nombre de otro esporádico no se para');
+        await M.personal._p.cambiar(t.id, x => { x.txt = 'Tarea ev2esp'; delete x.visible; return x; });
+        const r2 = await M.web.enviar(); ok(r2.ok, 'no se envió otra vez: ' + json(r2));
+        igual(sv.db.tareas_notas.length, 0, 'una tarea tachada sigue en la web');
+      });
+    } finally { await epFin(); }
+  });
+  prueba('EV3', 'La conversación de una sesión de un esporádico (D-378): lo que comenta llega a la pastilla de su página («Del cliente», una fila por sesión) y, en la hoja de la sesión, a «Del cliente», arriba de la columna derecha; abrirla lo da por leído; Kevin responde y lo marca como resuelto; como lo ve el cliente, sus comentarios al pie y solo para leer', async () => {
+    await tablero([pub(1)]); await sinTareas(); relojEn('2026-11-19T10:00:00+01:00');
+    try {
+      await epListo();
+      const { e, s1 } = await epCliente('ev3esp', 'Esporádico EV3');
+      await M.personal._p.cambiar(s1.id, x => { const g = x.sesion.apartados.find(a => a.id === 'orden'); if (g) g.texto = 'Orden EV3'; return x; });
+      await epAbre(e.id);
+      await conWeb(async sv => {
+        wbSesion(); await espera(60);
+        ok((await M.web.enviar()).ok, 'no se envió');
+        sv.db.comentarios_sesion.push({ id: 'cs1', cliente_id: e.id, sesion: s1.id, texto: 'COMENTARIO-EV3', autor_nombre: 'Ana', de_kevin: false, hora: new Date().toISOString(), resuelto: null });
+        await M.web.leerSes(e.id); await M.personal.render(); await espera(80);
+        const pil = await hasta(() => q('.pp-ep .cal .cvenc'), 3000, 'la pastilla en su página');
+        ok(/del cliente/.test(pil.title), 'la pastilla no dice «del cliente»: ' + pil.title);
+        pil.click(); const d = await hasta(() => q('.detail:not([hidden])[data-dlg="venc"]'), 3000, 'su lista');
+        const b = d.querySelector(`[data-cal="av-ses"][data-id="${s1.id}"]`); ok(b && /Pasada ev3esp/.test(b.textContent), 'la fila de la sesión');
+        b.click(); const sec = await hasta(() => q(`.pp-ov .webdel[data-web-ses="${s1.id}"]`), 3000, '«Del cliente» en su hoja');
+        await hasta(() => /COMENTARIO-EV3/.test(sec.textContent), 3000, 'su comentario');
+        ok(sec.closest('[data-col="der"]') || sec.closest('.pp-hj-col.una, .pp-hj-cols.una'), 'no va en la columna derecha (o en la única)');
+        await espera(60); igual(M.web.sinLeerSes(e.id, s1.id), 0, 'abrirla no lo da por leído');
+        const ta = sec.querySelector('.webta'); ta.value = 'RESPUESTA-EV3'; ta.dispatchEvent(new W.Event('input', { bubbles: true }));
+        sec.querySelector('.webenv').focus(); sec.querySelector('.webenv').click(); await hasta(() => sv.db.comentarios_sesion.some(x => x.texto === 'RESPUESTA-EV3'), 3000, 'su respuesta');   // as a real click: the focus on the button
+        await hasta(() => D.activeElement && D.activeElement.matches(`.pp-ov .webdel[data-web-ses="${s1.id}"] .webta`), 3000, 'el foco tras «Responder», en su campo');
+        igual(sv.db.comentarios_sesion.find(x => x.texto === 'RESPUESTA-EV3').sesion, s1.id, 'la respuesta en otra sesión');
+        const res = await hasta(() => q(`.pp-ov .webdel[data-web-ses="${s1.id}"] .webres`), 3000, '«Marcar como resuelto»');
+        res.click(); await hasta(() => sv.db.comentarios_sesion.find(x => x.id === 'cs1').resuelto, 3000, 'resuelto');
+        // as the client sees it: its comments at the foot, to read
+        const vb = q('.pp-ov [data-hj="vista"]'); vb.click();
+        const ro = await hasta(() => q(`.pp-ov .pp-hj-com[data-web-ses="${s1.id}"]`), 3000, 'sus comentarios como lo ve el cliente');
+        await hasta(() => /COMENTARIO-EV3/.test(ro.textContent) && /RESPUESTA-EV3/.test(ro.textContent), 3000, 'la conversación');
+        ok(!ro.querySelector('textarea, .webres'), 'como lo ve el cliente se escribe o se resuelve');
+        igual([W.getComputedStyle(ro).borderTopStyle, W.getComputedStyle(ro.querySelector('ol')).listStyleType, W.getComputedStyle(ro.querySelector('h3')).fontWeight], ['solid', 'none', '600'], 'sus comentarios sin su estilo (como los de una publicación)');
+        M.personal._p.cerrarCard(true);
+      });
+    } finally { await epFin(); }
+  });
+
+  prueba('EV4', 'La «Vista cliente» de un esporádico (D-378): en su cabecera; enseña lo que ve en su web: «Tus sesiones» (con fecha y el ojo abierto, próximas y pasadas) con su calendario (solo esas, sin pastilla ni arrastre), sus tareas y notas con el ojo abierto (para leer) y «Tus pagos»; una sesión se abre como la ve el cliente, fija; apagarla vuelve a su página; salir de la página la apaga', async () => {
+    await tablero([pub(1)]); await sinTareas(); relojEn('2026-11-19T10:00:00+01:00');
+    try {
+      await epListo();
+      const { e, s1, s2, s3, t, n } = await epCliente('ev4esp', 'Esporádico EV4');
+      await M.personal._p.cambiar(s2.id, x => { x.sesion.visible = false; return x; });   // la reunión, oculta
+      await M.personal._p.cambiar(t.id, x => { x.visible = true; return x; });
+      await M.personal.tarea({ txt: 'Oculta EV4', fecha: '2026-11-25', cliente: e.id });
+      await M.personal._p.cambiar(s1.id, x => { x.sesion.apartados = x.sesion.apartados.filter(a => a.id !== 'planos'); x.sesion.apartados.push({ id: 'planos', visible: true, pestanas: [{ id: 'ev4pt', nombre: 'Planos', items: [{ id: 'ev4pi', titulo: 'Plano EV4', texto: '', fotos: [], enlaces: [] }] }] }); return x; });   // a shot without reference
+      await epAbre(e.id);
+      const sw = q('.pp-ep-cab [data-pp="ep-vc"]'); ok(sw && !sw.checked, 'sin «Vista cliente» en su cabecera');
+      const x0 = sw.closest('label').getBoundingClientRect().right;
+      sw.click(); const pg = await hasta(() => q('.pp-ep.vc'), 3000, 'su «Vista cliente»');
+      ok(Math.abs(q('.pp-ep.vc [data-pp="ep-vc"]').closest('label').getBoundingClientRect().right - x0) < 2, 'el interruptor se mueve al pulsarlo');
+      ok(!pg.querySelector('[data-pp="ep-sesion"], [data-pp="ep-mas"], [data-pp="tn-ojo"], [data-pp="ep-volver"]'), 'en su «Vista cliente» se puede editar');
+      igual(qa('.pp-ep.vc .pp-ep-citas .pp-ep-vs').map(b => b.dataset.id), [s1.id], 'sus sesiones: con fecha y el ojo abierto');
+      ok(/Tus sesiones/.test(pg.textContent) && /Tus pagos|Tu plan/.test(q('.pp-ep.vc .pp-ep-vpg').textContent), 'sus títulos: ' + pg.textContent.slice(0, 120));
+      igual(W.getComputedStyle(q('.pp-ep.vc .pp-ep-vpg h2')).marginBottom, '12px', '«Tus pagos» pegado a su primera fila');
+      igual(qa('.pp-ep.vc .pp-ep-vt .pp-ep-vx').map(x => x.textContent), ['Tarea ev4esp'], 'sus tareas: solo la del ojo abierto');
+      ok(!pg.querySelector('.pp-ep-vn') && /Sin notas/.test(pg.textContent), 'su nota oculta sale');
+      await hasta(() => json([...new Set(qa('.pp-ep.vc .side > .cal .chip[data-ses]').map(c => c.dataset.ses))]) === json([s1.id]), 3000, 'el calendario: solo lo que ve');
+      ok(!q('.pp-ep.vc .cal .cavw .cvenc, .pp-ep.vc .cal .cavw'), 'la pastilla en su «Vista cliente»');
+      q(`.pp-ep.vc [data-pp="ep-vses"][data-id="${s1.id}"]`).click();
+      const hj = await hasta(() => q('.pp-ov .pp-hj.vc'), 3000, 'la sesión como la ve el cliente');
+      ok(!hj.querySelector('[data-hj="vista"]') && !hj.querySelector('.pp-ck'), 'se puede salir de «Ver como el cliente» o marcarla');
+      ok(/Plano EV4/.test(hj.textContent) && !hj.querySelector('.pp-pl-sin'), 'como la ve el cliente, un plano sin referencia dice «Sin referencia» (lo vacío, D-228)');
+      M.personal._p.cerrarCard(true); await espera(60);
+      const ch = q(`.pp-ep.vc .side > .cal .chip[data-ses="${s1.id}"]`); ch.click();
+      await hasta(() => q('.pp-ov .pp-hj.vc'), 3000, 'desde el calendario, también fija'); M.personal._p.cerrarCard(true); await espera(60);
+      q('.pp-ep.vc [data-pp="ep-vc"]').click(); await hasta(() => q('.pp-ep:not(.vc) [data-pp="ep-sesion"]'), 3000, 'apagarla vuelve a su página');
+      q('.pp-ep-cab [data-pp="ep-vc"]').click(); await hasta(() => q('.pp-ep.vc'), 3000, 'otra vez');
+      M.personal._p.salirEsp(); await espera(60); await epAbre(e.id); ok(!q('.pp-ep.vc'), 'volver a su página sigue en «Vista cliente»');
+    } finally { await epFin(); }
+  });
+
+  prueba('EV5', '«Pasar a mensual» se lleva su web (D-378): el cliente mensual nuevo conserva su identificador, así su cuenta, sus comentarios y sus facturas siguen; su página deja de ser la de un esporádico', async () => {
+    await tablero([pub(1)]); await sinTareas(); relojEn('2026-11-19T10:00:00+01:00');
+    let nuevo = null;
+    try {
+      await epListo();
+      const { e } = await epCliente('ev5esp', 'Esporádico EV5');
+      await epAbre(e.id);
+      ok(M.personal._p.espWeb() === e.id, 'su web no es la de su página');
+      q('[data-pp="ep-mas"]').click(); const it = await hasta(() => qa('.pp-menu button[data-a]').length ? qa('.pp-menu button[data-a]') : null, 2000, 'su menú');
+      it[0].click(); await hasta(() => q('.detail[data-dlg="pp-pasar"]:not([hidden])'), 2000, 'su diálogo');
+      q('.detail [data-pp-pasar]').click();
+      await hasta(() => M._in.CL.some(c => c.name === 'Esporádico EV5'), 4000, 'el cliente nuevo');
+      const c = M._in.CL.find(x => x.name === 'Esporádico EV5'); nuevo = c.id;
+      igual(c.id, e.id, 'el cliente mensual no conserva su identificador');
+      ok(!M.personal._p.espCli(e.id) && M.personal._p.espWeb() == null, 'sigue como esporádico');
+    } finally { await epFin(); if (nuevo) await M.removeClient(nuevo).catch(() => {}); }
+  });
+
+  prueba('EV6', 'Lo arreglado tras la revisión del lote 5b (D-378): su nombre de pila no es «otro cliente» aunque lo comparta otro esporádico; una foto de una sesión que aún no ha bajado para el envío; más de 100 fotos a la vista, un aviso; el comentario de una sesión que ya no está no se queda en su pastilla; las filas de Tareas con su ojo, en una línea; una tarea sin hacer no lleva ojo; otro cliente cierra su ojo; pasado a «Solo contenido», su web es la de su página nueva', async () => {
+    await tablero([pub(1)]); await sinTareas(); relojEn('2026-11-19T10:00:00+01:00');
+    let nuevo = null;
+    try {
+      await epListo();
+      const T = M.personal._p, { e, s1, t } = await epCliente('ev6esp', 'Laura Gómez');
+      await T.hacer([{ id: 'ev6otra', despues: { id: 'ev6otra', tipo: 'esporadico', txt: 'Laura Pérez', creada: '2026-10-01T09:00:00.000Z', at: new Date().toISOString() } }]);
+      await T.cambiar(t.id, x => { x.txt = 'Boda de Laura en la cala'; x.visible = true; return x; });
+      await epAbre(e.id);
+      // the eye's column in its tasks, whatever the order personal.js and sesiones.js load in
+      const fila = await hasta(() => q('.pp-ep-tn .pp-tk.pp-tg.con-ojo'), 3000, 'una fila con su ojo'), cols = W.getComputedStyle(fila).gridTemplateColumns;
+      igual(cols.split(' ').length, 4, 'las columnas de una fila con ojo: ' + cols);
+      ok(fila.querySelector('.pp-tn-ojo').getBoundingClientRect().bottom < fila.getBoundingClientRect().top + 40, 'el ojo baja a otra línea');
+      // a task not made yet: no eye
+      q('.pp-ep [data-pp="ep-tarea"]').click(); await hasta(() => q('.pp-ov .pp-card'), 3000, 'la tarea nueva');
+      ok(!q('.pp-ov .pp-card .pp-tn-ojo'), 'una tarea sin hacer lleva ojo'); T.cerrarCard(true); await espera(60);
+      await conWeb(async sv => {
+        wbSesion(); await espera(60);
+        const P = await M.web.paquete(); ok(P && !P.error, 'el paquete: ' + json(P && P.error));
+        igual(P.problemas, [], 'su nombre de pila, el de otro esporádico, sale como otro cliente');
+        // a photo of what it sees that hasn't come down from the cloud yet
+        await M._in.idbPut('tfotos', 'ev6foto', { id: 'ev6foto', w: 10, h: 10, sesion: s1.id, t: Date.now() });
+        await T.cambiar(s1.id, x => { const m = x.sesion.apartados.find(a => a.id === 'mood'); m.visible = true; m.grupos = [{ id: 'ev6g', nombre: 'Luz', modo: 'linea', fotos: ['ev6foto'] }]; return x; });
+        const P3 = await M.web.paquete(); ok((P3.sesiones.find(x => x.id === s1.id)._fotos || []).includes('ev6foto'), 'la foto no va en lo que ve');
+        const r3 = await M.web.enviar(); ok(!r3.ok && /aún no ha bajado/.test(json(r3)), 'una foto que no ha bajado se envía sin ella: ' + json(r3));
+        // more than 100 photos in view
+        await T.cambiar(s1.id, x => { x.sesion.apartados.find(a => a.id === 'mood').grupos[0].fotos = Array.from({ length: 101 }, (_, i) => 'ev6f' + i); return x; });
+        const P4 = await M.web.paquete(); ok((P4.demasiadas || []).some(m => /101 fotos/.test(m)) && !P4.problemas.some(m => /fotos/.test(m)), 'más de 100 fotos a la vista no avisa, o avisa como «otro cliente»: ' + json([P4.demasiadas, P4.problemas]));
+        const r4 = await M.web.enviar(); ok(!r4.ok && /101 fotos/.test(json(r4)) && !/otro cliente/.test(json(r4)), 'su envío no dice por qué: ' + json(r4)); M._in.closeDetail();
+        await T.cambiar(s1.id, x => { x.sesion.apartados.find(a => a.id === 'mood').grupos = []; return x; }); await M._in.idbDel('tfotos', 'ev6foto');
+        // a comment of a session that isn't in the Mesa: nothing to open, not in its pill
+        sv.db.comentarios_sesion.push({ id: 'cs6', cliente_id: e.id, sesion: 'ss-no-esta', texto: 'X', autor_nombre: 'Laura', de_kevin: false, hora: new Date().toISOString(), resuelto: null });
+        await M.web.leerSes(e.id); await M.personal.render(); await espera(150);
+        const pil = q('.pp-ep .cal .cvenc'); ok(!pil || !/del cliente/.test(pil.title), 'el comentario de una sesión que ya no está, en su pastilla: ' + (pil && pil.title));
+        // passed to «Solo contenido» with its id: its web is its new page's
+        await M.web.paquete();
+        q('.pp-ep [data-pp="ep-mas"]').click(); const it = await hasta(() => qa('.pp-menu button[data-a]').length ? qa('.pp-menu button[data-a]') : null, 2000, 'su menú');
+        it[0].click(); await hasta(() => q('.detail[data-dlg="pp-pasar"]:not([hidden])'), 2000, 'su diálogo');
+        q('.detail .pp-pas-t [data-k="contenido"]').click(); q('.detail [data-pp-pasar]').click();
+        await hasta(() => M._in.CL.some(c => c.id === e.id), 4000, 'el cliente nuevo'); nuevo = e.id;
+        T.salirEsp(); paginaCerrada(); await espera(60);
+        const ri = await M.openClient(e.id);
+        await hasta(() => M._in.contCli() === e.id && !M._in.S, 4000, 'su página de solo contenido: ' + json(ri) + ' ' + json(M.status()));
+        const P5 = await M.web.paquete(); ok(P5 && !P5.error && !P5.esporadico && P5.cliente.servicio === 'contenido', 'su web tras pasar: ' + json(P5 && (P5.error || P5.cliente)));
+      });
+      // another client: its eye closes
+      const t2 = await M.personal.tarea({ txt: 'Otra ev6', fecha: '2026-11-24', cliente: 'ev6otra' }); await T.cambiar(t2.id, x => { x.visible = true; return x; });
+      const re = await M.personal.editar(t2.id, 'cliente', CLIENTE); ok(re && !re.error, 'cambiar su cliente: ' + json(re));
+      ok(!(await M._in.idbGet('tareas', t2.id)).visible, 'otro cliente ve una tarea cuyo ojo nunca abrió');
+    } finally { await epFin(); if (nuevo) await M.removeClient(nuevo).catch(() => {}); }
   });
 
   window.pasarBateria = pasar;

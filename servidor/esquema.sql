@@ -15,6 +15,8 @@
 --   · Lo que el cliente ve de su acuerdo (D-297: servicio, cada cuánto paga, cuánto y qué meses cubre) y su enlace de métricas
 --     («Ver más en Zernio», D-294) van en `clientes`; las entregas de un cliente de solo contenido, en `entregas`; una reunión,
 --     en `sesiones` (`clase`). Todo eso lo escribe solo Kevin. La fecha de renegociar un acuerdo nunca sale de la Mesa.
+--   · Un esporádico (`servicio = 'sesiones'`, D-378) ve sus sesiones con lo que tiene el ojo abierto (`sesiones.contenido`),
+--     sus tareas y notas visibles (`tareas_notas`) y comenta cada sesión (`comentarios_sesion`), con las mismas reglas.
 --   · Los archivos no se abren desde fuera: los firma la función `firmar` (servidor/funciones/firmar.ts) con caducidad fija
 --     y solo si los usa algo que ese cliente puede ver.
 --   · Los errores para el cliente son códigos HTTP claros (PTxxx) y no distinguen lo ajeno de lo que no existe.
@@ -47,7 +49,7 @@ alter table public.clientes add column if not exists pago_cent   integer;
 alter table public.clientes add column if not exists cubre_de    text;
 alter table public.clientes add column if not exists cubre_hasta text;
 alter table public.clientes drop constraint if exists clientes_servicio_check;
-alter table public.clientes add constraint clientes_servicio_check check (servicio in ('redes', 'contenido'));
+alter table public.clientes add constraint clientes_servicio_check check (servicio in ('redes', 'contenido', 'sesiones'));   -- 'sesiones': un esporádico (D-378)
 alter table public.clientes drop constraint if exists clientes_metricas_check;
 alter table public.clientes add constraint clientes_metricas_check
   check (metricas is null or (metricas ~ '^https://[^[:space:]]+$' and char_length(metricas) <= 500));
@@ -150,6 +152,27 @@ alter table public.sesiones add column if not exists sin_hora boolean not null d
 alter table public.sesiones add column if not exists clase text not null default 'sesion';
 alter table public.sesiones drop constraint if exists sesiones_clase_check;
 alter table public.sesiones add constraint sesiones_clase_check check (clase in ('sesion', 'reunion'));
+-- Lo que ve un esporádico de su sesión (D-378): los apartados con el ojo abierto y algo dentro, ya filtrados en la Mesa
+-- (`contenido`, una lista), y las rutas de sus fotos, que `firmar` firma (`fotos`). En los demás clientes, nulos.
+alter table public.sesiones add column if not exists contenido jsonb;
+alter table public.sesiones add column if not exists fotos text[];
+alter table public.sesiones drop constraint if exists sesiones_contenido_check;
+alter table public.sesiones add constraint sesiones_contenido_check
+  check (contenido is null or (jsonb_typeof(contenido) = 'array' and pg_column_size(contenido) <= 200000));
+alter table public.sesiones drop constraint if exists sesiones_fotos_check;
+alter table public.sesiones add constraint sesiones_fotos_check check (fotos is null or cardinality(fotos) <= 200);
+
+-- Las tareas y notas de un esporádico que tienen el ojo abierto (D-378): solo texto; las escribe Kevin, el cliente las lee.
+create table if not exists public.tareas_notas (
+  cliente_id text not null references public.clientes on delete cascade,
+  id         text not null check (char_length(id) between 1 and 60),
+  tipo       text not null check (tipo in ('tarea', 'nota')),
+  texto      text not null check (char_length(texto) between 1 and 4000),
+  fecha      date,
+  hecha      boolean not null default false,
+  orden      integer not null default 0,
+  primary key (cliente_id, id)
+);
 
 create table if not exists public.meses (
   cliente_id text not null references public.clientes on delete cascade,
@@ -249,6 +272,25 @@ alter table public.comentarios drop constraint if exists comentarios_cliente_id_
 alter table public.comentarios add constraint comentarios_cliente_id_pid_fkey foreign key (cliente_id, pid) references public.publicaciones (cliente_id, pid);
 alter table public.comentarios drop constraint if exists comentarios_cliente_fkey;
 alter table public.comentarios add constraint comentarios_cliente_fkey foreign key (cliente_id) references public.clientes on delete cascade;
+
+-- Los comentarios de una sesión de un esporádico (D-378), como los de una publicación: solo se añaden, con su autor y la
+-- hora del servidor (`firmar`), y solo de una sesión que el cliente ve (está en `sesiones`). Ocultar una sesión no los borra.
+create table if not exists public.comentarios_sesion (
+  id           uuid primary key default gen_random_uuid(),
+  cliente_id   text not null references public.clientes on delete cascade,
+  sesion       text not null check (char_length(sesion) between 1 and 60),
+  texto        text not null,
+  autor        uuid references auth.users on delete set null default auth.uid(),
+  autor_nombre text not null default '',
+  de_kevin     boolean not null default false,
+  hora         timestamptz not null default now(),
+  resuelto     timestamptz
+);
+create index if not exists comentarios_sesion_hora on public.comentarios_sesion (cliente_id, hora);
+create index if not exists comentarios_sesion_ses on public.comentarios_sesion (cliente_id, sesion, hora);
+create index if not exists comentarios_sesion_autor on public.comentarios_sesion (autor, hora);
+alter table public.comentarios_sesion drop constraint if exists comentarios_sesion_texto_check;
+alter table public.comentarios_sesion add constraint comentarios_sesion_texto_check check (char_length(texto) between 1 and 2000 and char_length(btrim(texto)) >= 1);
 
 create table if not exists public.lecturas (
   user_id     uuid not null references auth.users on delete cascade default auth.uid(),
@@ -367,8 +409,9 @@ begin
   new.id := gen_random_uuid();
   new.hora := now();
   new.autor := yo;
-  if tg_table_name = 'comentarios' then
-    select count(*) into n from public.comentarios where autor = yo and hora > now() - interval '1 minute';
+  if tg_table_name in ('comentarios', 'comentarios_sesion') then   -- las dos tablas de comentarios, un solo tope (D-378)
+    select (select count(*) from public.comentarios where autor = yo and hora > now() - interval '1 minute')
+         + (select count(*) from public.comentarios_sesion where autor = yo and hora > now() - interval '1 minute') into n;
     if n >= 20 then raise exception 'demasiados comentarios seguidos: espera un minuto' using errcode = 'PT429'; end if;
   else
     select count(*) into n from public.aprobaciones where autor = yo and hora > now() - interval '1 minute';
@@ -376,11 +419,11 @@ begin
   end if;
   if public.es_dueno() then
     new.autor_nombre := 'Kevin · Uribe Visuals';
-    if tg_table_name = 'comentarios' then new.de_kevin := true; new.resuelto := null; end if;
+    if tg_table_name in ('comentarios', 'comentarios_sesion') then new.de_kevin := true; new.resuelto := null; end if;
   else
     select m.nombre into new.autor_nombre from public.miembros m where m.user_id = yo and m.cliente_id = new.cliente_id;
     if new.autor_nombre is null then raise exception 'sin permiso' using errcode = '42501'; end if;
-    if tg_table_name = 'comentarios' then new.de_kevin := false; new.resuelto := null; end if;
+    if tg_table_name in ('comentarios', 'comentarios_sesion') then new.de_kevin := false; new.resuelto := null; end if;
   end if;
   return new;
 end $$;
@@ -453,6 +496,22 @@ begin
   return new;
 end $$;
 
+-- Un comentario de sesión (D-378): de un cliente suyo (o de Kevin), que decide, y en una sesión que ese cliente ve.
+create or replace function public.comprobar_comentario_sesion() returns trigger
+  language plpgsql security definer set search_path = '' as $$
+begin
+  if not (public.es_dueno() or public.es_miembro(new.cliente_id)) then raise exception 'sin permiso' using errcode = '42501'; end if;
+  if not public.es_dueno() and not public.puede_decidir(new.cliente_id) then raise exception 'esta cuenta solo mira' using errcode = 'PT403'; end if;
+  if not exists (select 1 from public.sesiones s where s.cliente_id = new.cliente_id and s.id = new.sesion) then
+    raise exception 'sesión no encontrada' using errcode = 'PT404';
+  end if;
+  -- solo un esporádico comenta sus sesiones (D-378): de un mensual nadie lo leería
+  if not exists (select 1 from public.clientes c where c.id = new.cliente_id and c.servicio = 'sesiones') then
+    raise exception 'solo se comentan las sesiones de un esporádico' using errcode = 'PT403';
+  end if;
+  return new;
+end $$;
+
 -- Un id de cliente borrado no vuelve.
 create or replace function public.cliente_nuevo() returns trigger
   language plpgsql security definer set search_path = '' as $$
@@ -491,6 +550,10 @@ drop trigger if exists comentarios_1_comprobar on public.comentarios;
 drop trigger if exists comentarios_2_firmar on public.comentarios;
 create trigger comentarios_1_comprobar before insert on public.comentarios for each row execute function public.comprobar_comentario();
 create trigger comentarios_2_firmar before insert on public.comentarios for each row execute function public.firmar();
+drop trigger if exists comentarios_sesion_1_comprobar on public.comentarios_sesion;
+drop trigger if exists comentarios_sesion_2_firmar on public.comentarios_sesion;
+create trigger comentarios_sesion_1_comprobar before insert on public.comentarios_sesion for each row execute function public.comprobar_comentario_sesion();
+create trigger comentarios_sesion_2_firmar before insert on public.comentarios_sesion for each row execute function public.firmar();
 -- Un cliente borrado, por cualquier vía, deja su id reservado; un id no se cambia (heredaría archivos y facturas de otro).
 create or replace function public.cliente_borrado() returns trigger
   language plpgsql security definer set search_path = '' as $$
@@ -526,22 +589,26 @@ alter table public.pagos             enable row level security;
 alter table public.entregas          enable row level security;   -- D-297
 alter table public.aprobaciones      enable row level security;
 alter table public.comentarios       enable row level security;
+alter table public.tareas_notas      enable row level security;   -- D-378
+alter table public.comentarios_sesion enable row level security;  -- D-378
 alter table public.lecturas          enable row level security;
 alter table public.ajustes_entrada   enable row level security;   -- sin políticas: nadie con sesión lo ve (D-262)
 
 -- Nada para quien no ha entrado; lo que puede intentar quien ha entrado (las políticas deciden sobre qué filas).
 revoke all on public.duenos, public.clientes, public.clientes_borrados, public.miembros, public.publicaciones, public.sesiones,
-  public.meses, public.pagos, public.entregas, public.aprobaciones, public.comentarios, public.lecturas, public.ajustes_entrada
+  public.meses, public.pagos, public.entregas, public.aprobaciones, public.comentarios, public.lecturas, public.ajustes_entrada,
+  public.tareas_notas, public.comentarios_sesion
   from anon, authenticated;
 -- La clave secreta (solo en .env de Kevin) lo puede todo: altas, bajas y las pruebas. Explícito porque el proyecto se crea
 -- sin «Automatically expose new tables».
 grant all on public.duenos, public.clientes, public.clientes_borrados, public.miembros, public.publicaciones, public.sesiones,
-  public.meses, public.pagos, public.entregas, public.aprobaciones, public.comentarios, public.lecturas, public.ajustes_entrada
+  public.meses, public.pagos, public.entregas, public.aprobaciones, public.comentarios, public.lecturas, public.ajustes_entrada,
+  public.tareas_notas, public.comentarios_sesion
   to service_role;
 grant select on public.duenos, public.miembros to authenticated;
 -- Kevin no borra clientes desde la página: se borran con `tools/web.mjs borrar-cliente` (antes sus archivos).
 grant select, insert, update on public.clientes to authenticated;
-grant select, insert, update, delete on public.sesiones, public.meses, public.pagos, public.entregas to authenticated;
+grant select, insert, update, delete on public.sesiones, public.meses, public.pagos, public.entregas, public.tareas_notas to authenticated;
 -- Publicaciones: Kevin escribe todo; nadie lee `vistas_hasta` (es solo una marca de sus envíos).
 grant insert, update, delete on public.publicaciones to authenticated;
 grant select (cliente_id, pid, mes, orden, tipo, nombre, fecha, sin_hora, caption, imagenes, estado, version, visible, enviada)
@@ -552,6 +619,9 @@ grant insert (cliente_id, pid, version, decision, motivo, diapositiva) on public
 grant select (id, cliente_id, pid, version, diapositiva, texto, autor_nombre, de_kevin, hora, resuelto) on public.comentarios to authenticated;
 grant insert (cliente_id, pid, version, diapositiva, texto) on public.comentarios to authenticated;
 grant update (resuelto) on public.comentarios to authenticated;
+grant select (id, cliente_id, sesion, texto, autor_nombre, de_kevin, hora, resuelto) on public.comentarios_sesion to authenticated;
+grant insert (cliente_id, sesion, texto) on public.comentarios_sesion to authenticated;
+grant update (resuelto) on public.comentarios_sesion to authenticated;
 grant select, insert, update on public.lecturas to authenticated;
 revoke execute on function public.es_dueno(), public.es_miembro(text), public.puede_ver(text, text), public.puede_decidir(text) from public, anon;
 grant execute on function public.es_dueno(), public.es_miembro(text), public.puede_ver(text, text), public.puede_decidir(text) to authenticated;
@@ -561,7 +631,7 @@ grant execute on function public.dueno_cuenta(), public.hora_codigo(), public.co
 -- (PostgreSQL no mira ese permiso al dispararlos); llamarlos por /rest/v1/rpc ya fallaba, pero el aviso de seguridad de
 -- Supabase los contaba como «Public Can Execute SECURITY DEFINER Function».
 revoke execute on function public.firmar(), public.comprobar_aprobacion(), public.aplicar_aprobacion(), public.comprobar_comentario(),
-  public.cliente_nuevo(), public.cliente_observadores(), public.cliente_borrado() from public, anon, authenticated;
+  public.comprobar_comentario_sesion(), public.cliente_nuevo(), public.cliente_observadores(), public.cliente_borrado() from public, anon, authenticated;
 
 drop policy if exists duenos_ver on public.duenos;
 create policy duenos_ver on public.duenos for select to authenticated using (user_id = (select auth.uid()));
@@ -630,6 +700,25 @@ create policy comentarios_escribir on public.comentarios for insert to authentic
   with check (public.puede_ver(cliente_id, pid) and ((select public.es_dueno()) or public.puede_decidir(cliente_id)));
 drop policy if exists comentarios_resolver on public.comentarios;
 create policy comentarios_resolver on public.comentarios for update to authenticated
+  using ((select public.es_dueno())) with check ((select public.es_dueno()));
+
+-- Lo de un esporádico (D-378): sus tareas y notas visibles las lee el cliente y las escribe Kevin; los comentarios de una
+-- sesión, los de una sesión que se ve (una oculta, tampoco su conversación), como los de una publicación.
+drop policy if exists tareas_notas_ver on public.tareas_notas;
+create policy tareas_notas_ver on public.tareas_notas for select to authenticated
+  using ((select public.es_dueno()) or public.es_miembro(cliente_id));
+drop policy if exists tareas_notas_kevin on public.tareas_notas;
+create policy tareas_notas_kevin on public.tareas_notas for all to authenticated
+  using ((select public.es_dueno())) with check ((select public.es_dueno()));
+drop policy if exists comentarios_sesion_ver on public.comentarios_sesion;
+create policy comentarios_sesion_ver on public.comentarios_sesion for select to authenticated
+  using ((select public.es_dueno()) or (public.es_miembro(cliente_id)
+    and exists (select 1 from public.sesiones s where s.cliente_id = comentarios_sesion.cliente_id and s.id = comentarios_sesion.sesion)));
+drop policy if exists comentarios_sesion_escribir on public.comentarios_sesion;
+create policy comentarios_sesion_escribir on public.comentarios_sesion for insert to authenticated
+  with check ((select public.es_dueno()) or public.puede_decidir(cliente_id));
+drop policy if exists comentarios_sesion_resolver on public.comentarios_sesion;
+create policy comentarios_sesion_resolver on public.comentarios_sesion for update to authenticated
   using ((select public.es_dueno())) with check ((select public.es_dueno()));
 
 -- Lo leído es de Kevin («sin leer» en su Mesa).

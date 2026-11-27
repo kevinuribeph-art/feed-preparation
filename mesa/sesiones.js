@@ -15,7 +15,7 @@
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;
   const MOVIL = document.documentElement.hasAttribute('data-movil');   // the iPhone (D-275): nothing mounted, only its view and its setters
-  const VERSION = '1.10';   // 1.10: a sporadic client's page (it was a file): its head, its agenda and calendar, its tasks and notes, its payments and its IVA; «Pasar a mensual…» with its type (D-377). 1.9: 1.9: «Reunión», one kind of session more — «Orden del día · Notas · Acuerdos», no payment, the eye crossed out by default; «Nueva reunión» from the board's calendar (D-291). 1.8: «Nueva sesión» with a day given (the board's calendar, D-285); «/-» a separator in its texts (D-283). 1.7: on the iPhone nothing mounts; M.sesiones.movil (vista, campo, editar) for the whole session (D-275). 1.6: a session's photo that hasn't come down from the server yet (lot 4 of the traspaso) waits instead of breaking the sheet, and is read again when it arrives (D-259). 1.5: with the cloud on, the loose photos are cleaned only once everything came down, and only here (D-256). 1.4: a sporadic client's file has its «Cobros», one per session and client (cobros.js); «Pasar a mensual» takes them (D-234); drawing the file never takes the focus from what is being written in it. 1.3: the sheet changes in place only what changed (D-223); seen as the client, no empty section («Aún sin detalles» if none is left) and the separator still (D-228); the end the same day, its calendar with the pointer over it; --mute for what is read (D-231). 1.2: a chip each client and «+ Cliente» (D-217); «– Fin» (D-218); fixed in «Ver como el cliente» over the board in the vista cliente (D-219); templates of material (D-220); «Duplicar sesión» (D-221). 1.1: a click writes in the sheet and the file (D-209); the sheet widens (D-210); the mood board in columns of a cell of the feed (D-211); the shots' tabs as titles (D-214); the right column 20 px inside (D-216)
+  const VERSION = '1.11';   // 1.11: what a sporadic client sees of a session (paraCliente), its conversation in the sheet, its page's «Vista cliente» with its calendar, «Pasar a mensual» keeps its id (D-378).   // 1.10: a sporadic client's page (it was a file): its head, its agenda and calendar, its tasks and notes, its payments and its IVA; «Pasar a mensual…» with its type (D-377). 1.9: 1.9: «Reunión», one kind of session more — «Orden del día · Notas · Acuerdos», no payment, the eye crossed out by default; «Nueva reunión» from the board's calendar (D-291). 1.8: «Nueva sesión» with a day given (the board's calendar, D-285); «/-» a separator in its texts (D-283). 1.7: on the iPhone nothing mounts; M.sesiones.movil (vista, campo, editar) for the whole session (D-275). 1.6: a session's photo that hasn't come down from the server yet (lot 4 of the traspaso) waits instead of breaking the sheet, and is read again when it arrives (D-259). 1.5: with the cloud on, the loose photos are cleaned only once everything came down, and only here (D-256). 1.4: a sporadic client's file has its «Cobros», one per session and client (cobros.js); «Pasar a mensual» takes them (D-234); drawing the file never takes the focus from what is being written in it. 1.3: the sheet changes in place only what changed (D-223); seen as the client, no empty section («Aún sin detalles» if none is left) and the separator still (D-228); the end the same day, its calendar with the pointer over it; --mute for what is read (D-231). 1.2: a chip each client and «+ Cliente» (D-217); «– Fin» (D-218); fixed in «Ver como el cliente» over the board in the vista cliente (D-219); templates of material (D-220); «Duplicar sesión» (D-221). 1.1: a click writes in the sheet and the file (D-209); the sheet widens (D-210); the mood board in columns of a cell of the feed (D-211); the shots' tabs as titles (D-214); the right column 20 px inside (D-216)
   if (M.sesiones && M.sesiones._off) { try { M.sesiones._off(); } catch (e) { /* */ } }
   let P = null;                                // personal.js's own (M.personal._p)
   const OFF = [];
@@ -209,7 +209,7 @@
       const vacia = !ref && !en && !nueva;
       return `<div class="pp-pl-it${it.hecho ? ' hecho' : ''}" data-it="${P.esc(it.id)}">${vc ? '' : `<input type="checkbox" class="pp-ck" data-hj="it-hecho" data-it="${P.esc(it.id)}"${it.hecho ? ' checked' : ''} aria-label="Hecho">`}`
         + `<div class="pp-pl-c"><div class="pp-pl-ti${it.titulo ? '' : ' vacio'}" data-campo="it:${P.esc(a.id)}:${P.esc(pt.id)}:${P.esc(it.id)}:titulo">${P.esc(it.titulo || (vc ? '' : 'Sin título'))}</div>${texto(`it:${a.id}:${pt.id}:${it.id}:texto`, it.texto, '')}</div>`
-        + `<div class="pp-pl-ref" data-drop="it:${P.esc(a.id)}:${P.esc(pt.id)}:${P.esc(it.id)}">${ref ? `<div class="pp-pl-fos">${ref}</div>` : ''}${en ? `<div class="pp-pl-ens">${en}</div>` : ''}${nueva}${vacia ? `<span class="pp-pl-sin">Sin referencia</span>` : ''}${vc ? '' : `<button type="button" class="pp-pl-ena" data-hj="en-mas" title="Añadir un enlace">${svgI('enlace')}Enlace</button>`}</div></div>`;
+        + `<div class="pp-pl-ref" data-drop="it:${P.esc(a.id)}:${P.esc(pt.id)}:${P.esc(it.id)}">${ref ? `<div class="pp-pl-fos">${ref}</div>` : ''}${en ? `<div class="pp-pl-ens">${en}</div>` : ''}${nueva}${vacia && !vc ? `<span class="pp-pl-sin">Sin referencia</span>` : ''}${vc ? '' : `<button type="button" class="pp-pl-ena" data-hj="en-mas" title="Añadir un enlace">${svgI('enlace')}Enlace</button>`}</div></div>`;
     }).join('');
     return { cab: tabs, cuerpo: `<div class="pp-pl-items">${items}</div>${vc ? '' : `<button type="button" class="pp-cmas" data-hj="it-nuevo">${svgI('mas')}${P.esc(sing(pt.nombre))}</button>`}` };
   }
@@ -277,6 +277,26 @@
     if (t === 'material') return !matDe(a, r).L.length;
     return !String(typeof a.texto === 'string' ? a.texto : '').replace(/\s+/g, '');
   }
+  // What its client sees of a session in its web (D-378), the same as «Ver como el cliente»: the sections with the eye open and
+  // something in them, in its order; texts as written (the web draws their marks), the ids of their photos (web.js sends them
+  // reduced) and Material as its families. null if the session is hidden or isn't one
+  function paraCliente(r) {
+    if (!r || r.tipo !== 'sesion' || !r.sesion || r.sesion.visible === false) return null;
+    const fotos = [], fo = l => (l || []).map(x => typeof x === 'string' ? x : x && x.id).filter(id => typeof id === 'string' && id).map(id => { if (!fotos.includes(id)) fotos.push(id); return id; });
+    const corta = (t, n) => String(t == null ? '' : t).slice(0, n);
+    const contenido = (r.sesion.apartados || []).filter(a => a && a.visible !== false && !vacioAp(a, r)).map(a => {
+      const t = tipoDe(a), o = { id: corta(a.id, 40), nombre: corta(a.nombre || (APS[a.id] || {}).n || a.id, 60), tipo: t };
+      if (t === 'planos') o.pestanas = (a.pestanas || []).filter(p => (p.items || []).length).map(p => ({ nombre: corta(p.nombre, 40),
+        items: p.items.map(it => ({ titulo: corta(it.titulo, 200), texto: corta(it.texto, 2000), fotos: fo(it.fotos), enlaces: (it.enlaces || []).map(u => typeof u === 'string' ? u : u && u.url).filter(u => typeof u === 'string' && /^https?:\/\/\S+$/.test(u) && u.length <= 1000).slice(0, 10) })) }));
+      else if (t === 'mood') o.grupos = (a.grupos || []).filter(g => (g.fotos || []).length).map(g => ({ nombre: corta(g.nombre || 'Grupo', 60), modo: g.modo === 'columnas' ? 'columnas' : 'linea', fotos: fo(g.fotos) }));
+      else if (t === 'material') { const fams = []; for (const x of matDe(a, r).L) { let f = fams.find(y => y.nombre === x.familia); if (!f) fams.push(f = { nombre: corta(x.familia, 60), cosas: [] }); f.cosas.push(corta(x.nombre, 80)); } o.familias = fams; }
+      else o.texto = corta(typeof a.texto === 'string' ? a.texto : '', 8000);
+      return o;
+    });
+    return { contenido, fotos };
+  }
+  // the sporadic clients of a session whose web has its conversation (D-378)
+  const espsDe = r => P.espCli ? P.clis(r).filter(P.espCli) : [];
   function hojaHTML(r) {
     const X = I(), ses = r.sesion, vc = S.vista, vis = ses.visible !== false, nf = (r.fotos || []).length;
     // as the client sees it, neither what is struck out (D-206) nor what is empty (D-228)
@@ -286,6 +306,11 @@
     const col = c => C[c].filter(verAp).map(id => apHTML(ap(r, id), r)).join('');
     const faltan = ORDEN.filter(id => !ap(r, id));
     const fija = !!(P.CARD && P.CARD.vc), cls = P.clis(r).filter(P.cliOk).filter(c => !fija || c === P.CARD.cli);   // the vista cliente: only that board's client (D-219)
+    // its conversation with a sporadic client (D-378): «Del cliente» at the top of the right column, for Kevin; as the client sees
+    // it, its comments under the sections (to read: Kevin answers from his sheet). web.js fills them in their place (data-propio)
+    const es = espsDe(r).filter(c => !fija || c === P.CARD.cli);
+    const del = vc ? '' : es.map(c => `<section class="webdel pp-hj-del" data-propio data-web-ses="${P.esc(r.id)}" data-web-cli="${P.esc(c)}" aria-label="Del cliente"></section>`).join('');
+    const com = vc && vis && es.length ? `<section class="pp-hj-com" data-propio data-web-ses="${P.esc(r.id)}" data-web-cli="${P.esc(es[0])}" data-web-ro aria-label="Comentarios"></section>` : '';
     const cab = `<header class="pp-hj-cab"><div class="pp-hj-t">${vc ? '' : `<input type="checkbox" class="pp-ck" data-pp="ck" data-id="${P.esc(r.id)}"${r.hecha ? ' checked' : ''} aria-label="Hecha">`}<h2 class="pp-hj-nom" data-campo="nom">${P.esc(r.txt)}</h2>${P.botonesCard(vc ? '' : ojoBtn(vis, 'pp-cb', 'data-hj="ojo"'))}</div>`
       + `<div class="pp-hj-meta">${vc ? `<span class="pp-hj-chip ro">${svgI(CLASES.find(c => c[0] === ses.clase) ? CLASES.find(c => c[0] === ses.clase)[2] : 'sesion')}${P.esc(claseTxt(ses.clase))}</span>${r.fecha ? `<span class="pp-hj-chip ro">${svgI('fecha')}${P.esc(P.tramo(r))}</span>` : ''}${cls.map(id => `<span class="pp-hj-chip ro">${P.avatar(id, 'xs')}${P.esc(P.cliDe(id).name)}</span>`).join('')}`
         : `<span class="pp-hj-chip">${svgI(CLASES.find(c => c[0] === ses.clase) ? CLASES.find(c => c[0] === ses.clase)[2] : 'sesion')}<select data-hj="clase" aria-label="Tipo de sesión">${CLASES.map(([k, l]) => `<option value="${k}"${ses.clase === k ? ' selected' : ''}>${l}</option>`).join('')}</select></span>`
@@ -297,10 +322,10 @@
       + (S.tira && !vc ? `<div class="pp-hj-tira" data-drop="tira" title="Suelta aquí fotos del ordenador; arrástralas a un plano o a un grupo">${nf ? (r.fotos || []).map(f => `<span class="pp-hj-tf pp-fo" data-f="${P.esc(f.id)}" draggable="true" tabindex="0" role="button" aria-label="Foto de la sesión"></span>`).join('') : `<span class="pp-pl-sin">Sin fotos</span>`}</div>` : '') + `</header>`;
     const cuerpo = vc && !vis ? `<p class="pp-hj-oculta">${svgI('ojoNo')}El cliente no ve esta sesión</p>`
       : nada ? `<p class="pp-hj-oculta pp-hj-nada">Aún sin detalles</p>`
-      : `<div class="pp-hj-cols${dos ? '' : ' una'}" style="${dos ? `grid-template-columns:minmax(0,${C.sep.toFixed(4)}fr) 17px minmax(0,${(1 - C.sep).toFixed(4)}fr)` : ''}"><div class="pp-hj-col" data-col="izq">${col('izq')}${dos ? '' : col('der')}${!dos && !vc && faltan.length ? `<button type="button" class="pp-cmas pp-hj-apn" data-hj="ap-nuevo">${svgI('mas')}Apartado</button>` : ''}</div>`
+      : `<div class="pp-hj-cols${dos ? '' : ' una'}" style="${dos ? `grid-template-columns:minmax(0,${C.sep.toFixed(4)}fr) 17px minmax(0,${(1 - C.sep).toFixed(4)}fr)` : ''}"><div class="pp-hj-col" data-col="izq">${dos ? '' : del}${col('izq')}${dos ? '' : col('der')}${!dos && !vc && faltan.length ? `<button type="button" class="pp-cmas pp-hj-apn" data-hj="ap-nuevo">${svgI('mas')}Apartado</button>` : ''}</div>`
         + (dos && vc ? `<div class="pp-hj-sep fija" aria-hidden="true"></div><div class="pp-hj-col" data-col="der">${col('der')}</div>` : '')   // seen as the client: the line, nothing that moves (D-228)
-        + (dos && !vc ? `<div class="pp-hj-sep" role="separator" tabindex="0" aria-orientation="vertical" aria-label="Separador de las columnas" aria-valuemin="25" aria-valuemax="75" aria-valuenow="${Math.round(C.sep * 100)}" title="Arrastra para repartir · doble clic: como al principio"></div><div class="pp-hj-col" data-col="der">${col('der')}${!vc && faltan.length ? `<button type="button" class="pp-cmas pp-hj-apn" data-hj="ap-nuevo">${svgI('mas')}Apartado</button>` : ''}</div>` : '') + `</div>`;
-    return `<div class="pp-card pp-hj${vc ? ' vc' : ''}${P.CARD && P.CARD.ed ? ' ed' : ''}${P.CARD && P.CARD.amplia ? ' amplia' : ''}" role="dialog" aria-modal="true" aria-label="Sesión: ${P.esc(r.txt)}" tabindex="-1">${cab}${cuerpo}</div>`;
+        + (dos && !vc ? `<div class="pp-hj-sep" role="separator" tabindex="0" aria-orientation="vertical" aria-label="Separador de las columnas" aria-valuemin="25" aria-valuemax="75" aria-valuenow="${Math.round(C.sep * 100)}" title="Arrastra para repartir · doble clic: como al principio"></div><div class="pp-hj-col" data-col="der">${del}${col('der')}${!vc && faltan.length ? `<button type="button" class="pp-cmas pp-hj-apn" data-hj="ap-nuevo">${svgI('mas')}Apartado</button>` : ''}</div>` : '') + `</div>`;
+    return `<div class="pp-card pp-hj${vc ? ' vc' : ''}${P.CARD && P.CARD.ed ? ' ed' : ''}${P.CARD && P.CARD.amplia ? ' amplia' : ''}" role="dialog" aria-modal="true" aria-label="Sesión: ${P.esc(r.txt)}" tabindex="-1">${cab}${cuerpo}${com}</div>`;
   }
 
   // ---------- drawing the sheet ----------
@@ -319,6 +344,7 @@
     if (ctlCampo && !viva) { ctlCampo.apagar(); ctlCampo = null; }
     P.morfar(ov, hojaHTML(r), { vivo: n => n === viva });
     if (M.controles && M.controles.mejorar) M.controles.mejorar(ov);
+    if (M.web && M.web.hojaSes) M.web.hojaSes(ov);   // its conversation with a sporadic client, in its place (D-378)
     const c = ov.firstChild; if (c.scrollTop !== y) c.scrollTop = y;
     if (enlV) { const e2 = ov.querySelector('[data-hj="en-in"]'); if (e2 && e2.value !== enlV) e2.value = enlV; }
     const mi = ov.querySelector('[data-hj="mat-in"]'); if (mi && !mi._blur) { mi._blur = true; mi.addEventListener('blur', () => { if (S.cosa === mi.dataset.fam && mi.isConnected) ponerCosa(mi, false); }); }
@@ -814,8 +840,35 @@
   const ATRAS = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>';   // Lucide chevron-left
   const icoSes = k => { const c = k.sesion && k.sesion.clase; return svgI(c === 'foto' ? 'camara' : c === 'video' ? 'video' : c === 'libre' ? 'libre' : c === 'reunion' ? 'reunion' : 'sesion'); };
   const ivaEsp = e => e && e.sinIva === true ? 0 : 21;   // what its new payments take (D-377; a monthly one's, D-374)
+  // its «Vista cliente» (D-378): what its client sees in its web, the same: its sessions (with a day and the eye open) with their
+  // calendar · its tasks and notes it sees, to read · «Tus pagos». A session opens as the client sees it (fixed, D-219)
+  function paginaVcHTML(e, R) {
+    const X = I(), hoy = X.hoy(), id = e.id, esc = P.esc;
+    const ss = P.sesiones().filter(k => P.conCli(k, id) && k.fecha && !(k.sesion && k.sesion.visible === false)), t = k => (k.fecha || '') + ' ' + (k.hora || '');
+    const prox = ss.filter(k => P.ultDia(k) >= hoy).sort((a, b) => t(a).localeCompare(t(b))), pas = ss.filter(k => P.ultDia(k) < hoy).sort((a, b) => t(b).localeCompare(t(a)));
+    const coms = M.web && M.web.coms ? M.web.coms(id) : [];
+    const fila = k => { const n = coms.filter(x => x.sesion === k.id).length;
+      return `<button type="button" class="pp-es-s pp-ep-vs" data-pp="ep-vses" data-id="${esc(k.id)}" title="${esc((k.sesion && k.sesion.clase === 'reunion' ? 'Reunión' : 'Sesión') + ' · ' + k.txt)}"><span class="pp-es-d">${esc(P.tramo(k))}</span>${svgI(k.sesion && k.sesion.clase === 'reunion' ? 'reunion' : 'sesion')}<b>${esc(k.txt)}${n ? `<span class="pp-ep-nc">${n === 1 ? '1 comentario' : n + ' comentarios'}</span>` : ''}</b></button>`; };
+    const grupo = (tt, l) => l.length ? `<section class="pp-ep-gr"><h3 class="pp-gt pp-ep-sub">${tt} <span>${l.length}</span></h3><div class="pp-es-l">${l.map(fila).join('')}</div></section>` : '';
+    const tk = P.tareas().filter(k => k.cliente === id && k.visible === true).sort((a, b) => String(a.fecha || '9999').localeCompare(String(b.fecha || '9999')) || String(a.creada || '').localeCompare(String(b.creada || '')));
+    const ns = P.notas().filter(k => k.cliente === id && k.visible === true);
+    const MS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'], dia = f => f ? `${+f.slice(8)} ${MS[+f.slice(5, 7) - 1]}` : '';
+    const pp = I().vc && I().vc.lado ? I().vc.lado.find(x => x.id === 'pagos') : null;
+    let pagos = ''; try { pagos = pp ? pp.html({ cliente: id, mes: hoy.slice(0, 7), S: null }) || '' : ''; } catch (err) { pagos = ''; }
+    return `<div class="pp-ep vc" data-esp="${esc(id)}">`
+      + `<div class="pp-ep-cab"><div class="pp-ep-id">${P.avatar(id, 'lg')}<div class="pp-ep-t"><h1 class="pp-ep-nom">${esc(e.txt)}</h1></div></div><span class="pp-ep-sp"></span>`
+      + `<div class="pp-ep-acc"><label class="sw pp-ep-vcs"><input type="checkbox" data-pp="ep-vc" checked> Vista cliente</label></div></div>`
+      + `<div class="pp-ep-cols${pagos ? '' : ' sin-lado'}"><div class="pp-ep-ag"><section class="pp-ep-p pp-ep-citas" aria-label="Tus sesiones"><h2 class="pp-ep-h">Tus sesiones</h2>`
+      + (ss.length ? grupo('Próximas', prox) + grupo('Pasadas', pas) : '<p class="pp-ep-vacio">Aún no hay sesiones.</p>')
+      + `</section><div class="side pp-ep-side"><section class="cal" data-propio data-vc data-cli="${esc(id)}" aria-label="Calendario"></section></div></div>`
+      + `<section class="pp-ep-p pp-ep-tn" aria-label="Tareas y notas"><h2 class="pp-ep-h">Tareas <span>${tk.length}</span></h2>`
+      + (tk.length ? `<div class="pp-ep-vtl">${tk.map(k => `<div class="pp-ep-vt${k.hecha ? ' hecha' : ''}"><span class="pp-ep-vd">${esc(dia(k.fecha))}</span><span class="pp-ep-vx">${esc(k.txt)}</span></div>`).join('')}</div>` : '<p class="pp-ep-vacio">Sin tareas.</p>')
+      + `<h2 class="pp-ep-h pp-ep-h2">Notas <span>${ns.length}</span></h2>` + (ns.length ? ns.map(n => `<div class="pp-ep-vn">${P.leerTxt(n.txt, { casillas: 'vineta', enlaces: true })}</div>`).join('') : '<p class="pp-ep-vacio">Sin notas.</p>') + `</section>`
+      + (pagos ? `<section class="pp-ep-p pp-ep-cob pp-ep-vpg" aria-label="Tus pagos">${pagos}</section>` : '') + `</div></div>`;   // nothing to pay: no column, as its web
+  }
   function paginaHTML(e0, R) {
     const e = P.TK.get(e0.id) || e0, X = I(), hoy = X.hoy(), id = e.id, esc = P.esc;   // its record (espDe gives its name as a client's)
+    if (P.st && P.st.espVc === id) return paginaVcHTML(e, R);   // its «Vista cliente» (D-378)
     const ss = P.sesiones().filter(k => P.conCli(k, id)), tk = P.tareas().filter(k => k.cliente === id), ns = P.notas().filter(k => k.cliente === id);
     const t = k => (k.fecha || '') + ' ' + (k.hora || '');
     const prox = ss.filter(k => k.fecha && P.ultDia(k) >= hoy).sort((a, b) => t(a).localeCompare(t(b))), sinf = ss.filter(k => !k.fecha), pas = ss.filter(k => k.fecha && P.ultDia(k) < hoy).sort((a, b) => t(b).localeCompare(t(a)));
@@ -824,11 +877,12 @@
     const grupo = (tt, l) => l.length ? `<section class="pp-ep-gr"><h3 class="pp-gt pp-ep-sub">${tt} <span>${l.length}</span></h3><div class="pp-es-l">${l.map(fila).join('')}</div></section>` : '';   // as the groups of Tareas (D-371)
     const desde = e.creada ? `${MESL0[+e.creada.slice(5, 7) - 1]} ${e.creada.slice(0, 4)}` : '';
     const mas = svgI('mas'), nT = tk.filter(k => !k.hecha).length;
-    const pn = `<div class="pp-pn">${ns.map(n => `<div class="pp-pt" data-nid="${esc(n.id)}" data-pp="tver" data-id="${esc(n.id)}" tabindex="0" role="button" aria-label="Nota: ${esc(n.txt)}"><div class="pp-ptx">${P.leerTxt(n.txt, { casillas: 'no' })}</div></div>`).join('')}</div>`;
+    const pn = `<div class="pp-pn">${ns.map(n => `<div class="pp-pt" data-nid="${esc(n.id)}" data-pp="tver" data-id="${esc(n.id)}" tabindex="0" role="button" aria-label="Nota: ${esc(n.txt)}"><div class="pp-ptx">${P.leerTxt(n.txt, { casillas: 'no' })}</div>${P.ojoTN(n)}</div>`).join('')}</div>`;   // its eye (D-378)
     return `<div class="pp-ep" data-esp="${esc(id)}">`
       + `<div class="pp-ep-cab"><button type="button" class="pp-ep-vol" data-pp="ep-volver">${ATRAS}Esporádicos</button>`
       + `<div class="pp-ep-id">${P.avatar(id, 'lg')}<div class="pp-ep-t"><h1 class="pp-ep-nom" data-pp="ep-nom" tabindex="-1" title="Clic: cambiar el nombre">${esc(e.txt)}</h1>${desde ? `<p>Esporádico desde ${desde}</p>` : ''}</div></div><span class="pp-ep-sp"></span>`
       + `<div class="pp-ep-acc"><button type="button" class="btn" data-pp="ep-sesion">${mas}Sesión</button><button type="button" class="btn2" data-pp="ep-reunion">${mas}Reunión</button><button type="button" class="btn2" data-pp="ep-tarea">${mas}Tarea</button><button type="button" class="btn2" data-pp="ep-nota">${mas}Nota</button>`
+      + `<label class="sw pp-ep-vcs"><input type="checkbox" data-pp="ep-vc"> Vista cliente</label>`   // what its client sees in its web (D-378)
       + `<button type="button" class="ibtn pp-ep-mas" data-pp="ep-mas" aria-label="Más del esporádico" title="Más">${svgI('mas3')}</button></div></div>`
       + `<div class="pp-ep-cols"><div class="pp-ep-ag"><section class="pp-ep-p pp-ep-citas" aria-label="Agenda"><h2 class="pp-ep-h">Agenda</h2>`
       + (ss.length ? grupo('Próximas', prox) + grupo('Sin fecha', sinf) + grupo('Pasadas', pas) : '<p class="pp-ep-vacio">Sin sesiones ni reuniones</p>')
@@ -870,6 +924,7 @@
   }
   function pagClic(k, a, e) {
     const e0 = espDePg(); if (!e0) return; nomVigente();
+    if (P.st.espVc === e0.id) { if (k === 'ep-vses') P.abrirCard(a.dataset.id, { vc: true, de: `[data-pp="ep-vses"][data-id="${CSS.escape(a.dataset.id)}"]` }); return; }   // its «Vista cliente»: a session as its client sees it (D-378)
     if (k === 'ep-nom') { if (!PG.ed && !P.seleccionando()) nomEscribir({ x: e.clientX, y: e.clientY }); return; }
     if (PG.ed) nomFin(true);
     if (k === 'ep-volver') { P.salirEsp(); return; }
@@ -879,6 +934,7 @@
   }
   // its IVA (D-377): «Sin IVA» goes to its new payments; a step of ⌘Z, with «Deshacer»
   function pagCambio(t) {
+    if (t.matches('[data-pp="ep-vc"]')) { const e0 = espDePg(); if (e0) { nomVigente(); if (PG.ed) nomFin(true); P.st.espVc = t.checked ? e0.id : null; P.pintar(); } return true; }   // its «Vista cliente» (D-378)
     if (!t.matches('[data-pp="ep-iva"]')) return false;
     const e0 = espDePg(); if (!e0) return true;
     const si = t.value === '0', antes = e0.sinIva === true; if (si === antes) return true;
@@ -923,7 +979,8 @@
       ev.preventDefault(); if (b.disabled) return;
       if (X.CL.some(c => String(c.name).trim().toLowerCase() === String(e0.txt).trim().toLowerCase())) { X.closeDetail(); X.toast(`Ya hay un cliente mensual que se llama «${e0.txt}»: cambia antes el nombre del esporádico.`, { ms: 7000 }); return; }
       b.disabled = true;
-      let c; try { c = await M.addClient({ name: e0.txt, servicio: tipo }); } catch (err) { X.toast('No se pudo: ' + ((err && err.message) || err)); b.disabled = false; return; }
+      // its id stays (D-378): its web (its account, its comments, its invoices) goes with it; the server never changes a client's id
+      let c; try { c = await M.addClient({ id: e0.id, name: e0.txt, servicio: tipo }); } catch (err) { X.toast('No se pudo: ' + ((err && err.message) || err)); b.disabled = false; return; }
       let sinIvaMal = false; try { if (e0.sinIva && C && C.ivaPoner) await C.ivaPoner(c.id, true); } catch (err) { sinIvaMal = true; }   // its «Sin IVA» goes with it (D-377); if not, said
       try { if (C) for (const r of C.vivos(e0.id)) await C.parche(r.id, { cliente: c.id }); }   // its payments go with it first (D-234)
       catch (err) { X.toast('No se pudo pasar sus cobros: ' + ((err && err.message) || err), { ms: 8000 }); b.disabled = false; return; }
@@ -1111,6 +1168,7 @@
   M.sesiones = {
     version: VERSION, plantilla: () => P.hondo(PLANTILLA),
     movil: { vista: vistaMovil, campo: campoMovil, editar: editarMovil },
+    paraCliente: r => paraCliente(r && r.id ? r : null),   // what a sporadic client sees of a session in its web (D-378)
     _test: { limpiar, reparto: () => reparto(), S: () => ({ ...S, plg: [...S.plg] }), decodificados: () => BM.size,
       crear: async o => { await listo(); const now = P.ahoraISO(), c = PLANTILLA[o.clase] ? o.clase : 'fotovideo', r = { id: P.nuevoId('ss'), tipo: 'sesion', txt: o.txt || nombreDe(c), creada: now, at: now, sesion: { clase: c, visible: o.visible !== false, plantilla: PLANTILLA.v, apartados: PLANTILLA[c].map(apartado) } }; if (o.fecha) r.fecha = o.fecha; if (o.hora) r.hora = o.hora; ponerClis(r, o.clientes || (o.cliente ? [o.cliente] : [])); if (o.fin && r.fecha) r.fin = { ...o.fin }; await P.hacer([{ id: r.id, despues: r }]); return P.copia(r); } },
     _off: () => { OFF.forEach(f => f()); OFF.length = 0; if (P) { delete P.EXT.sesion; delete P.EXT.ficha; } soltarFotos(); }
@@ -1180,6 +1238,12 @@
 #mesa .pp-hj-tf.pp-fo img{object-fit:cover}
 #mesa .pp-hj-cols{display:grid;grid-template-columns:minmax(0,1.2fr) 17px minmax(0,1fr);flex:1 0 auto;padding:6px 18px 28px 26px;position:relative;transition:grid-template-columns var(--d-m) var(--ease-m)}
 #mesa .pp-hj-cols.una{grid-template-columns:minmax(0,1fr)}
+#mesa .pp-hj-cols:has(+ .pp-hj-com){flex:none}   /* its comments right under it, not at the foot */
+#mesa .pp-hj-com{padding:14px 22px 28px 30px;border-top:1px solid var(--line2)}#mesa .pp-ov.amplia .pp-hj-com{padding:14px 36px 28px 44px}   /* as a post's comments in «Vista cliente» (.igcoms, D-378) */
+#mesa .pp-hj-com:empty{display:none}#mesa .pp-hj-com h3.pp-hj-comt{margin:0 0 10px;font-size:14px;font-weight:600}
+#mesa .pp-hj-com .webl{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+#mesa .pp-hj-com .webcm{gap:3px;max-width:52ch}#mesa .pp-hj-com .webcm p{margin:0;font-size:14px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}#mesa .pp-hj-com .webp{margin:0}
+#mesa .webdel.pp-hj-del{margin:0}
 #mesa .pp-hj-cols.mov{transition:none}
 #mesa .pp-hj-col{min-width:0;display:flex;flex-direction:column;gap:26px;padding:14px 4px 0}
 #mesa .pp-hj-col[data-col="der"]{padding-left:24px}   /* 20 px more inside: its sections' handle has its own room, off the separator's (D-216) */
@@ -1325,20 +1389,27 @@
 #mesa .pp-ep-t p{margin:1px 0 0;font-size:12.5px;color:var(--mute)}
 #mesa .pp-ep-sp{flex:1}
 #mesa .pp-ep-acc{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#mesa .pp-ep-acc .pp-ep-vcs{margin:0 2px 0 6px}   /* «Vista cliente» (D-378) */
+#mesa .pp-ep.vc .pp-ep-cab{min-height:56px}#mesa .pp-ep.vc .pp-ep-acc .pp-ep-vcs{margin-right:42px}   /* the switch doesn't move: «⋯» isn't there */
+#mesa .pp-ep-nc{display:block;font-weight:400;font-size:12.5px;color:var(--mute);margin-top:1px}
+#mesa .pp-ep-vtl{display:flex;flex-direction:column}
+#mesa .pp-ep-vt{display:grid;grid-template-columns:52px minmax(0,1fr);column-gap:10px;align-items:baseline;padding:9px 2px;border-bottom:1px solid var(--line2);font-size:14px}
+#mesa .pp-ep-vt:last-child{border-bottom:0}#mesa .pp-ep-vd{font-size:12.5px;color:var(--mute);white-space:nowrap}#mesa .pp-ep-vt.hecha .pp-ep-vx{text-decoration:line-through;color:var(--mute)}
+#mesa .pp-ep-vn{background:var(--panel-2);border-radius:var(--r-md);padding:12px 14px;font-size:14px;line-height:1.5;margin:0 0 8px}
 #mesa .pp-ep-acc svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}#mesa .pp-ep-acc .ibtn svg{width:18px;height:18px}
-#mesa .pp-ep-cols{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(320px,380px);gap:12px}
+#mesa .pp-ep-cols{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(320px,380px);gap:12px}#mesa .pp-ep-cols.sin-lado{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)}
 #mesa .pp-ep-ag{min-height:0;display:grid;grid-template-rows:minmax(0,auto) minmax(300px,1fr);gap:12px}
 #mesa .pp-ep-p{min-width:0;min-height:0;overflow-y:auto;overscroll-behavior:contain;background:var(--panel);border-radius:var(--r-lg);padding:14px 18px 16px}
 #mesa .pp-ep-side{min-height:0;background:none}#mesa .pp-ep .pp-ep-side,#mesa.hv-on .pp-ep .pp-ep-side{flex:none}   /* never the board's stories' column (historias.js) */#mesa .pp-ep .pp-ep-side>.cal:not(.fold){flex:1 1 auto;height:100%;min-height:0;border-top:0;border-radius:var(--r-lg)}   /* over the calendar's own narrow rule (42vh) */
 #mesa .pp-ep-side>.cal .calhead{padding:12px 12px 4px 18px}
 #mesa .pp-ep h2.pp-ep-h{display:flex;align-items:baseline;gap:8px;margin:0 0 8px;font-size:17px;font-weight:800;letter-spacing:-.025em;color:var(--ink)}
 #mesa .pp-ep-h>span:not(.co-ivw){font-size:13px;font-weight:400;letter-spacing:0;color:var(--mute)}
-#mesa .pp-ep h2.pp-ep-h2{margin-top:22px}
+#mesa .pp-ep h2.pp-ep-h2{margin-top:22px}#mesa .pp-ep-vpg h2.co-vh{margin:0 0 12px}   /* «Tus pagos» of its «Vista cliente» keeps its margin over .pp's (D-378) */
 #mesa .pp-ep h3.pp-ep-sub{margin:0;padding:4px 0}#mesa .pp-ep-gr + .pp-ep-gr{margin-top:14px}
 #mesa .pp-ep-vacio{margin:0;font-size:13px;color:var(--mute)}
 #mesa .pp-ep-p .pp-es-s{grid-template-columns:150px 18px minmax(0,1fr) auto}#mesa .pp-ep-p .pp-es-l>.pp-es-s:last-child{border-bottom:0}
 #mesa .pp-ep-tn .pp-tk .pp-avs{display:none}
-#mesa .pp-ep-tn .pp-tk.pp-tg,#mesa .pp-ep-tn .pp-sinf .pp-tk.pp-tg{grid-template-columns:42px 32px minmax(0,1fr)}#mesa .pp-ep-tn .pp-sinf .pp-tfv{display:block}
+#mesa .pp-ep-tn .pp-tk.pp-tg,#mesa .pp-ep-tn .pp-sinf .pp-tk.pp-tg{grid-template-columns:42px 32px minmax(0,1fr)}#mesa .pp-ep-tn .pp-tk.pp-tg.con-ojo,#mesa .pp-ep-tn .pp-sinf .pp-tk.pp-tg.con-ojo{grid-template-columns:42px 32px minmax(0,1fr) 28px}   /* its eye (D-378), over personal.js's */#mesa .pp-ep-tn .pp-sinf .pp-tfv{display:block}
 #mesa .pp-ep-tn .pp-tv{display:block}#mesa .pp-ep-tn .pp-sinf{margin:14px 0 0;padding:10px 0 0;border-left:0;border-top:1px solid var(--line2)}#mesa .pp-ep-tn .pp-sinf .pp-sub{padding:4px 10px}
 #mesa .pp-ep-tn .pp-pn{margin:2px 0 0}
 #mesa .pp-ep-h .pp-ep-iv{margin-left:auto;align-self:center;font-size:13px;font-weight:400;letter-spacing:0}#mesa .pp-ep-iv .co-ivs + .mx-sel{width:auto;min-width:96px}
@@ -1348,13 +1419,13 @@
 #mesa .pp-ep-tot b{display:block;margin-top:2px;font-size:18px;font-weight:800;letter-spacing:-.01em;color:var(--ink)}#mesa .pp-ep-tot .pend b{color:var(--chg)}   /* pending, as its state (.co-e.pend) */
 #mesa .pp-pas-t{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:4px 0 12px}
 #mesa .pp-pas-p{margin:0 0 10px;font-size:13px;line-height:1.5;color:var(--ink-2)}#mesa .pp-pas-p.pp-pas-no{color:var(--ink);font-weight:600}
-@media (min-width:981px) and (max-width:1240px){#mesa .pp-ep-cols{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(0,1fr)}#mesa .pp-ep-ag{grid-row:1 / span 2}}   /* two columns: its tasks over its payments */
+@media (min-width:981px) and (max-width:1240px){#mesa .pp-ep-cols{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(0,1fr)}#mesa .pp-ep-ag{grid-row:1 / span 2}#mesa .pp-ep-cols.sin-lado{grid-template-rows:minmax(0,1fr)}#mesa .pp-ep-cols.sin-lado .pp-ep-ag{grid-row:auto}}   /* two columns: its tasks over its payments */
 @media (max-width:980px){#mesa .pp.pp-ep-on:not([hidden]){display:block;overflow-y:auto}#mesa .pp-ep{display:block}#mesa .pp-ep-cols{display:flex;flex-direction:column;flex:none}#mesa .pp-ep-ag{display:flex;flex-direction:column}#mesa .pp-ep-cols .pp-ep-p,#mesa .pp-ep-side{flex:none;overflow:visible}#mesa .pp-ep .pp-ep-side>.cal:not(.fold){height:auto;min-height:420px}}
 @media (max-width:720px){
   #mesa .pp-ov.pp-hoja{padding:16px 10px}#mesa .pp-ov.pp-hoja.amplia{padding:0}
   #mesa .pp-ov.amplia .pp-hj-cab{padding:18px 16px 4px}#mesa .pp-ov.amplia .pp-hj-cols{padding:6px 14px 24px 22px}
   #mesa .pp-hj-cab{padding:18px 16px 4px}#mesa .pp-hj-meta{margin-left:0}#mesa .pp-hj-tira{margin-left:0}#mesa .pp-hj-oculta,#mesa .pp-ov.amplia .pp-hj-oculta{margin:32px 16px}
-  #mesa .pp-hj-cols{padding:6px 14px 24px 22px}
+  #mesa .pp-hj-cols{padding:6px 14px 24px 22px}#mesa .pp-hj-com,#mesa .pp-ov.amplia .pp-hj-com{padding:14px 18px 24px 26px}
   #mesa .pp-pl-it{grid-template-columns:28px minmax(0,1fr)}#mesa .pp-pl-ref{grid-column:2;max-width:none;margin-top:8px}
   #mesa .pp-ns-tipos{grid-template-columns:repeat(2,minmax(0,1fr))}#mesa .pp-ns-2{grid-template-columns:minmax(0,1fr)}
   #mesa .pp-es-sec{margin-left:0}#mesa .pp-es-s{grid-template-columns:116px 18px minmax(0,1fr) auto}

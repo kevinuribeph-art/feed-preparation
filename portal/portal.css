@@ -398,3 +398,53 @@ svg.i *{vector-effect:non-scaling-stroke}
 .legalp ul{padding-left:20px}
 .legalp .lnk{display:inline-flex;align-items:center}
 .legalp .nota{margin-top:32px;font-size:13px;color:var(--mute)}
+
+/* ---------- un esporádico (D-378): sus sesiones con su calendario · sus tareas y notas · «Tus pagos», como su «Vista cliente» ---------- */
+.cols.cont.esp{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)}.cols.cont.esp.con-lado{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(320px,380px)}
+.es-col{display:flex;flex-direction:column;gap:12px;min-width:0}
+.es-l>li{border-top:1px solid var(--sep)}.es-l>li:first-child{border-top:0}
+.es-col .h3 span{font-weight:400;color:var(--mute)}
+.ent-f.es-r{width:calc(100% + 8px);margin:0 -4px;border:0;border-radius:var(--r-sm);background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;grid-template-columns:150px 18px minmax(0,1fr);gap:10px;min-height:48px;padding:6px 4px}
+.ent-f.es-r .d{font-size:13px;color:var(--mute);white-space:normal;min-width:0}.ent-f.es-r .es-i{color:var(--mute)}
+.ent-f.es-r .t b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ent-f.es-r .es-n{color:var(--mute)}
+@media (hover:hover){.ent-f.es-r:hover{background:var(--bg-2)}}
+.es-cal-h{align-items:center}.ti .es-nav{display:inline-flex;align-items:center;gap:4px;margin-left:auto;color:var(--ink);font-size:14px}.es-nav b{font-weight:800;letter-spacing:-.015em;min-width:112px;text-align:center}
+.es-mes{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border:0;border-radius:50%;background:none;color:var(--ink);cursor:pointer}
+@media (pointer:coarse){.es-mes{width:44px;height:44px}}
+@media (hover:hover){.es-mes:hover{background:var(--bg-2)}}
+.es-cal .dia{min-height:64px}.chip.es-c{cursor:pointer}.chip.es-c:focus-visible{outline-offset:1px}
+.es-tl{list-style:none;margin:0;padding:0}
+.es-t{display:grid;grid-template-columns:52px minmax(0,1fr);column-gap:10px;align-items:baseline;padding:9px 0;border-top:1px solid var(--sep);font-size:14px}
+.es-t:first-child{border-top:0}.es-t .d{font-size:13px;color:var(--mute);white-space:nowrap}.es-t.hecha .x{text-decoration:line-through;color:var(--mute)}
+.es-ti2{margin-top:16px}
+.es-nota{background:var(--panel-2);border-radius:var(--r-md);padding:12px 14px;margin:0 0 8px}
+.es-tx{display:flex;flex-direction:column;gap:2px;font-size:14px;line-height:1.5;color:var(--ink)}
+.es-tx p{margin:0;overflow-wrap:anywhere}.es-tx p.vacia{min-height:.75em}.es-tx a{color:var(--acc-ink)}
+.es-tx p.li{display:grid;grid-template-columns:minmax(1.4em,auto) minmax(0,1fr);column-gap:.3em}.es-tx p.li .mk{color:var(--acc-ink);font-variant-numeric:tabular-nums}.es-tx p.li.nu .mk{font-weight:600}
+.es-tx p.n1{padding-left:1.4em}.es-tx p.n2{padding-left:2.8em}.es-tx p.n3{padding-left:4.2em}.es-tx p.n4{padding-left:5.6em}
+.es-tx .es-sep{border:0;border-top:1px solid var(--line-strong);margin:8px 0;width:100%}
+/* la hoja de una sesión: centrada en el ordenador; en el móvil sube desde abajo (la regla de .dlg), con su campo pegado abajo */
+.dlg.es-hoja{width:min(760px,calc(100vw - 48px));padding:0;gap:0;overflow:hidden;display:flex;flex-direction:column}
+.dlg.es-hoja>.es-cue{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:4px 24px 16px}
+.es-cab{padding:20px 64px 12px 24px;border-bottom:1px solid var(--sep);display:flex;flex-direction:column;gap:4px}.es-cab h2:focus{outline:none}
+.es-ap{padding:14px 0 4px}.es-ap h3{margin:0 0 8px;font-size:14px;font-weight:800;letter-spacing:-.01em}.es-com h3{margin:0 0 8px;font-size:14px;font-weight:600}
+.es-pt{margin:10px 0 4px;font-size:12.5px;color:var(--mute)}
+.es-it{padding:10px 0;border-top:1px solid var(--sep);display:flex;flex-direction:column;gap:4px}.es-ap h3+.es-it{border-top:0}.es-it b{font-size:14px;font-weight:600}
+.es-fos{display:flex;gap:6px;overflow-x:auto;padding:4px 0}.es-fos.col{flex-wrap:wrap}
+.es-fo{height:120px;width:auto;max-width:none;border-radius:var(--r-sm);background:var(--bg-2);object-fit:cover}
+.es-en{display:flex;flex-wrap:wrap;gap:8px;margin:0;font-size:13px}.es-en a{color:var(--acc-ink)}
+.es-ma{margin:0;padding-left:18px;font-size:14px;line-height:1.5}
+.es-com{margin-top:18px;padding-top:14px;border-top:1px solid var(--sep)}.es-hilo ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+.es-pie{flex:none;border-top:1px solid var(--sep);padding:12px 24px 16px;background:var(--panel)}
+.dlg.es-hoja .escr .fila{position:static;margin:0;padding:0;background:none;justify-content:normal}
+.dlg.es-hoja .escr textarea{min-height:48px}
+.es-hoja p.es-pt{margin:10px 0 4px;font-size:12.5px;color:var(--mute)}.es-hoja p.vacio{color:var(--mute)}.es-hoja p.err-p{color:var(--red);font-size:13px}
+.es-hoja .es-tx p,.es-hoja .cm p{color:var(--ink);font-size:inherit}.es-hoja p.es-en{font-size:13px}   /* .dlg p is for the simple dialogs */
+@container app (min-width: 800px) and (max-width: 1240px){.cols.cont.esp.con-lado{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)}.cols.cont.esp.con-lado>.es-col{grid-row:span 2}}   /* two columns: its tasks over its payments, as its «Vista cliente» */
+@container app (max-width: 799px){.cols.cont.esp,.cols.cont.esp.con-lado{grid-template-columns:1fr}}
+.pv.lleno .es-col>.es-calw{flex:1 0 auto;display:flex;flex-direction:column}.pv.lleno .es-calw>.es-cal{flex:1;grid-template-rows:auto;grid-auto-rows:minmax(58px,1fr)}
+@container app (max-width: 559px){.cal.es-cal{display:grid}.es-cal .dia{min-height:48px}.es-cal .chip .ct{display:none}.ent-f.es-r{grid-template-columns:116px 18px minmax(0,1fr)}}
+@media (max-width: 559px), (max-height: 599px), (max-width: 800px) and (max-height: 819px){
+  .dlg.es-hoja{width:100%}.dlg.es-hoja>.es-cue{padding:4px calc(16px + var(--sa-r)) 16px calc(16px + var(--sa-l))}
+  .es-cab{padding:18px 64px 10px calc(16px + var(--sa-l))}.es-pie{padding:10px calc(16px + var(--sa-r)) calc(16px + env(safe-area-inset-bottom)) calc(16px + var(--sa-l))}
+}

@@ -30,16 +30,17 @@ const S = P.secreta;
 const sha = t => createHash('sha256').update(t).digest('hex');
 const A = { id: 'prueba-norte', nombre: 'Cliente Prueba Norte', handle: 'prueba.norte' };
 const B = { id: 'prueba-sur', nombre: 'Cliente Prueba Sur', handle: 'prueba.sur' };
-const BORRADO = 'prueba-borrada', NUEVO = 'prueba-nueva';   // NUEVO: un cliente que llega después (D-266)
+const BORRADO = 'prueba-borrada', NUEVO = 'prueba-nueva';
+const E = { id: 'prueba-esporadica', nombre: 'Esporadico Prueba Este', servicio: 'sesiones' };   // un esporádico (D-378)   // NUEVO: un cliente que llega después (D-266)
 const pid = t => sha(t).slice(0, 16);
 const PA1 = pid('a1'), PA2 = pid('a2'), PA3 = pid('a3'), PAH = pid('a-oculta'), PB1 = pid('b1'), PNADA = pid('no-existe');
 const VA1 = sha('va1'), VA1b = sha('va1-b'), VA2 = sha('va2'), VA3 = sha('va3'), VAH = sha('vah'), VB1 = sha('vb1');
 const CORREO = { a: 'ana@portal-pruebas.test', b: 'bea@portal-pruebas.test', k: 'kevin@portal-pruebas.test', o: 'mira@portal-pruebas.test', o2: 'mira-nueva@portal-pruebas.test',
-  al: 'alta@portal-pruebas.test', al2: 'alta-sin-crear@portal-pruebas.test' };   // o: solo mira (D-266); al: alta con bienvenida (D-273)
+  al: 'alta@portal-pruebas.test', al2: 'alta-sin-crear@portal-pruebas.test', e: 'eva@portal-pruebas.test' };   // e: la del esporádico (D-378)   // o: solo mira (D-266); al: alta con bienvenida (D-273)
 const CLAVE = 'Pr-' + randomBytes(16).toString('hex'); // solo para estos usuarios inventados; no se imprime
 const JPG = Buffer.from('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=', 'base64');
 const PDF = Buffer.from('%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n');
-const FA = `prueba-norte/${sha('foto-a')}.jpg`, FAH = `prueba-norte/${sha('foto-oculta')}.jpg`, FB = `prueba-sur/${sha('foto-b')}.jpg`, PDFB = 'prueba-sur/f-b1.pdf';
+const FE = `prueba-esporadica/s-${sha('foto-e')}.jpg`, FA = `prueba-norte/${sha('foto-a')}.jpg`, FAH = `prueba-norte/${sha('foto-oculta')}.jpg`, FB = `prueba-sur/${sha('foto-b')}.jpg`, PDFB = 'prueba-sur/f-b1.pdf';
 // Columnas que un usuario puede leer (las demás no tienen permiso: `return=representation` las pide todas si no se dicen).
 const C_PUB = 'cliente_id,pid,mes,orden,tipo,nombre,fecha,sin_hora,caption,imagenes,estado,version,visible,enviada';
 const C_APR = 'id,cliente_id,pid,version,decision,motivo,diapositiva,autor_nombre,hora';
@@ -89,9 +90,9 @@ async function subir(bucket, ruta, bytes, tipo) {
 }
 const firmarFn = (tk, bucket, rutas) => pedir(`${P.url}/functions/v1/firmar`, { method: 'POST', headers: { ...cab(P.publica, tk || undefined), 'Content-Type': 'application/json' }, body: { bucket, rutas } });
 async function limpiar() {
-  await servicio(`clientes?id=in.(${A.id},${B.id},${BORRADO},${NUEVO})`, { method: 'DELETE' });
-  await servicio(`clientes_borrados?id=in.(${A.id},${B.id},${BORRADO},${NUEVO})`, { method: 'DELETE' });   // la reserva de los inventados
-  for (const [b, rutas] of [['fotos', [FA, FAH, FB]], ['facturas', [PDFB]]])
+  await servicio(`clientes?id=in.(${A.id},${B.id},${BORRADO},${NUEVO},${E.id})`, { method: 'DELETE' });
+  await servicio(`clientes_borrados?id=in.(${A.id},${B.id},${BORRADO},${NUEVO},${E.id})`, { method: 'DELETE' });   // la reserva de los inventados
+  for (const [b, rutas] of [['fotos', [FA, FAH, FB, FE]], ['facturas', [PDFB]]])
     await pedir(`${P.url}/storage/v1/object/${b}`, { method: 'DELETE', headers: { ...cab(S), 'Content-Type': 'application/json' }, body: { prefixes: rutas } });
   for (const c of Object.values(CORREO)) {
     const u = await usuarioPorCorreo(P, c).catch(() => null);
@@ -416,10 +417,59 @@ async function main() {
   const prev2 = await fetch(`${P.url}/functions/v1/firmar`, { method: 'OPTIONS', headers: { Origin: 'https://clientes.uribevisuals.studio', 'Access-Control-Request-Method': 'POST' } });
   ok(prev2.headers.get('access-control-allow-origin') === 'https://clientes.uribevisuals.studio', 'y sí al portal', prev2.headers.get('access-control-allow-origin'));
 
+  console.log('Un esporádico en su web (D-378)');
+  const ue = await usuario(CORREO.e);
+  r = await servicio('clientes', { method: 'POST', body: { ...E, servicio: 'otro' } }); ok(rechazada(r), 'un servicio que no es redes, contenido ni sesiones no entra', r.text);
+  r = await servicio('clientes', { method: 'POST', body: E }); ok(r.ok, 'se siembra el esporádico (servicio «sesiones»)', r.text);
+  r = await servicio('miembros', { method: 'POST', body: [{ user_id: ue, cliente_id: E.id, nombre: 'Eva Este' }] }); ok(r.ok, 'y su cuenta', r.text);
+  const CONT = [{ id: 'orden', nombre: 'Orden', tipo: 'texto', texto: 'Llegada y montaje' }, { id: 'mood', nombre: 'Mood board', tipo: 'mood', grupos: [{ nombre: 'Luz', fotos: [{ ruta: FE, mini: FE, an: 1, al: 1 }] }] }];
+  r = await servicio('sesiones', { method: 'POST', body: [{ cliente_id: E.id, id: 'ses-e1', mes: '2026-12', nombre: 'Rodaje Esporadico Este', inicio: '2026-12-05T09:00:00Z', contenido: CONT, fotos: [FE] }] });
+  ok(r.ok, 'una sesión con lo que ve (contenido) y su foto', r.text);
+  r = await servicio('sesiones', { method: 'POST', body: [{ cliente_id: E.id, id: 'ses-e9', mes: '2026-12', nombre: 'Mal', inicio: '2026-12-05T09:00:00Z', contenido: { no: 'lista' } }] });
+  ok(rechazada(r), 'un contenido que no es una lista no entra', r.text);
+  r = await servicio('tareas_notas', { method: 'POST', body: [{ cliente_id: E.id, id: 'tk-e1', tipo: 'tarea', texto: 'Tarea visible de Este', fecha: '2026-12-01' }, { cliente_id: E.id, id: 'nt-e1', tipo: 'nota', texto: 'Nota visible de Este', fecha: null }, { cliente_id: A.id, id: 'tk-a9', tipo: 'tarea', texto: 'Tarea de Norte', fecha: null }] });
+  ok(r.ok, 'sus tareas y notas visibles (y una de Norte)', r.text);
+  r = await servicio('tareas_notas', { method: 'POST', body: [{ cliente_id: E.id, id: 'tk-e9', tipo: 'otra', texto: 'x' }] }); ok(rechazada(r), 'una que no es tarea ni nota no entra', r.text);
+  await subir('fotos', FE, JPG, 'image/jpeg');
+  const ke = await entrar(CORREO.e), ev = como(ke);
+  r = await ev(`sesiones?select=id,contenido,fotos&cliente_id=eq.${E.id}`); ok(r.ok && r.json.length === 1 && r.json[0].contenido && r.json[0].contenido[0].texto === 'Llegada y montaje', 'Eva ve su sesión con lo que tiene visible', r.text);
+  r = await ev('tareas_notas?select=id,tipo,texto'); ok(r.ok && r.json.length === 2 && r.json.every(x => x.id.endsWith('-e1')), 'Eva ve solo sus dos tareas y notas', r.text);
+  r = await a(`sesiones?select=id&cliente_id=eq.${E.id}`); ok(r.ok && r.json.length === 0, 'Ana no ve las sesiones del esporádico', r.text);
+  r = await a('tareas_notas?select=id,texto'); ok(r.ok && r.json.length === 1 && r.json[0].id === 'tk-a9', 'Ana ve solo la tarea de Norte', r.text);
+  r = await firmarFn(ke, 'fotos', [FE]); ok(r.ok && r.json.urls && r.json.urls[FE], 'firmar da a Eva la foto de su sesión', r.text);
+  r = await firmarFn(ka, 'fotos', [FE]); ok(r.ok && r.json.urls && !r.json.urls[FE], 'y a Ana no', r.text);
+  const cs = (tk, body) => rest(P, 'comentarios_sesion?select=id,cliente_id,sesion,texto,autor_nombre,de_kevin,hora,resuelto', { method: 'POST', token: tk, body, prefer: 'return=representation' });
+  r = await cs(ke, { cliente_id: E.id, sesion: 'ses-e1', texto: 'Comentario de Eva Este', autor_nombre: 'Otra', de_kevin: true });
+  ok(es(r, 401, 403), 'no se firma como otro ni como Kevin', r.text);
+  const t2 = Date.now();
+  r = await cs(ke, { cliente_id: E.id, sesion: 'ses-e1', texto: 'Comentario de Eva Este' });
+  const ce = r.ok && r.json && r.json[0];
+  ok(ce && ce.autor_nombre === 'Eva Este' && !ce.de_kevin && Math.abs(Date.parse(ce.hora) - t2) < 120000, 'Eva comenta su sesión, con su nombre y la hora del servidor', r.text);
+  r = await cs(ke, { cliente_id: E.id, sesion: 'no-existe', texto: 'hola' }); ok(es(r, 404), 'una sesión suya que no existe: 404', r.text);
+  r = await cs(ke, { cliente_id: B.id, sesion: 'ses-b1', texto: 'hola' }); ok(es(r, 403), 'Eva no comenta una sesión de Sur: 403', r.text);
+  r = await cs(ka, { cliente_id: E.id, sesion: 'ses-e1', texto: 'hola' }); ok(es(r, 403), 'ni Ana la del esporádico', r.text);
+  r = await cs(kb, { cliente_id: B.id, sesion: 'ses-b1', texto: 'hola' }); ok(es(r, 403), 'Bea no comenta una sesión de su cliente mensual: solo un esporádico (nadie lo leería)', r.text);
+  r = await cs(ko, { cliente_id: E.id, sesion: 'ses-e1', texto: 'hola' }); ok(es(r, 403), 'la cuenta que solo mira no comenta (y ve el esporádico, que llegó después)', r.text);
+  r = await rest(P, `sesiones?select=id&cliente_id=eq.${E.id}`, { token: ko }); ok(r.ok && r.json.length === 1, 'la que solo mira lo ve', r.text);
+  r = await cs(kk, { cliente_id: E.id, sesion: 'ses-e1', texto: 'Respuesta de Kevin' }); const ck = r.ok && r.json && r.json[0];
+  ok(ck && ck.de_kevin && /Kevin/.test(ck.autor_nombre), 'Kevin contesta, firmado como Kevin', r.text);
+  r = await ev(`comentarios_sesion?select=id,texto&cliente_id=eq.${E.id}`); ok(r.ok && r.json.length === 2, 'Eva lee la conversación', r.text);
+  r = await a('comentarios_sesion?select=id,texto'); ok(r.ok && r.json.length === 0, 'Ana no ve comentarios de sesión ajenos', r.text);
+  r = await ev(`comentarios_sesion?id=eq.${ce.id}`, { method: 'PATCH', body: { resuelto: new Date().toISOString() }, prefer: 'return=representation' }); ok(!r.ok || (r.json || []).length === 0, 'Eva no marca nada como resuelto', r.text);
+  r = await k(`comentarios_sesion?id=eq.${ce.id}&select=id,resuelto`, { method: 'PATCH', body: { resuelto: new Date().toISOString() }, prefer: 'return=representation' }); ok(r.ok && r.json[0] && r.json[0].resuelto, 'Kevin lo marca como resuelto', r.text);
+  r = await ev('tareas_notas', { method: 'POST', body: { cliente_id: E.id, id: 'tk-e5', tipo: 'tarea', texto: 'mía' } }); ok(es(r, 401, 403), 'Eva no escribe tareas ni notas', r.text);
+  r = await ev(`sesiones?cliente_id=eq.${E.id}&id=eq.ses-e1`, { method: 'PATCH', body: { nombre: 'cambiada' }, prefer: 'return=representation' }); ok(!r.ok || (r.json || []).length === 0, 'ni cambia su sesión', r.text);
+  await servicio(`sesiones?cliente_id=eq.${E.id}&id=eq.ses-e1`, { method: 'DELETE' });   // Kevin la oculta: deja de enviarse
+  r = await ev(`comentarios_sesion?select=id&cliente_id=eq.${E.id}`); ok(r.ok && r.json.length === 0, 'una sesión que deja de verse se lleva de su vista la conversación', r.text);
+  r = await servicio(`comentarios_sesion?select=id&cliente_id=eq.${E.id}`); ok(r.ok && r.json.length === 2, 'pero no la borra', r.text);
+  r = await cs(ke, { cliente_id: E.id, sesion: 'ses-e1', texto: 'otra' }); ok(es(r, 404), 'y ya no se comenta', r.text);
+  r = await firmarFn(ke, 'fotos', [FE]); ok(r.ok && r.json.urls && !r.json.urls[FE], 'ni se firma su foto', r.text);
+
   console.log('Rastros de otro cliente en lo que recibe Ana');
   const todo = vistoComoA.join('\n');
   for (const s of [B.id, B.nombre, B.handle, PB1, VB1, 'Bea Sur', 'Rodaje Sur', 'Texto de Prueba Sur', 'co-b1', 'Comentario en la oculta', ub, uk,
-    'Entrega Sur', 'metricas.ejemplo.test/sur-b', 'entregas.ejemplo.test/sur-b', 'Reunión Sur', 'trimestral', 'co-b2', 'reu-b1', 'ent-b1'])
+    'Entrega Sur', 'metricas.ejemplo.test/sur-b', 'entregas.ejemplo.test/sur-b', 'Reunión Sur', 'trimestral', 'co-b2', 'reu-b1', 'ent-b1',
+    E.id, E.nombre, 'Eva Este', 'Rodaje Esporadico', 'Tarea visible de Este', 'Nota visible de Este', 'Comentario de Eva', FE])
     ok(!todo.includes(s), `nada de «${s.length > 20 ? s.slice(0, 8) + '…' : s}»`);
 }
 
@@ -427,7 +477,7 @@ main().catch(e => { fallos++; console.error(tapar(e instanceof Fallo ? e.message
   .finally(async () => {
     try { await limpiar(); } catch (e) { console.error('limpieza: ' + tapar(e.message)); }
     try {   // las entregas se van con su cliente (D-297)
-      const q = await servicio(`entregas?select=id&cliente_id=in.(${A.id},${B.id},${BORRADO},${NUEVO})`);
+      const q = await servicio(`entregas?select=id&cliente_id=in.(${A.id},${B.id},${BORRADO},${NUEVO},${E.id})`);
       ok(q.ok && q.json.length === 0, 'limpieza: no queda ninguna entrega de los clientes inventados', q.text);
     } catch (e) { ok(false, 'limpieza: no se pudo mirar si quedan entregas', e.message); }
     console.log(fallos ? `\n${fallos} FALLO(S) de ${n}` : `\nTodo en orden: ${n} de ${n}`);

@@ -244,7 +244,7 @@
   // total, steps nor Notion. In the vista cliente there is no calendar: its list and «Tus pagos» (D-297)
   // esp: a sporadic client's page (D-377), the same calendar of its sessions and meetings, in the place of the personal page
   function renderCont(X, root, sec, cli, esp) {
-    const client = !esp && root.classList.contains('client'), today = X.hoy();
+    const client = !esp && root.classList.contains('client'), today = X.hoy(), vc = !!(esp && sec.hasAttribute('data-vc'));   // a sporadic client's «Vista cliente» (D-378): only what it sees
     if (client) { sec.hidden = true; sec.innerHTML = ''; sec._h = null; vcLado(X, root, vcPartes(X, today.slice(0, 7), cli).lado); return; }   // its cache goes with it: back from the view, drawn again (cold review)
     if (!esp) vcLado(X, root, []);
     if (view.key !== 'cli:' + cli || view.sec !== sec) view = { key: 'cli:' + cli, m: today.slice(0, 7), sec };   // each time its page opens, today's month
@@ -252,7 +252,7 @@
     const m = view.m, [y, mo] = m.split('-').map(Number), first = `${m}-01`, start = addDays(first, -dow(first)), dim = new Date(Date.UTC(y, mo, 0)).getUTCDate();
     const rows = Math.ceil((dow(first) + dim) / 7), fin = addDays(start, rows * 7 - 1), sd = {};
     if (SES) for (const x of SES) {
-      if (!x.clientes.includes(cli) || x.fin < start || x.fecha > fin) continue;
+      if (!x.clientes.includes(cli) || x.fin < start || x.fecha > fin || (vc && !x.visible)) continue;
       for (let d = x.fecha < start ? start : x.fecha, i = 0; d <= x.fin && d <= fin && i < 400; d = addDays(d, 1), i++) (sd[d] = sd[d] || []).push({ x, t: x.fecha === d && x.hora ? +x.hora.replace(':', '') : -1 });
     }
     if (X.ent && !esp) for (const r of X.ent.vivas(cli)) if (r.fecha >= start && r.fecha <= fin) (sd[r.fecha] = sd[r.fecha] || []).push({ e: r, t: -2 });
@@ -267,7 +267,7 @@
     const nav = `<span class="cnav"><button type="button" data-cal="prev" aria-label="Mes anterior">‹</button><span class="cmes" title="${esc(mesTit)}">${esc(mesNom)}</span><button type="button" data-cal="next" aria-label="Mes siguiente">›</button></span>`;
     const bodyEl = sec.querySelector('.calbody'), top = bodyEl ? bodyEl.scrollTop : 0;
     sec.hidden = false; sec.classList.remove('fold', 'vctabs'); sec.classList.add('cont');
-    const h = `<div class="calhead"><b class="ctit">Calendario</b>${esp ? pastilla() : ''}${nav}</div><div class="calbody"><div class="cgrid" style="grid-template-rows:22px repeat(${rows},minmax(44px,auto))">${body}</div></div>`;
+    const h = `<div class="calhead"><b class="ctit">Calendario</b>${esp && !vc ? pastilla() : ''}${nav}</div><div class="calbody"><div class="cgrid" style="grid-template-rows:22px repeat(${rows},minmax(44px,auto))">${body}</div></div>`;
     if (sec._h !== h) { sec.innerHTML = h; sec._h = h; const nb = sec.querySelector('.calbody'); if (nb && top) nb.scrollTop = top; }
     light();
   }
@@ -330,7 +330,7 @@
     if (sec.classList.contains('fold') && !client && e.target.closest('.calhead') && sec.parentNode.querySelector(':scope > .tray.fold')) { plegar(X, sec); return; }   // its tab (D-148)
     const ch = e.target.closest('.chip'); if (!ch || Date.now() - noClick < 400) return;   // the click that ends a move opens nothing
     if (ch.dataset.ent) { if (client) { if (M.entregasUI && M.entregasUI.irA) M.entregasUI.irA(ch.dataset.ent); } else if (M.entregasUI && M.entregasUI.abrir) M.entregasUI.abrir(ch.dataset.ent); return; }   // a delivery: open in its column (D-290); in the vista cliente, its row (D-297)
-    if (ch.dataset.ses) { if (M.personal && M.personal.abrirSesion) M.personal.abrirSesion(ch.dataset.ses, { de: `.side > .cal .chip[data-ses="${cssq(ch.dataset.ses)}"]`, vc: client, cli: X.S ? X.S.client : X.contCli && X.contCli() }); return; }   // its sheet over the board (D-219)
+    if (ch.dataset.ses) { if (M.personal && M.personal.abrirSesion) M.personal.abrirSesion(ch.dataset.ses, { de: `.side > .cal .chip[data-ses="${cssq(ch.dataset.ses)}"]`, vc: client || !!ch.closest('.cal[data-vc]'), cli: X.S ? X.S.client : X.contCli && X.contCli() }); return; }   // in a sporadic client's «Vista cliente», as its client sees it (D-378)   // its sheet over the board (D-219)
     if (ch.dataset.slot) { if (client) X.openIG(ch.dataset.slot, 0); else X.openDetail(ch.dataset.slot, 0); }
     else if (ch.dataset.prev) { const id = ch.dataset.prev; if (client) X.openIG(id, 0); else X.withPrev(() => X.openPast(id), 'open'); }
   }
@@ -552,7 +552,7 @@
   const dayUnder = (x, y, m) => { const el = document.elementFromPoint(x, y); return el && el.closest ? el.closest(m && m.pp ? PP_D : CAL_D) : null; };
   function onDown(e) {
     if (e.button !== 0 || e.pointerType === 'touch' || mv) return;
-    const X = I(), t = e.target && e.target.closest ? e.target : null; if (!t || !X || X.locked || X.root().classList.contains('client')) return;
+    const X = I(), t = e.target && e.target.closest ? e.target : null; if (!t || !X || X.locked || X.root().classList.contains('client') || t.closest('.cal[data-vc]')) return;   // nothing moves in its «Vista cliente» (D-378)
     const ch = t.closest('#mesa .side > .cal .chip[data-slot], #mesa .side > .cal .chip[data-ses], #mesa .side > .cal .chip[data-ent], #mesa .pp-fi[data-tid], #mesa .pp-mt[data-tid]');
     if (!ch || ch.classList.contains('cx') || (t !== ch && t.closest('input, button, a') !== ch.closest('input, button, a'))) return;   // its checkbox or its photo: their own click
     const dia = ch.closest('[data-day]'), b = { el: ch, x: e.clientX, y: e.clientY, on: false, over: null, desde: dia && dia.dataset.day, esp: espSec(ch.closest('.cal')) };   // esp: in a sporadic client's page (D-377)
@@ -769,7 +769,7 @@
   // «Abrir», «Duplicar sesión», «Borrar sesión». Never in the vista cliente nor in a paused tab; elsewhere, the browser's.
   function onCtx(e) {
     const X = I(), sec = X && e.target.closest ? e.target.closest('#mesa .side > .cal') : null, esp = espSec(sec), cc = X && !X.S && X.contCli ? X.contCli() : null; if (!X || (!X.S && !cc && !esp) || !X.menu || !e.target.closest) return;   // also the page of a client of «Solo contenido» (D-312) and of a sporadic one (D-377)
-    if (!sec || X.root().classList.contains('client') || X.locked) return;
+    if (!sec || X.root().classList.contains('client') || X.locked || sec.hasAttribute('data-vc')) return;   // its «Vista cliente»: no menu (D-378)
     const ch = e.target.closest('.chip'), dia = e.target.closest('.cday[data-day]'), P = M.personal, cli = esp ? sec.dataset.cli : X.S ? X.S.client : cc;
     let l = null;
     if (ch && ch.dataset.ses) {

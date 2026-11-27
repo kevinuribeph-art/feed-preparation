@@ -748,7 +748,7 @@
   function cerrar() {
     const X = I(), root = X && X.root && X.root();
     if (!st.on) return;
-    st.on = false; ssSet(SS_CLI, '1'); st.esp = null; ssSet(SS_ESP, null); cerrarMenu(); if (CARD) { if (CARD.ed) guardarCard(); quitarCard(); }
+    st.on = false; ssSet(SS_CLI, '1'); st.esp = null; st.espVc = null; ssSet(SS_ESP, null); cerrarMenu(); if (CARD) { if (CARD.ed) guardarCard(); quitarCard(); }
     if (root) root.classList.remove('pp-on');
     if (page) { page.hidden = true; page.innerHTML = ''; page.classList.remove('pp-ep-on'); }   // its sporadic page's class never outlives it (D-377: its display beat [hidden])
     colocar();
@@ -1068,7 +1068,10 @@
   function morfNodo(a, b, o) {
     if (a.nodeType !== 1) { if (a.nodeValue !== b.nodeValue) a.nodeValue = b.nodeValue; return; }
     if (o.vivo && o.vivo(a)) return;                    // left as it is (a text being written)
-    if (a.hasAttribute('data-propio') && a.tagName === b.tagName) return;   // drawn by another file in its place (the sporadic page's calendar, D-377)
+    if (a.hasAttribute('data-propio') && a.tagName === b.tagName) {   // drawn by another file in its place (the sporadic page's calendar, D-377)
+      for (const n of ['data-vc', 'data-cli', 'data-web-ses', 'data-web-cli', 'data-web-ro']) if (a.getAttribute(n) !== b.getAttribute(n)) { if (b.hasAttribute(n)) a.setAttribute(n, b.getAttribute(n)); else a.removeAttribute(n); a._h = null; }   // what it is: its «Vista cliente» or not, whose (D-378)
+      return;
+    }
     if (a._mx) return;                                  // a native control kept: the same, with its twin's marks (mx-nat, tabindex, aria-hidden)
     if (a.isEqualNode(b)) return;
     if (a.classList.contains('pp-fo') && b.classList.contains('pp-fo')) {   // the same photo keeps its drawing until it has the new one
@@ -1126,6 +1129,7 @@
   // ---------- a sporadic client's page (lote 5 de la 4.55, D-377): in the place of the page, «‹ Esporádicos» back; a card opened
   // from it (a session, a task, a note) is over it and, closed, the page is there; this tab remembers it ----------
   function abrirEsp(id, o = {}) {
+    st.espVc = null;   // another sporadic client's page: Kevin's view (D-378)
     if (!espDe(id) || !EXT.ficha || !EXT.ficha.pagina) return false;
     if (!st.on && !abrir()) return false;
     cerrarMenu(); if (CARD) { if (CARD.ed) guardarCard(); quitarCard(); }
@@ -1138,6 +1142,7 @@
   }
   const cvistaPoner = v => { st.cvista = v === 'esporadicos' ? 'esporadicos' : 'mensuales'; ssSet(SS_CV, st.cvista); };   // passed to a monthly one: «Mensuales» (D-377)
   function salirEsp(foco = true) {
+    st.espVc = null;   // its «Vista cliente» goes with it (D-378)
     const id = st.esp; if (!id) return;
     st.esp = null; ssSet(SS_ESP, null); page.scrollTop = 0; pintar();
     const b = foco && page.querySelector(`[data-pp="esp"][data-id="${CSS.escape(id)}"]`); if (b) b.focus({ preventScroll: false });   // back on its block
@@ -1153,7 +1158,8 @@
     ov = document.createElement('div'); ov.className = 'pp-ov entra' + (ext ? ' ' + ext.cls : ''); ov.dataset.pp = 'ov';
     ov.addEventListener('animationend', e => { if (e.target.classList.contains('pp-card')) e.currentTarget.classList.remove('entra'); });
     X.root().append(ov);
-    CARD = { id, ed: !!o.ed, peq: !o.ed, t0: Date.now(), cierre: 0, de: o.de || `[data-pp="tver"][data-id="${CSS.escape(id)}"]`, amplia: false, ext, tablero: tab, vc: tab && vc, cli: tab ? cli : null };
+    const espVc = !tab && !!o.vc && !!st.esp && st.espVc === st.esp;   // a sporadic client's «Vista cliente» (D-378): its session, fixed, naming only it
+    CARD = { id, ed: !!o.ed, peq: !o.ed, t0: Date.now(), cierre: 0, de: o.de || `[data-pp="tver"][data-id="${CSS.escape(id)}"]`, amplia: false, ext, tablero: tab, vc: (tab && vc) || espVc, cli: tab ? cli : espVc ? st.esp : null };
     root.classList.toggle('pp-card-on', tab);   // the board under it takes no keys, nor the focus (inert)
     root.querySelectorAll(':scope > .appbar, :scope > .bar, :scope > .main').forEach(el => { el.inert = tab; });
     setTimeout(() => { if (CARD && CARD.id === id) CARD.peq = false; }, 600);   // the second click of the double click that opened it

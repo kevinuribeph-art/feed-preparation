@@ -840,8 +840,35 @@
   const ATRAS = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>';   // Lucide chevron-left
   const icoSes = k => { const c = k.sesion && k.sesion.clase; return svgI(c === 'foto' ? 'camara' : c === 'video' ? 'video' : c === 'libre' ? 'libre' : c === 'reunion' ? 'reunion' : 'sesion'); };
   const ivaEsp = e => e && e.sinIva === true ? 0 : 21;   // what its new payments take (D-377; a monthly one's, D-374)
+  // its «Vista cliente» (D-378): what its client sees in its web, the same: its sessions (with a day and the eye open) with their
+  // calendar · its tasks and notes it sees, to read · «Tus pagos». A session opens as the client sees it (fixed, D-219)
+  function paginaVcHTML(e, R) {
+    const X = I(), hoy = X.hoy(), id = e.id, esc = P.esc;
+    const ss = P.sesiones().filter(k => P.conCli(k, id) && k.fecha && !(k.sesion && k.sesion.visible === false)), t = k => (k.fecha || '') + ' ' + (k.hora || '');
+    const prox = ss.filter(k => P.ultDia(k) >= hoy).sort((a, b) => t(a).localeCompare(t(b))), pas = ss.filter(k => P.ultDia(k) < hoy).sort((a, b) => t(b).localeCompare(t(a)));
+    const coms = M.web && M.web.coms ? M.web.coms(id) : [];
+    const fila = k => { const n = coms.filter(x => x.sesion === k.id).length;
+      return `<button type="button" class="pp-es-s pp-ep-vs" data-pp="ep-vses" data-id="${esc(k.id)}" title="${esc((k.sesion && k.sesion.clase === 'reunion' ? 'Reunión' : 'Sesión') + ' · ' + k.txt)}"><span class="pp-es-d">${esc(P.tramo(k))}</span>${icoSes(k)}<b>${esc(k.txt)}${n ? `<span class="pp-ep-nc">${n === 1 ? '1 comentario' : n + ' comentarios'}</span>` : ''}</b></button>`; };
+    const grupo = (tt, l) => l.length ? `<section class="pp-ep-gr"><h3 class="pp-gt pp-ep-sub">${tt} <span>${l.length}</span></h3><div class="pp-es-l">${l.map(fila).join('')}</div></section>` : '';
+    const tk = P.tareas().filter(k => k.cliente === id && k.visible === true).sort((a, b) => String(a.fecha || '9999').localeCompare(String(b.fecha || '9999')) || String(a.creada || '').localeCompare(String(b.creada || '')));
+    const ns = P.notas().filter(k => k.cliente === id && k.visible === true);
+    const MS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'], dia = f => f ? `${+f.slice(8)} ${MS[+f.slice(5, 7) - 1]}` : '';
+    const pp = I().vc && I().vc.lado ? I().vc.lado.find(x => x.id === 'pagos') : null;
+    let pagos = ''; try { pagos = pp ? pp.html({ cliente: id, mes: hoy.slice(0, 7), S: null }) || '' : ''; } catch (err) { pagos = ''; }
+    return `<div class="pp-ep vc" data-esp="${esc(id)}">`
+      + `<div class="pp-ep-cab"><div class="pp-ep-id">${P.avatar(id, 'lg')}<div class="pp-ep-t"><h1 class="pp-ep-nom">${esc(e.txt)}</h1></div></div><span class="pp-ep-sp"></span>`
+      + `<div class="pp-ep-acc"><label class="sw pp-ep-vcs"><input type="checkbox" data-pp="ep-vc" checked> Vista cliente</label></div></div>`
+      + `<div class="pp-ep-cols"><div class="pp-ep-ag"><section class="pp-ep-p pp-ep-citas" aria-label="Tus sesiones"><h2 class="pp-ep-h">Tus sesiones</h2>`
+      + (ss.length ? grupo('Próximas', prox) + grupo('Pasadas', pas) : '<p class="pp-ep-vacio">Aún no hay sesiones</p>')
+      + `</section><div class="side pp-ep-side"><section class="cal" data-propio data-vc data-cli="${esc(id)}" aria-label="Calendario"></section></div></div>`
+      + `<section class="pp-ep-p pp-ep-tn" aria-label="Tareas y notas"><h2 class="pp-ep-h">Tareas <span>${tk.length}</span></h2>`
+      + (tk.length ? `<div class="pp-ep-vtl">${tk.map(k => `<div class="pp-ep-vt${k.hecha ? ' hecha' : ''}"><span class="pp-ep-vd">${esc(dia(k.fecha))}</span><span class="pp-ep-vx">${esc(k.txt)}</span></div>`).join('')}</div>` : '<p class="pp-ep-vacio">Sin tareas</p>')
+      + `<h2 class="pp-ep-h pp-ep-h2">Notas <span>${ns.length}</span></h2>` + (ns.length ? ns.map(n => `<div class="pp-ep-vn">${P.leerTxt(n.txt, { casillas: 'vineta', enlaces: true })}</div>`).join('') : '<p class="pp-ep-vacio">Sin notas</p>') + `</section>`
+      + `<section class="pp-ep-p pp-ep-cob pp-ep-vpg" aria-label="Tus pagos">${pagos || '<h2 class="pp-ep-h">Tus pagos</h2><p class="pp-ep-vacio">Sin facturas</p>'}</section></div></div>`;
+  }
   function paginaHTML(e0, R) {
     const e = P.TK.get(e0.id) || e0, X = I(), hoy = X.hoy(), id = e.id, esc = P.esc;   // its record (espDe gives its name as a client's)
+    if (P.st && P.st.espVc === id) return paginaVcHTML(e, R);   // its «Vista cliente» (D-378)
     const ss = P.sesiones().filter(k => P.conCli(k, id)), tk = P.tareas().filter(k => k.cliente === id), ns = P.notas().filter(k => k.cliente === id);
     const t = k => (k.fecha || '') + ' ' + (k.hora || '');
     const prox = ss.filter(k => k.fecha && P.ultDia(k) >= hoy).sort((a, b) => t(a).localeCompare(t(b))), sinf = ss.filter(k => !k.fecha), pas = ss.filter(k => k.fecha && P.ultDia(k) < hoy).sort((a, b) => t(b).localeCompare(t(a)));
@@ -855,6 +882,7 @@
       + `<div class="pp-ep-cab"><button type="button" class="pp-ep-vol" data-pp="ep-volver">${ATRAS}Esporádicos</button>`
       + `<div class="pp-ep-id">${P.avatar(id, 'lg')}<div class="pp-ep-t"><h1 class="pp-ep-nom" data-pp="ep-nom" tabindex="-1" title="Clic: cambiar el nombre">${esc(e.txt)}</h1>${desde ? `<p>Esporádico desde ${desde}</p>` : ''}</div></div><span class="pp-ep-sp"></span>`
       + `<div class="pp-ep-acc"><button type="button" class="btn" data-pp="ep-sesion">${mas}Sesión</button><button type="button" class="btn2" data-pp="ep-reunion">${mas}Reunión</button><button type="button" class="btn2" data-pp="ep-tarea">${mas}Tarea</button><button type="button" class="btn2" data-pp="ep-nota">${mas}Nota</button>`
+      + `<label class="sw pp-ep-vcs"><input type="checkbox" data-pp="ep-vc"> Vista cliente</label>`   // what its client sees in its web (D-378)
       + `<button type="button" class="ibtn pp-ep-mas" data-pp="ep-mas" aria-label="Más del esporádico" title="Más">${svgI('mas3')}</button></div></div>`
       + `<div class="pp-ep-cols"><div class="pp-ep-ag"><section class="pp-ep-p pp-ep-citas" aria-label="Agenda"><h2 class="pp-ep-h">Agenda</h2>`
       + (ss.length ? grupo('Próximas', prox) + grupo('Sin fecha', sinf) + grupo('Pasadas', pas) : '<p class="pp-ep-vacio">Sin sesiones ni reuniones</p>')
@@ -896,6 +924,7 @@
   }
   function pagClic(k, a, e) {
     const e0 = espDePg(); if (!e0) return; nomVigente();
+    if (P.st.espVc === e0.id) { if (k === 'ep-vses') P.abrirCard(a.dataset.id, { vc: true, de: `[data-pp="ep-vses"][data-id="${CSS.escape(a.dataset.id)}"]` }); return; }   // its «Vista cliente»: a session as its client sees it (D-378)
     if (k === 'ep-nom') { if (!PG.ed && !P.seleccionando()) nomEscribir({ x: e.clientX, y: e.clientY }); return; }
     if (PG.ed) nomFin(true);
     if (k === 'ep-volver') { P.salirEsp(); return; }
@@ -905,6 +934,7 @@
   }
   // its IVA (D-377): «Sin IVA» goes to its new payments; a step of ⌘Z, with «Deshacer»
   function pagCambio(t) {
+    if (t.matches('[data-pp="ep-vc"]')) { const e0 = espDePg(); if (e0) { nomVigente(); if (PG.ed) nomFin(true); P.st.espVc = t.checked ? e0.id : null; P.pintar(); } return true; }   // its «Vista cliente» (D-378)
     if (!t.matches('[data-pp="ep-iva"]')) return false;
     const e0 = espDePg(); if (!e0) return true;
     const si = t.value === '0', antes = e0.sinIva === true; if (si === antes) return true;
@@ -1352,6 +1382,13 @@
 #mesa .pp-ep-t p{margin:1px 0 0;font-size:12.5px;color:var(--mute)}
 #mesa .pp-ep-sp{flex:1}
 #mesa .pp-ep-acc{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#mesa .pp-ep-acc .pp-ep-vcs{margin:0 2px 0 6px}   /* «Vista cliente» (D-378) */
+#mesa .pp-ep.vc .pp-ep-cab{min-height:56px}
+#mesa .pp-ep-nc{display:block;font-weight:400;font-size:12.5px;color:var(--mute);margin-top:1px}
+#mesa .pp-ep-vtl{display:flex;flex-direction:column}
+#mesa .pp-ep-vt{display:grid;grid-template-columns:52px minmax(0,1fr);column-gap:10px;align-items:baseline;padding:8px 2px;border-bottom:1px solid var(--line);font-size:13.5px}
+#mesa .pp-ep-vt:last-child{border-bottom:0}#mesa .pp-ep-vd{font-size:12.5px;color:var(--mute);white-space:nowrap}#mesa .pp-ep-vt.hecha .pp-ep-vx{text-decoration:line-through;color:var(--mute)}
+#mesa .pp-ep-vn{background:var(--panel-2);border-radius:var(--r-sm);padding:10px 12px;font-size:13.5px;line-height:1.45;margin:0 0 8px}
 #mesa .pp-ep-acc svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}#mesa .pp-ep-acc .ibtn svg{width:18px;height:18px}
 #mesa .pp-ep-cols{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(320px,380px);gap:12px}
 #mesa .pp-ep-ag{min-height:0;display:grid;grid-template-rows:minmax(0,auto) minmax(300px,1fr);gap:12px}

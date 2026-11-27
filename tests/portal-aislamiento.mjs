@@ -46,9 +46,10 @@ const C_APR = 'id,cliente_id,pid,version,decision,motivo,diapositiva,autor_nombr
 const C_COM = 'id,cliente_id,pid,version,diapositiva,texto,autor_nombre,de_kevin,hora,resuelto';
 // Lo que ve el cliente del acuerdo, de un cliente de solo contenido y de la reunión (D-294, D-297). Inventado.
 const A_ACUERDO = { servicio: 'contenido', metricas: 'https://metricas.ejemplo.test/norte', pago: 'semestral', pago_cent: 270000, cubre_de: '2026-05', cubre_hasta: '2026-10',
-  acuerdo_de: '2026-05', acuerdo_hasta: null, acuerdo_renueva: true, paquete: 'Paquete de ejemplo', incluye: ['12 fotos al mes', '4 reels'] };   // el acuerdo de cuándo a cuándo y su paquete (D-308)
+  acuerdo_de: '2026-05', acuerdo_hasta: null, acuerdo_renueva: true, paquete: 'Paquete de ejemplo', incluye: ['12 fotos al mes', '4 reels'],   // el acuerdo de cuándo a cuándo y su paquete (D-308)
+  plan_mes_cent: 45000, iva: 21, no_incluye: ['Gestión de anuncios'], condiciones: ['Permanencia mínima de 6 meses', 'Se renueva solo'] };   // «Tu plan» (D-376)
 const B_ACUERDO = { metricas: 'https://metricas.ejemplo.test/sur-b', pago: 'trimestral', pago_cent: 99900 };
-const C_ACU = 'id,servicio,metricas,pago,pago_cent,cubre_de,cubre_hasta,acuerdo_de,acuerdo_hasta,acuerdo_renueva,paquete,incluye';
+const C_ACU = 'id,servicio,metricas,pago,pago_cent,cubre_de,cubre_hasta,acuerdo_de,acuerdo_hasta,acuerdo_renueva,paquete,incluye,plan_mes_cent,iva,no_incluye,condiciones';
 const C_ENT = 'cliente_id,id,fecha,que,cuanto,enlace,entregada';
 const ent = (c, id, o) => ({ cliente_id: c, id, fecha: o.fecha || '2026-12-15', que: o.que, cuanto: o.cuanto || null, enlace: o.enlace || null, entregada: o.entregada || null });
 
@@ -208,6 +209,12 @@ async function main() {
     ['un paquete de más de 60 caracteres', CA, 'PATCH', { paquete: 'x'.repeat(61) }],
     ['más de 20 cosas en lo que incluye', CA, 'PATCH', { incluye: Array.from({ length: 21 }, (x, i) => 'cosa ' + i) }],
     ['lo que incluye con un hueco', CA, 'PATCH', { incluye: ['12 fotos', null] }],
+    ['lo del mes sin su IVA', CA, 'PATCH', { iva: null }],   // D-376
+    ['un IVA que no es 21 ni 0', CA, 'PATCH', { iva: 10 }],
+    ['el IVA sin lo del mes', CA, 'PATCH', { plan_mes_cent: null }],
+    ['lo del mes negativo', CA, 'PATCH', { plan_mes_cent: -1 }],
+    ['más de 20 cosas en lo que no incluye', CA, 'PATCH', { no_incluye: Array.from({ length: 21 }, (x, i) => 'cosa ' + i) }],
+    ['las condiciones con un hueco', CA, 'PATCH', { condiciones: ['Permanencia', null] }],
     ['una factura que acaba antes de su periodo', PA, 'PATCH', { hasta: '2026-04' }],
     ['una factura con «hasta» y sin periodo', PA, 'PATCH', { periodo: null }],
     ['una sesión de clase «otra»', `sesiones?cliente_id=eq.${A.id}&id=eq.reu-a1`, 'PATCH', { clase: 'otra' }],

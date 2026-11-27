@@ -5,7 +5,7 @@
 (function webBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
-  const VERSION = '1.11';   // 1.11: its web in the indicator beside «Calendario»: a row per post whose content changes and «El orden del feed» in one line, «Entrar», «Salir» or «Reintentar»; the client's comments and a change of theirs not applied stay until the post is opened; the print of the rest in «enviados» (D-372). 1.10: «Web al día» / «Web: N cambios» abre la lista de lo que el cliente verá distinto, con «Enviar»; lo enviado se apunta campo a campo y, lo de antes, se toma del servidor (D-355). 1.9: what was read of each month of the open client is kept while the active month changes (feed continuo, D-317); an older board's pinned posts go by their date (D-327). 1.8: un cliente de solo contenido se envía por cliente, desde su página: todas sus sesiones y su huella por cliente (D-312). 1.7: el acuerdo de hoy de cuándo a cuándo, si se renueva, su paquete y lo que incluye (D-308). 1.6: el enlace de métricas (D-294); el acuerdo, el tramo de cada factura, la reunión con el ojo abierto y las entregas de un cliente de solo contenido (D-297); M.web.hilo, lo ya leído de una publicación para su ventana en la «Vista cliente» (D-295). 1.5: la cuota solo si paga cada mes y cada factura por su primer mes (D-288); una reunión no se envía (D-291). 1.4: en el iPhone (D-267) no arranca solo; conversacion(B), contestar(B, slot, texto) y leido(pid, hora) para su cara, nunca estadoWeb ni lecturas (R2); «desde el escritorio». 1.3: con la entrada de la Mesa (D-262) no hay código por correo aquí: sin sesión, la Mesa vuelve a su entrada
+  const VERSION = '1.12';   // 1.12: «Tu plan»: each month's price without IVA, its IVA, what it doesn't include and its conditions (D-376). 1.11: its web in the indicator beside «Calendario»: a row per post whose content changes and «El orden del feed» in one line, «Entrar», «Salir» or «Reintentar»; the client's comments and a change of theirs not applied stay until the post is opened; the print of the rest in «enviados» (D-372). 1.10: «Web al día» / «Web: N cambios» abre la lista de lo que el cliente verá distinto, con «Enviar»; lo enviado se apunta campo a campo y, lo de antes, se toma del servidor (D-355). 1.9: what was read of each month of the open client is kept while the active month changes (feed continuo, D-317); an older board's pinned posts go by their date (D-327). 1.8: un cliente de solo contenido se envía por cliente, desde su página: todas sus sesiones y su huella por cliente (D-312). 1.7: el acuerdo de hoy de cuándo a cuándo, si se renueva, su paquete y lo que incluye (D-308). 1.6: el enlace de métricas (D-294); el acuerdo, el tramo de cada factura, la reunión con el ojo abierto y las entregas de un cliente de solo contenido (D-297); M.web.hilo, lo ya leído de una publicación para su ventana en la «Vista cliente» (D-295). 1.5: la cuota solo si paga cada mes y cada factura por su primer mes (D-288); una reunión no se envía (D-291). 1.4: en el iPhone (D-267) no arranca solo; conversacion(B), contestar(B, slot, texto) y leido(pid, hora) para su cara, nunca estadoWeb ni lecturas (R2); «desde el escritorio». 1.3: con la entrada de la Mesa (D-262) no hay código por correo aquí: sin sesión, la Mesa vuelve a su entrada
   const I = () => M._in;
   if (M.web && M.web._off) { try { M.web._off(); } catch (e) { /* una versión anterior ya no está */ } }
   const OFF = [];
@@ -149,6 +149,9 @@
       // incluye (D-307, D-308); nunca la fecha de renegociar
       acuerdo_de: rg ? rg.de : null, acuerdo_hasta: rg && rg.hasta ? rg.hasta : null, acuerdo_renueva: q ? !!(q.renueva && !q.cubreHasta && (q.pago || 'mensual') !== 'unico') : null,
       paquete: q && q.paquete && q.paquete.nombre ? String(q.paquete.nombre).slice(0, 60) : null, incluye: q && q.paquete && q.paquete.incluye && q.paquete.incluye.length ? q.paquete.incluye.slice(0, 20).map(x => String(x).slice(0, 80)) : null,
+      // «Tu plan» (D-376): what it costs each month without IVA and its IVA (only an agreement separated, D-374), and what it
+      // doesn't include and its conditions (D-375)
+      ...planWeb(q, cob),
       metricas: c.metricas && X.metricasOk && X.metricasOk(c.metricas) && /^https:\/\//.test(c.metricas) ? c.metricas : null, _foto: c.foto || null };   // «Ver más en Zernio» (D-294)
     // Las entregas de un cliente de solo contenido (D-297), todas las suyas (son pocas): qué, cuánto, su fecha y, solo entregada,
     // su enlace. Leídas del almacén: una lectura fallida no es «sin entregas» (lección 94), no se envía.
@@ -214,6 +217,10 @@
     let h = X.envHuella ? X.envHuella(B, url) : null;
     if (h == null) { const v = lsG(claveHuella(B)); if (v && /^[0-9a-f]{64}$/.test(v)) { h = v; if (v === ahora && !X.locked && !MOVIL && X.envHuellaPoner) await X.envHuellaPoner(B, url, v, '2000-01-01T00:00:00.000Z').catch(() => 0); } }
     return h;
+  }
+  function planWeb(q, cob) {
+    const sp = q && cob && cob.ivaSep ? cob.ivaSep(q) : null, n = q && q.pago === 'unico' ? 1 : (q && cob.paso ? cob.paso(q) : 1) || 1, l = (k, m) => q && q.paquete && Array.isArray(q.paquete[k]) && q.paquete[k].length ? q.paquete[k].slice(0, 20).map(x => String(x).slice(0, m)) : null;
+    return { plan_mes_cent: sp ? Math.round(sp.base / n * 100) : null, iva: sp ? sp.iva : null, no_incluye: l('noIncluye', 80), condiciones: l('condiciones', 160) };
   }
   const huellaExtra = P => sha(JSON.stringify([P.cliente, P.sesiones, P.meses, P.mesesQuitar, P.pagos, P.entregas || []]));
   async function repaso(todo) {

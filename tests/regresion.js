@@ -13,7 +13,7 @@
   }
 
   const CLIENTE = 'prueba-regresion', NOMBRE = 'Cliente de prueba', MES = '2026-11';
-  const V_ARCHIVO = 23, V_IDB = 28;   // IndexedDB 28 y v23 desde la 4.58 (la huella de lo demás de su web, en «enviados», D-372); 27 y v22 desde la 4.54 (los estilos, lo enviado a la web y los meses provisionales, D-355, D-356, D-358); 26 y v21 desde la 4.51 (los acuerdos y los paquetes, D-305 a D-307); 25 y v20 desde la 4.47 (el acuerdo, el servicio, las entregas y la reunión, D-288 a D-292); 24 desde la 4.33 (la marca «copia» de una foto que bajó como copia de trabajo, D-259); 23 desde la 4.32 (la nube, almacén 'nube', D-253); 22 desde la 4.31 (el diario de cambios, D-250); v19 y 21 desde la 4.27 (el porqué y cómo fue de cada mes, el almacén 'meses', D-238); v18 y 20 desde la 4.26 (cobros y sus facturas en PDF, la cuota de un cliente, D-232); v17 y 19 desde la 4.24 (varios clientes, fin y plantillas de material de una sesión, D-217 a D-220); v16 y 18 desde la 4.22 (sesiones, esporádicos, material y el almacén 'tfotos', D-206 a D-208); la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183); v15 y 17 desde la 4.19 (D-193)
+  const V_ARCHIVO = 24, V_IDB = 29;   // IndexedDB 29 y v24 desde la 4.59 (el IVA de acuerdos y facturas, «Sin IVA» del cliente y los paquetes con permanencia, lo que no incluyen y sus condiciones, D-374, D-375); 28 y v23 desde la 4.58 (la huella de lo demás de su web, en «enviados», D-372); 27 y v22 desde la 4.54 (los estilos, lo enviado a la web y los meses provisionales, D-355, D-356, D-358); 26 y v21 desde la 4.51 (los acuerdos y los paquetes, D-305 a D-307); 25 y v20 desde la 4.47 (el acuerdo, el servicio, las entregas y la reunión, D-288 a D-292); 24 desde la 4.33 (la marca «copia» de una foto que bajó como copia de trabajo, D-259); 23 desde la 4.32 (la nube, almacén 'nube', D-253); 22 desde la 4.31 (el diario de cambios, D-250); v19 y 21 desde la 4.27 (el porqué y cómo fue de cada mes, el almacén 'meses', D-238); v18 y 20 desde la 4.26 (cobros y sus facturas en PDF, la cuota de un cliente, D-232); v17 y 19 desde la 4.24 (varios clientes, fin y plantillas de material de una sesión, D-217 a D-220); v16 y 18 desde la 4.22 (sesiones, esporádicos, material y el almacén 'tfotos', D-206 a D-208); la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183); v15 y 17 desde la 4.19 (D-193)
   // la batería va con el reloj de la mesa parado antes de sus fechas (noviembre de 2026): nada vence ni pasa solo a Publicado
   // salvo en las pruebas que lo adelantan (D-120)
   const RELOJ_PRUEBAS = Date.parse('2026-10-01T10:00:00+02:00');
@@ -15337,7 +15337,7 @@
 
   prueba('IN7', 'Datos nuevos de su web (D-372): IndexedDB 28 y archivo v23; la huella viaja en «Exportar» y vuelve al importar; un archivo v22 se sigue importando', async () => {
     await tablero([pub(1)]);
-    igual([M._in.xfer.IDB, V_IDB, V_ARCHIVO], [28, 28, 23], 'las versiones');
+    igual([M._in.xfer.IDB, V_IDB, V_ARCHIVO], [29, 29, 24], 'las versiones');   // 29 y v24 desde la 4.59 (D-374, D-375), a propósito
     const k = '~huella:' + M._in.S.key;
     igual(await M._in.envPoner([{ cliente: CLIENTE, slot: k, huella: 'a'.repeat(64), url: 'https://in7.test', at: '2026-11-20T10:00:00.000Z' }]), 1, 'la huella no se guarda');
     ok(!M._in.xfer.envRecValido({ cliente: CLIENTE, slot: k, huella: 'no', url: '', at: '2026-11-20T10:00:00.000Z' }), 'entra una huella mal formada');
@@ -16194,25 +16194,25 @@
       // the fee: saved at once, its formats
       await coFicha(CLIENTE, 'cobros');
       ok(q('.co-mas[data-co="nueva"]').disabled, '«+ Factura» sin cuota se pulsa');
-      const qi = q('[data-co="cuota"][data-k="importe"]'); coCambiar(qi, '1.470,50'); await hasta(() => (CB().acuerdo(M._in.CL.find(c => c.id === CLIENTE)) || {}).importe === 1470.5, 3000, 'la cuota «1.470,50»');   // el acuerdo, desde la 4.47 (D-288)
+      const qi = q('[data-co="cuota"][data-k="importe"]'); coCambiar(qi, '1.470,50'); await hasta(() => (CB().acuerdo(M._in.CL.find(c => c.id === CLIENTE)) || {}).base === 1470.5, 3000, 'la cuota «1.470,50»');   // el acuerdo, desde la 4.47 (D-288); lo escrito, su base, desde la 4.59 (D-374), a propósito
       igual(qi.value, '1470,50 €', 'la cuota no se ve como se guarda');
-      coCambiar(qi, 'mucho'); await espera(60); igual(CB().acuerdo(M._in.CL.find(c => c.id === CLIENTE)).importe, 1470.5, 'una cuota no válida se guarda'); ok(/importe/.test(coToast()), 'sin aviso de una cuota no válida');
+      coCambiar(qi, 'mucho'); await espera(60); igual(CB().acuerdo(M._in.CL.find(c => c.id === CLIENTE)).base, 1470.5, 'una cuota no válida se guarda'); ok(/importe/.test(coToast()), 'sin aviso de una cuota no válida');
       coCambiar(q('[data-co="cuota"][data-k="importe"]'), '450 €'); coCambiar(q('[data-co="cuota"][data-k="dia"]'), '15'); coCambiar(q('[data-co="cuota"][data-k="plazo"]'), '15');   // «Vence a los», 7 · 15 · 30 · Otro… (D-304)
       await hasta(() => M._in.cob.cuota(M._in.CL.find(c => c.id === CLIENTE)), 3000, 'la cuota entera');
-      { const r = await M._in.idbGet('acuerdos', CLIENTE + '-a1'); igual(r && { pago: r.pago, importe: r.importe, dia: r.dia, plazo: r.plazo, renueva: r.renueva }, { pago: 'mensual', importe: 450, dia: 15, plazo: 15, renueva: true }, 'la cuota guardada (el acuerdo mensual, D-288)'); }   // en el almacén «acuerdos» desde la 4.51 (D-305), a propósito
+      { const r = await M._in.idbGet('acuerdos', CLIENTE + '-a1'); igual(r && { pago: r.pago, base: r.base, iva: r.iva, importe: r.importe, dia: r.dia, plazo: r.plazo, renueva: r.renueva }, { pago: 'mensual', base: 450, iva: 21, importe: 544.5, dia: 15, plazo: 15, renueva: true }, 'la cuota guardada (el acuerdo mensual, D-288)'); }   // con su IVA (D-374), a propósito   // en el almacén «acuerdos» desde la 4.51 (D-305), a propósito
       // «+ Factura de octubre» (none yet: this month, with the clock at 1 Oct), then «noviembre»
       await hasta(() => !q('.co-mas[data-co="nueva"]').disabled, 2000, '«+ Factura» con cuota');
       ok(/Factura de octubre/.test(q('.co-mas[data-co="nueva"]').textContent), '«+ Factura» no es la del mes en curso: ' + q('.co-mas').textContent);
       { const bn = q('.co-mas[data-co="nueva"]'); bn.dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 })); bn.dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true, detail: 2 })); }   // a double click: one invoice (lesson 57)
       await hasta(() => M.cobros.ver(CLIENTE).length === 1, 3000, 'la factura nueva'); await espera(150); igual(M.cobros.ver(CLIENTE).length, 1, 'un doble clic en «+ Factura» crea dos');
-      let f1 = M.cobros.ver(CLIENTE)[0]; igual([f1.periodo, f1.importe, f1.emitida, f1.vence, f1.estado], ['2026-10', 450, '2026-10-15', '2026-10-30', 'sinemitir'], 'la factura nueva y sus fechas');   // la de octubre se emite en octubre: «Se factura» el mismo mes por omisión (D-309), a propósito
+      let f1 = M.cobros.ver(CLIENTE)[0]; igual([f1.periodo, f1.base, f1.importe, f1.emitida, f1.vence, f1.estado], ['2026-10', 450, 544.5, '2026-10-15', '2026-10-30', 'sinemitir'], 'la factura nueva y sus fechas');   // con su IVA (D-374), a propósito   // la de octubre se emite en octubre: «Se factura» el mismo mes por omisión (D-309), a propósito
       await hasta(() => D.activeElement === q(`tr.co-f[data-id="${f1.id}"] [data-co="num"]`), 2000, 'el foco en su número');
       ok(/Factura de noviembre/.test(q('.co-mas[data-co="nueva"]').textContent), 'la siguiente no es la de noviembre');
       // number and amount in place; Esc puts a field back first
       const num = q(`tr.co-f[data-id="${f1.id}"] [data-co="num"]`); num.value = 'T-9'; tecla('Enter', { en: num }); await hasta(() => M.cobros.ver(CLIENTE)[0].factura === 'T-9', 2000, 'el número con Intro');
       const imp = q(`tr.co-f[data-id="${f1.id}"] [data-co="imp"]`); imp.value = '9'; tecla('Escape', { en: imp }); igual(imp.value, '450 €', 'Esc no devuelve el importe'); ok(dialogo(), 'el primer Esc cierra el diálogo');
-      coCambiar(imp, '12,5'); await hasta(() => M.cobros.ver(CLIENTE)[0].importe === 12.5, 2000, 'el importe «12,5»'); igual(imp.value, '12,50 €', 'el importe no se ve con sus céntimos');
-      coCambiar(imp, 'x'); await espera(60); igual(M.cobros.ver(CLIENTE)[0].importe, 12.5, 'un importe no válido se guarda');
+      coCambiar(imp, '12,5'); await hasta(() => M.cobros.ver(CLIENTE)[0].base === 12.5, 2000, 'el importe «12,5»');   // su base (D-374), a propósito igual(imp.value, '12,50 €', 'el importe no se ve con sus céntimos');
+      coCambiar(imp, 'x'); await espera(60); igual(M.cobros.ver(CLIENTE)[0].base, 12.5, 'un importe no válido se guarda');
       // the dates: open below the row; vence before emitida is refused
       q(`tr.co-f[data-id="${f1.id}"] [data-co="fechas"]`).click(); await espera(60);
       const det = await hasta(() => q(`tr.co-det[data-id="${f1.id}"]`), 2000, 'las fechas de la fila');
@@ -16234,7 +16234,7 @@
       // «Cobrada»: today; «Sin fecha» gives it back
       await hasta(() => coFila(f1.id).querySelector('[data-co="cobrada"]'), 2000, '«Cobrada»'); coFila(f1.id).querySelector('[data-co="cobrada"]').click();
       await hasta(() => M.cobros.ver(CLIENTE)[0].cobrada === '2026-10-01', 2000, 'cobrada hoy');
-      ok(!coFila(f1.id).querySelector('[data-co="cobrada"]') && /cobrada el 1 oct/.test(coFila(f1.id).textContent), 'la fila no dice cobrada');
+      ok(!coFila(f1.id).querySelector('[data-co="cobrada"]') && /cobrada el 1 oct/.test(coFila(f1.id).textContent.replace(/\u00a0/g, ' ')), 'la fila no dice cobrada');   // su fecha sin partir (D-375), a propósito
       coCambiar(q(`tr.co-det[data-id="${f1.id}"] [data-k="cobrada"]`), ''); await hasta(() => !M.cobros.ver(CLIENTE)[0].cobrada, 2000, 'sin fecha de cobro');
       // the right click: «Borrar factura», with «Deshacer»
       coFila(f1.id).dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 300, clientY: 300 })); await espera(40);
@@ -16412,7 +16412,7 @@
       const imp = await hasta(() => q(`.pp-es-cob tr.co-f[data-id="${c1.id}"] [data-co="imp"]`), 2000, 'su fila');
       await hasta(() => D.activeElement === imp, 2000, 'el foco en su importe');
       // writing in it: the file draws itself in place and the focus stays
-      coCambiar(imp, '350'); await hasta(() => M.cobros.ver(e.id)[0].importe === 350, 2000, 'el importe'); await espera(80);
+      coCambiar(imp, '350'); await hasta(() => M.cobros.ver(e.id)[0].base === 350, 2000, 'el importe');   // su base, con el 21 %, desde la 4.59 (D-374), a propósito await espera(80);
       ok(q('.pp-card.pp-es') === ficha && D.activeElement === imp, 'la ficha se vuelve a crear o pierde el foco');
       ok(/Boda en la cala/.test(q(`tr.co-f[data-id="${c1.id}"] .co-m`).textContent), 'la fila no dice su sesión');
       // one per session and client: «+ Cobro» offers only the other one
@@ -23472,12 +23472,12 @@
       await M.cobros.cargar([{ id: 'ax-11', cliente: CLIENTE, periodo: '2026-11', importe: 450, factura: 'AX-11', emitida: '2026-10-10', vence: '2026-10-25', cobrada: '2026-10-20' }, { id: 'ax-12', cliente: CLIENTE, periodo: '2026-12', importe: 450, factura: 'AX-12', emitida: '2026-11-10', vence: '2026-11-25' }]);
       await vistaCliente(true); M._in.render(); await espera(120);
       const p = await hasta(() => q('.main > .vc-lado [data-vc="pagos"]'), 3000, '«Tus pagos»');
-      igual(p.querySelector('.co-vh').textContent, 'Tus pagos 450 € al mes · nov\u00a02026 – abr\u00a02027', 'el título de un mensual');   // sin partir las fechas (D-310), a propósito
-      ok(/Incluye 12 fotos al mes · 4 reels/.test(p.textContent), 'sin lo que incluye: ' + p.textContent);
+      igual(p.querySelector('.co-vh').textContent, 'Tu plan Paquete B', 'el título de uno con paquete');   // «Tu plan»: el precio y las fechas, en su ficha (D-376), a propósito
+      ok(!/Incluye 12 fotos/.test(p.textContent), 'lo que incluye sigue debajo: ' + p.textContent);   // en su ficha (D-376), a propósito
       igual(p.querySelector('.co-vprox').textContent, 'Próxima factura, el 10 dic', 'la siguiente por su fecha');   // «Próxima factura» (D-311), a propósito
       ok(!/abr 2027 ·|15 abr|renegoci/i.test(p.textContent.replace(/\u00a0/g, ' ').replace('nov 2026 – abr 2027', '')), 'sale la fecha de renegociar: ' + p.textContent);
       // sin fin
-      await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 450, dia: 10, plazo: 15, desde: '2026-05', meses: null, renueva: true }); M._in.render(); await espera(120);
+      await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 450, dia: 10, plazo: 15, desde: '2026-05', meses: null, renueva: true, paquete: null }); M._in.render(); await espera(120);   // sin paquete: «Tus pagos» (D-376), a propósito
       await hasta(() => /desde may\u00a02026/.test(q('.main > .vc-lado [data-vc="pagos"] .co-vh').textContent), 3000, '«desde may 2026»');   // sin partir (D-310), a propósito
       // por tramos
       await CB().acuGuardar(CLIENTE, { ...AU_ACU, meses: null }); await M.cobros.cargar([{ id: 'ax-s', cliente: CLIENTE, periodo: '2026-11', hasta: '2027-04', importe: 2700, factura: 'AX-S', emitida: '2026-10-01', cobrada: '2026-10-05' }]); M._in.render(); await espera(120);
@@ -23628,7 +23628,7 @@
       await CB().dlgCliente(CLIENTE, 'cobros'); await hasta(() => arCampo('importe'), 3000, 'la tarjeta vacía');
       coCambiar(arCampo('importe'), '450'); coCambiar(arCampo('plazo'), '15');
       await hasta(() => { const a = CB().acuerdos(CLIENTE)[0]; return a && a.plazo === 15; }, 3000, 'el segundo campo');
-      await espera(250); const a = CB().acuerdos(CLIENTE); ok(a.length === 1 && a[0].importe === 450 && a[0].plazo === 15, 'se perdió un campo: ' + json(a));
+      await espera(250); const a = CB().acuerdos(CLIENTE); ok(a.length === 1 && a[0].base === 450 && a[0].plazo === 15, 'se perdió un campo: ' + json(a));   // lo escrito, su base (D-374), a propósito
       M._in.closeDetail(); await espera(40);
       await M._test.cobBorrarTodo(); await CB().dlgCliente(CLIENTE, 'cobros'); await hasta(() => arCampo('adelanto'), 3000, '«Se factura» en la tarjeta vacía');
       coCambiar(arCampo('adelanto'), 'si');
@@ -23732,6 +23732,293 @@
       const px = await hasta(() => q('.main > .vc-lado [data-vc="pagos"] .co-vprox'), 3000, 'la próxima');
       igual(px.textContent.replace(/ /g, ' '), 'Próxima factura, el 25 nov', 'la próxima factura');
     } finally { relojVuelve(); M._in.closeDetail(); await vistaCliente(false); }
+  });
+  // ---------- Lote 4 de la 4.55: el IVA (D-374), los paquetes (D-375) y «Tu plan» (D-376); cifras y nombres inventados ----------
+  const IV_PAQ = [{ nombre: 'Plan Uno', precio: 600, neto: true, permanencia: 3, incluye: ['8 fotos al mes'], noIncluye: ['Anuncios'], condiciones: ['Permanencia mínima de 3 meses'] },
+    { nombre: 'Plan Dos', precio: 1000, neto: true, permanencia: 6, incluye: ['12 fotos al mes', '4 reels'], noIncluye: ['Mensajes', 'Anuncios'], condiciones: ['Permanencia mínima de 6 meses', 'Se renueva solo'] },
+    { nombre: 'Plan Viejo', precio: 968, incluye: ['4 fotos al mes'] }];
+  prueba('IV1', 'IVA, datos (D-374): IndexedDB 29; «Separar el IVA» de un acuerdo de antes (con IVA incluido, el mismo total; más IVA; sin IVA) y de una factura (emitida, nunca «más IVA»), con sus facturas sin emitir; una factura nueva de un acuerdo separado lleva su base y su IVA (y en proporción); «Sin IVA» del cliente cambia los acuerdos de ahora y los que vienen, no los acabados, y se deshace; MESA.cobros.separar y sinIva; un archivo v24 vuelve igual y uno sin base sigue entrando', async () => {
+    await tablero([pub(1)]);
+    const st = await new Promise(res => { const o = W.indexedDB.open('mesa-feed'); o.onsuccess = () => { const x = o.result.version; o.result.close(); res(x); }; o.onerror = () => res(0); });
+    igual(st, V_IDB, 'la versión de IndexedDB');
+    relojEn('2026-11-20T10:00:00+01:00');
+    try {
+      // un acuerdo de antes: se ve como antes
+      await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 500, dia: 5, plazo: 15, desde: '2026-03', meses: 12, renueva: true });
+      const a0 = CB().acuerdos(CLIENTE)[0]; ok(!CB().ivaSep(a0) && CB().impTxt(a0) === '500 €', 'uno de antes no se ve como antes: ' + json(a0));
+      ok(/doce pagos de 500 €/.test(CB().resumenA(a0)), 'su línea: ' + CB().resumenA(a0));
+      // una factura de antes sin emitir de este acuerdo, y otra emitida
+      await M.cobros.cargar([{ id: 'iv-dic', cliente: CLIENTE, periodo: '2026-12', importe: 500 }, { id: 'iv-nov', cliente: CLIENTE, periodo: '2026-11', importe: 500, emitida: '2026-11-05', vence: '2026-11-20' }]);
+      // con IVA incluido: el mismo total, su base dentro; se lleva la de diciembre (sin emitir), no la de noviembre
+      let r = await M.cobros.separar(CLIENTE, a0.id, 'incluido'); ok(r.ok && r.base === 413.22 && r.iva === 21 && r.importe === 500, 'separar: ' + json(r));
+      const a1 = CB().acuerdos(CLIENTE)[0]; igual(CB().impTxt(a1), '413,22 € + 86,78 € IVA', 'cómo se ve');
+      ok(/doce pagos de 413,22 € \+ 86,78 € IVA/.test(CB().resumenA(a1)), 'su línea: ' + CB().resumenA(a1));
+      ok(CB().ivaSep(CB().get('iv-dic')) && !CB().ivaSep(CB().get('iv-nov')), 'sus facturas: ' + json([CB().get('iv-dic'), CB().get('iv-nov')]));
+      ok((await M.cobros.separar(CLIENTE, a0.id, 'sin')).error, 'separar dos veces');
+      // una factura emitida: nunca «más IVA»; «sin IVA», su total
+      ok(/emitida/.test((await M.cobros.separar(CLIENTE, 'iv-nov', 'mas')).error || ''), 'una emitida acepta «más IVA»');
+      r = await M.cobros.separar(CLIENTE, 'iv-nov', 'sin'); ok(r.ok && r.importe === 500 && r.iva === 0, 'sin IVA: ' + json(r));
+      ok((await M.cobros.separar(CLIENTE, 'iv-nov', 'como')).error && (await M.cobros.separar('nadie', 'x', 'sin')).error, 'lo que no es');
+      // una factura nueva, de un acuerdo separado: su base y su IVA, también en proporción
+      await CB().acuCambiar(CLIENTE, a0.id, { base: 1000, iva: 21, importe: CB().ivaTotal(1000, 21), pago: 'semestral', desde: '2026-03', meses: 12 });
+      const q = CB().acuerdos(CLIENTE)[0], t = CB().parte(q, { de: '2027-03', hasta: '2027-04' });
+      igual([t.base, t.iva, t.importe], [333.33, 21, 403.33], 'una parte, en proporción');
+      igual(CB().parte(q, { de: '2026-09', hasta: '2027-02' }), { importe: 1210, base: 1000, iva: 21 }, 'un tramo entero');
+      // «Sin IVA» del cliente: el de ahora y los que vienen; el acabado no
+      const nuevo = await CB().acuNuevo(CLIENTE, '2027-03'); ok(nuevo && nuevo.base === 1000 && nuevo.iva === 21, 'el nuevo no copia su IVA: ' + json(nuevo));
+      await CB().acuCambiar(CLIENTE, a0.id, { desde: '2025-03', meses: 6, renueva: false, termina: '2025-08' });
+      r = await M.cobros.sinIva(CLIENTE, true); ok(r.ok && r.acuerdos === 1, 'sinIva: ' + json(r));
+      const L = CB().acuerdos(CLIENTE); igual(L.map(a => [a.iva, a.importe]), [[21, 1210], [0, 1000]], 'el acabado se queda; el nuevo, sin IVA');
+      ok(CB().ivaCliente(CLIENTE) === 0 && M._in.CL.find(c => c.id === CLIENTE).sinIvaAt, 'la opción del cliente');
+      const x = await CB().ivaPoner(CLIENTE, false); igual(CB().acuerdos(CLIENTE).map(a => a.iva), [21, 21], 'volver a 21 %');
+      await CB().ivaVolver(CLIENTE, x); igual(CB().acuerdos(CLIENTE).map(a => [a.iva, a.importe]), [[21, 1210], [0, 1000]], '«Deshacer»');
+      ok((await M.cobros.sinIva(CLIENTE, 'si')).error && (await M.cobros.sinIva('nadie', true)).error, 'sinIva con lo que no es');
+      // una base que no da su total no entra
+      ok((await M.cobros.cargar([{ id: 'iv-mal', cliente: CLIENTE, periodo: '2027-05', importe: 700, base: 500, iva: 21 }])).error, 'una factura con su base y otro total');
+      // exportar → importar: igual
+      const antes = { acu: CB().acuerdos(CLIENTE).map(a => [a.base, a.iva, a.importe]), fac: ['iv-dic', 'iv-nov'].map(i => [CB().get(i).base, CB().get(i).iva, CB().get(i).importe]) };
+      const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text()); igual(d.v, V_ARCHIVO, 'la versión del archivo');
+      ok(d.acuerdos.some(a => a.base === 1000 && a.iva === 0) && d.clients.find(c => c.id === CLIENTE).sinIva === true, 'el archivo lleva el IVA');
+      await M.cobros.sinIva(CLIENTE, false); await CB().acuCambiar(CLIENTE, nuevo.id, { importe: 999 });
+      const fut = '2030-01-01T00:00:00.000Z', d2 = JSON.parse(JSON.stringify(d));   // el archivo, más nuevo que lo de aquí (gana lo más nuevo)
+      d2.acuerdos.forEach(a => { a.at = fut; }); d2.cobros.forEach(c => { c.at = fut; }); d2.clients.forEach(c => { if (c.sinIvaAt) c.sinIvaAt = fut; });
+      const ri = await M.importData(d2, { confirm: false }); ok(ri && !ri.error, 'importar: ' + json(ri));
+      await CB().leer(true);
+      ok(CB().ivaCliente(CLIENTE) === 0, '«Sin IVA» no vuelve con el archivo');
+      igual({ acu: CB().acuerdos(CLIENTE).map(a => [a.base, a.iva, a.importe]), fac: ['iv-dic', 'iv-nov'].map(i => [CB().get(i).base, CB().get(i).iva, CB().get(i).importe]) }, antes, 'no vuelve igual');
+      // un archivo con una base que no da su total, rechazado; uno sin base (de antes) entra
+      const malo = JSON.parse(JSON.stringify(d)); malo.cobros.find(c => c.id === 'iv-dic').importe = 900;
+      ok((await M.importData(malo, { confirm: false })).error, 'entra un archivo con una base que no da su total');
+      const viejo = JSON.parse(JSON.stringify(d)); viejo.v = 23; viejo.acuerdos.forEach(a => { delete a.base; delete a.iva; }); viejo.cobros.forEach(c => { delete c.base; delete c.iva; }); viejo.clients.forEach(c => { delete c.sinIva; delete c.sinIvaAt; });
+      ok(!(await M.importData(viejo, { confirm: false })).error, 'un archivo v23 no entra');
+    } finally { relojVuelve(); }
+  });
+  prueba('IV2', 'IVA, lo que se ve (D-374): «IVA» del cliente junto a «Nuevo acuerdo» con «Deshacer»; el importe de un acuerdo separado enseña su base con su IVA al lado, y lo escrito es la base; uno de antes, «Separar el IVA…», que pregunta qué es y cómo quedaría; uno nuevo nace separado con el IVA del cliente; la tabla, la base con su IVA, que se elige mientras no está emitida; la página personal lo dice igual', async () => {
+    await tablero([pub(1)]);
+    await hasta(() => M.cobrosUI && M.personal && M.controles, 8000, 'cobros.js, personal.js y controles.js');
+    relojEn('2026-11-20T10:00:00+01:00');
+    try {
+      await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 500, dia: 5, plazo: 15, desde: '2026-03', meses: 12, renueva: true });
+      await M.cobros.cargar([{ id: 'iv2-nov', cliente: CLIENTE, periodo: '2026-11', importe: 500, emitida: '2026-11-05', vence: '2026-11-25' }]);
+      await CB().dlgCliente(CLIENTE, 'cobros');
+      const card = () => q('.detail .co-ac[data-acu]'), imp = () => card().querySelector('[data-k="importe"]');
+      await hasta(() => card(), 4000, 'la tarjeta');
+      ok(q('.detail .co-acu-t [data-co="iva-cli"]'), 'sin «IVA» del cliente');
+      ok(!card().querySelector('.co-sfx') && imp().value === '500 €', 'uno de antes no se ve como antes');
+      card().querySelector('[data-co="sep-abrir"]').click();
+      const box = await hasta(() => card().querySelector('.co-sep'), 2000, 'la pregunta');
+      const tx = box.textContent.replace(/ /g, ' ');
+      ok(/¿Qué es «500 €»\?/.test(tx) && /413,22 € \+ 86,78 € IVA/.test(tx) && /500 € \+ 105 € IVA: 605 € en total/.test(tx) && /500 € · sin IVA/.test(tx), 'lo que pregunta: ' + tx);
+      box.querySelector('[data-co="sep-ok"]').click(); await espera(80); ok(card().querySelector('.co-sep'), 'separa sin elegir');
+      box.querySelector('input[value="mas"]').click(); card().querySelector('[data-co="sep-ok"]').click();
+      await hasta(() => card().querySelector('.co-sfx'), 3000, 'separado');
+      igual([imp().value, card().querySelector('.co-sfx').textContent], ['500 €', '+ 105 € IVA'], 'la base y su IVA');
+      ok(qa('.toasts .toast').some(t => /IVA separado/.test(t.textContent) && /Deshacer/.test(t.textContent)), 'sin «Deshacer»');
+      // lo escrito es la base
+      imp().value = '800'; coCambiar(imp(), '800'); await hasta(() => CB().acuerdos(CLIENTE)[0].base === 800, 3000, 'la base nueva');
+      igual(CB().acuerdos(CLIENTE)[0].importe, 968, 'el total');
+      // la tabla: la emitida, con su total de antes; la nueva, con su base y su IVA, que se elige
+      q('.detail [data-co="nueva"]').click();
+      await hasta(() => qa('.detail tr.co-f').length === 2, 3000, 'la factura nueva');
+      const nueva = CB().vivos(CLIENTE).find(r => r.id !== 'iv2-nov'); ok(nueva.base === 800 && nueva.iva === 21 && nueva.importe === 968, 'la nueva sin su IVA: ' + json(nueva));
+      const fila = id => q(`.detail tr.co-f[data-id="${id}"]`);
+      ok(!fila('iv2-nov').querySelector('.co-civa') && fila('iv2-nov').querySelector('[data-co="imp"]').value === '500 €', 'la de antes');
+      const bt = fila(nueva.id).querySelector('button[data-co="iva-fac"]'); ok(bt && /\+ 168 € IVA/.test(bt.textContent), 'su IVA: ' + (bt && bt.textContent));
+      bt.click(); const sin = await hasta(() => qa('[role="menuitem"]').find(b => /Sin IVA/.test(b.textContent)), 2000, 'el menú'); sin.click();
+      await hasta(() => CB().get(nueva.id).iva === 0 && CB().get(nueva.id).importe === 800, 3000, 'sin IVA');
+      // «IVA» del cliente: «Sin IVA» y «Deshacer»
+      const s = q('.detail [data-co="iva-cli"]'); coCambiar(s, '0');
+      await hasta(() => CB().ivaCliente(CLIENTE) === 0 && CB().acuerdos(CLIENTE)[0].importe === 800, 3000, '«Sin IVA»');
+      const und = await hasta(() => { const t = qa('.toasts .toast').find(x => /Sin IVA/.test(x.textContent)); return t && [...t.querySelectorAll('button')].find(b => /Deshacer/.test(b.textContent)); }, 2000, '«Deshacer»'); und.click();
+      await hasta(() => CB().ivaCliente(CLIENTE) === 21 && CB().acuerdos(CLIENTE)[0].importe === 968, 3000, '«Deshacer» lo devuelve');
+      // la página personal
+      igual(CB().impTxt(CB().get('iv2-nov')), '500 €', 'una de antes, como antes');
+    } finally { relojVuelve(); if (M.controles) M.controles.cerrar(); M._in.closeDetail(); }
+  });
+  prueba('IV3', 'IVA y paquetes, arreglos de la revisión en frío (D-374, D-375): un total que no cuadra con su base no se lee como separado; «300 € al mes · sin IVA», también en la cabecera de la tarjeta; MESA.cobros.acuerdo con el mismo importe conserva su IVA; «Nuevo acuerdo» toma el IVA del cliente de ahora; un precio sin «neto» lleva el IVA dentro, también sobre uno ya sin IVA; separar no actúa sobre lo que no se pudo leer', async () => {
+    await tablero([pub(1)]);
+    relojEn('2026-11-20T10:00:00+01:00');
+    try {
+      ok(!CB().ivaSep({ base: 100, iva: 21, importe: 150 }), 'un total que no cuadra');
+      await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 300, base: 300, iva: 0, dia: 5, plazo: 15, desde: '2026-01' });
+      const a = CB().acuerdos(CLIENTE)[0];
+      ok(/300 € al mes · sin IVA/.test(CB().resumenA(a)), 'su línea: ' + CB().resumenA(a));
+      // el mismo importe por la API: su IVA se queda; otro, se va (es un total)
+      await M.cobros.acuerdo(CLIENTE, { pago: 'mensual', importe: 300, dia: 6, plazo: 15, desde: '2026-01' });
+      ok(CB().ivaSep(CB().acuerdos(CLIENTE)[0]), 'el mismo importe pierde su IVA');
+      await M.cobros.acuerdo(CLIENTE, { pago: 'mensual', importe: 350, dia: 6, plazo: 15, desde: '2026-01' });
+      ok(!CB().ivaSep(CB().acuerdos(CLIENTE)[0]), 'otro importe sigue separado');
+      // «Nuevo acuerdo» con el IVA del cliente de ahora
+      await CB().acuCambiar(CLIENTE, CB().acuerdos(CLIENTE)[0].id, { base: 500, iva: 21, importe: 605 });
+      await M.cobros.sinIva(CLIENTE, true); await CB().acuCambiar(CLIENTE, CB().acuerdos(CLIENTE)[0].id, { termina: '2026-10' });
+      const n = await CB().acuNuevo(CLIENTE, '2026-12'); ok(n.iva === 0 && n.base === 500 && n.importe === 500, 'el nuevo: ' + json(n));
+      await M.cobros.sinIva(CLIENTE, false);
+      // un precio sin «neto»
+      await M.cobros.paquetes([{ nombre: 'Plan Tres', precio: 800, neto: true, incluye: [] }]);
+      await M.cobros.paquetes([{ nombre: 'Plan Tres', precio: 968, incluye: [] }]);
+      const p3 = (await M.cobros.paquetes()).find(p => p.nombre === 'Plan Tres'); ok(p3.neto === false && p3.precio === 968, 'sigue sin IVA: ' + json(p3));
+    } finally { relojVuelve(); }
+  });
+  prueba('IV4', 'IVA, paquetes y «Tu plan», lo que se ve tras la revisión en frío (D-374 a D-376): el precio del desplegable separado de su nombre; «21 %» en el color de un valor; «Separar» apagado hasta elegir, la opción elegida marcada, y Esc cierra solo la pregunta; «Condiciones distintas de la tarifa»; «Volver a la tarifa» deja el foco en su campo y ofrece «Deshacer»; la ficha de «Tu plan» a 480 px con el precio a 14 px, y el foco vuelve a «Qué incluye»; sin listas, el precio en su línea; la línea de cobro de la página personal pone la fecha antes del importe', async () => {
+    await tablero([pub(1)]);
+    await hasta(() => M.cobrosUI && M.controles && M.personal, 8000, 'cobros.js');
+    relojEn('2026-11-20T10:00:00+01:00');
+    try {
+      await M.cobros.paquetes(IV_PAQ); const dos = (await M.cobros.paquetes()).find(p => p.nombre === 'Plan Dos');
+      await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 500, dia: 5, plazo: 15, desde: '2026-03', meses: 12 });
+      await CB().dlgCliente(CLIENTE, 'cobros');
+      const card = () => q('.detail .co-ac[data-acu]'), a = () => CB().acuerdos(CLIENTE)[0];
+      await hasta(() => card(), 4000, 'la tarjeta'); const id0 = card().dataset.acu, aid = () => id0;
+      // «21 %» como un valor, no como un ejemplo
+      const cIva = W.getComputedStyle(q('.detail .co-acu-t .co-ivs + .mx-sel .mx-t')).color, cPago = W.getComputedStyle(card().querySelector('[data-k="pago"] + .mx-sel .mx-t')).color;
+      igual(cIva, cPago, 'el color del IVA');
+      // «Separar el IVA…»: apagado hasta elegir; la elegida, marcada; Esc cierra solo la pregunta
+      card().querySelector('[data-co="sep-abrir"]').click(); const box = await hasta(() => card().querySelector('.co-sep'), 2000, 'la pregunta');
+      ok(box.querySelector('[data-co="sep-ok"]').disabled, '«Separar» se puede pulsar sin elegir');
+      box.querySelector('input[value="incluido"]').click(); await espera(40);
+      ok(!box.querySelector('[data-co="sep-ok"]').disabled && box.querySelector('input[value="incluido"]').closest('label').classList.contains('on'), 'la elegida no se marca');
+      box.querySelector('input[value="incluido"]').dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })); await espera(80);
+      ok(!card().querySelector('.co-sep') && dialogo(), 'Esc no cierra solo la pregunta');
+      // el paquete: su precio separado del nombre
+      coCambiar(card().querySelector('[data-k="paquete"]'), dos.id); await hasta(() => a().paquete && a().base === 1000, 3000, 'el paquete');
+      card().querySelector('[data-k="paquete"] + .mx-sel').click(); const pr = await hasta(() => q('[role="listbox"]:not([hidden]) .mx-precio'), 2000, 'el precio en la lista');
+      igual(W.getComputedStyle(pr).marginLeft, '6px', 'el hueco del precio'); ok(/Plan Uno 600 €/.test(pr.parentElement.textContent), 'el nombre y el precio juntos: ' + pr.parentElement.textContent);
+      M.controles.cerrar(); await espera(60);
+      // «distintas de la tarifa»; «Volver a la tarifa», foco y «Deshacer»
+      await CB().acuCambiar(CLIENTE, aid(), { paquete: { ...a().paquete, condiciones: ['Otra'] }, base: 900, importe: 1089 });
+      await hasta(() => /Condiciones distintas de la tarifa/.test(card().textContent), 3000, '«distintas»');
+      card().querySelector('[data-co="tarifa-imp"]').click();
+      await hasta(() => a().base === 1000 && D.activeElement && D.activeElement.dataset && D.activeElement.dataset.k === 'importe', 3000, 'el foco en el importe');
+      ok(qa('.toasts .toast').some(t => /tarifa/.test(t.textContent) && /Deshacer/.test(t.textContent)), 'sin «Deshacer»');
+      M._in.closeDetail();
+      // «Tu plan»: la ficha a 480 px, el precio a 14 px; el foco vuelve
+      await vistaCliente(true); const pag = () => q('.vc-lado [data-vc="pagos"] .co-pagos');
+      const b = await hasta(() => pag() && pag().querySelector('[data-co="plan"]'), 3000, '«Qué incluye»'); b.click();
+      const d = await hasta(() => q('.detail[data-dlg="plan"]:not([hidden]) .card'), 2000, 'la ficha');
+      ok(Math.round(d.getBoundingClientRect().width) === 480 || W.innerWidth < 520, 'el ancho de la ficha: ' + d.getBoundingClientRect().width);
+      igual(W.getComputedStyle(d.querySelector('.co-plp')).fontSize, '14px', 'el tamaño del precio');
+      M._in.closeDetail(); await hasta(() => D.activeElement && D.activeElement.dataset && D.activeElement.dataset.co === 'plan', 2000, 'el foco de vuelta');
+      // sin listas: el precio en su línea
+      await CB().acuCambiar(CLIENTE, aid(), { paquete: { id: 'personalizado', nombre: 'Personalizado', incluye: [], noIncluye: [], condiciones: [] } });
+      await hasta(() => pag() && pag().querySelector('.co-tpp'), 3000, 'el precio sin listas'); ok(!pag().querySelector('.co-tph .co-tpp'), 'el precio sin listas aprieta el título');
+      ok(/1000 € \+ IVA al mes · pago mensual/.test(pag().querySelector('.co-tpp').textContent), pag().querySelector('.co-tpp').textContent);
+      await vistaCliente(false);
+      // la página personal: la fecha antes del importe; sin fecha, sin un separador de más
+      relojEn('2026-11-02T10:00:00+01:00'); M.personal.abrir();
+      const l0 = await hasta(() => q(`.pp-cob[data-c="${CLIENTE}"]`), 3000, 'la línea sin emitir');
+      ok(/Factura sin emitir · 1000 € \+ 210 € IVA/.test(l0.textContent) && !/· +·/.test(l0.textContent), 'la línea sin emitir: ' + l0.textContent);
+      M.personal.cerrar(); relojEn('2026-11-20T10:00:00+01:00');
+      await M.cobros.cargar([{ id: 'iv4-f', cliente: CLIENTE, periodo: '2026-11', importe: 1210, base: 1000, iva: 21, emitida: '2026-11-05', vence: '2026-11-25' }]);
+      const t = CB().urgente(CLIENTE); ok(t && t.r.id === 'iv4-f', 'la urgente');
+      M.personal.abrir(); const lin = await hasta(() => q(`.pp-cob[data-c="${CLIENTE}"]`), 3000, 'la línea de cobro');
+      ok(/Pendiente · vence el 25 nov · 1000 € \+ 210 € IVA/.test(lin.textContent) && /vence el 25 nov/.test(lin.title), 'la línea: ' + lin.textContent + ' | ' + lin.title);
+      M.personal.cerrar();
+    } finally { relojVuelve(); await vistaCliente(false); if (M.controles) M.controles.cerrar(); M._in.closeDetail(); }
+  });
+  prueba('PQ1', 'Paquetes, datos y catálogo (D-375): MESA.cobros.paquetes guarda y da su precio sin IVA (neto), su permanencia, lo que no incluye y sus condiciones; los de antes, igual; uno con una lista de más no entra; el catálogo enseña «al mes sin IVA» o «con IVA» con «Pasar a sin IVA» (÷ 1,21, con «Deshacer»), la permanencia y las tres listas; uno nuevo nace sin IVA', async () => {
+    await tablero([pub(1)]);
+    await hasta(() => M.cobrosUI && M.controles, 8000, 'cobros.js');
+    try {
+      ok((await M.cobros.paquetes(IV_PAQ)).ok, 'cargar');
+      const cat = await M.cobros.paquetes(), dos = cat.find(p => p.nombre === 'Plan Dos'), vie = cat.find(p => p.nombre === 'Plan Viejo');
+      igual([dos.neto, dos.permanencia, dos.noIncluye, dos.condiciones], [true, 6, ['Mensajes', 'Anuncios'], ['Permanencia mínima de 6 meses', 'Se renueva solo']], 'lo nuevo');
+      igual([vie.neto, vie.permanencia, vie.noIncluye], [false, null, []], 'uno de antes');
+      ok((await M.cobros.paquetes([{ nombre: 'X', condiciones: Array.from({ length: 21 }, (x, i) => 'c' + i) }])).error, 'más de 20 condiciones');
+      ok((await M.cobros.paquetes([{ nombre: 'X', permanencia: 0 }])).error, 'una permanencia de 0');
+      await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 500, dia: 5, plazo: 15 });
+      await CB().dlgCliente(CLIENTE, 'cobros'); await hasta(() => q('.detail .co-ac[data-acu]'), 4000, 'la tarjeta');
+      const sel = q('.detail [data-k="paquete"]'); coCambiar(sel, 'editar'); sel.dispatchEvent(new W.CustomEvent('mx-accion', { bubbles: true, detail: { accion: 'paquetes' } }));
+      await hasta(() => q('.detail .co-paqs'), 3000, 'el catálogo');
+      const sec = n => qa('.detail .co-paq').find(s => s.querySelector('[data-co="paq-nombre"]').value === n);
+      ok(/al mes sin IVA/.test(sec('Plan Dos').textContent) && !sec('Plan Dos').querySelector('[data-co="paq-neto"]'), 'uno sin IVA');
+      ok(/al mes con IVA/.test(sec('Plan Viejo').textContent) && sec('Plan Viejo').querySelector('[data-co="paq-neto"]'), 'uno de antes');
+      igual(sec('Plan Dos').querySelector('[data-co="paq-perm"]').value, '6', 'su permanencia');
+      igual([...sec('Plan Dos').querySelectorAll('.co-inc')].map(u => u.dataset.l), ['incluye', 'noIncluye', 'condiciones'], 'sus tres listas');
+      sec('Plan Viejo').querySelector('[data-co="paq-neto"]').click();
+      await hasta(() => { const p = CB().paqGet(vie.id); return p.neto && p.precio === 800; }, 3000, '«Pasar a sin IVA»');
+      const und = await hasta(() => { const t = qa('.toasts .toast').find(x => /Plan Viejo/.test(x.textContent)); return t && [...t.querySelectorAll('button')].find(b => /Deshacer/.test(b.textContent)); }, 2000, '«Deshacer»'); und.click();
+      await hasta(() => { const p = CB().paqGet(vie.id); return !p.neto && p.precio === 968; }, 3000, '«Deshacer» lo devuelve');
+      const pm = sec('Plan Dos').querySelector('[data-co="paq-perm"]'); pm.value = '4'; coCambiar(pm, '4'); await hasta(() => CB().paqGet(dos.id).permanencia === 4, 3000, 'la permanencia');
+      q('.detail [data-co="paq-nuevo"]').click(); await hasta(() => CB().paquetes().length === 4, 3000, 'uno nuevo');
+      ok(CB().paquetes().find(p => p.nombre === 'Paquete nuevo').neto === true, 'el nuevo no nace sin IVA');
+    } finally { const v = q('.detail [data-co="paq-volver"]'); if (v) v.click(); if (M.controles) M.controles.cerrar(); M._in.closeDetail(); }
+  });
+  prueba('PQ2', 'Paquetes en el acuerdo (D-375): el desplegable, de más barato a más caro con su precio al lado; elegir uno sin IVA rellena el importe (precio × meses de cada pago, con el IVA del cliente), la duración (su permanencia) y sus tres listas, y no toca lo del cliente; sobre un importe escrito, con «Deshacer»; uno de antes no rellena el importe; lo distinto de la tarifa sale marcado con «Volver a la tarifa», también en las listas, que se cambian para el cliente', async () => {
+    await tablero([pub(1)]);
+    await hasta(() => M.cobrosUI && M.controles, 8000, 'cobros.js');
+    relojEn('2026-11-20T10:00:00+01:00');
+    try {
+      await M.cobros.paquetes(IV_PAQ); const cat = await M.cobros.paquetes(), id = n => cat.find(p => p.nombre === n).id;
+      await CB().acuGuardar(CLIENTE, { pago: 'semestral', importe: 3000, dia: 12, plazo: 30, desde: '2026-05', meses: 12, renueva: true, adelanto: true });
+      await CB().dlgCliente(CLIENTE, 'cobros');
+      const card = () => q('.detail .co-ac[data-acu]'), sel = () => card().querySelector('[data-k="paquete"]'), aid = () => card().dataset.acu, a = () => CB().acuerdos(CLIENTE)[0];
+      await hasta(() => card(), 4000, 'la tarjeta');
+      igual([...sel().options].filter(o => !o.hidden).map(o => [o.textContent, o.dataset.nota || '']), [['Plan Uno', '600 €'], ['Plan Viejo', '968 € con IVA'], ['Plan Dos', '1000 €'], ['Personalizado', ''], ['Editar paquetes…', '']], 'el orden y su precio');
+      coCambiar(sel(), id('Plan Dos'));
+      await hasta(() => a().paquete && a().paquete.nombre === 'Plan Dos', 3000, 'elegir «Plan Dos»');
+      igual([a().base, a().iva, a().importe, a().meses, a().dia, a().plazo, a().adelanto, a().desde], [6000, 21, 7260, 6, 12, 30, true, '2026-05'], 'lo que rellena y lo que no');
+      igual([a().paquete.noIncluye, a().paquete.condiciones], [['Mensajes', 'Anuncios'], ['Permanencia mínima de 6 meses', 'Se renueva solo']], 'sus listas');
+      const und = await hasta(() => { const t = qa('.toasts .toast').find(x => /Plan Dos/.test(x.textContent)); return t && [...t.querySelectorAll('button')].find(b => /Deshacer/.test(b.textContent)); }, 2000, '«Deshacer»');
+      und.click(); await hasta(() => !a().paquete && a().importe === 3000 && a().meses === 12, 3000, '«Deshacer» lo devuelve');
+      coCambiar(sel(), id('Plan Dos')); await hasta(() => a().base === 6000, 3000, 'otra vez');
+      ok(!card().querySelector('.co-dif'), 'marcado sin ser distinto');
+      // distinto de la tarifa, solo para este cliente; «Volver a la tarifa»
+      const imp = card().querySelector('[data-k="importe"]'); imp.value = '5500'; coCambiar(imp, '5500'); await hasta(() => a().base === 5500, 3000, 'otro importe');
+      const dif = await hasta(() => card().querySelector('.co-dif'), 2000, 'la marca'); ok(/Distinto de la tarifa: 6000 €/.test(dif.textContent.replace(/ /g, ' ')), dif.textContent);
+      dif.querySelector('[data-co="tarifa-imp"]').click(); await hasta(() => a().base === 6000 && !card().querySelector('.co-dif'), 3000, '«Volver a la tarifa»');
+      // las listas, para este cliente
+      card().querySelector('[data-co="listas-cambiar"]').click();
+      const ul = await hasta(() => card().querySelector('.co-inc[data-l="noIncluye"]'), 2000, 'las listas editables');
+      ul.querySelector('[data-co="inc-quitar"]').click(); await hasta(() => a().paquete.noIncluye.length === 1, 3000, 'quitar una');
+      card().querySelector('[data-co="listas-ok"]').click();
+      const lt = await hasta(() => card().querySelector('[data-co="lista-tarifa"][data-l="noIncluye"]'), 2000, 'la lista marcada');
+      lt.click(); await hasta(() => a().paquete.noIncluye.length === 2, 3000, 'la lista vuelve a la tarifa');
+      // uno de antes no rellena el importe
+      coCambiar(sel(), id('Plan Viejo')); await hasta(() => a().paquete.nombre === 'Plan Viejo', 3000, '«Plan Viejo»');
+      igual(a().base, 6000, 'uno de antes cambió el importe');
+    } finally { relojVuelve(); if (M.controles) M.controles.cerrar(); M._in.closeDetail(); }
+  });
+  prueba('TP1', '«Tu plan» en la «Vista cliente» (D-376): con un paquete, una línea —«Tu plan», su nombre y «Qué incluye»—, sin «Incluye …» debajo; su ficha, con el precio sin IVA, cómo se paga y de cuándo a cuándo, y sus tres listas; con «Personalizado», sin nombre; sin listas, sin botón; sin paquete, «Tus pagos» como antes', async () => {
+    await tablero([pub(1)]);
+    await hasta(() => M.cobrosUI, 8000, 'cobros.js');
+    relojEn('2026-11-20T10:00:00+01:00');
+    try {
+      await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 450, dia: 5, plazo: 15, desde: '2026-01' });
+      await vistaCliente(true); await espera(80);
+      const pag = () => q('.vc-lado [data-vc="pagos"] .co-pagos');
+      await hasta(() => pag() && /Tus pagos/.test(pag().textContent), 3000, '«Tus pagos» sin paquete');
+      await M.cobros.paquetes(IV_PAQ); const dos = (await M.cobros.paquetes()).find(p => p.nombre === 'Plan Dos');
+      await CB().acuCambiar(CLIENTE, CB().acuerdos(CLIENTE)[0].id, { pago: 'semestral', desde: '2026-05', meses: 12, base: 6000, iva: 21, importe: 7260, paquete: { id: dos.id, nombre: dos.nombre, incluye: dos.incluye, noIncluye: dos.noIncluye, condiciones: dos.condiciones } });
+      await hasta(() => pag() && pag().querySelector('.co-tp'), 3000, '«Tu plan»');
+      const h2 = pag().querySelector('.co-tp'); igual([h2.firstChild.textContent.trim(), h2.querySelector('.co-tpn').textContent], ['Tu plan', 'Plan Dos'], 'la línea');
+      ok(!pag().querySelector('.co-vinc'), '«Incluye …» sigue debajo');
+      pag().querySelector('[data-co="plan"]').click();
+      const d = await hasta(() => q('.detail[data-dlg="plan"]:not([hidden])'), 2000, 'la ficha');
+      igual(d.querySelector('.co-plp').textContent.replace(/ /g, ' '), '1000 € + IVA al mes · pago semestral · may 2026 – abr 2027', 'el precio');
+      igual([...d.querySelectorAll('.co-plg h4')].map(x => x.textContent), ['Incluye', 'No incluye', 'Condiciones'], 'sus listas');
+      ok(D.activeElement === d.querySelector('.x'), 'el foco no va a la ×');
+      M._in.closeDetail();
+      // sin IVA: «al mes · sin IVA»
+      await CB().acuCambiar(CLIENTE, CB().acuerdos(CLIENTE)[0].id, { iva: 0, importe: 6000 });
+      await hasta(() => pag() && pag().querySelector('.co-tp'), 3000, 'otra vez'); pag().querySelector('[data-co="plan"]').click();
+      await hasta(() => /1000 € al mes · sin IVA · pago semestral/.test((q('.detail[data-dlg="plan"] .co-plp') || {}).textContent || ''), 2000, 'sin IVA'); M._in.closeDetail();
+      // «Personalizado» sin listas: sin nombre ni botón
+      await CB().acuCambiar(CLIENTE, CB().acuerdos(CLIENTE)[0].id, { paquete: { id: 'personalizado', nombre: 'Personalizado', incluye: [] } });
+      await hasta(() => pag() && pag().querySelector('.co-tp') && !pag().querySelector('.co-tpn'), 3000, 'sin nombre');
+      ok(!pag().querySelector('[data-co="plan"]'), 'sin listas, con botón');
+    } finally { relojVuelve(); await vistaCliente(false); M._in.closeDetail(); }
+  });
+  prueba('TP2', 'Lo que recibe la web de «Tu plan» (D-376): lo del mes sin IVA y su IVA (solo un acuerdo separado), lo que no incluye y sus condiciones; uno de antes, sin ellos', async () => {
+    await tablero([pub(1)]);
+    relojEn('2026-11-20T10:00:00+01:00');
+    try {
+      await hasta(() => M.web && M.web.paquete, 8000, 'web.js');
+      await CB().acuGuardar(CLIENTE, { pago: 'semestral', importe: 7260, dia: 1, plazo: 15, desde: '2026-05', meses: 12, renueva: true, paquete: { id: 'p-d', nombre: 'Plan Dos', incluye: ['12 fotos al mes'], noIncluye: ['Anuncios'], condiciones: ['Se renueva solo'] } });
+      let P = await M.web.paquete(M._in.S);
+      igual([P.cliente.plan_mes_cent, P.cliente.iva, P.cliente.no_incluye, P.cliente.condiciones, P.cliente.pago_cent], [null, null, ['Anuncios'], ['Se renueva solo'], 726000], 'uno de antes');
+      await M.cobros.separar(CLIENTE, CB().acuerdos(CLIENTE)[0].id, 'incluido'); P = await M.web.paquete(M._in.S);
+      igual([P.cliente.plan_mes_cent, P.cliente.iva, P.cliente.pago_cent], [100000, 21, 726000], 'separado');
+    } finally { relojVuelve(); }
   });
 
   // ---------- feed continuo, pieza 1: cada tablero «como abierto», sin nada a la vista ----------

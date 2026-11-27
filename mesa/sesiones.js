@@ -979,7 +979,8 @@
       ev.preventDefault(); if (b.disabled) return;
       if (X.CL.some(c => String(c.name).trim().toLowerCase() === String(e0.txt).trim().toLowerCase())) { X.closeDetail(); X.toast(`Ya hay un cliente mensual que se llama «${e0.txt}»: cambia antes el nombre del esporádico.`, { ms: 7000 }); return; }
       b.disabled = true;
-      let c; try { c = await M.addClient({ name: e0.txt, servicio: tipo }); } catch (err) { X.toast('No se pudo: ' + ((err && err.message) || err)); b.disabled = false; return; }
+      // its id stays (D-378): its web (its account, its comments, its invoices) goes with it; the server never changes a client's id
+      let c; try { c = await M.addClient({ id: e0.id, name: e0.txt, servicio: tipo }); } catch (err) { X.toast('No se pudo: ' + ((err && err.message) || err)); b.disabled = false; return; }
       let sinIvaMal = false; try { if (e0.sinIva && C && C.ivaPoner) await C.ivaPoner(c.id, true); } catch (err) { sinIvaMal = true; }   // its «Sin IVA» goes with it (D-377); if not, said
       try { if (C) for (const r of C.vivos(e0.id)) await C.parche(r.id, { cliente: c.id }); }   // its payments go with it first (D-234)
       catch (err) { X.toast('No se pudo pasar sus cobros: ' + ((err && err.message) || err), { ms: 8000 }); b.disabled = false; return; }

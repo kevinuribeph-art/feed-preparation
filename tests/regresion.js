@@ -26782,6 +26782,24 @@
     } finally { await epFin(); }
   });
 
+  prueba('EV5', '«Pasar a mensual» se lleva su web (D-378): el cliente mensual nuevo conserva su identificador, así su cuenta, sus comentarios y sus facturas siguen; su página deja de ser la de un esporádico', async () => {
+    await tablero([pub(1)]); await sinTareas(); relojEn('2026-11-19T10:00:00+01:00');
+    let nuevo = null;
+    try {
+      await epListo();
+      const { e } = await epCliente('ev5esp', 'Esporádico EV5');
+      await epAbre(e.id);
+      ok(M.personal._p.espWeb() === e.id, 'su web no es la de su página');
+      q('[data-pp="ep-mas"]').click(); const it = await hasta(() => qa('.pp-menu button[data-a]').length ? qa('.pp-menu button[data-a]') : null, 2000, 'su menú');
+      it[0].click(); await hasta(() => q('.detail[data-dlg="pp-pasar"]:not([hidden])'), 2000, 'su diálogo');
+      q('.detail [data-pp-pasar]').click();
+      await hasta(() => M._in.CL.some(c => c.name === 'Esporádico EV5'), 4000, 'el cliente nuevo');
+      const c = M._in.CL.find(x => x.name === 'Esporádico EV5'); nuevo = c.id;
+      igual(c.id, e.id, 'el cliente mensual no conserva su identificador');
+      ok(!M.personal._p.espCli(e.id) && M.personal._p.espWeb() == null, 'sigue como esporádico');
+    } finally { await epFin(); if (nuevo) await M.removeClient(nuevo).catch(() => {}); }
+  });
+
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;
   $('resumen').textContent = `${T.length} pruebas listas.`;

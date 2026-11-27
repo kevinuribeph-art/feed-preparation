@@ -358,11 +358,11 @@ const ORDENES = {
     const servicio = (ruta, o = {}) => rest(P, ruta, { ...o, apikey: P.secreta });
 
     // 1. Que cada cliente exista ya en el portal.
-    const cl = await servicio(`clientes?select=id,nombre&id=in.(${ids.join(',')})`);
+    const cl = await servicio(`clientes?select=id,nombre,servicio&id=in.(${ids.join(',')})`);
     if (!cl.ok) throw new Fallo(`no se pudieron leer los clientes (${cl.status}): ${cl.text}`);
     const faltan = ids.filter(x => !(cl.json || []).some(c => c.id === x));
     if (faltan.length) throw new Fallo(`${faltan.join(', ')} aún no ${faltan.length > 1 ? 'están' : 'está'} en el portal: envía antes su tablero desde la Mesa con «Web del cliente». No se ha dado de alta nada ni se ha enviado ningún correo`);
-    const m = bienvenida({ nombre, correo, clientes: ids.map(x => cl.json.find(c => c.id === x).nombre) });
+    const m = bienvenida({ nombre, correo, clientes: ids.map(x => cl.json.find(c => c.id === x).nombre), sesiones: ids.every(x => cl.json.find(c => c.id === x).servicio === 'sesiones') });   // un esporádico: sus sesiones (D-378)
     const responderA = await correoDelDueno(P);
 
     // Una prueba: el correo tal cual, a otra dirección (Kevin), sin crear nada.
